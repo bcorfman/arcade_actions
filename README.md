@@ -5,4 +5,4 @@ Install dependencies with `make install`
 
 Run the demo with `make run`
 
-<img src="res/demo.gif"/>
+<img src="res/demo.gif" width="500px"/>
