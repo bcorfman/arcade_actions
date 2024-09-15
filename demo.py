@@ -8,17 +8,12 @@ from actions.interval import (
     Blink,
     FadeIn,
     FadeOut,
-    FadeTo,
-    JumpBy,
     JumpTo,
-    Lerp,
     MoveBy,
     MoveTo,
     RotateBy,
-    RotateTo,
     ScaleBy,
     ScaleTo,
-    Speed,
 )
 
 SCREEN_WIDTH = 800
@@ -75,19 +70,14 @@ class ActionDemo(arcade.Window):
             ("MoveTo", lambda: MoveTo((600, 300), 2.0)),
             ("MoveBy", lambda: MoveBy((-200, 125), 2.0)),  # Move to upper left
             ("RotateBy", lambda: RotateBy(360, 2.0)),
-            ("RotateTo", lambda: RotateTo(180, 2.0)),
             ("FadeOut", lambda: FadeOut(2.0)),
             ("FadeIn", lambda: FadeIn(2.0)),
-            ("FadeTo", lambda: FadeTo(128, 2.0)),
             ("ScaleTo", lambda: ScaleTo(1.5, 2.0)),
             ("ScaleBy", lambda: ScaleBy(0.5, 2.0)),
             ("Blink", lambda: Blink(5, 2.0)),
-            ("Lerp", lambda: Lerp("center_x", 100, 700, 2.0)),
-            ("Speed", lambda: Speed(MoveTo((200, 300), 4.0), 2.0)),
             ("Accelerate", lambda: Accelerate(MoveTo((600, 300), 2.0), 2.0)),
             ("AccelDecel", lambda: AccelDecel(MoveTo((200, 300), 2.0))),
             ("Bezier", lambda: Bezier([(0, 0), (200, 200), (400, -200), (600, 0)], 3.0)),
-            ("JumpBy", lambda: JumpBy((200, -100), 100, 3, 2.0)),
             ("JumpTo", lambda: JumpTo((400, 300), 100, 3, 2.0)),
         ]
 
