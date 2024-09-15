@@ -1,7 +1,7 @@
 # ArcadeActions
 Tested with WSL2/Ubuntu and Windows 11.
 
-Install dependencies with `make install`
+On Ubuntu, install dependencies with `make install`
 
 Run the demo with `make run`
 
