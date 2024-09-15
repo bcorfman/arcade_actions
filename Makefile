@@ -9,7 +9,7 @@ setup:
 
 install:
 	uv python pin $(PYTHON_VERSION)
-	uv sync --frozen --no-dev
+	uv sync --no-dev
 
 devinstall:
 	uv python pin $(PYTHON_VERSION)
@@ -24,7 +24,7 @@ test:
 	uv run pytest
 
 run: 
-	uv run python main.py
+	uv run python demo.py
 
 lint:
 	uv tool run ruff check -q
