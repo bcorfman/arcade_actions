@@ -1,6 +1,8 @@
+import math
+
 import arcade
 
-from actions.base import Action
+from actions.base import Action, Spawn
 from actions.interval import (
     AccelDecel,
     Accelerate,
@@ -20,6 +22,7 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 SCREEN_TITLE = "Action System Demo"
 TEXT_MARGIN = 60  # Margin for text at the top of the screen
+SPRITE_IMAGE_PATH = ":resources:images/animated_characters/female_person/femalePerson_idle.png"
 
 
 class ActionSprite(arcade.Sprite):
@@ -40,9 +43,10 @@ class ActionSprite(arcade.Sprite):
         action.start()
         self.actions.append(action)
 
-    def update(self):
+    def update(self, delta_time: float = 1 / 60):
+        super().update()
         for action in self.actions[:]:
-            action.step(1 / 60)  # Assuming 60 FPS
+            action.step(delta_time)
             if action.done():
                 action.stop()
                 self.actions.remove(action)
@@ -61,14 +65,14 @@ class ActionDemo(arcade.Window):
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
         arcade.set_background_color(arcade.color.WHITE)
 
-        self.sprite = ActionSprite(":resources:images/animated_characters/female_person/femalePerson_idle.png", 0.5)
+        self.sprite = ActionSprite(SPRITE_IMAGE_PATH, 0.5)
         self.sprite_list = arcade.SpriteList()
         self.sprite_list.append(self.sprite)
 
         self.current_action = 0
         self.actions = [
             ("MoveTo", lambda: MoveTo((600, 300), 2.0)),
-            ("MoveBy", lambda: MoveBy((-200, 125), 2.0)),  # Move to upper left
+            ("MoveBy", lambda: MoveBy((-200, 125), 2.0)),
             ("RotateBy", lambda: RotateBy(360, 2.0)),
             ("FadeOut", lambda: FadeOut(2.0)),
             ("FadeIn", lambda: FadeIn(2.0)),
@@ -79,6 +83,7 @@ class ActionDemo(arcade.Window):
             ("AccelDecel", lambda: AccelDecel(MoveTo((200, 300), 2.0))),
             ("Bezier", lambda: Bezier([(0, 0), (200, 200), (400, -200), (600, 0)], 3.0)),
             ("JumpTo", lambda: JumpTo((400, 300), 100, 3, 2.0)),
+            ("Spawn with Bezier", self.create_spawn_bezier_action),
         ]
 
         self.message = ""
@@ -95,9 +100,51 @@ class ActionDemo(arcade.Window):
         self.demo_active = False
         self.start_demo()
 
+    def create_spawn_bezier_action(self):
+        num_sprites = 16
+        radius = (
+            min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.6 - TEXT_MARGIN
+        )  # Adjust radius to fit within screen and below text
+        spawn_x, spawn_y = self.sprite.center_x, self.sprite.center_y  # Use the current sprite's position
+
+        bezier_paths: List[List[Tuple[float, float]]] = []
+        for i in range(num_sprites):
+            angle = 2 * math.pi * i / num_sprites
+            end_x = radius * math.cos(angle)
+            end_y = radius * math.sin(angle)
+
+            # Create a curved path that goes out from the center, circles around, and comes back
+            control1_x = end_y * 0.5  # Perpendicular to the radius
+            control1_y = -end_x * 0.5
+            control2_x = end_x + end_y * 0.5
+            control2_y = end_y - end_x * 0.5
+
+            path = [
+                (0, 0),  # Start at center
+                (control1_x, control1_y),  # First control point
+                (control2_x, control2_y),  # Second control point
+                (0, 0),  # End back at center
+            ]
+            bezier_paths.append(path)
+
+        self.sprite_list.remove(self.sprite)
+
+        sprites = [ActionSprite(SPRITE_IMAGE_PATH, 2.0) for _ in range(num_sprites)]
+        for sprite in sprites:
+            sprite.center_x = spawn_x
+            sprite.center_y = spawn_y
+            self.sprite_list.append(sprite)
+
+        actions = [Bezier(path, 4.0) for path in bezier_paths]
+        return Spawn(actions)
+
     def start_demo(self):
         self.demo_active = True
         self.current_action = 0
+        # Reset to only one sprite with original scale
+        self.sprite_list = arcade.SpriteList()
+        self.sprite = ActionSprite(SPRITE_IMAGE_PATH, 0.5)
+        self.sprite_list.append(self.sprite)
         self.sprite.reset_state()
         self.start_next_action()
 
@@ -106,7 +153,12 @@ class ActionDemo(arcade.Window):
             action_name, action_creator = self.actions[self.current_action]
             self.message = f"Current Action: {action_name}"
             self.text_sprite.text = self.message
-            self.sprite.do(action_creator())
+            if action_name == "Spawn with Bezier":
+                action = action_creator()
+                for sprite, subaction in zip(self.sprite_list, action.actions, strict=False):
+                    sprite.do(subaction)
+            else:
+                self.sprite.do(action_creator())
             self.current_action += 1
         else:
             self.demo_active = False
@@ -119,8 +171,8 @@ class ActionDemo(arcade.Window):
         self.text_sprite.draw()
 
     def on_update(self, delta_time):
-        self.sprite.update()
-        if self.demo_active and not self.sprite.actions:
+        self.sprite_list.update(delta_time)
+        if self.demo_active and all(not sprite.actions for sprite in self.sprite_list):
             self.start_next_action()
 
     def on_key_press(self, key, modifiers):
