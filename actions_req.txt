@@ -1,0 +1,232 @@
+# Action System Demo and Action Requirements
+
+## I. Demo Requirements
+
+1. Window Setup
+
+Create a window using Arcade 3.0
+Set the window dimensions to 800x600 pixels
+Set the window title to "Action System Demo"
+Set a white background color
+Define a text margin at the top of the screen to prevent sprite overlap with text
+
+2. Sprite Creation and Management
+
+Create an ActionSprite class that inherits from arcade.Sprite
+Define a constant for the sprite image path to improve code readability and maintainability
+Load a character sprite from Arcade's built-in resources using the defined constant
+Initialize the sprite at the center of the screen
+Use arcade.SpriteList to manage and efficiently render sprites
+Implement a method to reset the sprite to its initial state
+Ensure sprites stay within screen bounds and below the text margin during all actions
+
+3. Action Demonstration
+
+Implement demonstrations for the following actions:
+
+MoveTo
+MoveBy (specifically to upper left)
+RotateBy
+RotateTo
+FadeIn
+FadeOut
+FadeTo
+ScaleTo
+ScaleBy
+Blink
+Lerp
+Speed
+Accelerate
+AccelDecel
+Bezier
+JumpBy
+JumpTo
+Spawn (with 16 sprites following Bezier paths)
+
+Ensure each action demonstration is clearly visible and understandable
+Use appropriate parameters for each action to showcase its effect
+Ensure actions keep sprites fully visible within the screen boundaries and below the text margin
+
+4. User Interface
+
+Display the name of the current action being demonstrated
+Show instructions for restarting the demo (SPACE key) or exiting (ESC key) when the demo is complete
+Use arcade.Text objects for efficient text rendering
+Position text elements to avoid overlap with sprites
+
+5. Interaction and Flow
+
+Implement key press handling for SPACE (restart demo) and ESC (exit demo)
+Create a smooth transition between action demonstrations
+Implement a proper restart mechanism that resets sprite states and recreates actions
+
+6. Performance and Compatibility
+
+Ensure smooth animation at 60 FPS
+Optimize action processing for efficiency
+Ensure full compatibility with Arcade 3.0
+Test the demo on multiple platforms (Windows, macOS, Linux)
+
+7. Code Structure and Documentation
+
+Organize the demo code in a clear, readable structure
+Use proper Python naming conventions and style guidelines
+Include necessary imports from the action system modules
+Provide clear, concise comments explaining key parts of the demo code
+Include a brief description of how to run the demo at the top of the file
+Use constants for frequently used values, such as screen dimensions, sprite image paths, and other configuration parameters
+Group related constants together at the top of the file for easy access and modification
+Use meaningful and descriptive names for constants to enhance code readability
+
+8. Error Handling and Recovery
+
+Implement proper error handling for resource loading and action execution
+Gracefully handle any potential runtime errors
+Ensure the demo can continue or gracefully terminate if an action fails
+
+9. Extensibility
+
+Structure the demo to allow easy addition of new actions or sprites
+Make it simple to modify the action sequence or add new actions to the demonstration
+
+10. Spawn Action with Multiple Sprites
+
+Implement a Spawn action as the last action in the demo
+Create 16 sprites emanating from the same spot where the JumpTo action stops
+For each sprite:
+   * Create a unique Bezier path that:
+      1. Starts from the center point
+      2. Moves outward in a curved path
+      3. Circles around at a distance
+      4. Returns to the center point
+   * The maximum radius of the movement should be within the screen boundaries and below the text margin
+Each sprite should follow its unique path simultaneously
+Remove the original single sprite when the 16 sprites are spawned
+Ensure spawned sprites have the same scale factor as the sprite in the prior action
+Remove extra sprites created by the Spawn action when the demo is restarted
+
+## II. Action Requirements
+
+### 1. Base Action System
+- Implement a base `Action` class with methods: `start()`, `step(dt: float)`, `done() -> bool`, `stop()`
+- The `step(dt: float)` method should use the `dt` parameter (representing delta time) to update the action's progress
+- Support action composition: sequence (`+`), repeat (`*`), and parallel (`|`) operations
+- Implement `IntervalAction` class for time-based actions
+- Implement `InstantAction` class for immediate actions
+- Create `Loop`, `Sequence`, `Spawn`, and `Repeat` classes for complex action patterns
+- Ensure all derived action classes properly utilize `dt` for frame-rate independent behavior
+
+### 2. Specific Action Implementations
+- MoveTo: Move sprite to a specific position
+- MoveBy: Move sprite by a given amount
+- RotateBy: Rotate sprite by a given angle
+- RotateTo: Rotate sprite to a specific angle
+- FadeIn: Fade in the sprite
+- FadeOut: Fade out the sprite
+- FadeTo: Fade sprite to a specific alpha value
+- ScaleTo: Scale sprite to a specific size
+- ScaleBy: Scale sprite by a given factor
+- Blink: Make sprite blink
+- Lerp: Linear interpolation of a sprite attribute
+- Speed: Modify the speed of another action
+- Accelerate: Apply acceleration to another action
+- AccelDecel: Apply acceleration and deceleration to another action
+- Bezier: Move sprite along a Bezier curve
+    - Accept control points relative to the sprite's starting position
+    - Adjust control points based on the sprite's position at the start of the action
+- JumpBy: Make sprite jump by a given amount
+    - Implement both horizontal and vertical movement
+    - Create a visible arc for the jump
+- JumpTo: Make sprite jump to a specific position
+
+### 3. Complex Action Patterns
+
+- Loop
+   - Inherit from the `Action` class
+   - Initialize with an action to be looped and the number of times to loop
+   - Implement `start()` method to initialize the current action and set its target
+   - Implement `step(dt: float)` method to:
+     - Pass the `dt` (delta time) to the current action's `step` method
+     - Accumulate elapsed time using `dt`
+     - Check if the current action is done
+     - If done, decrement the loop count and reset the action if loops remain
+     - Set the Loop action as done when all loops are complete
+   - Implement `stop()` method to stop the current action and reset the Loop state
+
+- Sequence
+   - Inherit from the `Action` class
+   - Initialize with a list of actions to be executed in sequence
+   - Implement `start()` method to set the target for all actions and start the first action
+   - Implement `step(dt: float)` method to:
+     - Pass the `dt` (delta time) to the current action's `step` method
+     - If the current action is done, move to the next action in the sequence
+     - Set the Sequence action as done when all actions are complete
+   - Implement `stop()` method to stop the current action
+
+- Spawn
+   - Inherit from the Action class
+   - Initialize with a list of actions to be executed in parallel on multiple sprites
+   - Implement start() method to set the target for all actions and start them
+   - Implement step(dt: float) method to:
+     - Pass the dt (delta time) to each active action's step method
+     - Set the Spawn action as done when all actions are complete
+   - Implement stop() method to stop all actions
+   - Support creation and management of multiple sprites
+   - Allow for complex path definitions (e.g., Bezier curves) for each spawned sprite
+   - Ensure even distribution of sprites around a central point for circular patterns
+   
+- Repeat
+   - Inherit from the `Action` class
+   - Initialize with an action to be repeated indefinitely
+   - Implement `start()` method to initialize the current action and set its target
+   - Implement `step(dt: float)` method to:
+     - Pass the `dt` (delta time) to the current action's `step` method
+     - If the current action is done, reset it and start again
+   - Implement `stop()` method to stop the current action
+
+### 4. Action Behavior and Parameters
+- Ensure consistent use of tuples for all position-based parameters
+- Implement proper type checking for action parameters
+- Ensure all actions respect the boundaries of the screen and text margin
+- Implement `__reversed__()` method for reversible actions
+- Ensure all actions properly use the `dt` parameter (representing delta time) in their `step` methods to create frame-rate independent animations and behaviors
+- Actions should adjust their progress based on `dt` to ensure consistent behavior across different frame rates
+- For actions with a duration, accumulate elapsed time using `dt` and use this to calculate the action's progress
+- Implement a method to convert `dt`-based progress to a normalized time value (0 to 1) for use in interpolation calculations
+
+### 5. Integration with Arcade
+- Create an `ActionSprite` class that inherits from `arcade.Sprite`
+- Implement `do(action: Action)` method for `ActionSprite` to execute actions
+- Implement `update()` method for `ActionSprite` to process active actions
+- Implement `remove_action(action: Action)` method for `ActionSprite`
+- Ensure compatibility with Arcade 3.0 by using appropriate Arcade features and avoiding deprecated ones
+- Ensure the `ActionSprite` class's `update()` method passes the correct `dt` (delta time) to its actions
+- Implement frame-rate independent movement and animations in all action types
+
+### 6. Performance and Optimization
+- Optimize action execution for large numbers of sprites
+- Minimize memory usage and object creation
+- Implement efficient update loops for all actions
+- Optimize action execution to efficiently handle `dt` (delta time) calculations
+- Implement `dt` clamping or scaling to handle extreme frame rate fluctuations
+
+### 7. Documentation and Testing
+- Provide clear documentation for each action class and method
+- Include usage examples for common scenarios
+- Develop unit tests for individual actions
+- Create integration tests for complex action sequences
+- Test performance with a large number of sprites and actions
+- Provide clear documentation explaining that `dt` represents delta time (time elapsed since the last frame) in all relevant methods
+- Develop unit tests that verify correct `dt` usage and frame-rate independence
+- Create integration tests that simulate various frame rates to ensure consistent behavior
+
+### 8. Extensibility and Maintenance
+- Design the system to allow easy addition of new custom actions
+- Provide clear guidelines for creating new actions
+- Use consistent naming conventions and code style throughout the project
+- Implement proper inheritance hierarchy for action classes
+
+### 9. Error Handling and Edge Cases
+- Implement proper error handling for invalid parameters or states
+- Handle potential edge cases in action execution (e.g., division by zero, out-of-bounds movements)
+- Provide meaningful error messages for debugging
