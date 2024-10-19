@@ -1,4 +1,7 @@
+import logging
 import math
+import traceback
+from functools import wraps
 
 import arcade
 
@@ -24,8 +27,48 @@ SCREEN_TITLE = "Action System Demo"
 TEXT_MARGIN = 60  # Margin for text at the top of the screen
 SPRITE_IMAGE_PATH = ":resources:images/animated_characters/female_person/femalePerson_idle.png"
 
+# Setup basic configuration for logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    filename="demo.log",  # Log to a file
+    filemode="a",
+)  # Append mode
+
+# Create a console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.WARNING)  # Set console to show only warnings and above
+formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+console_handler.setFormatter(formatter)
+
+# Get the root logger and add the console handler
+logger = logging.getLogger()
+logger.addHandler(console_handler)
+
+
+def error_handler(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error in {func.__name__}: {e}")
+            logger.debug(traceback.format_exc())
+
+            # For methods that are part of the game loop (update, draw, etc.),
+            # we want to continue execution to prevent the game from freezing
+            if func.__name__ in ["on_update", "on_draw", "update"]:
+                return
+
+            # For other functions, we might want to re-raise the exception
+            # to allow the caller to handle it
+            raise
+
+    return wrapper
+
 
 class ActionSprite(arcade.Sprite):
+    @error_handler
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.actions: list[Action] = []
@@ -38,29 +81,37 @@ class ActionSprite(arcade.Sprite):
         }
         self.reset_state()
 
+    @error_handler
     def do(self, action: Action):
         action.target = self
         action.start()
         self.actions.append(action)
 
+    @error_handler
     def update(self, delta_time: float = 1 / 60):
         super().update()
         for action in self.actions[:]:
-            action.step(delta_time)
-            if action.done():
-                action.stop()
+            try:
+                action.step(delta_time)
+                if action.done():
+                    action.stop()
+                    self.actions.remove(action)
+            except Exception as e:
+                print(f"Error updating action: {e}")
                 self.actions.remove(action)
 
         # Ensure sprite stays within screen bounds and below text
         self.center_x = max(self.width / 2, min(self.center_x, SCREEN_WIDTH - self.width / 2))
         self.center_y = max(self.height / 2 + TEXT_MARGIN, min(self.center_y, SCREEN_HEIGHT - self.height / 2))
 
+    @error_handler
     def reset_state(self):
         for attr, value in self.initial_state.items():
             setattr(self, attr, value)
 
 
 class ActionDemo(arcade.Window):
+    @error_handler
     def __init__(self):
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
         arcade.set_background_color(arcade.color.WHITE)
@@ -100,6 +151,7 @@ class ActionDemo(arcade.Window):
         self.demo_active = False
         self.start_demo()
 
+    @error_handler
     def create_spawn_bezier_action(self):
         num_sprites = 16
         radius = (
@@ -107,7 +159,7 @@ class ActionDemo(arcade.Window):
         )  # Adjust radius to fit within screen and below text
         spawn_x, spawn_y = self.sprite.center_x, self.sprite.center_y  # Use the current sprite's position
 
-        bezier_paths: List[List[Tuple[float, float]]] = []
+        bezier_paths = []
         for i in range(num_sprites):
             angle = 2 * math.pi * i / num_sprites
             end_x = radius * math.cos(angle)
@@ -138,6 +190,7 @@ class ActionDemo(arcade.Window):
         actions = [Bezier(path, 4.0) for path in bezier_paths]
         return Spawn(actions)
 
+    @error_handler
     def start_demo(self):
         self.demo_active = True
         self.current_action = 0
@@ -148,6 +201,7 @@ class ActionDemo(arcade.Window):
         self.sprite.reset_state()
         self.start_next_action()
 
+    @error_handler
     def start_next_action(self):
         if self.current_action < len(self.actions):
             action_name, action_creator = self.actions[self.current_action]
@@ -155,8 +209,9 @@ class ActionDemo(arcade.Window):
             self.text_sprite.text = self.message
             if action_name == "Spawn with Bezier":
                 action = action_creator()
-                for sprite, subaction in zip(self.sprite_list, action.actions, strict=False):
-                    sprite.do(subaction)
+                if action:
+                    for sprite, subaction in zip(self.sprite_list, action.actions, strict=False):
+                        sprite.do(subaction)
             else:
                 self.sprite.do(action_creator())
             self.current_action += 1
@@ -165,16 +220,19 @@ class ActionDemo(arcade.Window):
             self.message = "Demo completed. Press SPACE to restart or ESC to exit."
             self.text_sprite.text = self.message
 
+    @error_handler
     def on_draw(self):
         self.clear()
         self.sprite_list.draw()
         self.text_sprite.draw()
 
+    @error_handler
     def on_update(self, delta_time):
         self.sprite_list.update(delta_time)
         if self.demo_active and all(not sprite.actions for sprite in self.sprite_list):
             self.start_next_action()
 
+    @error_handler
     def on_key_press(self, key, modifiers):
         if key == arcade.key.SPACE and not self.demo_active:
             self.start_demo()
@@ -182,6 +240,7 @@ class ActionDemo(arcade.Window):
             arcade.close_window()
 
 
+@error_handler
 def main():
     ActionDemo()
     arcade.run()
