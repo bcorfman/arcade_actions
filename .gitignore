@@ -144,3 +144,6 @@ cython_debug/
 
 # Mac files
 .DS_Store
+
+# log files
+demo.log
