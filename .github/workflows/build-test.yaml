@@ -43,6 +43,6 @@ jobs:
     - name: Run tests
       run: |
         if [ "${{ runner.os }}" == "Windows" ]; then
-          python -c "import setup_headless"
+          uv run python -c "import setup_headless"
         fi
-        pytest tests/ --show-capture=no
+        uv run pytest tests/ --show-capture=no
