@@ -22,7 +22,8 @@ jobs:
       run: |
         make setup
         uv python pin ${{ matrix.python-version }}
-        uv sync --no-dev
+        uv add pytest pytest-cov --dev
+        uv sync --all-extras --dev
     
     - name: Set up virtual display (Linux only)
       if: runner.os == 'Linux'
