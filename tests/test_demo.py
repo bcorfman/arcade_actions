@@ -1,3 +1,7 @@
+import os
+
+os.environ["ARCADE_HEADLESS"] = "True"
+
 import pytest
 
 from actions.base import Spawn
