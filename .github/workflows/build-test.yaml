@@ -16,7 +16,7 @@ jobs:
     - name: Set up environment
       run: |
         sudo apt-get update
-        sudo apt-get install -y mesa-common-dev libegl1-mesa-dev
+        sudo apt-get install -y libglfw3-dev libgles2-mesa-dev
 
     - name: Install dependencies
       run: |
