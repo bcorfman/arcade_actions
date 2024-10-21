@@ -7,8 +7,8 @@ license = {file="LICENSE"}
 readme = "README.md"
 requires-python = ">= 3.10"
 dependencies = [
-    "arcade>=3.0.0.dev30",
-    "pyglet>=2.1.dev5",
+    "arcade>=3.0.0.dev34",
+    "pyglet>=2.1.dev7",
 ]
 
 [tool.uv]
