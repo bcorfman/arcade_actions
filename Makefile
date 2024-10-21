@@ -13,7 +13,7 @@ install:
 
 devinstall:
 	uv python pin $(PYTHON_VERSION)
-	uv add pytest pytest-cov --dev
+	uv add pytest --dev
 	uv sync --all-extras --dev
 
 tools:

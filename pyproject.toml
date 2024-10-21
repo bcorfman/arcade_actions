@@ -14,11 +14,9 @@ dependencies = [
 [tool.uv]
 dev-dependencies = [
     "pytest>=8.3.3",
-    "pytest-cov>=5.0.0",
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov-branch --cov-report term --cov=core"
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers=["unit: Unit tests.",
