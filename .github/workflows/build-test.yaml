@@ -30,7 +30,7 @@ jobs:
       run: |
         sudo apt-get install -y xvfb
         export DISPLAY=:99
-        Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+        Xvfb :99 -screen 0 800x600x24 > /dev/null 2>&1 &
     
     - name: Set up headless context (Windows only)
       if: runner.os == 'Windows'
@@ -44,5 +44,10 @@ jobs:
       run: |
         if [ "${{ runner.os }}" == "Windows" ]; then
           uv run python -c "import setup_headless"
+        fi
+        if [ "${{ runner.os }}" == "Linux" ]; then
+          sudo apt-get install -y xvfb
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 800x600x24 > /dev/null 2>&1 &
         fi
         uv run pytest tests/ --show-capture=no
