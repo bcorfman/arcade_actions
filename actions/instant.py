@@ -1,84 +1,94 @@
-import copy
+from __future__ import annotations
+
 from collections.abc import Callable
-from typing import Any
 
-import arcade
-
-from .base import InstantAction
+from .base import ActionSprite, InstantAction
 
 
 class Place(InstantAction):
-    def __init__(self, position: tuple[float, float]):
-        super().__init__()
-        self.position = position
+    """
+    Sets the sprite's position to a specified (x, y) coordinate.
 
-    def start(self):
-        self.target.center_x, self.target.center_y = self.position
+    Attributes:
+        position (Tuple[float, float]): Target (x, y) coordinates for the sprite.
+    """
+
+    def __init__(self, position: tuple[float, float]) -> None:
+        """Initialize with target position."""
+        super().__init__()
+        self.position: tuple[float, float] = position
+
+    def update(self, t: float) -> None:
+        """Set the sprite's center_x and center_y to the specified position."""
+        if self.target:
+            self.target.center_x, self.target.center_y = self.position
 
 
 class Hide(InstantAction):
-    def start(self):
-        self.target.visible = False
+    """
+    Makes the sprite invisible by setting its alpha to 0.
+    """
 
-    def __reversed__(self):
-        return Show()
+    def update(self, t: float) -> None:
+        """Set the sprite's alpha to 0 to hide it."""
+        if self.target:
+            self.target.alpha = 0
 
 
 class Show(InstantAction):
-    def start(self):
-        self.target.visible = True
+    """
+    Makes the sprite visible by setting its alpha to 255.
+    """
 
-    def __reversed__(self):
-        return Hide()
+    def update(self, t: float) -> None:
+        """Set the sprite's alpha to 255 to show it."""
+        if self.target:
+            self.target.alpha = 255
 
 
 class ToggleVisibility(InstantAction):
-    def start(self):
-        self.target.visible = not self.target.visible
+    """
+    Toggles the sprite's visibility by changing its alpha between 0 and 255.
+    """
+
+    def update(self, t: float) -> None:
+        """Toggle the sprite's alpha between 0 (hidden) and 255 (visible)."""
+        if self.target:
+            self.target.alpha = 0 if self.target.alpha > 0 else 255
 
 
 class CallFunc(InstantAction):
-    def __init__(self, func: Callable, *args: Any, **kwargs: Any):
+    """
+    Calls a specified function when executed.
+
+    Attributes:
+        func (Callable[[], None]): The function to be called.
+    """
+
+    def __init__(self, func: Callable[[], None]) -> None:
+        """Initialize with the function to call."""
         super().__init__()
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
+        self.func: Callable[[], None] = func
 
-    def start(self):
-        self.func(*self.args, **self.kwargs)
-
-    def __deepcopy__(self, memo):
-        return copy.copy(self)
+    def update(self, t: float) -> None:
+        """Call the specified function."""
+        self.func()
 
 
-class CallFuncS(CallFunc):
-    def start(self):
-        self.func(self.target, *self.args, **self.kwargs)
+class CallFuncS(InstantAction):
+    """
+    Calls a specified function, passing the sprite as the first argument.
 
+    Attributes:
+        func (Callable[[ActionSprite], None]): The function to be called, with the sprite as argument.
+    """
 
-# Usage example
-if __name__ == "__main__":
-    window = arcade.Window(800, 600, "Instant Actions Example")
+    def __init__(self, func: Callable[[ActionSprite], None]) -> None:
+        """Initialize with the function to call."""
+        super().__init__()
+        self.func: Callable[[ActionSprite], None] = func
 
-    sprite = arcade.Sprite(":resources:images/animated_characters/female_person/femalePerson_idle.png", 0.5)
-    sprite.center_x = 400
-    sprite.center_y = 300
-
-    def print_message(target):
-        print(f"Hello from {target}")
-
-    action = Place((200, 200)) + CallFuncS(print_message) + Hide() + Show() + ToggleVisibility()
-
-    sprite.do(action)
-
-    @window.event
-    def on_draw():
-        arcade.start_render()
-        sprite.draw()
-
-    def update(delta_time):
-        sprite.update()
-
-    arcade.schedule(update, 1 / 60)
-
-    arcade.run()
+    def update(self, t: float) -> None:
+        """Call the function, passing the sprite as an argument."""
+        if self.target:
+            self.func(self.target)

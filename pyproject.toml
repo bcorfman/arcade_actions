@@ -18,14 +18,14 @@ dev-dependencies = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov-branch --cov-report term --cov=core"
+addopts = "--cov-branch --cov-report term --cov=actions"
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers=["unit: Unit tests.",
          "system: System (browser-based) tests."]
          
 [tool.coverage.run]
-source = ["core"]
+source = ["actions"]
 
 [tool.ruff]
 line-length = 120
