@@ -1,537 +1,891 @@
 from __future__ import annotations
 
-import random
+import copy
+import math
+from typing import Any, Generic, TypeVar
 
-import arcade
+from arcade.sprite import Sprite
 
-from .base import ActionSprite, IntervalAction
-
-
-class MoveTo(IntervalAction):
-    """
-    Moves the sprite to a specified (x, y) position over time.
-
-    Attributes:
-        target_position (Tuple[float, float]): Target (x, y) coordinates.
-        start_position (Tuple[float, float]): Initial position, set when the action starts.
-    """
-
-    def __init__(self, x: float, y: float, duration: float) -> None:
-        """Initialize with target position and duration."""
-        super().__init__(duration)
-        self.target_position: tuple[float, float] = (x, y)
-        self.start_position: tuple[float, float] = (0, 0)
-
-    def start(self, target: ActionSprite) -> None:
-        """Set the initial position when the action starts."""
-        super().start(target)
-        if self.target:
-            self.start_position = (self.target.center_x, self.target.center_y)
-
-    def update(self, t: float) -> None:
-        """Interpolate the sprite's position from start to target."""
-        if self.target:
-            self.target.center_x = self.start_position[0] + (self.target_position[0] - self.start_position[0]) * t
-            self.target.center_y = self.start_position[1] + (self.target_position[1] - self.start_position[1]) * t
-
-
-class MoveBy(IntervalAction):
-    """
-    Moves the sprite by a specified (dx, dy) offset over time.
-
-    Attributes:
-        delta (Tuple[float, float]): (dx, dy) movement offset.
-        start_position (Tuple[float, float]): Initial position, set when the action starts.
-    """
-
-    def __init__(self, dx: float, dy: float, duration: float) -> None:
-        """Initialize with movement offset and duration."""
-        super().__init__(duration)
-        self.delta: tuple[float, float] = (dx, dy)
-        self.start_position: tuple[float, float] = (0, 0)
-
-    def start(self, target: ActionSprite) -> None:
-        """Set the initial position when the action starts."""
-        super().start(target)
-        if self.target:
-            self.start_position = (self.target.center_x, self.target.center_y)
-
-    def update(self, t: float) -> None:
-        """Move the sprite by the specified offset over time."""
-        if self.target:
-            self.target.center_x = self.start_position[0] + self.delta[0] * t
-            self.target.center_y = self.start_position[1] + self.delta[1] * t
-
-
-class RotateTo(IntervalAction):
-    """
-    Rotates the sprite to a specific angle over time.
-
-    Attributes:
-        target_angle (float): The target angle in degrees.
-        start_angle (float): The initial angle, set when the action starts.
-    """
-
-    def __init__(self, angle: float, duration: float) -> None:
-        """Initialize with target angle and duration."""
-        super().__init__(duration)
-        self.target_angle: float = angle
-        self.start_angle: float = 0
-
-    def start(self, target: ActionSprite) -> None:
-        """Set the initial angle when the action starts."""
-        super().start(target)
-        if self.target:
-            self.start_angle = self.target.angle
-
-    def update(self, t: float) -> None:
-        """Interpolate the sprite's angle from start to target."""
-        if self.target:
-            self.target.angle = self.start_angle + (self.target_angle - self.start_angle) * t
+from .base import IntervalAction, Reverse
 
 
 class RotateBy(IntervalAction):
+    """Rotates a Sprite object clockwise by a specified angle over time.
+
+    Args:
+        angle (float): Degrees to rotate (positive = clockwise)
+        duration (float): Time to complete rotation in seconds
+
+    Raises:
+        ValueError: If duration is negative
+        TypeError: If target is not an Arcade Sprite
     """
-    Rotates the sprite by a relative angle over time.
 
-    Attributes:
-        delta_angle (float): The angle to rotate by, in degrees.
-        start_angle (float): The initial angle, set when the action starts.
-    """
+    def init(self, angle: float, duration: float) -> None:
+        if duration < 0:
+            raise ValueError(f"Duration must be non-negative, got {duration}")
 
-    def __init__(self, delta_angle: float, duration: float) -> None:
-        """Initialize with delta angle and duration."""
-        super().__init__(duration)
-        self.delta_angle: float = delta_angle
-        self.start_angle: float = 0
+        self.angle = angle
+        self.duration = duration
 
-    def start(self, target: ActionSprite) -> None:
-        """Set the initial angle when the action starts."""
-        super().start(target)
-        if self.target:
-            self.start_angle = self.target.angle
+    def start(self) -> None:
+        if self.target is None:
+            raise AttributeError("Target cannot be None")
+
+        self._start_angle = self.target.angle
 
     def update(self, t: float) -> None:
-        """Rotate the sprite by the specified angle over time."""
-        if self.target:
-            self.target.angle = self.start_angle + self.delta_angle * t
+        new_angle = (self._start_angle + (self.angle * t)) % 360
+        self.target.angle = new_angle
+
+    def __reversed__(self) -> RotateBy:
+        return RotateBy(-self.angle, self.duration)
 
 
-class ScaleTo(IntervalAction):
+Rotate = RotateBy  # Alias for compatibility
+
+
+class RotateTo(IntervalAction):
+    """Rotates a Sprite to a specific angle using the shortest path.
+
+    Args:
+        angle (float): Target angle in degrees
+        duration (float): Time to complete rotation in seconds
+
+    Raises:
+        ValueError: If duration is negative
+        TypeError: If target is not an Arcade Sprite
     """
-    Scales the sprite to a specified scale factor over time.
 
-    Attributes:
-        target_scale (float): The target scale factor.
-        start_scale (float): The initial scale, set when the action starts.
-    """
+    angle: float
+    duration: float
+    target: Sprite | None = None
+    _start_angle: float | None = None
+    _delta_angle: float | None = None
 
-    def __init__(self, scale: float, duration: float) -> None:
-        """Initialize with target scale and duration."""
-        super().__init__(duration)
-        self.target_scale: float = scale
-        self.start_scale: float = 1
+    def init(self, angle: float, duration: float) -> None:
+        if duration < 0:
+            raise ValueError(f"Duration must be non-negative, got {duration}")
 
-    def start(self, target: ActionSprite) -> None:
-        """Set the initial scale when the action starts."""
-        super().start(target)
-        if self.target:
-            self.start_scale = self.target.scale
+        self.angle = angle % 360  # Normalize initial target angle
+        self.duration = duration
+        self._start_angle = None
+        self._delta_angle = None
+
+    def start(self) -> None:
+        """Calculate shortest rotation path to target angle."""
+        end_angle = self.angle
+        self._start_angle = self.target.angle % 360
+        self._delta_angle = (end_angle % 360) - (self._start_angle % 360)
+
+        # Adjust for shortest path
+        if self._delta_angle > 180:
+            self._delta_angle = -360 + self._delta_angle
+        if self._delta_angle < -180:
+            self._delta_angle = 360 + self._delta_angle
+
+        super().start()
 
     def update(self, t: float) -> None:
-        """Interpolate the sprite's scale from start to target."""
-        if self.target:
-            self.target.scale = self.start_scale + (self.target_scale - self.start_scale) * t
+        """Update rotation based on elapsed time fraction.
 
-
-class ScaleBy(IntervalAction):
-    """
-    Scales the sprite by a specified relative factor over time.
-
-    Attributes:
-        scale_factor (float): The factor by which to scale the sprite (e.g., 2.0 doubles the size).
-        start_scale (float): The initial scale of the sprite, set when the action starts.
-    """
-
-    def __init__(self, scale_factor: float, duration: float) -> None:
-        """Initialize with scale factor and duration."""
-        super().__init__(duration)
-        self.scale_factor: float = scale_factor
-        self.start_scale: float = 1.0  # Placeholder; actual value is set in start()
-
-    def start(self, target: ActionSprite) -> None:
-        """Set the initial scale when the action starts."""
-        super().start(target)
-        if self.target:
-            self.start_scale = self.target.scale
-
-    def update(self, t: float) -> None:
+        Args:
+            t (float): Elapsed time fraction (0.0 to 1.0)
         """
-        Interpolate the sprite's scale from start to the target scale.
+        assert self.target is not None, "Target sprite cannot be None"
+        assert self._start_angle is not None, "Start angle not initialized"
+        assert self._delta_angle is not None, "Delta angle not initialized"
 
-        This gradually applies the scale change over the duration.
+        # Calculate new angle with proper modulo
+        new_angle = (self._start_angle + (self._delta_angle * t)) % 360
+        self.target.angle = new_angle
+
+    def __reversed__(self) -> RotateTo:
+        """Create a reversed version of this rotation action."""
+        if self._start_angle is None:
+            raise RuntimeError("Cannot reverse RotateTo action before it starts")
+        return RotateTo(angle=self._start_angle, duration=self.duration)
+
+
+# Generic type for any IntervalAction
+T = TypeVar("T", bound=IntervalAction)
+
+
+class Speed(Generic[T], IntervalAction):
+    """Modifies the execution speed of another action.
+
+    Args:
+        action (IntervalAction): The action to modify
+        speed (float): Speed multiplier (>1 faster, <1 slower)
+
+    Raises:
+        ValueError: If speed is zero or negative
+        TypeError: If action is not an IntervalAction
+        ValueError: If action has no duration
+    """
+
+    def init(self, action: IntervalAction, speed: float) -> None:
+        if not isinstance(action, IntervalAction):
+            raise TypeError(f"Action must be an IntervalAction, got {type(action)}")
+        if speed <= 0:
+            raise ValueError(f"Speed must be positive, got {speed}")
+        if getattr(action, "duration", None) is None:
+            raise ValueError("Action must have a duration")
+
+        self.action = action
+        self.speed = speed
+        self.duration = action.duration / speed
+
+    def start(self) -> None:
+        """Start the modified action."""
+        assert self.target is not None, "Target cannot be None"
+
+        # Pass target to wrapped action
+        self.action.target = self.target
+        self.action.start()
+
+        super().start()
+
+    def update(self, t: float) -> None:
+        """Update wrapped action with current time fraction.
+
+        Args:
+            t (float): Elapsed time fraction (0.0 to 1.0)
         """
-        if self.target:
-            # The target scale at t=1 is start_scale * scale_factor
-            self.target.scale = self.start_scale * (1 + (self.scale_factor - 1) * t)
+        assert 0 <= t <= 1, f"Time fraction must be between 0 and 1, got {t}"
+        self.action.update(t)
+
+    def stop(self) -> None:
+        """Stop the wrapped action."""
+        self.action.stop()
+        super().stop()
+
+    def __reversed__(self) -> Speed[T]:
+        """Create a reversed version while maintaining speed modifier."""
+        return Speed(action=Reverse(self.action), speed=self.speed)
+
+
+class Accelerate(Generic[T], IntervalAction):
+    """Modifies the acceleration of another action.
+
+    Args:
+        action (IntervalAction): The action to modify
+        rate (float): Acceleration rate (>1: slow start, fast end; <1: fast start, slow end)
+
+    Raises:
+        ValueError: If rate is zero or negative
+        TypeError: If action is not an IntervalAction
+        ValueError: If action has no duration
+    """
+
+    def init(self, action: IntervalAction, rate: float = 2.0) -> None:
+        if not isinstance(action, IntervalAction):
+            raise TypeError(f"Action must be an IntervalAction, got {type(action)}")
+        if rate <= 0:
+            raise ValueError(f"Rate must be positive, got {rate}")
+        if getattr(action, "duration", None) is None:
+            raise ValueError("Action must have a duration")
+
+        self.action = action
+        self.rate = rate
+        self.duration = action.duration
+
+    def start(self) -> None:
+        """Start the modified action."""
+        assert self.target is not None, "Target cannot be None"
+
+        # Pass target to wrapped action
+        self.action.target = self.target
+        self.action.start()
+
+        super().start()
+
+    def update(self, t: float) -> None:
+        """Update wrapped action with accelerated time fraction.
+
+        Args:
+            t (float): Elapsed time fraction (0.0 to 1.0)
+
+        The time fraction is modified by raising it to the power of rate,
+        creating acceleration (rate>1) or deceleration (rate<1) effects.
+        """
+        assert 0 <= t <= 1, f"Time fraction must be between 0 and 1, got {t}"
+
+        # Apply acceleration by modifying time value
+        modified_time = t**self.rate
+        self.action.update(modified_time)
+
+    def stop(self) -> None:
+        """Stop the wrapped action."""
+        self.action.stop()
+        super().stop()
+
+    def __reversed__(self) -> Accelerate[T]:
+        """Create a reversed version with reciprocal rate."""
+        return Accelerate(action=Reverse(self.action), rate=1.0 / self.rate)
+
+
+class AccelDecel(Generic[T], IntervalAction):
+    """Creates an ease-in-ease-out effect for an action using a sigmoid curve.
+
+    Args:
+        action (IntervalAction): The action to modify with ease-in-ease-out timing
+
+    Raises:
+        TypeError: If action is not an IntervalAction
+        ValueError: If action has no duration
+    """
+
+    def init(self, action: IntervalAction) -> None:
+        if not isinstance(action, IntervalAction):
+            raise TypeError(f"Action must be an IntervalAction, got {type(action)}")
+        if getattr(action, "duration", None) is None:
+            raise ValueError("Action must have a duration")
+
+        self.action = action
+        self.duration = action.duration
+
+    def start(self) -> None:
+        """Start the modified action."""
+        assert self.target is not None, "Target cannot be None"
+
+        # Pass target to wrapped action
+        self.action.target = self.target
+        self.action.start()
+
+        super().start()
+
+    def update(self, t: float) -> None:
+        """Update wrapped action with modified time using sigmoid curve.
+
+        Args:
+            t (float): Elapsed time fraction (0.0 to 1.0)
+
+        The time fraction is modified using a sigmoid-like function to create
+        a smooth acceleration and deceleration effect. The action starts slow,
+        speeds up in the middle, and slows down at the end.
+        """
+        assert 0 <= t <= 1, f"Time fraction must be between 0 and 1, got {t}"
+
+        # Apply sigmoid-based timing modification
+        modified_time = t
+        if t != 1.0:  # Special case handling for end of animation
+            # Center around 0 and scale for steeper curve
+            ft = (t - 0.5) * 12
+            # Apply sigmoid function
+            modified_time = 1.0 / (1.0 + math.exp(-ft))
+
+        self.action.update(modified_time)
+
+    def stop(self) -> None:
+        """Stop the wrapped action."""
+        self.action.stop()
+        super().stop()
+
+    def __reversed__(self) -> AccelDecel[T]:
+        """Create a reversed version maintaining the ease-in-ease-out effect."""
+        return AccelDecel(action=Reverse(self.action))
+
+
+class MoveTo(IntervalAction):
+    """Moves a sprite to an absolute position using linear interpolation.
+
+    Args:
+        position: Target position as (x, y) coordinates
+        duration: Time to complete movement in seconds (default: 5)
+
+    Raises:
+        ValueError: If position is None or contains invalid coordinates
+        ValueError: If duration is negative
+        AttributeError: If target sprite is not properly initialized
+    """
+
+    def init(self, position: tuple[float, float], duration: float = 5.0) -> None:
+        if position is None:
+            raise ValueError("Position cannot be None")
+        if not isinstance(position, (tuple, list)) or len(position) != 2:
+            raise ValueError("Position must be a tuple of (x, y) coordinates")
+        if not all(isinstance(coord, (int, float)) for coord in position):
+            raise ValueError("Position coordinates must be numeric")
+        if duration < 0:
+            raise ValueError(f"Duration must be non-negative, got {duration}")
+
+        self.position = position
+        self.duration = duration
+
+    def start(self) -> None:
+        """Initialize movement by calculating delta vector."""
+        if self.target is None:
+            raise AttributeError("Target sprite cannot be None")
+
+        # Store start position
+        self._start_pos = (self.target.center_x, self.target.center_y)
+        self._delta = (self.position[0] - self._start_pos[0], self.position[1] - self._start_pos[1])
+
+    def update(self, t: float) -> None:
+        """Update sprite position based on elapsed time fraction.
+
+        Args:
+            t: Elapsed time fraction (0.0 to 1.0)
+
+        Raises:
+            AssertionError: If movement has not been properly initialized
+        """
+        assert 0 <= t <= 1, f"Time fraction must be between 0 and 1, got {t}"
+        assert self.target is not None, "Target sprite cannot be None"
+        assert self._start_pos is not None, "Start position not initialized"
+        assert self._delta is not None, "Movement delta not initialized"
+
+        x = self._start_pos[0] + (self._delta[0] * t)
+        y = self._start_pos[1] + (self._delta[1] * t)
+        self.target.center_x = x
+        self.target.center_y = y
+
+    def __reversed__(self) -> MoveTo:
+        """Return a new MoveTo action that moves to the starting position."""
+        if self._start_pos is None:
+            raise RuntimeError("Cannot reverse MoveTo action before it starts")
+        return MoveTo(position=self._start_pos, duration=self.duration)
+
+
+class MoveBy(IntervalAction):
+    """Moves a sprite by a relative offset using linear interpolation.
+
+    Args:
+        delta: Relative movement as (dx, dy) offset
+        duration: Time to complete movement in seconds (default: 5)
+
+    Raises:
+        ValueError: If delta is None or contains invalid coordinates
+        ValueError: If duration is negative
+        AttributeError: If target sprite is not properly initialized
+    """
+
+    def init(self, delta: tuple[float, float], duration: float = 5.0) -> None:
+        if delta is None:
+            raise ValueError("Delta cannot be None")
+        if not isinstance(delta, (tuple, list)) or len(delta) != 2:
+            raise ValueError("Delta must be a tuple of (dx, dy) coordinates")
+        if not all(isinstance(d, (int, float)) for d in delta):
+            raise ValueError("Delta values must be numeric")
+        if duration < 0:
+            raise ValueError(f"Duration must be non-negative, got {duration}")
+
+        self.delta = delta
+        self.duration = duration
+
+    def start(self) -> None:
+        """Initialize movement by storing start position."""
+        if self.target is None:
+            raise AttributeError("Target sprite cannot be None")
+
+        # Store start position
+        self._start_x = self.target.center_x
+        self._start_y = self.target.center_y
+
+        super().start()
+
+    def update(self, t: float) -> None:
+        """Update sprite position based on elapsed time fraction.
+
+        Args:
+            t: Elapsed time fraction (0.0 to 1.0)
+
+        Raises:
+            AssertionError: If movement has not been properly initialized
+        """
+        assert 0 <= t <= 1, f"Time fraction must be between 0 and 1, got {t}"
+        assert self.target is not None, "Target sprite cannot be None"
+        assert None not in (self._start_x, self._start_y), "Start position not initialized"
+
+        # Direct position update using linear interpolation of delta
+        self.target.center_x = self._start_x + (self.delta[0] * t)
+        self.target.center_y = self._start_y + (self.delta[1] * t)
+
+    def __reversed__(self) -> MoveBy:
+        """Return a new MoveBy action with negated delta.
+
+        Returns:
+            MoveBy: A new action that moves in the opposite direction
+        """
+        return MoveBy(delta=(-self.delta[0], -self.delta[1]), duration=self.duration)
+
+
+class FadeOut(IntervalAction):
+    """Fades out a Sprite object by modifying its opacity attribute.
+
+    Args:
+        duration (float): Time in seconds for the fade out effect
+
+    Raises:
+        ValueError: If duration is negative
+        AttributeError: If target doesn't support opacity
+    """
+
+    def init(self, duration: float) -> None:
+        if duration < 0:
+            raise ValueError(f"Duration must be non-negative, got {duration}")
+        self.duration = duration
+
+    def update(self, t: float) -> None:
+        """Updates the sprite's opacity based on the elapsed time fraction.
+
+        Args:
+            t (float): Normalized time value between 0 and 1
+
+        Raises:
+            AttributeError: If target sprite doesn't have opacity attribute
+        """
+        if not self.target:
+            raise AttributeError("No target sprite set for FadeOut action")
+
+        try:
+            self.target.alpha = int(255 * (1 - t))
+        except AttributeError:
+            raise AttributeError(f"Target {self.target} doesn't support opacity changes")
+
+    def __reversed__(self) -> FadeIn:
+        """Returns a FadeIn action with the same duration."""
+        from .interval import FadeIn  # Avoid circular import
+
+        return FadeIn(self.duration)
 
 
 class FadeTo(IntervalAction):
+    """Fades a Sprite object to a specific alpha value.
+
+    Args:
+        alpha (int): Target alpha value (0-255)
+        duration (float): Time in seconds for the fade effect
+
+    Raises:
+        ValueError: If alpha is outside 0-255 range or duration is negative
+        AttributeError: If target doesn't support alpha changes
     """
-    Fades the sprite to a specified alpha (transparency) level over time.
 
-    Attributes:
-        target_alpha (int): The target alpha value (0-255).
-        start_alpha (int): The initial alpha, set when the action starts.
-    """
+    def init(self, alpha: int, duration: float) -> None:
+        if not 0 <= alpha <= 255:
+            raise ValueError(f"Alpha must be between 0 and 255, got {alpha}")
+        if duration < 0:
+            raise ValueError(f"Duration must be non-negative, got {duration}")
 
-    def __init__(self, alpha: int, duration: float) -> None:
-        """Initialize with target alpha and duration."""
-        super().__init__(duration)
-        self.target_alpha: int = alpha
-        self.start_alpha: int = 255
+        self.alpha = alpha
+        self.duration = duration
+        self.start_alpha = None
 
-    def start(self, target: ActionSprite) -> None:
-        """Set the initial alpha when the action starts."""
-        super().start(target)
-        if self.target:
+    def start(self) -> None:
+        """Captures the starting alpha value.
+
+        Raises:
+            AttributeError: If target sprite is not set or doesn't support alpha
+        """
+        if not self.target:
+            raise AttributeError("No target sprite set for FadeTo action")
+
+        try:
             self.start_alpha = self.target.alpha
+        except AttributeError:
+            raise AttributeError(f"Target {self.target} doesn't support alpha changes")
 
     def update(self, t: float) -> None:
-        """Interpolate the sprite's alpha from start to target."""
-        if self.target:
-            self.target.alpha = int(self.start_alpha + (self.target_alpha - self.start_alpha) * t)
+        """Updates the sprite's alpha based on the elapsed time fraction.
+
+        Args:
+            t (float): Normalized time value between 0 and 1
+
+        Raises:
+            AttributeError: If start_alpha is not set or target lacks alpha support
+        """
+        if self.start_alpha is None:
+            raise AttributeError("FadeTo action hasn't been started")
+
+        if not self.target:
+            raise AttributeError("No target sprite set for FadeTo action")
+
+        try:
+            self.target.alpha = int(self.start_alpha + (self.alpha - self.start_alpha) * t)
+        except AttributeError:
+            raise AttributeError(f"Target {self.target} doesn't support alpha changes")
 
 
-class FadeIn(FadeTo):
-    """Fades the sprite to fully visible (alpha = 255) over time."""
+class FadeIn(FadeOut):
+    """Fades in a Sprite object by modifying its alpha attribute.
 
-    def __init__(self, duration: float) -> None:
-        super().__init__(255, duration)
+    Args:
+        duration (float): Time in seconds for the fade in effect
 
-
-class FadeOut(FadeTo):
-    """Fades the sprite to fully transparent (alpha = 0) over time."""
-
-    def __init__(self, duration: float) -> None:
-        super().__init__(0, duration)
-
-
-class JumpTo(IntervalAction):
+    Raises:
+        ValueError: If duration is negative
+        AttributeError: If target doesn't support alpha changes
     """
-    Makes the sprite jump to a specific position, following a parabolic arc.
-
-    Attributes:
-        target_position (Tuple[float, float]): Target (x, y) coordinates for the sprite.
-        height (float): Maximum height of the jump arc.
-        start_position (Tuple[float, float]): Initial position, set when the action starts.
-    """
-
-    def __init__(self, x: float, y: float, height: float, duration: float) -> None:
-        """Initialize with target position, height, and duration."""
-        super().__init__(duration)
-        self.target_position: tuple[float, float] = (x, y)
-        self.height: float = height
-        self.start_position: tuple[float, float] = (0, 0)
-
-    def start(self, target: ActionSprite) -> None:
-        """Set the initial position when the action starts."""
-        super().start(target)
-        if self.target:
-            self.start_position = (self.target.center_x, self.target.center_y)
 
     def update(self, t: float) -> None:
-        """Calculate the parabolic arc for the jump."""
-        if self.target:
-            x0, y0 = self.start_position
-            x1, y1 = self.target_position
-            self.target.center_x = x0 + (x1 - x0) * t
-            self.target.center_y = y0 + (y1 - y0) * t + self.height * 4 * (t - t * t)
+        """Updates the sprite's alpha based on the elapsed time fraction.
+
+        Args:
+            t (float): Normalized time value between 0 and 1
+
+        Raises:
+            AttributeError: If target sprite doesn't have alpha attribute
+        """
+        if not self.target:
+            raise AttributeError("No target sprite set for FadeIn action")
+
+        try:
+            self.target.alpha = int(255 * t)
+        except AttributeError:
+            raise AttributeError(f"Target {self.target} doesn't support alpha changes")
+
+    def __reversed__(self) -> FadeOut:
+        """Returns a FadeOut action with the same duration."""
+        from .interval import FadeOut  # Avoid circular import
+
+        return FadeOut(self.duration)
 
 
-class JumpBy(IntervalAction):
+class ScaleTo(IntervalAction):
+    """Scales a Sprite object to a specific scale factor.
+
+    Args:
+        scale (float): Target scale factor
+        duration (float): Time in seconds for scaling
+
+    Raises:
+        ValueError: If scale is negative or duration is negative
     """
-    Makes the sprite jump by a specific (dx, dy) offset, following a parabolic arc.
 
-    Attributes:
-        delta (Tuple[float, float]): Movement offset (dx, dy).
-        height (float): Maximum height of the jump arc.
-        start_position (Tuple[float, float]): Initial position, set when the action starts.
-    """
+    def init(self, scale: float, duration: float = 5) -> None:
+        if scale < 0:
+            raise ValueError(f"Scale must be non-negative, got {scale}")
+        if duration < 0:
+            raise ValueError(f"Duration must be non-negative, got {duration}")
 
-    def __init__(self, dx: float, dy: float, height: float, duration: float) -> None:
-        """Initialize with movement offset, height, and duration."""
-        super().__init__(duration)
-        self.delta: tuple[float, float] = (dx, dy)
-        self.height: float = height
-        self.start_position: tuple[float, float] = (0, 0)
+        self.end_scale = scale
+        self.duration = duration
+        self.start_scale = None
+        self.delta = None
 
-    def start(self, target: ActionSprite) -> None:
-        """Set the initial position when the action starts."""
-        super().start(target)
-        if self.target:
-            self.start_position = (self.target.center_x, self.target.center_y)
+    def start(self) -> None:
+        """Captures the starting scale value.
+
+        Raises:
+            AttributeError: If target sprite is not set
+        """
+        if not self.target:
+            raise AttributeError("No target sprite set for ScaleTo action")
+
+        self.start_scale = self.target.scale
+        self.delta = self.end_scale - self.start_scale
 
     def update(self, t: float) -> None:
-        """Calculate the parabolic arc for the jump."""
-        if self.target:
-            x0, y0 = self.start_position
-            dx, dy = self.delta
-            self.target.center_x = x0 + dx * t
-            self.target.center_y = y0 + dy * t + self.height * 4 * (t - t * t)
+        """Updates the sprite's scale based on the elapsed time fraction.
+
+        Args:
+            t (float): Normalized time value between 0 and 1
+
+        Raises:
+            AttributeError: If action hasn't been started
+        """
+        if self.start_scale is None or self.delta is None:
+            raise AttributeError("ScaleTo action hasn't been started")
+
+        if not self.target:
+            raise AttributeError("No target sprite set for ScaleTo action")
+
+        try:
+            self.target.scale = self.start_scale + self.delta * t
+        except AttributeError:
+            raise AttributeError(f"Target {self.target} doesn't support scale changes")
 
 
-class Bezier(IntervalAction):
-    """
-    Moves the sprite along a Bezier curve defined by control points.
+class ScaleBy(ScaleTo):
+    """Scales a Sprite object by a scale factor.
 
-    Attributes:
-        control_points (List[Tuple[float, float]]): List of control points for the curve.
-        start_position (Tuple[float, float]): Initial position, set when the action starts.
-    """
+    Args:
+        scale (float): Scale factor to multiply by
+        duration (float): Time in seconds for scaling
 
-    def __init__(self, control_points: list[tuple[float, float]], duration: float) -> None:
-        """Initialize with control points and duration."""
-        super().__init__(duration)
-        self.control_points: list[tuple[float, float]] = control_points
-        self.start_position: tuple[float, float] = (0, 0)
-
-    def start(self, target: ActionSprite) -> None:
-        """Set the initial position when the action starts."""
-        super().start(target)
-        if self.target:
-            self.start_position = (self.target.center_x, self.target.center_y)
-
-    def _calculate_bezier_point(self, t: float) -> tuple[float, float]:
-        """Recursively calculate a point on the Bezier curve at time t."""
-        points = [self.start_position] + self.control_points
-        while len(points) > 1:
-            points = [
-                (
-                    points[i][0] + (points[i + 1][0] - points[i][0]) * t,
-                    points[i][1] + (points[i + 1][1] - points[i][1]) * t,
-                )
-                for i in range(len(points) - 1)
-            ]
-        return points[0]
-
-    def update(self, t: float) -> None:
-        """Move the sprite along the Bezier curve."""
-        if self.target:
-            self.target.center_x, self.target.center_y = self._calculate_bezier_point(t)
-
-
-class Delay(IntervalAction):
-    """
-    Pauses the sprite's actions for a specified duration.
+    Raises:
+        ValueError: If scale is negative or duration is negative
     """
 
-    def __init__(self, duration: float) -> None:
-        """Initialize with delay duration."""
-        super().__init__(duration)
+    def start(self) -> None:
+        """Captures the starting scale and calculates relative scaling.
 
-    def update(self, t: float) -> None:
-        """No update needed, just a pause."""
-        pass  # Delay action does nothing except wait for time to elapse
+        Raises:
+            AttributeError: If target sprite is not set
+        """
+        if not self.target:
+            raise AttributeError("No target sprite set for ScaleBy action")
 
+        self.start_scale = self.target.scale
+        self.delta = self.start_scale * self.end_scale - self.start_scale
 
-class RandomDelay(IntervalAction):
-    """
-    Pauses the sprite's actions for a random duration within a specified range.
-
-    Attributes:
-        min_duration (float): Minimum duration of the delay.
-        max_duration (float): Maximum duration of the delay.
-    """
-
-    def __init__(self, min_duration: float, max_duration: float) -> None:
-        """Initialize with minimum and maximum duration for the random delay."""
-        duration = random.uniform(min_duration, max_duration)
-        super().__init__(duration)
-
-    def update(self, t: float) -> None:
-        """No update needed, just a random pause."""
-        pass
+    def __reversed__(self) -> ScaleBy:
+        """Returns a ScaleBy action with inverse scale."""
+        return ScaleBy(1.0 / self.end_scale, self.duration)
 
 
 class Blink(IntervalAction):
-    """
-    Causes the sprite to blink (appear and disappear) a specified number of times.
+    """Blinks a Sprite object by modifying its visibility.
 
-    Attributes:
-        times (int): The number of times to blink.
+    Args:
+        times (int): Number of blinks
+        duration (float): Total time for all blinks
+
+    Raises:
+        ValueError: If times is not positive or duration is negative
     """
 
-    def __init__(self, times: int, duration: float) -> None:
-        """Initialize with blink count and duration."""
-        super().__init__(duration)
-        self.times: int = times
+    def init(self, times: int, duration: float) -> None:
+        if times <= 0:
+            raise ValueError(f"Times must be positive, got {times}")
+        if duration < 0:
+            raise ValueError(f"Duration must be non-negative, got {duration}")
+
+        self.times = times
+        self.duration = duration
+        self.end_invisible = None
+
+    def start(self) -> None:
+        """Captures initial visibility state.
+
+        Raises:
+            AttributeError: If target sprite is not set
+        """
+        if not self.target:
+            raise AttributeError("No target sprite set for Blink action")
+
+        self.end_invisible = not self.target.visible
 
     def update(self, t: float) -> None:
-        """Toggle visibility based on elapsed time."""
-        if self.target:
-            interval = 1.0 / self.times
-            self.target.alpha = 255 if int(t / interval) % 2 == 0 else 0
+        """Updates sprite visibility based on blink timing.
+
+        Args:
+            t (float): Normalized time value between 0 and 1
+
+        Raises:
+            AttributeError: If action hasn't been started
+        """
+        if self.end_invisible is None:
+            raise AttributeError("Blink action hasn't been started")
+
+        if not self.target:
+            raise AttributeError("No target sprite set for Blink action")
+
+        slice = 1.0 / self.times
+        m = t % slice
+        self.target.visible = self.end_invisible ^ (m < slice / 2.0)
+
+    def __reversed__(self) -> Blink:
+        """Returns itself since Blink is its own reverse."""
+        return self
 
 
-class Speed(IntervalAction):
+class Bezier(IntervalAction):
+    """Moves a Sprite object through a bezier path.
+
+    Args:
+        bezier: Bezier path configuration
+        duration (float): Time in seconds to complete path
+        forward (bool): Direction of movement along path
+
+    Raises:
+        ValueError: If duration is negative
+        TypeError: If bezier configuration is invalid
     """
-    Adjusts the speed of another action by a multiplier.
 
-    Attributes:
-        action (IntervalAction): The action whose speed will be modified.
-        speed_factor (float): The multiplier for the action's speed.
-    """
+    def init(self, bezier: Any, duration: float = 5, forward: bool = True) -> None:
+        if duration < 0:
+            raise ValueError(f"Duration must be non-negative, got {duration}")
+        if not hasattr(bezier, "at"):
+            raise TypeError("Bezier configuration must have 'at' method")
 
-    def __init__(self, action: IntervalAction, speed_factor: float) -> None:
-        """Initialize with an action and a speed multiplier."""
-        super().__init__(action.duration() / speed_factor)
-        self.action: IntervalAction = action
-        self.speed_factor: float = speed_factor
+        self.duration = duration
+        self.bezier = bezier
+        self.forward = forward
+        self.start_position = None
 
-    def start(self, target: ActionSprite) -> None:
-        """Start the action with the adjusted speed."""
-        super().start(target)
-        self.action.start(target)
+    def start(self) -> None:
+        """Captures starting position.
 
-    def step(self, dt: float) -> None:
-        """Advance the action based on the adjusted speed."""
-        if not self.done():
-            self.action.step(dt * self.speed_factor)
-            if self.action.done():
-                self._done = True
+        Raises:
+            AttributeError: If target sprite is not set
+        """
+        if not self.target:
+            raise AttributeError("No target sprite set for Bezier action")
 
-    def stop(self) -> None:
-        """Stop the action and mark the speed adjustment as done."""
-        self.action.stop()
-        self._done = True
+        self.start_position = (self.target.center_x, self.target.center_y)
 
     def update(self, t: float) -> None:
-        """No-op to satisfy IntervalAction's requirement for an update method."""
-        pass
+        """Updates sprite position along bezier path.
+
+        Args:
+            t (float): Normalized time value between 0 and 1
+
+        Raises:
+            AttributeError: If action hasn't been started
+        """
+        if self.start_position is None:
+            raise AttributeError("Bezier action hasn't been started")
+
+        if not self.target:
+            raise AttributeError("No target sprite set for Bezier action")
+
+        if self.forward:
+            p = self.bezier.at(t)
+        else:
+            p = self.bezier.at(1 - t)
+
+        self.target.center_x = self.start_position[0] + p[0]
+        self.target.center_y = self.start_position[1] + p[1]
+
+    def __reversed__(self) -> Bezier:
+        """Returns a reversed Bezier action."""
+        return Bezier(self.bezier, self.duration, not self.forward)
 
 
-class WrappedMove(IntervalAction):
+class JumpBy(IntervalAction):
+    """Moves a Sprite object in a jump motion.
+
+    Args:
+        position (tuple[float, float]): Target (x,y) offset
+        height (float): Jump height
+        jumps (int): Number of jumps
+        duration (float): Time in seconds for all jumps
+
+    Raises:
+        ValueError: If height is negative, jumps not positive, or duration negative
     """
-    Moves the sprite to a target position with screen wrapping.
 
-    Attributes:
-        target_position (Tuple[float, float]): The target (x, y) coordinates.
-        start_position (Tuple[float, float]): The initial position of the sprite.
-    """
+    def init(
+        self, position: tuple[float, float] = (0, 0), height: float = 100, jumps: int = 1, duration: float = 5
+    ) -> None:
+        if height < 0:
+            raise ValueError(f"Height must be non-negative, got {height}")
+        if jumps <= 0:
+            raise ValueError(f"Jumps must be positive, got {jumps}")
+        if duration < 0:
+            raise ValueError(f"Duration must be non-negative, got {duration}")
 
-    def __init__(self, x: float, y: float, duration: float) -> None:
-        """Initialize with target position and duration."""
-        super().__init__(duration)
-        self.target_position: tuple[float, float] = (x, y)
-        self.start_position: tuple[float, float] = (0, 0)
+        self.position = position
+        self.height = height
+        self.duration = duration
+        self.jumps = jumps
+        self.start_position = None
+        self.delta = None
 
-    def start(self, target: ActionSprite) -> None:
-        """Sets the initial position when the action starts."""
-        super().start(target)
-        if self.target:
-            self.start_position = (self.target.center_x, self.target.center_y)
+    def start(self) -> None:
+        """Captures starting position and calculates movement delta.
+
+        Raises:
+            AttributeError: If target sprite is not set
+        """
+        if not self.target:
+            raise AttributeError("No target sprite set for JumpBy action")
+
+        self.start_position = (self.target.center_x, self.target.center_y)
+        self.delta = self.position
 
     def update(self, t: float) -> None:
-        """Interpolates position with wrapping when reaching screen edges."""
-        if self.target:
-            # Calculate the new position with wrapping
-            new_x = self._wrap_position(
-                self.start_position[0], self.target_position[0], t, arcade.get_display_size()[0]
-            )
-            new_y = self._wrap_position(
-                self.start_position[1], self.target_position[1], t, arcade.get_display_size()[1]
-            )
-            self.target.center_x = new_x
-            self.target.center_y = new_y
+        """Updates sprite position for jump animation.
 
-    def _wrap_position(self, start: float, end: float, t: float, screen_size: float) -> float:
-        """Calculate wrapped position between start and end coordinates on a screen with a specific size."""
-        interpolated = start + (end - start) * t
-        return interpolated % screen_size
+        Args:
+            t (float): Normalized time value between 0 and 1
 
+        Raises:
+            AttributeError: If action hasn't been started
+        """
+        if not self.start_position or not self.delta:
+            raise AttributeError("JumpBy action hasn't been started")
 
-class Accelerate(IntervalAction):
-    """
-    Speeds up an action progressively from slow to fast.
+        if not self.target:
+            raise AttributeError("No target sprite set for JumpBy action")
 
-    Attributes:
-        action (IntervalAction): The action to accelerate.
-    """
+        y = self.height * abs(math.sin(t * math.pi * self.jumps))
+        y = int(y + self.delta[1] * t)
+        x = self.delta[0] * t
 
-    def __init__(self, action: IntervalAction) -> None:
-        """Initialize with the action to accelerate."""
-        super().__init__(action.duration())
-        self.action: IntervalAction = action
+        self.target.center_x = self.start_position[0] + x
+        self.target.center_y = self.start_position[1] + y
 
-    def start(self, target: ActionSprite) -> None:
-        """Start the action with acceleration."""
-        super().start(target)
-        self.action.start(target)
-
-    def step(self, dt: float) -> None:
-        """Advance the action with increasing speed."""
-        if not self.done():
-            super().step(dt)
-            t = self.elapsed / self.duration()
-            accelerated_dt = dt * t  # Increase speed over time
-            self.action.step(accelerated_dt)
-            if self.action.done():
-                self._done = True
-
-    def stop(self) -> None:
-        """Stop the action and mark it as done."""
-        self.action.stop()
-        self._done = True
-
-    def update(self, t: float) -> None:
-        """No-op to satisfy IntervalAction's requirement for an update method."""
-        pass
+    def __reversed__(self) -> JumpBy:
+        """Returns a reversed JumpBy action."""
+        return JumpBy((-self.position[0], -self.position[1]), self.height, self.jumps, self.duration)
 
 
-import math
+class JumpTo(JumpBy):
+    """Moves a Sprite object to a position in a jump motion.
 
-
-class AccelDecel(IntervalAction):
-    """
-    Modifies an action to accelerate at the start, decelerate toward the end, using a sigmoid-based easing.
+    Inherits from JumpBy but calculates position delta from target position.
     """
 
-    def __init__(self, action: IntervalAction) -> None:
-        """Initialize with the action to be modified."""
-        super().__init__(action.duration())
-        self.action: IntervalAction = action
+    def start(self) -> None:
+        """Captures starting position and calculates absolute movement.
 
-    def start(self, target: ActionSprite) -> None:
-        """Start the action with accel-decel effect."""
-        super().start(target)
-        self.action.start(target)
+        Raises:
+            AttributeError: If target sprite is not set
+        """
+        if not self.target:
+            raise AttributeError("No target sprite set for JumpTo action")
 
-    def step(self, dt: float) -> None:
-        """Advance the action, applying acceleration and deceleration."""
-        if not self.done():
-            self.elapsed += dt
-            t = self.elapsed / self.duration()
+        self.start_position = (self.target.center_x, self.target.center_y)
+        self.delta = (self.position[0] - self.start_position[0], self.position[1] - self.start_position[1])
 
-            # Apply sigmoid easing for acceleration and deceleration
-            if t != 1.0:
-                ft = (t - 0.5) * 12
-                eased_t = 1.0 / (1.0 + math.exp(-ft))
-            else:
-                eased_t = t
 
-            # Directly update the wrapped action with the eased time
-            self.action.update(eased_t)
+class Delay(IntervalAction):
+    """Delays the action for a specified duration.
 
-            # Mark done if time has fully elapsed
-            if t >= 1.0:
-                self._done = True
+    Args:
+        delay (float): Time in seconds to delay
 
-    def stop(self) -> None:
-        """Stop the action and mark it as done."""
-        self.action.stop()
-        self._done = True
+    Raises:
+        ValueError: If delay is negative
+    """
 
-    def update(self, t: float) -> None:
-        """No-op to satisfy IntervalAction's requirement for an update method."""
-        pass
+    def init(self, delay: float) -> None:
+        if delay < 0:
+            raise ValueError(f"Delay must be non-negative, got {delay}")
+        self.duration = delay
+
+    def __reversed__(self) -> Delay:
+        """Returns itself since Delay is its own reverse."""
+        return self
+
+
+class RandomDelay(Delay):
+    """Delays the action by a random duration between low and high values.
+
+    Args:
+        low (float): Minimum delay in seconds
+        hi (float): Maximum delay in seconds
+
+    Raises:
+        ValueError: If low/hi are negative or low > hi
+    """
+
+    def init(self, low: float, hi: float) -> None:
+        if low < 0 or hi < 0:
+            raise ValueError("Delay bounds must be non-negative")
+        if low > hi:
+            raise ValueError(f"Low ({low}) must not exceed hi ({hi})")
+
+        self.low = low
+        self.hi = hi
+        super().init(0)  # Duration will be set in __deepcopy__
+
+    def __deepcopy__(self, memo: dict) -> RandomDelay:
+        """Creates a new instance with random duration between bounds."""
+        import random
+
+        new = copy.copy(self)
+        new.duration = self.low + (random.random() * (self.hi - self.low))
+        return new
+
+    def __mul__(self, other: int) -> RandomDelay:
+        """Multiplies delay bounds by an integer factor."""
+        if not isinstance(other, int):
+            raise TypeError("Can only multiply actions by ints")
+        if other <= 1:
+            return self
+        return RandomDelay(self.low * other, self.hi * other)

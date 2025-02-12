@@ -1,163 +1,136 @@
-from unittest.mock import Mock
+from typing import Any
 
-from actions.base import ActionSprite
+import pytest
+
+from actions.base import sequence
 from actions.interval import (
-    AccelDecel,
-    Accelerate,
-    Bezier,
-    Blink,
-    FadeIn,
-    FadeOut,
-    JumpBy,
-    JumpTo,
-    MoveBy,
-    MoveTo,
-    RotateBy,
-    RotateTo,
-    ScaleBy,
-    ScaleTo,
+    IntervalAction,
 )
 
-
-def test_blink_action():
-    sprite = Mock()
-    sprite.alpha = 255
-    action = Blink(times=2, duration=1)
-    action.start(sprite)
-    action.update(0.5)
-    assert sprite.alpha == 0  # After first blink, invisible
-    action.update(1.0)
-    assert sprite.alpha == 255  # Second blink back to visible
+# Global event record
+rec: list[tuple[str, str, Any]] = []
 
 
-def test_move_to_action():
-    sprite = Mock()
-    sprite.center_x, sprite.center_y = 0, 0  # Set numerical values
-    action = MoveTo(x=100, y=100, duration=1)
-    action.start(sprite)
-    action.update(1)
-    assert sprite.center_x == 100
-    assert sprite.center_y == 100
+class MockSprite:
+    """Mock Arcade Sprite for testing"""
+
+    def __init__(self):
+        self.position = (0, 0)
+        self.rotation = 0
+        self.visible = False
+        self._actions = []  # Track active actions
+
+    def do(self, action):
+        """Helper to start an action"""
+        action.target = self
+        self._actions.append(action)  # Store action for step updates
+        action.start()
+        return action
+
+    def _step(self, dt):
+        """Test helper to advance time"""
+        for action in self._actions:  # Update all active actions
+            action.step(dt)
 
 
-def test_move_by_action():
-    sprite = Mock()
-    sprite.center_x, sprite.center_y = 50, 50  # Numerical starting values
-    action = MoveBy(dx=10, dy=20, duration=2)
-    action.start(sprite)
-    action.update(2)
-    assert sprite.center_x == 70
-    assert sprite.center_y == 90
+@pytest.fixture
+def mock_sprite():
+    return MockSprite()
 
 
-def test_rotate_to_action():
-    sprite = Mock()
-    sprite.angle = 0
-    action = RotateTo(angle=90, duration=1)  # Use the correct argument 'angle'
-    action.start(sprite)
-    action.update(1)
-    assert sprite.angle == 90
+class UIntervalAction(IntervalAction):
+    def init(self, name, duration):
+        rec.append((name, "init"))
+        self.duration = duration
+        self.name = name
+
+    def start(self):
+        rec.append((self.name, "start"))
+
+    def step(self, dt):
+        rec.append((self.name, "step", dt))
+        super().step(dt)
+
+    def update(self, fraction):
+        rec.append((self.name, "update", fraction))
+
+    def stop(self):
+        rec.append((self.name, "stop"))
 
 
-def test_rotate_by_action():
-    sprite = Mock()
-    sprite.angle = 0
-    action = RotateBy(delta_angle=90, duration=1)
-    action.start(sprite)
-    action.update(1)
-    assert sprite.angle == 90
+@pytest.mark.parametrize("duration1,duration2", [(0.0, 0.0), (0.0, 3.0), (3.0, 0.0), (3.0, 5.0)])
+class Test_Sequence_IntervalAction:
+    """Tests for sequence action composition"""
 
+    def test_instantiation(self, duration1: float, duration2: float) -> None:
+        """Test sequence creation and duration calculation"""
+        global rec
 
-def test_fade_in_action():
-    sprite = Mock()
-    sprite.alpha = 0
-    action = FadeIn(duration=1)
-    action.start(sprite)
-    action.update(1)
-    assert sprite.alpha == 255
+        name1, name2 = "1", "2"
+        a1 = UIntervalAction(name1, duration1)
+        assert isinstance(a1, IntervalAction)
+        assert a1.duration == pytest.approx(duration1)
 
+        a2 = UIntervalAction(name2, duration2)
 
-def test_fade_out_action():
-    sprite = Mock()
-    sprite.alpha = 255
-    action = FadeOut(duration=1)
-    action.start(sprite)
-    action.update(1)
-    assert sprite.alpha == 0
+        rec = []  # Clear event record
+        composite = sequence(a1, a2)
 
+        assert isinstance(composite, IntervalAction)
+        assert composite.duration == pytest.approx(duration1 + duration2)
+        assert len(rec) == 0, "Sequence creation should not trigger events"
 
-def test_scale_to_action():
-    sprite = Mock()
-    sprite.scale = 1.0
-    action = ScaleTo(scale=2.0, duration=1)
-    action.start(sprite)
-    action.update(1)
-    assert sprite.scale == 2.0
+    def test_start(self, duration1: float, duration2: float) -> None:
+        global rec
+        sprite = MockSprite()
+        name1, name2 = "1", "2"
+        a1 = UIntervalAction(name1, duration1)
+        a2 = UIntervalAction(name2, duration2)
+        composite = sequence(a1, a2)
 
+        rec = []
+        sprite.do(composite)
+        num = 0
+        assert rec[num] == (name1, "start")
+        if duration1 == 0.0:
+            assert rec[num + 1] == (name1, "update", 1.0)
+            assert rec[num + 2] == (name1, "stop")
+            assert rec[num + 3] == (name2, "start")
+            num = num + 3
+        assert len(rec) == num + 1
 
-def test_scale_by_action():
-    sprite = Mock()
-    sprite.scale = 1.0
-    action = ScaleBy(scale_factor=2.0, duration=1)
-    action.start(sprite)
-    action.update(1)
-    assert sprite.scale == 2.0
+    def test_target_set(self, duration1: float, duration2: float) -> None:
+        global rec
+        sprite = MockSprite()
+        name1, name2 = "1", "2"
+        a1 = UIntervalAction(name1, duration1)
+        a2 = UIntervalAction(name2, duration2)
+        composite = sequence(a1, a2)
 
+        rec = []
+        action_copy = sprite.do(composite)
+        assert action_copy.one.target == sprite
+        assert action_copy.two.target == sprite
 
-def test_accelerate_action():
-    sprite = Mock()
-    sprite.center_x, sprite.center_y = 0, 0
-    move_action = MoveTo(x=100, y=100, duration=1)
-    action = Accelerate(action=move_action)
-    action.start(sprite)
-    action.step(1.0)  # Complete
-    assert sprite.center_x == 100 and sprite.center_y == 100
+    def test_update_below_duration1(self, duration1: float, duration2: float) -> None:
+        global rec
+        if duration1 == 0.0:
+            return
 
+        sprite = MockSprite()
+        name1, name2 = "1", "2"
+        a1 = UIntervalAction(name1, duration1)
+        a2 = UIntervalAction(name2, duration2)
+        composite = sequence(a1, a2)
+        sprite.do(composite)
+        elapsed = 0.0
 
-def test_accel_decel_action():
-    # Create an instance of ActionSprite with the necessary properties
-    sprite = ActionSprite()
-    sprite.center_x, sprite.center_y = 0, 0
-
-    # Set up the MoveTo action and wrap it in AccelDecel
-    move_action = MoveTo(x=100, y=100, duration=2)
-    action = AccelDecel(action=move_action)
-
-    # Start the action on the sprite and step with the total duration
-    action.start(sprite)
-    action.step(2)  # Complete the action over its entire duration
-
-    # Check if the sprite reached the target position
-    assert sprite.center_x == 100 and sprite.center_y == 100
-
-
-def test_bezier_action():
-    sprite = Mock()
-    sprite.center_x, sprite.center_y = 0, 0
-    control_points = [(0, 0), (50, 100), (100, 0)]
-    action = Bezier(control_points=control_points, duration=1)
-    action.start(sprite)
-    action.update(1)
-    assert sprite.center_x == 100
-    assert sprite.center_y == 0
-
-
-def test_jump_to_action():
-    sprite = Mock()
-    sprite.center_x, sprite.center_y = 0, 0
-    action = JumpTo(x=100, y=200, height=5, duration=1)
-    action.start(sprite)
-    action.update(1)
-    assert sprite.center_x == 100
-    assert sprite.center_y == 200
-
-
-def test_jump_by_action():
-    sprite = Mock()
-    sprite.center_x = 0
-    sprite.center_y = 0
-    action = JumpBy(dx=10, dy=20, height=5, duration=1)
-    action.start(sprite)
-    action.update(1)
-    assert sprite.center_x == 10
-    assert sprite.center_y == 20
+        for next_elapsed in [duration1 * 0.5, duration1 * 0.75]:
+            dt = next_elapsed - elapsed
+            rec = []
+            sprite._step(dt)
+            rec = [e for e in rec if e[1] != "step"]
+            assert rec[0][1] == "update"
+            assert abs(rec[0][2] - next_elapsed / duration1) < 1.0e-6
+            assert len(rec) == 1
+            elapsed = next_elapsed

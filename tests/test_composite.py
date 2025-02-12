@@ -1,95 +1,152 @@
-from actions.base import ActionSprite, Spawn
-from actions.interval import FadeIn, MoveTo, RotateBy
+import pytest
+
+from actions.interval import JumpTo, MoveBy, MoveTo, RotateBy, RotateTo
 
 
-def test_repeat_action():
-    # Define an action to repeat
-    sprite = ActionSprite()
-    sprite.center_x, sprite.center_y = 0, 0
-    move_action = MoveTo(x=100, y=100, duration=1)
-    repeat_action = move_action * 3  # Equivalent to Repeat(move_action, times=3)
+class MockSprite:
+    """Mock sprite class for testing"""
 
-    # Test the repeated action
-    repeat_action.start(sprite)
-    repeat_action.step(1)  # First repeat
+    def __init__(self):
+        self.center_x = 0
+        self.center_y = 0
+        self.position = (0, 0)
+        self.velocity = (0, 0)
+        self.rotation = 0
+        self.angle = 0
+        self.width = 10
+        self.height = 10
 
-    assert sprite.center_x == 100 and sprite.center_y == 100
+    @property
+    def center(self):
+        return (self.center_x, self.center_y)
 
-
-def test_sequence_action():
-    # Create an ActionSprite instance
-    sprite = ActionSprite()
-    sprite.center_x, sprite.center_y = 0, 0
-
-    # Create a sequence of actions
-    move_action = MoveTo(x=100, y=100, duration=1)
-    rotate_action = RotateBy(delta_angle=90, duration=1)
-    fade_in_action = FadeIn(duration=1)
-
-    # Sequence actions using the plus operator
-    sequence_action = move_action + rotate_action + fade_in_action
-
-    # Run through the sequence in steps
-    sequence_action.start(sprite)
-    sequence_action.step(1)  # Completes MoveTo
-    assert sprite.center_x == 100
-    assert sprite.center_y == 100
-
-    sequence_action.step(1)  # Completes RotateBy
-    assert sprite.angle == 90
-
-    sequence_action.step(1)  # Completes FadeIn
-    assert sprite.alpha == 255
+    @center.setter
+    def center(self, value):
+        self.center_x, self.center_y = value
+        self.position = value
 
 
-def test_spawn_action():
-    # Define multiple actions to run in parallel
-    sprite = ActionSprite()
-    sprite.center_x, sprite.center_y = 0, 0
-    move_action = MoveTo(x=100, y=100, duration=1)
-    rotate_action = RotateBy(delta_angle=90, duration=1)
-    spawn_action = Spawn(move_action, rotate_action)
-
-    spawn_action.start(sprite)
-    spawn_action.step(1)  # Both actions should complete
-
-    assert sprite.center_x == 100
-    assert sprite.center_y == 100
-    assert sprite.angle == 90
+@pytest.fixture
+def mock_sprite():
+    return MockSprite()
 
 
-def test_combined_sequence_and_repeat():
-    # Combined Sequence and Repeat action
-    sprite = ActionSprite()
-    sprite.center_x, sprite.center_y = 0, 0
-    move_action = MoveTo(x=100, y=100, duration=1)
-    rotate_action = RotateBy(delta_angle=90, duration=1)
+class TestSequenceActions:
+    def test_move_rotate_sequence(self, mock_sprite):
+        """Test sequence of MoveTo followed by RotateBy"""
+        jump = JumpTo((0, 0), duration=0.0)
+        start_rot = RotateTo(0, duration=0.0)
+        move = MoveTo((100, 0), duration=1.0)
+        rotate = RotateBy(90, duration=1.0)
+        sequence_action = start_rot + jump + move + rotate  # Total duration = 2.0
+        sequence_action.target = mock_sprite
+        sequence_action.start()
 
-    # Sequence and Repeat together
-    combined_action = (move_action + rotate_action) * 2  # Repeat the sequence twice
+        # Test during move (t=0.25 = halfway through move since move is first half)
+        sequence_action.update(0.25)
+        assert pytest.approx(mock_sprite.center[0]) == 50
+        assert pytest.approx(mock_sprite.angle) == 0
 
-    combined_action.start(sprite)
-    combined_action.step(1)  # First MoveTo
+        # Test during rotation (t=0.75 = halfway through rotation)
+        sequence_action.update(0.75)
+        assert pytest.approx(mock_sprite.center[0]) == 100
+        assert pytest.approx(mock_sprite.angle) == 45
 
-    assert sprite.center_x == 100 and sprite.center_y == 100
+    def test_complex_movement_sequence(self, mock_sprite):
+        """Test sequence of multiple movements"""
+        # Total duration = 3.0, each action takes 1/3 of total time
+        actions = (
+            JumpTo((0, 0), duration=0)
+            + RotateTo(0, duration=0)
+            + MoveTo((100, 0), duration=1.0)
+            + MoveBy((0, 100), duration=1.0)
+            + RotateBy(180, duration=1.0)
+        )
+        actions.target = mock_sprite
+        actions.start()
+
+        # Test halfway through first movement (t=0.16 ~= 1/6 = halfway through first third)
+        actions.update(0.16)
+        assert pytest.approx(mock_sprite.center[0]) == 48  # 48% through first move
 
 
-def test_complex_pipe_operator():
-    # Create a complex action using the pipe (parallel) operator
-    sprite = ActionSprite()
-    sprite.center_x, sprite.center_y = 0, 0
-    move_action = MoveTo(x=100, y=100, duration=1)
-    rotate_action = RotateBy(delta_angle=90, duration=1)
-    fade_in_action = FadeIn(duration=1)
+class TestSpawnActions:
+    def test_multiple_parallel_actions(self, mock_sprite):
+        """Test three parallel actions happening in parallel"""
+        mock_sprite.center = (0, 0)
+        mock_sprite.angle = 0
+        move_xy = MoveBy((50, 100), duration=1.0)
+        rotate = RotateBy(360, duration=1.0)
+        parallel_action = move_xy | rotate
+        parallel_action.target = mock_sprite
+        parallel_action.start()
 
-    # Run actions in parallel
-    parallel_action = move_action | rotate_action | fade_in_action
+        # All actions progress independently using same time value
+        parallel_action.update(0.5)  # Halfway through all actions
+        assert pytest.approx(mock_sprite.angle) == 180  # Half rotation
+        assert pytest.approx(mock_sprite.center[0]) == 25  # Both movements at 50%
+        assert pytest.approx(mock_sprite.center[1]) == 50  # Both movements at 50%
 
-    # Run the parallel action
-    parallel_action.start(sprite)
-    parallel_action.step(1)  # All actions should complete in parallel
 
-    assert sprite.center_x == 100
-    assert sprite.center_y == 100
-    assert sprite.angle == 90
-    assert sprite.alpha == 255
+class TestComplexComposites:
+    def test_sequence_with_repeats(self, mock_sprite):
+        """Test sequence containing repeated actions"""
+        move = MoveTo((50, 0), duration=1.0)
+        rotate = RotateBy(90, duration=1.0)
+        # (move * 2) takes first half, (rotate * 2) takes second half
+        action = (move * 2) + (rotate * 2)
+        action.target = mock_sprite
+        action.start()
+
+        # Test during first move repetition
+        action.update(0.25)  # 25% through total = halfway through first half = completed first move
+        assert pytest.approx(mock_sprite.center[0]) == 50  # First move completed
+
+        # Test at transition point
+        action.update(0.5)  # Half done = moves completed, starting rotations
+        assert pytest.approx(mock_sprite.center[0]) == 50
+        assert pytest.approx(mock_sprite.angle) == 0  # Just starting rotations
+
+        # Test during rotations
+        action.update(0.75)  # 75% through = halfway through rotations = first rotation done
+        assert pytest.approx(mock_sprite.angle) == 90
+
+    def test_complex_movement_pattern(self, mock_sprite):
+        """Test complex pattern combining sequence, spawn, and repeat"""
+        # Each move takes 1/4 of sequence time
+        mock_sprite.center = (0, 0)
+        mock_sprite.angle = 0
+        move_right = MoveTo((100, 0), duration=1.0)
+        move_up = MoveTo((100, 100), duration=1.0)
+        move_left = MoveTo((0, 100), duration=1.0)
+        move_down = MoveTo((0, 0), duration=1.0)
+        # Full rotation matches total sequence time
+        rotate = RotateBy(90, duration=4.0)
+
+        # Square pattern repeated twice with constant rotation
+        square = move_right + move_up + move_left + move_down
+        action = square | rotate
+        action.target = mock_sprite
+        action.start()
+
+        # Test key points in pattern - movement completes each step
+        # while rotation progresses linearly
+        positions = [
+            (0.50 / 4, (50, 0), 11.25),
+            (1.0 / 4, (100, 0), 22.5),
+            (1.5 / 4, (100, 50), 33.75),
+            (2.0 / 4, (100, 100), 45.0),
+            (2.5 / 4, (50, 100), 56.25),
+            (3.0 / 4, (0, 100), 67.5),
+            (3.5 / 4, (0, 50), 78.75),
+            (4.0 / 4, (0, 0), 90.0),
+        ]
+
+        for t, expected_pos, expected_angle in positions:
+            action.update(t)
+            assert pytest.approx(mock_sprite.center[0]) == expected_pos[0]
+            assert pytest.approx(mock_sprite.angle) == expected_angle
+
+
+if __name__ == "__main__":
+    pytest.main(["-v"])
