@@ -44,10 +44,15 @@ class IntervalAction(Action):
 
     def step(self, dt: float):
         super().step(dt)
-        t = min(1, self._elapsed / self.duration)
-        self.update(t)
-        if t == 1:
-            self._done = True
+        try:
+            t = min(1, self._elapsed / self.duration)
+            self.update(t)
+        except ZeroDivisionError:
+            self.update(1.0)
+
+    def done(self):
+        done = self._elapsed >= self.duration
+        return done
 
     def update(self, t: float):
         pass
@@ -56,6 +61,7 @@ class IntervalAction(Action):
 class InstantAction(IntervalAction):
     def __init__(self):
         super().__init__(0)
+        self.duration = 0.0
 
     def step(self, dt: float):
         pass
@@ -68,6 +74,9 @@ class InstantAction(IntervalAction):
 
     def stop(self):
         pass
+
+    def done(self):
+        return True
 
 
 class Loop(Action):
@@ -123,6 +132,9 @@ class Sequence(Action):
         current_action = self.actions[self.current_index]
         current_action.step(dt)
         if current_action.done():
+            # Ensure the action gets to its final state
+            if isinstance(current_action, IntervalAction):
+                current_action.update(1.0)
             current_action.stop()
             self.current_index += 1
             if self.current_index < len(self.actions):
@@ -202,13 +214,16 @@ class ActionSprite(arcade.Sprite):
         action.start()
         self.actions.append(action)
 
-    def update(self):
+    def update(self, delta_time: float = 1 / 60):
         super().update()
         for action in self.actions[:]:
-            action.step(1 / 60)  # Assuming 60 FPS, adjust as needed
-            if action.done():
-                action.stop()
-                self.actions.remove(action)
+            try:
+                action.step(delta_time)
+                if action.done():
+                    self.remove_action(action)
+            except Exception as e:
+                print(f"Error updating action: {e}")
+                self.remove_action(action)
 
     def remove_action(self, action: Action):
         if action in self.actions:

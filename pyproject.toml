@@ -8,6 +8,7 @@ readme = "README.md"
 requires-python = ">= 3.10"
 dependencies = [
     "arcade>=3.0.0.dev35",
+    "loguru>=0.7.3",
     "pyglet>=2.1.dev5",
 ]
 
@@ -18,14 +19,11 @@ dev-dependencies = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov-branch --cov-report term --cov=core"
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers=["unit: Unit tests.",
          "system: System (browser-based) tests."]
          
-[tool.coverage.run]
-source = ["core"]
 
 [tool.ruff]
 line-length = 120

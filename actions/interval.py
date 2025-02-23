@@ -124,6 +124,11 @@ class MoveTo(IntervalAction):
         new_y = self.start_position[1] + self.delta[1] * t
         self.target.center_x, self.target.center_y = new_x, new_y
 
+    def update_delta(self, dx: float, dy: float):
+        self.delta = dx, dy
+        # Recalculate end position from current position
+        self.end_position = (self.start_position[0] + self.delta[0], self.start_position[1] + self.delta[1])
+
 
 class MoveBy(MoveTo):
     def __init__(self, delta: tuple[float, float], duration: float = 5):

@@ -1,11 +1,10 @@
-import logging
 import math
-import traceback
-from functools import wraps
+import sys
 
 import arcade
+from loguru import logger
 
-from actions.base import Action, Spawn
+from actions.base import ActionSprite, Repeat, Spawn, spawn
 from actions.interval import (
     AccelDecel,
     Accelerate,
@@ -13,6 +12,7 @@ from actions.interval import (
     Blink,
     FadeIn,
     FadeOut,
+    IntervalAction,
     JumpTo,
     MoveBy,
     MoveTo,
@@ -20,6 +20,7 @@ from actions.interval import (
     ScaleBy,
     ScaleTo,
 )
+from actions.move import BoundedMove
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -27,51 +28,22 @@ SCREEN_TITLE = "Action System Demo"
 TEXT_MARGIN = 60  # Margin for text at the top of the screen
 SPRITE_IMAGE_PATH = ":resources:images/animated_characters/female_person/femalePerson_idle.png"
 
-# Setup basic configuration for logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    filename="demo.log",  # Log to a file
-    filemode="a",
-)  # Append mode
+# File handler for logging
+logger.add(
+    "demo.log",
+    backtrace=True,
+    diagnose=True,
+    format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}",
+    level="DEBUG",
+)
 
-# Create a console handler
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.WARNING)  # Set console to show only warnings and above
-formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-console_handler.setFormatter(formatter)
-
-# Get the root logger and add the console handler
-logger = logging.getLogger()
-logger.addHandler(console_handler)
+# Console handler for logging
+logger.add(sys.stderr, format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}", level="WARNING")
 
 
-def error_handler(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"Error in {func.__name__}: {e}")
-            logger.debug(traceback.format_exc())
-
-            # For methods that are part of the game loop (update, draw, etc.),
-            # we want to continue execution to prevent the game from freezing
-            if func.__name__ in ["on_update", "on_draw", "update"]:
-                return
-
-            # For other functions, we might want to re-raise the exception
-            # to allow the caller to handle it
-            raise
-
-    return wrapper
-
-
-class ActionSprite(arcade.Sprite):
-    @error_handler
+class DemoSprite(ActionSprite):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.actions: list[Action] = []
         self.initial_state = {
             "center_x": SCREEN_WIDTH // 2,
             "center_y": SCREEN_HEIGHT // 2,
@@ -81,42 +53,67 @@ class ActionSprite(arcade.Sprite):
         }
         self.reset_state()
 
-    @error_handler
-    def do(self, action: Action):
-        action.target = self
-        action.start()
-        self.actions.append(action)
-
-    @error_handler
     def update(self, delta_time: float = 1 / 60):
-        super().update()
-        for action in self.actions[:]:
-            try:
-                action.step(delta_time)
-                if action.done():
-                    action.stop()
-                    self.actions.remove(action)
-            except Exception as e:
-                print(f"Error updating action: {e}")
-                self.actions.remove(action)
-
+        super().update(delta_time)
         # Ensure sprite stays within screen bounds and below text
         self.center_x = max(self.width / 2, min(self.center_x, SCREEN_WIDTH - self.width / 2))
         self.center_y = max(self.height / 2 + TEXT_MARGIN, min(self.center_y, SCREEN_HEIGHT - self.height / 2))
 
-    @error_handler
     def reset_state(self):
         for attr, value in self.initial_state.items():
             setattr(self, attr, value)
 
 
+class FormationMove(IntervalAction):
+    def __init__(self, speed: float, drop_amount: float):
+        super().__init__(float("inf"))
+        self.speed = speed
+        self.drop_amount = drop_amount
+        self.prev_width = None
+
+    def start(self):
+        # Get initial formation width
+        active_enemies = [e for e in self.target.parent_list if not e.scheduled_to_remove]
+        self.prev_width = max(e.center_x for e in active_enemies) - min(e.center_x for e in active_enemies)
+
+        # Initial movement sequence
+        self.move_right = MoveBy((self.prev_width, 0), self.speed)
+        self.drop = MoveBy((0, -self.drop_amount), 0.5)
+        self.move_left = MoveBy((-self.prev_width, 0), self.speed)
+
+        sequence = self.move_right + self.drop + self.move_left + self.drop
+        self.movement = Repeat(sequence)
+
+        # Apply bounded wrapper
+        bounds = (50, 750, 100, 500)
+        bounded = BoundedMove(bounds)
+
+        # Combine movements
+        combined = spawn(self.movement, bounded)
+        combined.target = self.target
+        combined.start()
+
+    def update(self, t: float):
+        # Get current formation bounds
+        active_enemies = [e for e in self.target.parent_list if not e.scheduled_to_remove]
+        if not active_enemies:
+            return
+
+        # Check if formation width has changed
+        current_width = max(e.center_x for e in active_enemies) - min(e.center_x for e in active_enemies)
+
+        if current_width != self.prev_width:
+            self.move_right.update_delta(current_width, 0)
+            self.move_left.update_delta(-current_width, 0)
+            self.prev_width = current_width
+
+
 class ActionDemo(arcade.Window):
-    @error_handler
     def __init__(self):
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
         arcade.set_background_color(arcade.color.WHITE)
 
-        self.sprite = ActionSprite(SPRITE_IMAGE_PATH, 0.5)
+        self.sprite = DemoSprite(SPRITE_IMAGE_PATH, 0.5)
         self.sprite_list = arcade.SpriteList()
         self.sprite_list.append(self.sprite)
 
@@ -151,11 +148,10 @@ class ActionDemo(arcade.Window):
         self.demo_active = False
         self.start_demo()
 
-    @error_handler
     def create_spawn_bezier_action(self):
-        num_sprites = 16
+        num_sprites = 32
         radius = (
-            min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.6 - TEXT_MARGIN
+            min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.7 - TEXT_MARGIN
         )  # Adjust radius to fit within screen and below text
         spawn_x, spawn_y = self.sprite.center_x, self.sprite.center_y  # Use the current sprite's position
 
@@ -181,7 +177,7 @@ class ActionDemo(arcade.Window):
 
         self.sprite_list.remove(self.sprite)
 
-        sprites = [ActionSprite(SPRITE_IMAGE_PATH, 2.0) for _ in range(num_sprites)]
+        sprites = [DemoSprite(SPRITE_IMAGE_PATH, 2.0) for _ in range(num_sprites)]
         for sprite in sprites:
             sprite.center_x = spawn_x
             sprite.center_y = spawn_y
@@ -190,18 +186,16 @@ class ActionDemo(arcade.Window):
         actions = [Bezier(path, 4.0) for path in bezier_paths]
         return Spawn(actions)
 
-    @error_handler
     def start_demo(self):
         self.demo_active = True
         self.current_action = 0
         # Reset to only one sprite with original scale
         self.sprite_list = arcade.SpriteList()
-        self.sprite = ActionSprite(SPRITE_IMAGE_PATH, 0.5)
+        self.sprite = DemoSprite(SPRITE_IMAGE_PATH, 0.5)
         self.sprite_list.append(self.sprite)
         self.sprite.reset_state()
         self.start_next_action()
 
-    @error_handler
     def start_next_action(self):
         if self.current_action < len(self.actions):
             action_name, action_creator = self.actions[self.current_action]
@@ -220,19 +214,16 @@ class ActionDemo(arcade.Window):
             self.message = "Demo completed. Press SPACE to restart or ESC to exit."
             self.text_sprite.text = self.message
 
-    @error_handler
     def on_draw(self):
         self.clear()
         self.sprite_list.draw()
         self.text_sprite.draw()
 
-    @error_handler
     def on_update(self, delta_time):
         self.sprite_list.update(delta_time)
         if self.demo_active and all(not sprite.actions for sprite in self.sprite_list):
             self.start_next_action()
 
-    @error_handler
     def on_key_press(self, key, modifiers):
         if key == arcade.key.SPACE and not self.demo_active:
             self.start_demo()
@@ -240,7 +231,6 @@ class ActionDemo(arcade.Window):
             arcade.close_window()
 
 
-@error_handler
 def main():
     ActionDemo()
     arcade.run()
