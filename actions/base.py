@@ -104,6 +104,9 @@ class IntervalAction(Action):
         self._elapsed = 0.0
 
     def step(self, dt: float):
+        if self._done:
+            return
+
         try:
             t = min(1, self._elapsed / self.duration)
             self.update(t)
