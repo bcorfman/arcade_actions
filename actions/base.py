@@ -4,21 +4,28 @@ import arcade
 class Action:
     def __init__(self):
         self.target = None
-        self._elapsed = 0.0
         self._done = False
-        self.scheduled_to_remove = False
+        self._started = False
 
-    def start(self):
-        pass
+    def start(self, target):
+        self.target = target
+        self._started = True
+
+    def stop(self):
+        self._done = True
 
     def step(self, dt: float):
-        self._elapsed += dt
+        raise NotImplementedError(f"step() not implemented for {self.__class__.__name__}")
 
     def done(self) -> bool:
         return self._done
 
-    def stop(self):
-        self.target = None
+    def clone(self):
+        """
+        Default clone behavior: must be overridden in subclasses.
+        Will be auto-injected via @auto_clone where used.
+        """
+        raise NotImplementedError(f"clone() not implemented for {self.__class__.__name__}")
 
     def __add__(self, other):
         return sequence(self, other)
@@ -37,13 +44,66 @@ class Action:
         raise NotImplementedError(f"Action {self.__class__.__name__} cannot be reversed")
 
 
+def auto_clone(cls):
+    """
+    Decorator to inject clone() support into action classes.
+    Each subclass must store its init args in self._init_args and self._init_kwargs.
+    """
+    original_init = cls.__init__
+
+    def __init__(self, *args, **kwargs):
+        self._init_args = args
+        self._init_kwargs = kwargs
+        original_init(self, *args, **kwargs)
+
+    def clone(self):
+        return cls(*self._init_args, **self._init_kwargs)
+
+    cls.__init__ = __init__
+    cls.clone = clone
+    return cls
+
+
+class Actionable:
+    """
+    Mixin that provides .do(action) support for any object with update() and a valid target contract.
+    Assumes the object has position and scale attributes used by ArcadeActions.
+    """
+
+    def __init__(self):
+        self._actions = []
+
+    def do(self, action: Action):
+        """
+        Start and run the given action. Auto-clones to avoid reuse issues.
+        """
+        try:
+            action = action.clone()
+        except Exception as e:
+            raise RuntimeError(f"Failed to clone action: {e}")
+
+        action.target = self
+        action.start()
+        self._actions.append(action)
+
+    def update(self, delta_time: float):
+        for action in self._actions[:]:
+            action.step(delta_time)
+            if action.is_done():
+                self._actions.remove(action)
+
+
 class IntervalAction(Action):
     def __init__(self, duration: float):
         super().__init__()
         self.duration = duration
+        self._elapsed = 0.0
+
+    def start(self):
+        super().start()
+        self._elapsed = 0.0
 
     def step(self, dt: float):
-        super().step(dt)
         try:
             t = min(1, self._elapsed / self.duration)
             self.update(t)
@@ -203,10 +263,33 @@ class Repeat(Action):
         super().stop()
 
 
+class ArcadePropertyDefaultsMixin:
+    """
+    A mixin that ensures common arcade.Sprite attributes exist with default values.
+    Useful for subclasses that manually load textures or bypass Sprite.__init__ flow.
+    """
+
+    def apply_arcade_defaults(self):
+        # Set all required attributes if they aren't already defined
+        defaults = {
+            "center_x": 0.0,
+            "center_y": 0.0,
+            "angle": 0.0,
+            "scale": 1.0,
+            "alpha": 255,
+            "velocity": (0.0, 0.0),
+            "visible": True,
+        }
+        for attr, default in defaults.items():
+            if not hasattr(self, attr):
+                setattr(self, attr, default)
+
+
 # Integrate with Arcade Sprite
-class ActionSprite(arcade.Sprite):
+class ActionSprite(arcade.Sprite, ArcadePropertyDefaultsMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.apply_arcade_defaults()
         self.actions: list[Action] = []
 
     def do(self, action: Action):

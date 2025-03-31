@@ -3,9 +3,10 @@ import random
 
 import arcade
 
-from .base import IntervalAction
+from .base import IntervalAction, auto_clone
 
 
+@auto_clone
 class Lerp(IntervalAction):
     def __init__(self, attrib: str, start: float, end: float, duration: float):
         super().__init__(duration)
@@ -21,6 +22,7 @@ class Lerp(IntervalAction):
         return Lerp(self.attrib, self.end_value, self.start_value, self.duration)
 
 
+@auto_clone
 class RotateBy(IntervalAction):
     def __init__(self, angle: float, duration: float):
         super().__init__(duration)
@@ -36,6 +38,7 @@ class RotateBy(IntervalAction):
         return RotateBy(-self.angle, self.duration)
 
 
+@auto_clone
 class RotateTo(IntervalAction):
     def __init__(self, angle: float, duration: float):
         super().__init__(duration)
@@ -57,6 +60,7 @@ class RotateTo(IntervalAction):
         return RotateTo(self.start_angle, self.duration)
 
 
+@auto_clone
 class Speed(IntervalAction):
     def __init__(self, other: IntervalAction, speed: float):
         super().__init__(other.duration / speed)
@@ -74,6 +78,7 @@ class Speed(IntervalAction):
         return Speed(self.other.__reversed__(), self.speed)
 
 
+@auto_clone
 class Accelerate(IntervalAction):
     def __init__(self, other: IntervalAction, rate: float = 2):
         super().__init__(other.duration)
@@ -91,6 +96,7 @@ class Accelerate(IntervalAction):
         return Accelerate(self.other.__reversed__(), 1.0 / self.rate)
 
 
+@auto_clone
 class AccelDecel(IntervalAction):
     def __init__(self, other: IntervalAction):
         super().__init__(other.duration)
@@ -110,6 +116,7 @@ class AccelDecel(IntervalAction):
         return AccelDecel(self.other.__reversed__())
 
 
+@auto_clone
 class MoveTo(IntervalAction):
     def __init__(self, position: tuple[float, float], duration: float = 5):
         super().__init__(duration)
@@ -130,19 +137,31 @@ class MoveTo(IntervalAction):
         self.end_position = (self.start_position[0] + self.delta[0], self.start_position[1] + self.delta[1])
 
 
-class MoveBy(MoveTo):
+@auto_clone
+class MoveBy(IntervalAction):
     def __init__(self, delta: tuple[float, float], duration: float = 5):
-        super().__init__(delta, duration)
+        super().__init__(duration)
         self.delta = delta
 
     def start(self):
         self.start_position = (self.target.center_x, self.target.center_y)
         self.end_position = (self.start_position[0] + self.delta[0], self.start_position[1] + self.delta[1])
 
+    def update(self, t: float):
+        new_x = self.start_position[0] + self.delta[0] * t
+        new_y = self.start_position[1] + self.delta[1] * t
+        self.target.center_x, self.target.center_y = new_x, new_y
+
+    def update_delta(self, dx: float, dy: float):
+        self.delta = dx, dy
+        # Recalculate end position from current position
+        self.end_position = (self.start_position[0] + self.delta[0], self.start_position[1] + self.delta[1])
+
     def __reversed__(self):
         return MoveBy((-self.delta[0], -self.delta[1]), self.duration)
 
 
+@auto_clone
 class FadeOut(IntervalAction):
     def __init__(self, duration: float):
         super().__init__(duration)
@@ -154,6 +173,7 @@ class FadeOut(IntervalAction):
         return FadeIn(self.duration)
 
 
+@auto_clone
 class FadeTo(IntervalAction):
     def __init__(self, alpha: int, duration: float):
         super().__init__(duration)
@@ -166,6 +186,7 @@ class FadeTo(IntervalAction):
         self.target.alpha = int(self.start_alpha + (self.end_alpha - self.start_alpha) * t)
 
 
+@auto_clone
 class FadeIn(FadeOut):
     def update(self, t: float):
         self.target.alpha = int(255 * t)
@@ -174,6 +195,7 @@ class FadeIn(FadeOut):
         return FadeOut(self.duration)
 
 
+@auto_clone
 class ScaleTo(IntervalAction):
     def __init__(self, scale: float, duration: float = 5):
         super().__init__(duration)
@@ -186,6 +208,7 @@ class ScaleTo(IntervalAction):
         self.target.scale = self.start_scale + (self.end_scale - self.start_scale) * t
 
 
+@auto_clone
 class ScaleBy(ScaleTo):
     def start(self):
         self.start_scale = self.target.scale
@@ -195,6 +218,7 @@ class ScaleBy(ScaleTo):
         return ScaleBy(1.0 / self.end_scale, self.duration)
 
 
+@auto_clone
 class Blink(IntervalAction):
     def __init__(self, times: int, duration: float):
         super().__init__(duration)
@@ -209,6 +233,7 @@ class Blink(IntervalAction):
         return self
 
 
+@auto_clone
 class Bezier(IntervalAction):
     def __init__(self, bezier: list[tuple[float, float]], duration: float = 5):
         super().__init__(duration)
@@ -239,6 +264,7 @@ class Bezier(IntervalAction):
         return Bezier(list(reversed(self.bezier)), self.duration)
 
 
+@auto_clone
 class JumpBy(IntervalAction):
     def __init__(self, position: tuple[float, float], height: float, jumps: int, duration: float):
         super().__init__(duration)
@@ -260,12 +286,14 @@ class JumpBy(IntervalAction):
         return JumpBy((-self.delta[0], -self.delta[1]), self.height, self.jumps, self.duration)
 
 
+@auto_clone
 class JumpTo(JumpBy):
     def start(self):
         super().start()
         self.delta = (self.delta[0] - self.start_position[0], self.delta[1] - self.start_position[1])
 
 
+@auto_clone
 class Delay(IntervalAction):
     def __init__(self, delay: float):
         super().__init__(delay)
@@ -274,6 +302,7 @@ class Delay(IntervalAction):
         return self
 
 
+@auto_clone
 class RandomDelay(Delay):
     def __init__(self, low: float, high: float):
         super().__init__(random.uniform(low, high))

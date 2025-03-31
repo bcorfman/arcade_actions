@@ -4,9 +4,10 @@ from typing import Any
 
 import arcade
 
-from .base import InstantAction
+from .base import InstantAction, auto_clone
 
 
+@auto_clone
 class Place(InstantAction):
     def __init__(self, position: tuple[float, float]):
         super().__init__()
@@ -16,6 +17,7 @@ class Place(InstantAction):
         self.target.center_x, self.target.center_y = self.position
 
 
+@auto_clone
 class Hide(InstantAction):
     def start(self):
         self.target.visible = False
@@ -24,6 +26,7 @@ class Hide(InstantAction):
         return Show()
 
 
+@auto_clone
 class Show(InstantAction):
     def start(self):
         self.target.visible = True
@@ -32,11 +35,13 @@ class Show(InstantAction):
         return Hide()
 
 
+@auto_clone
 class ToggleVisibility(InstantAction):
     def start(self):
         self.target.visible = not self.target.visible
 
 
+@auto_clone
 class CallFunc(InstantAction):
     def __init__(self, func: Callable, *args: Any, **kwargs: Any):
         super().__init__()
@@ -51,6 +56,7 @@ class CallFunc(InstantAction):
         return copy.copy(self)
 
 
+@auto_clone
 class CallFuncS(CallFunc):
     def start(self):
         self.func(self.target, *self.args, **self.kwargs)

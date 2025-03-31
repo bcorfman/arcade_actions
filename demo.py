@@ -73,7 +73,7 @@ class FormationMove(IntervalAction):
 
     def start(self):
         # Get initial formation width
-        active_enemies = [e for e in self.target.parent_list if not e.scheduled_to_remove]
+        active_enemies = [e for e in self.target.parent_list if not e.sprite_lists]
         self.prev_width = max(e.center_x for e in active_enemies) - min(e.center_x for e in active_enemies)
 
         # Initial movement sequence
