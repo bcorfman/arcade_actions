@@ -1,90 +1,60 @@
-import copy
-from collections.abc import Callable
-from typing import Any
+# instant.py
 
-import arcade
+from .base import InstantAction
 
-from .base import InstantAction, auto_clone
+__all__ = [
+    "Place",
+    "Hide",
+    "Show",
+    "ToggleVisibility",
+    "CallFunc",
+    "CallFuncS",
+]
 
 
-@auto_clone
 class Place(InstantAction):
-    def __init__(self, position: tuple[float, float]):
+    def __init__(self, position):
         super().__init__()
         self.position = position
 
-    def start(self):
+    def update(self, t: float):
         self.target.center_x, self.target.center_y = self.position
 
 
-@auto_clone
 class Hide(InstantAction):
-    def start(self):
+    def update(self, t: float):
         self.target.visible = False
 
     def __reversed__(self):
         return Show()
 
 
-@auto_clone
 class Show(InstantAction):
-    def start(self):
+    def update(self, t: float):
         self.target.visible = True
 
     def __reversed__(self):
         return Hide()
 
 
-@auto_clone
 class ToggleVisibility(InstantAction):
-    def start(self):
+    def update(self, t: float):
         self.target.visible = not self.target.visible
 
 
-@auto_clone
 class CallFunc(InstantAction):
-    def __init__(self, func: Callable, *args: Any, **kwargs: Any):
+    def __init__(self, func):
         super().__init__()
         self.func = func
-        self.args = args
-        self.kwargs = kwargs
 
-    def start(self):
-        self.func(*self.args, **self.kwargs)
-
-    def __deepcopy__(self, memo):
-        return copy.copy(self)
+    def update(self, t: float):
+        self.func()
 
 
-@auto_clone
-class CallFuncS(CallFunc):
-    def start(self):
-        self.func(self.target, *self.args, **self.kwargs)
+class CallFuncS(InstantAction):
+    def __init__(self, func):
+        super().__init__()
+        self.func = func
 
-
-# Usage example
-if __name__ == "__main__":
-    window = arcade.Window(800, 600, "Instant Actions Example")
-
-    sprite = arcade.Sprite(":resources:images/animated_characters/female_person/femalePerson_idle.png", 0.5)
-    sprite.center_x = 400
-    sprite.center_y = 300
-
-    def print_message(target):
-        print(f"Hello from {target}")
-
-    action = Place((200, 200)) + CallFuncS(print_message) + Hide() + Show() + ToggleVisibility()
-
-    sprite.do(action)
-
-    @window.event
-    def on_draw():
-        arcade.start_render()
-        sprite.draw()
-
-    def update(delta_time):
-        sprite.update()
-
-    arcade.schedule(update, 1 / 60)
-
-    arcade.run()
+    def update(self, t: float):
+        self.func(self.target)

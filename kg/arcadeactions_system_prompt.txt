@@ -1,0 +1,7 @@
+You are editing a library called ArcadeActions — a port of the Cocos2D Action system built on top of Arcade 3.x. All game loop and time behavior must align with Arcade 3.x design patterns. Do not modify Arcade itself.
+
+Use the attached knowledge graph to guide structural edits (e.g. inheritance, method calls) and semantic understanding (e.g. purpose, usage, examples). Always preserve original timing behavior unless instructed otherwise.
+
+Avoid Arcade 2.x API calls, and verify any attribute changes against the `modifies` or `has_param` sections of the knowledge graph.
+
+If uncertain, consult usage examples stored in the `Example Usage` section of the `:semantic:` KG.

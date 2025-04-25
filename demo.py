@@ -4,8 +4,8 @@ import sys
 import arcade
 from loguru import logger
 
-from actions.base import ActionSprite, Repeat, Spawn, spawn
-from actions.interval import (
+from actions.base_c import ActionSprite, Repeat, Spawn, spawn
+from actions.interval_c import (
     AccelDecel,
     Accelerate,
     Bezier,
@@ -20,7 +20,7 @@ from actions.interval import (
     ScaleBy,
     ScaleTo,
 )
-from actions.move import BoundedMove
+from actions.move_c import BoundedMove
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -50,11 +50,12 @@ class DemoSprite(ActionSprite):
             "angle": 0,
             "alpha": 255,
             "scale": 0.5,
+            "elapsed": 0.0,
         }
         self.reset_state()
 
-    def update(self, delta_time: float = 1 / 60):
-        super().update(delta_time)
+    def update(self, elapsed_time: 0.0):
+        super().update(elapsed_time)
         # Ensure sprite stays within screen bounds and below text
         self.center_x = max(self.width / 2, min(self.center_x, SCREEN_WIDTH - self.width / 2))
         self.center_y = max(self.height / 2 + TEXT_MARGIN, min(self.center_y, SCREEN_HEIGHT - self.height / 2))
@@ -146,6 +147,7 @@ class ActionDemo(arcade.Window):
         )
 
         self.demo_active = False
+        self.elapsed = 0.0
         self.start_demo()
 
     def create_spawn_bezier_action(self):
@@ -198,6 +200,7 @@ class ActionDemo(arcade.Window):
 
     def start_next_action(self):
         if self.current_action < len(self.actions):
+            self.elapsed = 0.0
             action_name, action_creator = self.actions[self.current_action]
             self.message = f"Current Action: {action_name}"
             self.text_sprite.text = self.message
@@ -220,7 +223,8 @@ class ActionDemo(arcade.Window):
         self.text_sprite.draw()
 
     def on_update(self, delta_time):
-        self.sprite_list.update(delta_time)
+        self.elapsed += delta_time
+        self.sprite_list.update(self.elapsed)
         if self.demo_active and all(not sprite.actions for sprite in self.sprite_list):
             self.start_next_action()
 

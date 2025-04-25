@@ -19,7 +19,7 @@ class MockSprite(Actionable):
     def update(self, dt):
         for action in self._actions[:]:
             action.step(dt)
-            if action.is_done():
+            if action.done():
                 self._actions.remove(action)
 
 

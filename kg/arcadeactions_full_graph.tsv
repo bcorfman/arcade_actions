@@ -1,0 +1,428 @@
+:structural:
+AccelDecel	contains	Action
+AccelDecel	inherits_from
+Accelerate	contains	Action
+Accelerate	inherits_from	IntervalAction
+Action	contains	Action
+ActionSprite	contains	Action
+ActionSprite	inherits_from	ArcadePropertyDefaultsMixin
+ActionSprite	inherits_from	Sprite
+Actionable	contains	Action
+Bezier	contains	Action
+Bezier	inherits_from	IntervalAction
+Bezier.start	modifies	target.center_x
+Bezier.start	modifies	target.center_y
+Bezier.update	modifies	target.center_x
+Bezier.update	modifies	target.center_y
+Blink	contains	Action
+Blink	inherits_from	IntervalAction
+Blink.update	modifies	target.visible
+BoundedMove	inherits_from	Move
+BoundedMove.step	modifies	target.center_x
+BoundedMove.step	modifies	target.center_y
+CallFunc	contains	Action
+CallFunc	inherits_from	InstantAction
+CallFuncS	inherits_from	CallFunc
+Delay	contains	Action
+Delay	inherits_from	IntervalAction
+FadeIn	inherits_from	FadeOut
+FadeIn.update	modifies	target.alpha
+FadeOut	contains	Action
+FadeOut	inherits_from	IntervalAction
+FadeOut.update	modifies	target.alpha
+FadeTo	contains	Action
+FadeTo	inherits_from	IntervalAction
+FadeTo.start	modifies	target.alpha
+FadeTo.update	modifies	target.alpha
+Hide	contains	Action
+Hide	inherits_from	InstantAction
+Hide.start	modifies	target.visible
+InstantAction	contains	Action
+InstantAction	inherits_from	IntervalAction
+IntervalAction	contains	Action
+IntervalAction	inherits_from	Action
+JumpBy	contains	Action
+JumpBy	inherits_from	IntervalAction
+JumpBy.start	modifies	target.center_x
+JumpBy.start	modifies	target.center_y
+JumpBy.update	modifies	target.center_x
+JumpBy.update	modifies	target.center_y
+JumpTo	inherits_from	JumpBy
+Lerp	contains	Action
+Lerp	inherits_from	IntervalAction
+Loop	contains	Action
+Loop	inherits_from	Action
+Move	contains	Action
+Move	inherits_from	Action
+Move.step	modifies	target.velocity
+MoveBy	contains	Action
+MoveBy	inherits_from	IntervalAction
+MoveBy.start	modifies	target.center_x
+MoveBy.start	modifies	target.center_y
+MoveBy.update	modifies	target.center_x
+MoveBy.update	modifies	target.center_y
+MoveTo	contains	Action
+MoveTo	inherits_from	IntervalAction
+MoveTo.start	modifies	target.center_x
+MoveTo.start	modifies	target.center_y
+MoveTo.update	modifies	target.center_x
+MoveTo.update	modifies	target.center_y
+Place	contains	Action
+Place	inherits_from	InstantAction
+Place.start	modifies	target.center_x
+Place.start	modifies	target.center_y
+RandomDelay	inherits_from	Delay
+Repeat	contains	Action
+Repeat	inherits_from	Action
+ReversedMove	contains	Action
+ReversedMove	inherits_from	Move
+ReversedMove.step	modifies	target.center_x
+ReversedMove.step	modifies	target.center_y
+ReversedMove.step	modifies	target.velocity
+RotateBy	contains	Action
+RotateBy	inherits_from	IntervalAction
+RotateBy.__init__	requires	self.angle
+RotateBy.__reversed__	requires	self.angle
+RotateBy.start	modifies	target.angle
+RotateBy.update	modifies	target.angle
+RotateBy.update	requires	self.angle
+RotateTo	contains	Action
+RotateTo	inherits_from	IntervalAction
+RotateTo.__init__	requires	self.angle
+RotateTo.start	modifies	target.angle
+RotateTo.start	requires	self.angle
+RotateTo.update	modifies	target.angle
+RotateTo.update	requires	self.angle
+ScaleBy	inherits_from	ScaleTo
+ScaleBy.start	modifies	target.scale
+ScaleTo	contains	Action
+ScaleTo	inherits_from	IntervalAction
+ScaleTo.start	modifies	target.scale
+ScaleTo.update	modifies	target.scale
+Sequence	contains	Action
+Sequence	inherits_from	Action
+Show	contains	Action
+Show	inherits_from	InstantAction
+Show.start	modifies	target.visible
+SimpleMove	contains	Action
+SimpleMove	inherits_from	IntervalAction
+SimpleMove.update	modifies	target.center_x
+SimpleMove.update	modifies	target.center_y
+Spawn	contains	Action
+Spawn	inherits_from	Action
+Speed	contains	Action
+Speed	inherits_from	IntervalAction
+ToggleVisibility	contains	Action
+ToggleVisibility	inherits_from	InstantAction
+ToggleVisibility.start	modifies	target.visible
+WrappedMove	inherits_from	Move
+WrappedMove.step	modifies	target.center_x
+WrappedMove.step	modifies	target.center_y
+Action	belongs_to_category	CategoryName
+JumpBy	belongs_to_category	Movement
+MoveBy	belongs_to_category	Movement
+Place	belongs_to_category	Positioning
+Hide	belongs_to_category	VisualEffect
+Show	belongs_to_category	VisualEffect
+ToggleVisibility	belongs_to_category	VisualEffect
+CallFunc	belongs_to_category	LogicTrigger
+CallFuncS	belongs_to_category	LogicTrigger
+WrappedMove	belongs_to_category	Movement
+BoundedMove	belongs_to_category	Movement
+ReversedMove	belongs_to_category	Movement
+JumpBy	has_param	position : tuple[float, float]
+JumpBy	has_param	height : float
+JumpBy	has_param	jumps : int
+JumpBy	has_param	duration : float
+MoveBy	has_param	delta : tuple[float, float]
+MoveBy	has_param	duration : float
+Place	has_param	position : tuple[float, float]
+Hide	modifies	target.visible
+Show	modifies	target.visible
+ToggleVisibility	modifies	target.visible
+JumpBy	modifies	target.center_x
+JumpBy	modifies	target.center_y
+MoveBy	modifies	target.center_x
+MoveBy	modifies	target.center_y
+JumpBy	pitfall	Do not reuse same JumpBy instance for multiple sprites
+Automatically extracted semantic extensions:
+AccelDecel	has_param	other : IntervalAction
+AccelDecel	inherits_from	IntervalAction
+Accelerate	has_param	other : IntervalAction
+Accelerate	has_param	rate : float
+Accelerate	inherits_from	IntervalAction
+ActionSprite	inherits_from	ArcadePropertyDefaultsMixin
+ActionSprite	inherits_from	Sprite
+Bezier	has_param	bezier : list[tuple[float, float]]
+Bezier	has_param	duration : float
+Bezier	inherits_from	IntervalAction
+Blink	has_param	duration : float
+Blink	has_param	times : int
+Blink	inherits_from	IntervalAction
+BoundedMove	has_param	bounds : tuple[float, float, float, float]
+BoundedMove	inherits_from	Move
+CallFunc	has_param	func : Callable
+CallFunc	inherits_from	InstantAction
+CallFuncS	inherits_from	CallFunc
+Delay	has_param	delay : float
+Delay	inherits_from	IntervalAction
+FadeIn	inherits_from	FadeOut
+FadeOut	has_param	duration : float
+FadeOut	inherits_from	IntervalAction
+FadeTo	has_param	alpha : int
+FadeTo	has_param	duration : float
+FadeTo	inherits_from	IntervalAction
+Hide	inherits_from	InstantAction
+InstantAction	inherits_from	IntervalAction
+IntervalAction	has_param	duration : float
+IntervalAction	inherits_from	Action
+JumpBy	has_param	duration : float
+JumpBy	has_param	height : float
+JumpBy	has_param	jumps : int
+JumpBy	has_param	position : tuple[float, float]
+JumpBy	inherits_from	IntervalAction
+JumpTo	inherits_from	JumpBy
+Lerp	has_param	attrib : str
+Lerp	has_param	duration : float
+Lerp	has_param	end : float
+Lerp	has_param	start : float
+Lerp	inherits_from	IntervalAction
+Loop	has_param	action : Action
+Loop	has_param	times : int
+Loop	inherits_from	Action
+Move	inherits_from	Action
+MoveBy	has_param	delta : tuple[float, float]
+MoveBy	has_param	duration : float
+MoveBy	inherits_from	IntervalAction
+MoveTo	has_param	duration : float
+MoveTo	has_param	position : tuple[float, float]
+MoveTo	inherits_from	IntervalAction
+Place	has_param	position : tuple[float, float]
+Place	inherits_from	InstantAction
+RandomDelay	has_param	high : float
+RandomDelay	has_param	low : float
+RandomDelay	inherits_from	Delay
+Repeat	has_param	action : Action
+Repeat	inherits_from	Action
+ReversedMove	has_param	bounds : tuple[float, float, float, float]
+ReversedMove	inherits_from	Move
+RotateBy	has_param	angle : float
+RotateBy	has_param	duration : float
+RotateBy	inherits_from	IntervalAction
+RotateTo	has_param	angle : float
+RotateTo	has_param	duration : float
+RotateTo	inherits_from	IntervalAction
+ScaleBy	inherits_from	ScaleTo
+ScaleTo	has_param	duration : float
+ScaleTo	has_param	scale : float
+ScaleTo	inherits_from	IntervalAction
+Sequence	has_param	actions : list[Action]
+Sequence	inherits_from	Action
+Show	inherits_from	InstantAction
+Spawn	has_param	actions : list[Action]
+Spawn	inherits_from	Action
+Speed	has_param	other : IntervalAction
+Speed	has_param	speed : float
+Speed	inherits_from	IntervalAction
+ToggleVisibility	inherits_from	InstantAction
+WrappedMove	has_param	height : int
+WrappedMove	has_param	width : int
+WrappedMove	inherits_from	Move
+Action	has_method	__init__()
+Action	has_method	start(target)
+Action	has_method	stop()
+Action	has_method	step(dt)
+Action	has_method	done()
+Action	has_method	clone()
+Action	has_method	__add__(other)
+Action	has_method	__mul__(other)
+Action	has_method	__or__(other)
+Action	has_method	__reversed__()
+Actionable	has_method	__init__()
+Actionable	has_method	do(action)
+Actionable	has_method	update(delta_time)
+IntervalAction	inherits_from	Action
+IntervalAction	has_method	__init__(duration)
+IntervalAction	has_method	start()
+IntervalAction	has_method	step(dt)
+IntervalAction	has_method	done()
+IntervalAction	has_method	update(t)
+InstantAction	inherits_from	IntervalAction
+InstantAction	has_method	__init__()
+InstantAction	has_method	step(dt)
+InstantAction	has_method	start()
+InstantAction	has_method	update(t)
+InstantAction	has_method	stop()
+InstantAction	has_method	done()
+Loop	inherits_from	Action
+Loop	has_method	__init__(action, times)
+Loop	has_method	start()
+Loop	has_method	step(dt)
+Loop	has_method	stop()
+Sequence	inherits_from	Action
+Sequence	has_method	__init__(actions)
+Sequence	has_method	start()
+Sequence	has_method	step(dt)
+Sequence	has_method	stop()
+Spawn	inherits_from	Action
+Spawn	has_method	__init__(actions)
+Spawn	has_method	start()
+Spawn	has_method	step(dt)
+Spawn	has_method	stop()
+Repeat	inherits_from	Action
+Repeat	has_method	__init__(action)
+Repeat	has_method	start()
+Repeat	has_method	step(dt)
+Repeat	has_method	stop()
+ArcadePropertyDefaultsMixin	has_method	apply_arcade_defaults()
+ActionSprite	inherits_from	Sprite
+ActionSprite	inherits_from	ArcadePropertyDefaultsMixin
+ActionSprite	inherits_from	Actionable
+ActionSprite	has_method	__init__()
+ActionSprite	has_method	do(action)
+ActionSprite	has_method	update(delta_time)
+ActionSprite	has_method	remove_action(action)
+Place	inherits_from	InstantAction
+Place	has_method	__init__(position)
+Place	has_method	start()
+Hide	inherits_from	InstantAction
+Hide	has_method	start()
+Hide	has_method	__reversed__()
+Show	inherits_from	InstantAction
+Show	has_method	start()
+Show	has_method	__reversed__()
+ToggleVisibility	inherits_from	InstantAction
+ToggleVisibility	has_method	start()
+CallFunc	inherits_from	InstantAction
+CallFunc	has_method	__init__(func)
+CallFunc	has_method	start()
+CallFunc	has_method	__deepcopy__(memo)
+CallFuncS	inherits_from	CallFunc
+CallFuncS	has_method	start()
+Lerp	inherits_from	IntervalAction
+Lerp	has_method	__init__(attrib, start, end, duration)
+Lerp	has_method	update(t)
+Lerp	has_method	__reversed__()
+RotateBy	inherits_from	IntervalAction
+RotateBy	has_method	__init__(angle, duration)
+RotateBy	has_method	start()
+RotateBy	has_method	update(t)
+RotateBy	has_method	__reversed__()
+RotateTo	inherits_from	IntervalAction
+RotateTo	has_method	__init__(angle, duration)
+RotateTo	has_method	start()
+RotateTo	has_method	update(t)
+RotateTo	has_method	__reversed__()
+Speed	inherits_from	IntervalAction
+Speed	has_method	__init__(other, speed)
+Speed	has_method	start()
+Speed	has_method	update(t)
+Speed	has_method	__reversed__()
+Accelerate	inherits_from	IntervalAction
+Accelerate	has_method	__init__(other, rate)
+Accelerate	has_method	start()
+Accelerate	has_method	update(t)
+Accelerate	has_method	__reversed__()
+AccelDecel	inherits_from	IntervalAction
+AccelDecel	has_method	__init__(other)
+AccelDecel	has_method	start()
+AccelDecel	has_method	update(t)
+AccelDecel	has_method	__reversed__()
+MoveTo	inherits_from	IntervalAction
+MoveTo	has_method	__init__(position, duration)
+MoveTo	has_method	start()
+MoveTo	has_method	update(t)
+MoveTo	has_method	update_delta(dx, dy)
+MoveBy	inherits_from	IntervalAction
+MoveBy	has_method	__init__(delta, duration)
+MoveBy	has_method	start()
+MoveBy	has_method	update(t)
+MoveBy	has_method	update_delta(dx, dy)
+MoveBy	has_method	__reversed__()
+FadeOut	inherits_from	IntervalAction
+FadeOut	has_method	__init__(duration)
+FadeOut	has_method	update(t)
+FadeOut	has_method	__reversed__()
+FadeTo	inherits_from	IntervalAction
+FadeTo	has_method	__init__(alpha, duration)
+FadeTo	has_method	start()
+FadeTo	has_method	update(t)
+FadeIn	inherits_from	FadeOut
+FadeIn	has_method	update(t)
+FadeIn	has_method	__reversed__()
+ScaleTo	inherits_from	IntervalAction
+ScaleTo	has_method	__init__(scale, duration)
+ScaleTo	has_method	start()
+ScaleTo	has_method	update(t)
+ScaleBy	inherits_from	ScaleTo
+ScaleBy	has_method	start()
+ScaleBy	has_method	__reversed__()
+Blink	inherits_from	IntervalAction
+Blink	has_method	__init__(times, duration)
+Blink	has_method	update(t)
+Blink	has_method	__reversed__()
+Bezier	inherits_from	IntervalAction
+Bezier	has_method	__init__(bezier, duration)
+Bezier	has_method	start()
+Bezier	has_method	update(t)
+Bezier	has_method	_bezier_at(t)
+Bezier	has_method	__reversed__()
+JumpBy	inherits_from	IntervalAction
+JumpBy	has_method	__init__(position, height, jumps, duration)
+JumpBy	has_method	start()
+JumpBy	has_method	update(t)
+JumpBy	has_method	__reversed__()
+JumpTo	inherits_from	JumpBy
+JumpTo	has_method	start()
+Delay	inherits_from	IntervalAction
+Delay	has_method	__init__(delay)
+Delay	has_method	__reversed__()
+RandomDelay	inherits_from	Delay
+RandomDelay	has_method	__init__(low, high)
+Move	inherits_from	Action
+Move	has_method	step(dt)
+WrappedMove	inherits_from	Move
+WrappedMove	has_method	__init__(width, height)
+WrappedMove	has_method	step(dt)
+BoundedMove	inherits_from	Move
+BoundedMove	has_method	__init__(bounds)
+BoundedMove	has_method	step(dt)
+ReversedMove	inherits_from	Move
+ReversedMove	has_method	__init__(bounds)
+ReversedMove	has_method	step(dt)
+:semantic:
+# Action    Purpose	When to Use	Example Usage
+AccelDecel	Apply easing effect for acceleration and deceleration	Use when smooth start and stop is desired	sprite.do(AccelDecel(action))
+Accelerate	Accelerate the timing of another action using a power curve	Use for actions that start slow and speed up	sprite.do(Accelerate(action, rate=2))
+Bezier	Move a sprite along a curved path defined by control points	Use for arcs, swooping paths, or organic motion	sprite.do(Bezier([p0, p1, p2, p3], duration=2.0))
+Blink	Toggle visibility repeatedly during duration	Use for blinking or warning animations	sprite.do(Blink(times=5, duration=1.0))
+BoundedMove	Move the sprite but constrain it within a rectangle	Use for bounce-limited or paddle movement	sprite.do(BoundedMove(bounds))
+CallFunc	Call a function with no arguments	Use to trigger an event or callback during an action sequence	sprite.do(CallFunc(my_function))
+CallFuncS	Call a function with the sprite as the first argument	Use when the callback needs access to the acting sprite	sprite.do(CallFuncS(print_sprite))
+Delay	Wait for a given amount of time before continuing	Use to pause between actions or animations	sprite.do(Delay(1.0))
+FadeIn	Fade the sprite in to full alpha	Use for spawning, reappearing, or unghosting effects	sprite.do(FadeIn(1.0))
+FadeOut	Fade the sprite out to zero alpha	Use for death, vanish, or dissolve effects	sprite.do(FadeOut(1.0))
+FadeTo	Fade the sprite to a target alpha value	Use for partial transparency changes	sprite.do(FadeTo(alpha=128, duration=2.0))
+Hide	Immediately hide the sprite	Use to disappear without fading	sprite.do(Hide())
+JumpBy	Move in a parabolic arc repeatedly	Use for character jumping, hopping, or bouncing	sprite.do(JumpBy((100, 0), height=30, jumps=2, duration=1.0))
+JumpTo	Jump to a target position in a parabolic arc	Use for jumping to a precise location	sprite.do(JumpTo((x, y), height=40, jumps=1, duration=1.0))
+Lerp	Linearly interpolate an attribute from start to end	Use for simple transitions on arbitrary properties	sprite.do(Lerp('scale', 0.5, 1.5, 1.0))
+Loop	Repeat an action a fixed number of times	Use for repeating sequences	sprite.do(Loop(action, times=3))
+Move	Move using velocity, acceleration, gravity and rotation	Use for physics-based motion with acceleration or drift	sprite.do(Move())
+MoveBy	Move the sprite by a delta over time	Use for relative movement such as walking or scrolling	sprite.do(MoveBy((100, 0), 1.0))
+MoveTo	Move the sprite to an absolute position	Use for teleportation-style or guided movement	sprite.do(MoveTo((x, y), 1.0))
+Place	Teleport the sprite to a location instantly	Use for starting position or warping	sprite.do(Place((x, y)))
+RandomDelay	Wait a random amount of time in a range	Use to create unpredictable delays or idle time	sprite.do(RandomDelay(0.5, 2.0))
+Repeat	Repeat an action indefinitely	Use for ongoing behavior or looping animation	sprite.do(Repeat(action))
+ReversedMove	Reverse sprite direction when it hits boundaries	Use for back-and-forth patrol or ricochet	sprite.do(ReversedMove(bounds))
+RotateBy	Rotate sprite by a relative angle	Use for spin or rotate animations	sprite.do(RotateBy(180, 2.0))
+RotateTo	Rotate sprite to an absolute angle	Use to aim or orient toward a direction	sprite.do(RotateTo(90, 1.0))
+ScaleBy	Scale the sprite by a multiplicative factor	Use to shrink or grow proportionally	sprite.do(ScaleBy(2.0, 1.0))
+ScaleTo	Scale the sprite to an absolute size	Use for grow/shrink to fixed size	sprite.do(ScaleTo(1.0, 1.0))
+Sequence	Run multiple actions in order, one after the next	Use for animation or logic sequences	sprite.do(action1 + action2 + action3)
+Show	Immediately show the sprite (if hidden)	Use to reappear from hiding	sprite.do(Show())
+SimpleMove	Custom example: move in one direction and back	Use for bouncing or patrol effects (demo only)	sprite.do(SimpleMove(100, 0, 2.0))
+Spawn	Run multiple actions in parallel	Use for simultaneous animations (e.g. move + fade)	sprite.do(action1 | action2)
+Speed	Modify the speed of an action	Use to slow down or speed up an animation	sprite.do(Speed(action, 2.0))
+ToggleVisibility	Toggle visibility state of the sprite	Use for flicker or hide/show toggles	sprite.do(ToggleVisibility())
+WrappedMove	Wrap sprite around screen edges	Use for toroidal maps or Asteroids-style movement	sprite.do(WrappedMove(width, height))

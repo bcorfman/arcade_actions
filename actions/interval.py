@@ -1,335 +1,429 @@
 import math
 import random
 
-import arcade
+from .base import IntervalAction
 
-from .base import IntervalAction, auto_clone
+__all__ = [
+    "MoveBy",
+    "MoveTo",
+    "JumpBy",
+    "JumpTo",
+    "Bezier",
+    "Blink",
+    "RotateTo",
+    "RotateBy",
+    "ScaleTo",
+    "ScaleBy",
+    "FadeTo",
+    "FadeIn",
+    "FadeOut",
+    "Delay",
+    "RandomDelay",
+    "Lerp",
+    "Accelerate",
+    "AccelDecel",
+    "Speed",
+    "Move",
+    "Rotate",
+    "Scale",
+]
 
 
-@auto_clone
-class Lerp(IntervalAction):
-    def __init__(self, attrib: str, start: float, end: float, duration: float):
+class MoveTo(IntervalAction):
+    """Moves a sprite to a specific location using Arcade's velocity system."""
+
+    def __init__(self, destination: tuple[float, float], duration: float):
         super().__init__(duration)
-        self.attrib = attrib
-        self.start_value = start
-        self.end_value = end
-        self.delta = end - start
+        self.destination = destination
+        self.vx, self.vy = 0.0, 0.0
+
+    def start(self, target):
+        super().start(target)
+        dx = self.destination[0] - target.center_x
+        dy = self.destination[1] - target.center_y
+        self.vx = dx / self.duration
+        self.vy = dy / self.duration
+        target.change_x += self.vx
+        target.change_y += self.vy
 
     def update(self, t: float):
-        setattr(self.target, self.attrib, self.start_value + self.delta * t)
+        pass
+
+    def finish(self):
+        self.target.change_x -= self.vx
+        self.target.change_y -= self.vy
+
+
+class MoveBy(IntervalAction):
+    """Moves a sprite by a delta using Arcade's velocity system (change_x/y)."""
+
+    def __init__(self, delta: tuple[float, float], duration: float):
+        super().__init__(duration)
+        self.dx, self.dy = delta
+        self.vx, self.vy = 0.0, 0.0
+
+    def start(self, target):
+        super().start(target)
+        self.vx = self.dx / self.duration
+        self.vy = self.dy / self.duration
+        target.change_x += self.vx
+        target.change_y += self.vy
+
+    def update(self, t: float):
+        pass  # Let Arcade handle position via velocity
+
+    def finish(self):
+        # Remove our contribution to velocity
+        self.target.change_x -= self.vx
+        self.target.change_y -= self.vy
+
+
+class JumpBy(IntervalAction):
+    """
+    Jumps a sprite along a curved path using Arcade-style velocity.
+    """
+
+    def __init__(self, delta=(0, 0), height=50, jumps=1, duration=1.0):
+        super().__init__(duration)
+        self.delta = delta
+        self.height = height
+        self.jumps = jumps
+
+        self._vx = 0.0
+        self._vy_base = 0.0
+
+    def start(self, target):
+        super().start(target)
+        dx, dy = self.delta
+        self._vx = dx / self.duration
+        self._vy_base = dy / self.duration
+        target.change_x += self._vx
+
+    def update(self, t: float):
+        # Vertical sinusoidal curve overlaying constant motion
+        jump_sin = abs(math.sin(t * math.pi * self.jumps))
+        vy = self._vy_base + (self.height * jump_sin) / self.duration
+        self.target.change_y = vy
+
+    def stop(self):
+        self.target.change_x -= self._vx
+        self.target.change_y = 0.0
+        super().stop()
+
+
+class JumpTo(JumpBy):
+    """
+    Jumps a sprite to an absolute position using Arcade-style velocity.
+    """
+
+    def __init__(self, destination=(0, 0), height=50, jumps=1, duration=1.0):
+        super().__init__((0, 0), height, jumps, duration)
+        self.destination = destination
+
+    def start(self, target):
+        dx = self.destination[0] - target.center_x
+        dy = self.destination[1] - target.center_y
+        self.delta = (dx, dy)
+        super().start(target)
+
+
+class Bezier(IntervalAction):
+    """
+    Moves a sprite along a bezier path by dynamically computing velocity.
+    """
+
+    def __init__(self, bezier_func, duration=1.0):
+        """
+        :param bezier_func: A function bezier(t) -> (x, y) for t ∈ [0, 1]
+        """
+        super().__init__(duration)
+        self.bezier = bezier_func
+        self.last_position = (0, 0)
+
+    def start(self, target):
+        super().start(target)
+        self.last_position = target.center_x, target.center_y
+
+    def update(self, t: float):
+        cx, cy = self.last_position
+        bx, by = self.bezier(t)
+        dx = bx - cx
+        dy = by - cy
+        self.target.change_x = dx / self.duration
+        self.target.change_y = dy / self.duration
+        self.last_position = (bx, by)
+
+    def stop(self):
+        self.target.change_x = 0.0
+        self.target.change_y = 0.0
+        super().stop()
+
+
+class Blink(IntervalAction):
+    """Toggles sprite.visible N times over the given duration."""
+
+    def __init__(self, times: int, duration: float):
+        super().__init__(duration)
+        self.times = times
+        self.original_visibility = True
+
+    def start(self, target):
+        super().start(target)
+        self.original_visibility = target.visible
+
+    def update(self, t: float):
+        slice_len = 1.0 / self.times
+        slice_index = int(t / slice_len)
+        # Toggle every other slice
+        self.target.visible = slice_index % 2 == 0
+
+    def stop(self):
+        self.target.visible = self.original_visibility
+        super().stop()
 
     def __reversed__(self):
-        return Lerp(self.attrib, self.end_value, self.start_value, self.duration)
+        return self  # Blink is symmetrical
 
 
-@auto_clone
+class RotateTo(IntervalAction):
+    def __init__(self, target_angle: float, duration: float):
+        super().__init__(duration)
+        self.target_angle = target_angle
+
+    def start(self, target):
+        super().start(target)
+        self.start_angle = getattr(target, "angle", 0)
+
+    def step(self, t: float):
+        delta = self.target_angle - self.start_angle
+        self.target.angle = self.start_angle + delta * t
+
+
 class RotateBy(IntervalAction):
+    """Rotates the sprite by a given number of degrees using change_angle."""
+
     def __init__(self, angle: float, duration: float):
         super().__init__(duration)
         self.angle = angle
+        self.d_angle = 0.0
 
-    def start(self):
-        self.start_angle = self.target.angle
+    def start(self, target):
+        super().start(target)
+        self.d_angle = self.angle / self.duration
+        target.change_angle += self.d_angle
 
     def update(self, t: float):
-        self.target.angle = (self.start_angle + self.angle * t) % 360
+        pass
 
-    def __reversed__(self):
-        return RotateBy(-self.angle, self.duration)
+    def finish(self):
+        self.target.change_angle -= self.d_angle
 
 
-@auto_clone
-class RotateTo(IntervalAction):
-    def __init__(self, angle: float, duration: float):
+class ScaleTo(IntervalAction):
+    """Scales a sprite to a target zoom factor using .scale"""
+
+    def __init__(self, scale: float, duration: float):
         super().__init__(duration)
-        self.angle = angle % 360
+        self.end_scale = scale
+        self.start_scale = 1.0
 
-    def start(self):
-        sa = self.start_angle = self.target.angle % 360
-        ea = self.angle
-        self.angle = (ea % 360) - (sa % 360)
-        if self.angle > 180:
-            self.angle = -360 + self.angle
-        if self.angle < -180:
-            self.angle = 360 + self.angle
+    def start(self, target):
+        super().start(target)
+        self.start_scale = target.scale
 
     def update(self, t: float):
-        self.target.angle = (self.start_angle + self.angle * t) % 360
+        new_scale = self.start_scale + (self.end_scale - self.start_scale) * t
+        self.target.scale = new_scale
+
+    def stop(self):
+        self.target.scale = self.end_scale
+        super().stop()
+
+
+class ScaleBy(ScaleTo):
+    """Scales a sprite *by* a factor relative to current scale."""
+
+    def __init__(self, scale_factor: float, duration: float):
+        super().__init__(scale=scale_factor, duration=duration)
+        self.scale_factor = scale_factor
+
+    def start(self, target):
+        self.start_scale = target.scale
+        self.end_scale = self.start_scale * self.scale_factor
+        super().start(target)
 
     def __reversed__(self):
-        return RotateTo(self.start_angle, self.duration)
+        return ScaleBy(1.0 / self.scale_factor, self.duration)
 
 
-@auto_clone
-class Speed(IntervalAction):
-    def __init__(self, other: IntervalAction, speed: float):
-        super().__init__(other.duration / speed)
-        self.other = other
-        self.speed = speed
-
-    def start(self):
-        self.other.target = self.target
-        self.other.start()
-
-    def update(self, t: float):
-        self.other.update(t)
-
-    def __reversed__(self):
-        return Speed(self.other.__reversed__(), self.speed)
-
-
-@auto_clone
-class Accelerate(IntervalAction):
-    def __init__(self, other: IntervalAction, rate: float = 2):
-        super().__init__(other.duration)
-        self.other = other
-        self.rate = rate
-
-    def start(self):
-        self.other.target = self.target
-        self.other.start()
-
-    def update(self, t: float):
-        self.other.update(t**self.rate)
-
-    def __reversed__(self):
-        return Accelerate(self.other.__reversed__(), 1.0 / self.rate)
-
-
-@auto_clone
-class AccelDecel(IntervalAction):
-    def __init__(self, other: IntervalAction):
-        super().__init__(other.duration)
-        self.other = other
-
-    def start(self):
-        self.other.target = self.target
-        self.other.start()
-
-    def update(self, t: float):
-        if t != 1.0:
-            ft = (t - 0.5) * 12
-            t = 1.0 / (1.0 + math.exp(-ft))
-        self.other.update(t)
-
-    def __reversed__(self):
-        return AccelDecel(self.other.__reversed__())
-
-
-@auto_clone
-class MoveTo(IntervalAction):
-    def __init__(self, position: tuple[float, float], duration: float = 5):
-        super().__init__(duration)
-        self.end_position = position
-
-    def start(self):
-        self.start_position = (self.target.center_x, self.target.center_y)
-        self.delta = (self.end_position[0] - self.start_position[0], self.end_position[1] - self.start_position[1])
-
-    def update(self, t: float):
-        new_x = self.start_position[0] + self.delta[0] * t
-        new_y = self.start_position[1] + self.delta[1] * t
-        self.target.center_x, self.target.center_y = new_x, new_y
-
-    def update_delta(self, dx: float, dy: float):
-        self.delta = dx, dy
-        # Recalculate end position from current position
-        self.end_position = (self.start_position[0] + self.delta[0], self.start_position[1] + self.delta[1])
-
-
-@auto_clone
-class MoveBy(IntervalAction):
-    def __init__(self, delta: tuple[float, float], duration: float = 5):
-        super().__init__(duration)
-        self.delta = delta
-
-    def start(self):
-        self.start_position = (self.target.center_x, self.target.center_y)
-        self.end_position = (self.start_position[0] + self.delta[0], self.start_position[1] + self.delta[1])
-
-    def update(self, t: float):
-        new_x = self.start_position[0] + self.delta[0] * t
-        new_y = self.start_position[1] + self.delta[1] * t
-        self.target.center_x, self.target.center_y = new_x, new_y
-
-    def update_delta(self, dx: float, dy: float):
-        self.delta = dx, dy
-        # Recalculate end position from current position
-        self.end_position = (self.start_position[0] + self.delta[0], self.start_position[1] + self.delta[1])
-
-    def __reversed__(self):
-        return MoveBy((-self.delta[0], -self.delta[1]), self.duration)
-
-
-@auto_clone
-class FadeOut(IntervalAction):
-    def __init__(self, duration: float):
-        super().__init__(duration)
-
-    def update(self, t: float):
-        self.target.alpha = int(255 * (1 - t))
-
-    def __reversed__(self):
-        return FadeIn(self.duration)
-
-
-@auto_clone
 class FadeTo(IntervalAction):
-    def __init__(self, alpha: int, duration: float):
+    """Fades the sprite to a specific alpha (0–255) using Arcade's .alpha."""
+
+    def __init__(self, alpha: float, duration: float):
         super().__init__(duration)
-        self.end_alpha = alpha
+        self.alpha = alpha
+        self.start_alpha = 255
 
-    def start(self):
-        self.start_alpha = self.target.alpha
+    def start(self, target):
+        super().start(target)
+        self.start_alpha = target.alpha
 
     def update(self, t: float):
-        self.target.alpha = int(self.start_alpha + (self.end_alpha - self.start_alpha) * t)
+        new_alpha = self.start_alpha + (self.alpha - self.start_alpha) * t
+        self.target.alpha = int(new_alpha)
+
+    def stop(self):
+        self.target.alpha = int(self.alpha)
+        super().stop()
 
 
-@auto_clone
-class FadeIn(FadeOut):
-    def update(self, t: float):
-        self.target.alpha = int(255 * t)
+class FadeIn(FadeTo):
+    """Fades sprite alpha to 255 over time."""
+
+    def __init__(self, duration: float):
+        super().__init__(alpha=255, duration=duration)
 
     def __reversed__(self):
         return FadeOut(self.duration)
 
 
-@auto_clone
-class ScaleTo(IntervalAction):
-    def __init__(self, scale: float, duration: float = 5):
-        super().__init__(duration)
-        self.end_scale = scale
+class FadeOut(FadeTo):
+    """Fades sprite alpha to 0 over time."""
 
-    def start(self):
-        self.start_scale = self.target.scale
-
-    def update(self, t: float):
-        self.target.scale = self.start_scale + (self.end_scale - self.start_scale) * t
-
-
-@auto_clone
-class ScaleBy(ScaleTo):
-    def start(self):
-        self.start_scale = self.target.scale
-        self.end_scale = self.start_scale * self.end_scale
+    def __init__(self, duration: float):
+        super().__init__(alpha=0, duration=duration)
 
     def __reversed__(self):
-        return ScaleBy(1.0 / self.end_scale, self.duration)
+        return FadeIn(self.duration)
 
 
-@auto_clone
-class Blink(IntervalAction):
-    def __init__(self, times: int, duration: float):
-        super().__init__(duration)
-        self.times = times
-
-    def update(self, t: float):
-        slice = 1.0 / self.times
-        m = t % slice
-        self.target.visible = m > slice / 2.0
-
-    def __reversed__(self):
-        return self
-
-
-@auto_clone
-class Bezier(IntervalAction):
-    def __init__(self, bezier: list[tuple[float, float]], duration: float = 5):
-        super().__init__(duration)
-        self.bezier = bezier
-
-    def start(self):
-        self.start_position = (self.target.center_x, self.target.center_y)
-
-    def update(self, t: float):
-        p = self._bezier_at(t)
-        self.target.center_x = self.start_position[0] + p[0]
-        self.target.center_y = self.start_position[1] + p[1]
-
-    def _bezier_at(self, t: float) -> tuple[float, float]:
-        # Simple implementation for cubic Bezier curve
-        cx = 3 * (self.bezier[1][0] - self.bezier[0][0])
-        bx = 3 * (self.bezier[2][0] - self.bezier[1][0]) - cx
-        ax = self.bezier[3][0] - self.bezier[0][0] - cx - bx
-        cy = 3 * (self.bezier[1][1] - self.bezier[0][1])
-        by = 3 * (self.bezier[2][1] - self.bezier[1][1]) - cy
-        ay = self.bezier[3][1] - self.bezier[0][1] - cy - by
-
-        x = ax * (t**3) + bx * (t**2) + cx * t + self.bezier[0][0]
-        y = ay * (t**3) + by * (t**2) + cy * t + self.bezier[0][1]
-        return (x, y)
-
-    def __reversed__(self):
-        return Bezier(list(reversed(self.bezier)), self.duration)
-
-
-@auto_clone
-class JumpBy(IntervalAction):
-    def __init__(self, position: tuple[float, float], height: float, jumps: int, duration: float):
-        super().__init__(duration)
-        self.delta = position
-        self.height = height
-        self.jumps = jumps
-
-    def start(self):
-        self.start_position = (self.target.center_x, self.target.center_y)
-
-    def update(self, t: float):
-        y = self.height * abs(math.sin(t * math.pi * self.jumps))
-        x = self.delta[0] * t
-        y += self.delta[1] * t
-        self.target.center_x = self.start_position[0] + x
-        self.target.center_y = self.start_position[1] + y
-
-    def __reversed__(self):
-        return JumpBy((-self.delta[0], -self.delta[1]), self.height, self.jumps, self.duration)
-
-
-@auto_clone
-class JumpTo(JumpBy):
-    def start(self):
-        super().start()
-        self.delta = (self.delta[0] - self.start_position[0], self.delta[1] - self.start_position[1])
-
-
-@auto_clone
 class Delay(IntervalAction):
-    def __init__(self, delay: float):
-        super().__init__(delay)
+    """Pauses for a fixed time. Does nothing but consume time."""
+
+    def __init__(self, duration: float):
+        super().__init__(duration)
+
+    def update(self, t: float):
+        pass  # Do nothing
 
     def __reversed__(self):
         return self
 
 
-@auto_clone
 class RandomDelay(Delay):
+    """Pauses for a random amount of time between low and high."""
+
     def __init__(self, low: float, high: float):
+        self.low = low
+        self.high = high
         super().__init__(random.uniform(low, high))
 
+    def __deepcopy__(self, memo):
+        return RandomDelay(self.low, self.high)
 
-# Usage example
-if __name__ == "__main__":
-    window = arcade.Window(800, 600, "Interval Actions Example")
+    def __mul__(self, other: int):
+        if not isinstance(other, int):
+            raise TypeError("Can only multiply RandomDelay by an integer.")
+        return RandomDelay(self.low * other, self.high * other)
 
-    sprite = arcade.Sprite(":resources:images/animated_characters/female_person/femalePerson_idle.png", 0.5)
-    sprite.center_x = 400
-    sprite.center_y = 300
 
-    action = MoveTo((600, 400), 2.0) + RotateBy(360, 1.0) | ScaleTo(2, 3.0) + FadeOut(1.0) + FadeIn(1.0) + JumpBy(
-        (0, 100), 50, 2, 1.0
-    ) + Blink(5, 1.0) + Delay(1.0) + ScaleTo(1, 1.0)
+class Lerp(IntervalAction):
+    """
+    Generic interpolator that sets any float attribute on the sprite.
+    Useful for angle, alpha, scale, or custom attributes.
+    """
 
-    sprite.do(action)
+    def __init__(self, attr: str, end_value: float, duration: float):
+        super().__init__(duration)
+        self.attr = attr
+        self.end_value = end_value
+        self.start_value = 0.0
 
-    @window.event
-    def on_draw():
-        arcade.start_render()
-        sprite.draw()
+    def start(self, target):
+        super().start(target)
+        self.start_value = getattr(target, self.attr, 0.0)
 
-    def update(delta_time):
-        sprite.update()
+    def update(self, t: float):
+        new_val = self.start_value + (self.end_value - self.start_value) * t
+        setattr(self.target, self.attr, new_val)
 
-    arcade.schedule(update, 1 / 60)
+    def stop(self):
+        setattr(self.target, self.attr, self.end_value)
+        super().stop()
 
-    arcade.run()
+
+class Accelerate(IntervalAction):
+    """Eases in using t^rate to make the action start slow and speed up."""
+
+    def __init__(self, action: IntervalAction, rate: float = 2.0):
+        super().__init__(action.duration)
+        self.action = action.clone()
+        self.rate = rate
+
+    def start(self, target):
+        super().start(target)
+        self.action.start(target)
+
+    def update(self, t: float):
+        self.action.update(t**self.rate)
+
+    def stop(self):
+        self.action.stop()
+        super().stop()
+
+    def __reversed__(self):
+        return Accelerate(reversed(self.action), self.rate)
+
+
+class AccelDecel(IntervalAction):
+    """Eases in and out with a symmetric curve (cosine-based)."""
+
+    def __init__(self, action: IntervalAction):
+        super().__init__(action.duration)
+        self.action = action.clone()
+
+    def start(self, target):
+        super().start(target)
+        self.action.start(target)
+
+    def update(self, t: float):
+        eased = (math.cos((t + 1) * math.pi) / 2.0) + 0.5
+        self.action.update(eased)
+
+    def stop(self):
+        self.action.stop()
+        super().stop()
+
+    def __reversed__(self):
+        return AccelDecel(reversed(self.action))
+
+
+class Speed(IntervalAction):
+    """Modifies the perceived duration of another action."""
+
+    def __init__(self, action: IntervalAction, speed: float):
+        if speed <= 0:
+            raise ValueError("Speed must be positive")
+        super().__init__(action.duration / speed)
+        self.action = action.clone()
+        self.speed = speed
+
+    def start(self, target):
+        super().start(target)
+        self.action.start(target)
+
+    def update(self, t: float):
+        # Scale t to real time
+        self.action.update(t * self.speed)
+
+    def stop(self):
+        self.action.stop()
+        super().stop()
+
+    def __reversed__(self):
+        return Speed(reversed(self.action), self.speed)
+
+
+Move = JumpBy
+Rotate = RotateBy
+Scale = ScaleBy
