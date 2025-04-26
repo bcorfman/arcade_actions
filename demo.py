@@ -4,8 +4,8 @@ import sys
 import arcade
 from loguru import logger
 
-from actions.base_c import ActionSprite, Repeat, Spawn, spawn
-from actions.interval_c import (
+from actions.base import ActionSprite, Repeat, Spawn, spawn
+from actions.interval import (
     AccelDecel,
     Accelerate,
     Bezier,
@@ -20,7 +20,7 @@ from actions.interval_c import (
     ScaleBy,
     ScaleTo,
 )
-from actions.move_c import BoundedMove
+from actions.move import BoundedMove
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600

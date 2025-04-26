@@ -46,9 +46,6 @@ class MoveTo(IntervalAction):
         target.change_x += self.vx
         target.change_y += self.vy
 
-    def update(self, t: float):
-        pass
-
     def finish(self):
         self.target.change_x -= self.vx
         self.target.change_y -= self.vy
@@ -68,9 +65,6 @@ class MoveBy(IntervalAction):
         self.vy = self.dy / self.duration
         target.change_x += self.vx
         target.change_y += self.vy
-
-    def update(self, t: float):
-        pass  # Let Arcade handle position via velocity
 
     def finish(self):
         # Remove our contribution to velocity

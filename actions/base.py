@@ -4,6 +4,8 @@ import copy
 
 import arcade
 
+EPSILON = 0.01
+
 
 class Action:
     def __init__(self):
@@ -83,7 +85,7 @@ class IntervalAction(Action):
         self._elapsed += delta_time
         t = self.progress
         self.update(t)
-        if self._elapsed >= self.duration:
+        if self.duration - self._elapsed <= EPSILON:
             self._done = True
             self.stop()
 
