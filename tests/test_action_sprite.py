@@ -18,17 +18,16 @@ def create_sprite():
 
 def test_do_and_step_velocity_change():
     sprite = create_sprite()
-    action = MoveBy((100, 0), 1.0)
-    sprite.do(action)
+    sprite.do(MoveBy((100, 0), 1.0))
 
     # Simulate game update cycle
     sprite.update(0.1)
-    assert sprite.change_x == pytest.approx(100.0)
+    assert sprite.change_x == pytest.approx(100.0 / 60.0)
 
     # Step to completion
     for _ in range(9):
         sprite.update(0.1)
-    assert action.is_done()
+    assert not sprite.has_active_actions()
     assert sprite.change_x == pytest.approx(0.0)
 
 
@@ -39,10 +38,10 @@ def test_sequence_behavior_on_sprite():
 
     sprite.update(0.5)
     assert sprite.change_x == pytest.approx(0.0)
-    assert sprite.change_angle == pytest.approx(180.0)
+    assert sprite.change_angle == pytest.approx(180.0 / 60.0)
 
     sprite.update(0.5)
-    assert sprite.change_angle == pytest.approx(0.0)
+    assert sprite.change_angle == pytest.approx(0.0 / 60.0)
     assert not sprite.has_active_actions()
 
 

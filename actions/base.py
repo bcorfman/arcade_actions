@@ -54,18 +54,12 @@ class Action:
         raise NotImplementedError(f"{type(self).__name__} does not support reversal.")
 
     def __add__(self, other: Action) -> Action:
-        from .interval import Sequence
-
         return Sequence(self, other)
 
     def __or__(self, other: Action) -> Action:
-        from .interval import Spawn
-
         return Spawn(self, other)
 
     def __mul__(self, times: int) -> Action:
-        from .interval import Repeat
-
         return Repeat(self, times)
 
     def __repr__(self):
@@ -86,7 +80,6 @@ class IntervalAction(Action):
         t = self.progress
         self.update(t)
         if self.duration - self._elapsed <= EPSILON:
-            self._done = True
             self.stop()
 
     def update(self, t: float):
@@ -94,6 +87,8 @@ class IntervalAction(Action):
         pass
 
     def stop(self):
+        self.update(1.0)
+        self._done = True
         super().stop()
 
 
@@ -343,13 +338,13 @@ class ActionSprite(arcade.Sprite):
         clone = action.clone()
         clone.start(self)
         self._actions.append(clone)
+        return clone
 
     def update(self, delta_time: float = 1 / 60):
         # Step all active actions
         for action in self._actions[:]:
             action.step(delta_time)
             if action.is_done():
-                action.stop()
                 self._actions.remove(action)
 
         # Then let Arcade apply velocities to position

@@ -41,14 +41,15 @@ class MoveTo(IntervalAction):
         super().start(target)
         dx = self.destination[0] - target.center_x
         dy = self.destination[1] - target.center_y
-        self.vx = dx / self.duration
-        self.vy = dy / self.duration
+        self.vx = dx / (self.duration * 60.0)
+        self.vy = dy / (self.duration * 60.0)
         target.change_x += self.vx
         target.change_y += self.vy
 
-    def finish(self):
+    def stop(self):
         self.target.change_x -= self.vx
         self.target.change_y -= self.vy
+        super().stop()
 
 
 class MoveBy(IntervalAction):
@@ -61,15 +62,16 @@ class MoveBy(IntervalAction):
 
     def start(self, target):
         super().start(target)
-        self.vx = self.dx / self.duration
-        self.vy = self.dy / self.duration
+        self.vx = self.dx / (self.duration * 60.0)
+        self.vy = self.dy / (self.duration * 60.0)
         target.change_x += self.vx
         target.change_y += self.vy
 
-    def finish(self):
+    def stop(self):
         # Remove our contribution to velocity
         self.target.change_x -= self.vx
         self.target.change_y -= self.vy
+        super().stop()
 
 
 class JumpBy(IntervalAction):
@@ -89,14 +91,14 @@ class JumpBy(IntervalAction):
     def start(self, target):
         super().start(target)
         dx, dy = self.delta
-        self._vx = dx / self.duration
-        self._vy_base = dy / self.duration
+        self._vx = dx / (self.duration * 60.0)
+        self._vy_base = dy / (self.duration * 60.0)
         target.change_x += self._vx
 
     def update(self, t: float):
         # Vertical sinusoidal curve overlaying constant motion
         jump_sin = abs(math.sin(t * math.pi * self.jumps))
-        vy = self._vy_base + (self.height * jump_sin) / self.duration
+        vy = self._vy_base + (self.height * jump_sin) / (self.duration * 60.0)
         self.target.change_y = vy
 
     def stop(self):
@@ -143,8 +145,8 @@ class Bezier(IntervalAction):
         bx, by = self.bezier(t)
         dx = bx - cx
         dy = by - cy
-        self.target.change_x = dx / self.duration
-        self.target.change_y = dy / self.duration
+        self.target.change_x = dx / (self.duration * 60)
+        self.target.change_y = dy / (self.duration * 60)
         self.last_position = (bx, by)
 
     def stop(self):
@@ -203,14 +205,15 @@ class RotateBy(IntervalAction):
 
     def start(self, target):
         super().start(target)
-        self.d_angle = self.angle / self.duration
+        self.d_angle = self.angle / (self.duration * 60)
         target.change_angle += self.d_angle
 
     def update(self, t: float):
         pass
 
-    def finish(self):
+    def stop(self):
         self.target.change_angle -= self.d_angle
+        super().stop()
 
 
 class ScaleTo(IntervalAction):
