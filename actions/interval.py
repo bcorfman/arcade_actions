@@ -1,426 +1,337 @@
+"""
+Interval actions that happen over time.
+"""
+
 import math
-import random
-
-from .base import IntervalAction
-
-__all__ = [
-    "MoveBy",
-    "MoveTo",
-    "JumpBy",
-    "JumpTo",
-    "Bezier",
-    "Blink",
-    "RotateTo",
-    "RotateBy",
-    "ScaleTo",
-    "ScaleBy",
-    "FadeTo",
-    "FadeIn",
-    "FadeOut",
-    "Delay",
-    "RandomDelay",
-    "Lerp",
-    "Accelerate",
-    "AccelDecel",
-    "Speed",
-    "Move",
-    "Rotate",
-    "Scale",
-]
+from typing import Tuple, Optional, Union
+import arcade
+from .base import IntervalAction, Action
 
 
 class MoveTo(IntervalAction):
-    """Moves a sprite to a specific location using Arcade's velocity system."""
+    """Move the sprite to a specific position over time."""
 
-    def __init__(self, destination: tuple[float, float], duration: float):
+    def __init__(
+        self,
+        position: Tuple[float, float] = None,
+        duration: float = None,
+        use_physics: bool = False,
+    ):
+        if position is None:
+            raise ValueError("Must specify position")
+        if duration is None:
+            raise ValueError("Must specify duration")
+
         super().__init__(duration)
-        self.destination = destination
-        self.vx, self.vy = 0.0, 0.0
+        self.end_position = position
+        self.use_physics = use_physics
 
-    def start(self, target):
-        super().start(target)
-        dx = self.destination[0] - target.center_x
-        dy = self.destination[1] - target.center_y
-        self.vx = dx / (self.duration * 60.0)
-        self.vy = dy / (self.duration * 60.0)
-        target.change_x += self.vx
-        target.change_y += self.vy
+    def start(self) -> None:
+        self.start_position = self.target.position
+        dx = self.end_position[0] - self.start_position[0]
+        dy = self.end_position[1] - self.start_position[1]
 
-    def stop(self):
-        self.target.change_x -= self.vx
-        self.target.change_y -= self.vy
+        if self.use_physics and hasattr(self.target, "pymunk"):
+            # Apply force to physics body
+            force = (dx / self.duration, dy / self.duration)
+            self.target.pymunk.apply_force_at_local_point(force)
+        else:
+            # Set velocity directly
+            self.target.change_x = dx / self.duration
+            self.target.change_y = dy / self.duration
+
+    def stop(self) -> None:
+        if self.use_physics and hasattr(self.target, "pymunk"):
+            # Clear any applied forces
+            self.target.pymunk.force = (0, 0)
+        else:
+            self.target.change_x = 0
+            self.target.change_y = 0
         super().stop()
 
-
-class MoveBy(IntervalAction):
-    """Moves a sprite by a delta using Arcade's velocity system (change_x/y)."""
-
-    def __init__(self, delta: tuple[float, float], duration: float):
-        super().__init__(duration)
-        self.dx, self.dy = delta
-        self.vx, self.vy = 0.0, 0.0
-
-    def start(self, target):
-        super().start(target)
-        self.vx = self.dx / (self.duration * 60.0)
-        self.vy = self.dy / (self.duration * 60.0)
-        target.change_x += self.vx
-        target.change_y += self.vy
-
-    def stop(self):
-        # Remove our contribution to velocity
-        self.target.change_x -= self.vx
-        self.target.change_y -= self.vy
-        super().stop()
+    def __repr__(self) -> str:
+        return f"MoveTo(position={self.end_position}, duration={self.duration}, use_physics={self.use_physics})"
 
 
-class JumpBy(IntervalAction):
-    """
-    Jumps a sprite along a curved path using Arcade-style velocity.
-    """
+class MoveBy(MoveTo):
+    """Move the sprite by a relative amount over time."""
 
-    def __init__(self, delta=(0, 0), height=50, jumps=1, duration=1.0):
-        super().__init__(duration)
+    def __init__(
+        self,
+        delta: Tuple[float, float] = None,
+        duration: float = None,
+        use_physics: bool = False,
+    ):
+        if delta is None:
+            raise ValueError("Must specify delta")
+        if duration is None:
+            raise ValueError("Must specify duration")
+
+        super().__init__(delta, duration, use_physics)
         self.delta = delta
-        self.height = height
-        self.jumps = jumps
 
-        self._vx = 0.0
-        self._vy_base = 0.0
-
-    def start(self, target):
-        super().start(target)
+    def start(self) -> None:
+        self.start_position = self.target.position
         dx, dy = self.delta
-        self._vx = dx / (self.duration * 60.0)
-        self._vy_base = dy / (self.duration * 60.0)
-        target.change_x += self._vx
 
-    def update(self, t: float):
-        # Vertical sinusoidal curve overlaying constant motion
-        jump_sin = abs(math.sin(t * math.pi * self.jumps))
-        vy = self._vy_base + (self.height * jump_sin) / (self.duration * 60.0)
-        self.target.change_y = vy
+        if self.use_physics and hasattr(self.target, "pymunk"):
+            # Apply force to physics body
+            force = (dx / self.duration, dy / self.duration)
+            self.target.pymunk.apply_force_at_local_point(force)
+        else:
+            # Set velocity directly
+            self.target.change_x = dx / self.duration
+            self.target.change_y = dy / self.duration
 
-    def stop(self):
-        self.target.change_x -= self._vx
-        self.target.change_y = 0.0
-        super().stop()
+    def __reversed__(self) -> "MoveBy":
+        return MoveBy((-self.delta[0], -self.delta[1]), self.duration, self.use_physics)
 
-
-class JumpTo(JumpBy):
-    """
-    Jumps a sprite to an absolute position using Arcade-style velocity.
-    """
-
-    def __init__(self, destination=(0, 0), height=50, jumps=1, duration=1.0):
-        super().__init__((0, 0), height, jumps, duration)
-        self.destination = destination
-
-    def start(self, target):
-        dx = self.destination[0] - target.center_x
-        dy = self.destination[1] - target.center_y
-        self.delta = (dx, dy)
-        super().start(target)
-
-
-class Bezier(IntervalAction):
-    """
-    Moves a sprite along a bezier path by dynamically computing velocity.
-    """
-
-    def __init__(self, bezier_func, duration=1.0):
-        """
-        :param bezier_func: A function bezier(t) -> (x, y) for t ∈ [0, 1]
-        """
-        super().__init__(duration)
-        self.bezier = bezier_func
-        self.last_position = (0, 0)
-
-    def start(self, target):
-        super().start(target)
-        self.last_position = target.center_x, target.center_y
-
-    def update(self, t: float):
-        cx, cy = self.last_position
-        bx, by = self.bezier(t)
-        dx = bx - cx
-        dy = by - cy
-        self.target.change_x = dx / (self.duration * 60)
-        self.target.change_y = dy / (self.duration * 60)
-        self.last_position = (bx, by)
-
-    def stop(self):
-        self.target.change_x = 0.0
-        self.target.change_y = 0.0
-        super().stop()
-
-
-class Blink(IntervalAction):
-    """Toggles sprite.visible N times over the given duration."""
-
-    def __init__(self, times: int, duration: float):
-        super().__init__(duration)
-        self.times = times
-        self.original_visibility = True
-
-    def start(self, target):
-        super().start(target)
-        self.original_visibility = target.visible
-
-    def update(self, t: float):
-        slice_len = 1.0 / self.times
-        slice_index = int(t / slice_len)
-        # Toggle every other slice
-        self.target.visible = slice_index % 2 == 0
-
-    def stop(self):
-        self.target.visible = self.original_visibility
-        super().stop()
-
-    def __reversed__(self):
-        return self  # Blink is symmetrical
+    def __repr__(self) -> str:
+        return f"MoveBy(delta={self.delta}, duration={self.duration}, use_physics={self.use_physics})"
 
 
 class RotateTo(IntervalAction):
-    def __init__(self, target_angle: float, duration: float):
+    """Rotate the sprite to a specific angle over time."""
+
+    def __init__(
+        self, angle: float = None, duration: float = None, use_physics: bool = False
+    ):
+        if angle is None:
+            raise ValueError("Must specify angle")
+        if duration is None:
+            raise ValueError("Must specify duration")
+
         super().__init__(duration)
-        self.target_angle = target_angle
+        self.end_angle = angle % 360
+        self.use_physics = use_physics
 
-    def start(self, target):
-        super().start(target)
-        self.start_angle = getattr(target, "angle", 0)
+    def start(self) -> None:
+        self.start_angle = self.target.angle % 360
+        # Calculate shortest rotation path
+        angle_diff = ((self.end_angle - self.start_angle + 180) % 360) - 180
 
-    def step(self, t: float):
-        delta = self.target_angle - self.start_angle
-        self.target.angle = self.start_angle + delta * t
+        if self.use_physics and hasattr(self.target, "pymunk"):
+            # Apply torque to physics body
+            torque = angle_diff / self.duration
+            self.target.pymunk.torque = torque
+        else:
+            # Set angular velocity directly
+            self.target.change_angle = angle_diff / self.duration
 
-
-class RotateBy(IntervalAction):
-    """Rotates the sprite by a given number of degrees using change_angle."""
-
-    def __init__(self, angle: float, duration: float):
-        super().__init__(duration)
-        self.angle = angle
-        self.d_angle = 0.0
-
-    def start(self, target):
-        super().start(target)
-        self.d_angle = self.angle / (self.duration * 60)
-        target.change_angle += self.d_angle
-
-    def update(self, t: float):
-        pass
-
-    def stop(self):
-        self.target.change_angle -= self.d_angle
+    def stop(self) -> None:
+        if self.use_physics and hasattr(self.target, "pymunk"):
+            self.target.pymunk.torque = 0
+        else:
+            self.target.change_angle = 0
         super().stop()
+
+    def __repr__(self) -> str:
+        return f"RotateTo(angle={self.end_angle}, duration={self.duration}, use_physics={self.use_physics})"
+
+
+class RotateBy(RotateTo):
+    """Rotate the sprite by a relative amount over time."""
+
+    def __init__(
+        self, angle: float = None, duration: float = None, use_physics: bool = False
+    ):
+        if angle is None:
+            raise ValueError("Must specify angle")
+        if duration is None:
+            raise ValueError("Must specify duration")
+
+        super().__init__(angle, duration, use_physics)
+        self.angle = angle
+
+    def start(self) -> None:
+        if self.use_physics and hasattr(self.target, "pymunk"):
+            # Apply torque to physics body
+            torque = self.angle / self.duration
+            self.target.pymunk.torque = torque
+        else:
+            # Set angular velocity directly
+            self.target.change_angle = self.angle / self.duration
+
+    def __reversed__(self) -> "RotateBy":
+        return RotateBy(-self.angle, self.duration, self.use_physics)
+
+    def __repr__(self) -> str:
+        return f"RotateBy(angle={self.angle}, duration={self.duration}, use_physics={self.use_physics})"
 
 
 class ScaleTo(IntervalAction):
-    """Scales a sprite to a target zoom factor using .scale"""
+    """Scale the sprite to a specific size over time."""
 
-    def __init__(self, scale: float, duration: float):
+    def __init__(self, scale: float = None, duration: float = None):
+        if scale is None:
+            raise ValueError("Must specify scale")
+        if duration is None:
+            raise ValueError("Must specify duration")
+
         super().__init__(duration)
         self.end_scale = scale
-        self.start_scale = 1.0
 
-    def start(self, target):
-        super().start(target)
-        self.start_scale = target.scale
+    def start(self) -> None:
+        self.start_scale = self.target.scale
 
-    def update(self, t: float):
-        new_scale = self.start_scale + (self.end_scale - self.start_scale) * t
-        self.target.scale = new_scale
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
+        # Linear interpolation between start and end scale
+        progress = min(1.0, self._elapsed / self.duration)
+        self.target.scale = (
+            self.start_scale + (self.end_scale - self.start_scale) * progress
+        )
 
-    def stop(self):
+    def stop(self) -> None:
+        # Ensure we end exactly at the target scale
         self.target.scale = self.end_scale
         super().stop()
 
+    def __repr__(self) -> str:
+        return f"ScaleTo(scale={self.end_scale}, duration={self.duration})"
+
 
 class ScaleBy(ScaleTo):
-    """Scales a sprite *by* a factor relative to current scale."""
+    """Scale the sprite by a relative amount over time."""
 
-    def __init__(self, scale_factor: float, duration: float):
-        super().__init__(scale=scale_factor, duration=duration)
-        self.scale_factor = scale_factor
+    def __init__(self, scale: float = None, duration: float = None):
+        if scale is None:
+            raise ValueError("Must specify scale")
+        if duration is None:
+            raise ValueError("Must specify duration")
 
-    def start(self, target):
-        self.start_scale = target.scale
-        self.end_scale = self.start_scale * self.scale_factor
-        super().start(target)
+        super().__init__(scale, duration)
+        self.scale = scale
 
-    def __reversed__(self):
-        return ScaleBy(1.0 / self.scale_factor, self.duration)
+    def start(self) -> None:
+        self.start_scale = self.target.scale
+        self.end_scale = self.start_scale * self.scale
+
+    def __reversed__(self) -> "ScaleBy":
+        return ScaleBy(1.0 / self.scale, self.duration)
+
+    def __repr__(self) -> str:
+        return f"ScaleBy(scale={self.scale}, duration={self.duration})"
+
+
+class FadeOut(IntervalAction):
+    """Fade out the sprite over time."""
+
+    def __init__(self, duration: float = None):
+        if duration is None:
+            raise ValueError("Must specify duration")
+
+        super().__init__(duration)
+
+    def start(self) -> None:
+        self.start_alpha = self.target.alpha
+
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
+        # Linear interpolation from start alpha to 0
+        progress = min(1.0, self._elapsed / self.duration)
+        self.target.alpha = int(self.start_alpha * (1 - progress))
+
+    def stop(self) -> None:
+        # Ensure we end completely transparent
+        self.target.alpha = 0
+        super().stop()
+
+    def __reversed__(self) -> "FadeIn":
+        return FadeIn(self.duration)
+
+    def __repr__(self) -> str:
+        return f"FadeOut(duration={self.duration})"
+
+
+class FadeIn(FadeOut):
+    """Fade in the sprite over time."""
+
+    def start(self) -> None:
+        self.start_alpha = self.target.alpha
+
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
+        # Linear interpolation from start alpha to 255
+        progress = min(1.0, self._elapsed / self.duration)
+        self.target.alpha = int(self.start_alpha + (255 - self.start_alpha) * progress)
+
+    def stop(self) -> None:
+        # Ensure we end completely opaque
+        self.target.alpha = 255
+        super().stop()
+
+    def __reversed__(self) -> "FadeOut":
+        return FadeOut(self.duration)
+
+    def __repr__(self) -> str:
+        return f"FadeIn(duration={self.duration})"
 
 
 class FadeTo(IntervalAction):
-    """Fades the sprite to a specific alpha (0–255) using Arcade's .alpha."""
+    """Fade the sprite to a specific alpha value over time."""
 
-    def __init__(self, alpha: float, duration: float):
+    def __init__(self, alpha: int = None, duration: float = None):
+        if alpha is None:
+            raise ValueError("Must specify alpha")
+        if duration is None:
+            raise ValueError("Must specify duration")
+
         super().__init__(duration)
-        self.alpha = alpha
-        self.start_alpha = 255
+        self.alpha = min(255, max(0, alpha))
 
-    def start(self, target):
-        super().start(target)
-        self.start_alpha = target.alpha
+    def start(self) -> None:
+        self.start_alpha = self.target.alpha
 
-    def update(self, t: float):
-        new_alpha = self.start_alpha + (self.alpha - self.start_alpha) * t
-        self.target.alpha = int(new_alpha)
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
+        # Linear interpolation between start and target alpha
+        progress = min(1.0, self._elapsed / self.duration)
+        self.target.alpha = int(
+            self.start_alpha + (self.alpha - self.start_alpha) * progress
+        )
 
-    def stop(self):
-        self.target.alpha = int(self.alpha)
+    def stop(self) -> None:
+        # Ensure we end exactly at the target alpha
+        self.target.alpha = self.alpha
         super().stop()
 
-
-class FadeIn(FadeTo):
-    """Fades sprite alpha to 255 over time."""
-
-    def __init__(self, duration: float):
-        super().__init__(alpha=255, duration=duration)
-
-    def __reversed__(self):
-        return FadeOut(self.duration)
+    def __repr__(self) -> str:
+        return f"FadeTo(alpha={self.alpha}, duration={self.duration})"
 
 
-class FadeOut(FadeTo):
-    """Fades sprite alpha to 0 over time."""
+class Blink(IntervalAction):
+    """Blink the sprite by toggling visibility."""
 
-    def __init__(self, duration: float):
-        super().__init__(alpha=0, duration=duration)
+    def __init__(self, times: int = None, duration: float = None):
+        if times is None:
+            raise ValueError("Must specify times")
+        if duration is None:
+            raise ValueError("Must specify duration")
 
-    def __reversed__(self):
-        return FadeIn(self.duration)
-
-
-class Delay(IntervalAction):
-    """Pauses for a fixed time. Does nothing but consume time."""
-
-    def __init__(self, duration: float):
         super().__init__(duration)
+        self.times = times
 
-    def update(self, t: float):
-        pass  # Do nothing
+    def start(self) -> None:
+        self.original_visible = self.target.visible
+        self.interval = self.duration / self.times
 
-    def __reversed__(self):
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
+        if self._elapsed >= self.duration:
+            self.target.visible = self.original_visible
+            self._done = True
+        else:
+            self.target.visible = self.original_visible ^ (
+                int(self._elapsed / self.interval) % 2 == 0
+            )
+
+    def stop(self) -> None:
+        self.target.visible = self.original_visible
+        super().stop()
+
+    def __reversed__(self) -> "Blink":
         return self
 
-
-class RandomDelay(Delay):
-    """Pauses for a random amount of time between low and high."""
-
-    def __init__(self, low: float, high: float):
-        self.low = low
-        self.high = high
-        super().__init__(random.uniform(low, high))
-
-    def __deepcopy__(self, memo):
-        return RandomDelay(self.low, self.high)
-
-    def __mul__(self, other: int):
-        if not isinstance(other, int):
-            raise TypeError("Can only multiply RandomDelay by an integer.")
-        return RandomDelay(self.low * other, self.high * other)
-
-
-class Lerp(IntervalAction):
-    """
-    Generic interpolator that sets any float attribute on the sprite.
-    Useful for angle, alpha, scale, or custom attributes.
-    """
-
-    def __init__(self, attr: str, end_value: float, duration: float):
-        super().__init__(duration)
-        self.attr = attr
-        self.end_value = end_value
-        self.start_value = 0.0
-
-    def start(self, target):
-        super().start(target)
-        self.start_value = getattr(target, self.attr, 0.0)
-
-    def update(self, t: float):
-        new_val = self.start_value + (self.end_value - self.start_value) * t
-        setattr(self.target, self.attr, new_val)
-
-    def stop(self):
-        setattr(self.target, self.attr, self.end_value)
-        super().stop()
-
-
-class Accelerate(IntervalAction):
-    """Eases in using t^rate to make the action start slow and speed up."""
-
-    def __init__(self, action: IntervalAction, rate: float = 2.0):
-        super().__init__(action.duration)
-        self.action = action.clone()
-        self.rate = rate
-
-    def start(self, target):
-        super().start(target)
-        self.action.start(target)
-
-    def update(self, t: float):
-        self.action.update(t**self.rate)
-
-    def stop(self):
-        self.action.stop()
-        super().stop()
-
-    def __reversed__(self):
-        return Accelerate(reversed(self.action), self.rate)
-
-
-class AccelDecel(IntervalAction):
-    """Eases in and out with a symmetric curve (cosine-based)."""
-
-    def __init__(self, action: IntervalAction):
-        super().__init__(action.duration)
-        self.action = action.clone()
-
-    def start(self, target):
-        super().start(target)
-        self.action.start(target)
-
-    def update(self, t: float):
-        eased = (math.cos((t + 1) * math.pi) / 2.0) + 0.5
-        self.action.update(eased)
-
-    def stop(self):
-        self.action.stop()
-        super().stop()
-
-    def __reversed__(self):
-        return AccelDecel(reversed(self.action))
-
-
-class Speed(IntervalAction):
-    """Modifies the perceived duration of another action."""
-
-    def __init__(self, action: IntervalAction, speed: float):
-        if speed <= 0:
-            raise ValueError("Speed must be positive")
-        super().__init__(action.duration / speed)
-        self.action = action.clone()
-        self.speed = speed
-
-    def start(self, target):
-        super().start(target)
-        self.action.start(target)
-
-    def update(self, t: float):
-        # Scale t to real time
-        self.action.update(t * self.speed)
-
-    def stop(self):
-        self.action.stop()
-        super().stop()
-
-    def __reversed__(self):
-        return Speed(reversed(self.action), self.speed)
-
-
-Move = JumpBy
-Rotate = RotateBy
-Scale = ScaleBy
+    def __repr__(self) -> str:
+        return f"Blink(times={self.times}, duration={self.duration})"

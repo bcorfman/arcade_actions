@@ -1,60 +1,99 @@
-# instant.py
+"""
+Instant actions that happen immediately.
+"""
 
+import copy
+from typing import Callable, Any, Tuple
+import arcade
 from .base import InstantAction
-
-__all__ = [
-    "Place",
-    "Hide",
-    "Show",
-    "ToggleVisibility",
-    "CallFunc",
-    "CallFuncS",
-]
 
 
 class Place(InstantAction):
-    def __init__(self, position):
+    """Place the sprite at a specific position."""
+
+    def __init__(self, position: Tuple[float, float] = None):
+        if position is None:
+            raise ValueError("Must specify position")
+
         super().__init__()
         self.position = position
 
-    def update(self, t: float):
-        self.target.center_x, self.target.center_y = self.position
+    def start(self) -> None:
+        self.target.position = self.position
+
+    def __repr__(self) -> str:
+        return f"Place(position={self.position})"
 
 
 class Hide(InstantAction):
-    def update(self, t: float):
+    """Hide the sprite."""
+
+    def start(self) -> None:
         self.target.visible = False
 
-    def __reversed__(self):
+    def __reversed__(self) -> "Show":
         return Show()
+
+    def __repr__(self) -> str:
+        return "Hide()"
 
 
 class Show(InstantAction):
-    def update(self, t: float):
+    """Show the sprite."""
+
+    def start(self) -> None:
         self.target.visible = True
 
-    def __reversed__(self):
+    def __reversed__(self) -> "Hide":
         return Hide()
+
+    def __repr__(self) -> str:
+        return "Show()"
 
 
 class ToggleVisibility(InstantAction):
-    def update(self, t: float):
+    """Toggle the sprite's visibility."""
+
+    def start(self) -> None:
         self.target.visible = not self.target.visible
+
+    def __reversed__(self) -> "ToggleVisibility":
+        return self
+
+    def __repr__(self) -> str:
+        return "ToggleVisibility()"
 
 
 class CallFunc(InstantAction):
-    def __init__(self, func):
+    """Call a function when the action starts."""
+
+    def __init__(self, func: Callable = None, *args: Any, **kwargs: Any):
+        if func is None:
+            raise ValueError("Must specify func")
+
         super().__init__()
         self.func = func
+        self.args = args
+        self.kwargs = kwargs
 
-    def update(self, t: float):
-        self.func()
+    def start(self) -> None:
+        self.func(*self.args, **self.kwargs)
+
+    def __deepcopy__(self, memo) -> "CallFunc":
+        return copy.copy(self)
+
+    def __reversed__(self) -> "CallFunc":
+        return self
+
+    def __repr__(self) -> str:
+        return f"CallFunc(func={self.func.__name__})"
 
 
-class CallFuncS(InstantAction):
-    def __init__(self, func):
-        super().__init__()
-        self.func = func
+class CallFuncS(CallFunc):
+    """Call a function with the sprite as the first argument."""
 
-    def update(self, t: float):
-        self.func(self.target)
+    def start(self) -> None:
+        self.func(self.target, *self.args, **self.kwargs)
+
+    def __repr__(self) -> str:
+        return f"CallFuncS(func={self.func.__name__})"
