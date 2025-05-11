@@ -2,13 +2,16 @@
 Group actions and sprite groups for managing multiple sprites together.
 """
 
-from typing import List, Optional, Union, Callable, Dict, Any, Tuple
+import math
+from collections.abc import Callable
+from typing import Optional
+
 import arcade
-from .base import Action, ActionSprite
-from .move import MoveBy, MoveTo
+
+from .base import Action
 from .composite import Sequence
 from .game_clock import GameClock, Scheduler
-import math
+from .move import MoveBy, MoveTo
 
 
 class SpriteGroup:
@@ -90,9 +93,7 @@ class SpriteGroup:
 class GroupAction:
     """A high-level controller for running a shared Action over a group of sprites."""
 
-    def __init__(
-        self, group: Union[arcade.SpriteList, List[arcade.Sprite]], action: Action
-    ):
+    def __init__(self, group: arcade.SpriteList | list[arcade.Sprite], action: Action):
         self.group = list(group)
         self.template = action
         self.active = None  # will hold the cloned group-wide action
@@ -237,13 +238,11 @@ class FormationPattern(Pattern):
             return
 
         # Calculate formation positions based on type
-        positions = self._calculate_formation_positions(
-            len(sprites), self.formation_type, self.spacing
-        )
+        positions = self._calculate_formation_positions(len(sprites), self.formation_type, self.spacing)
 
         # Create move actions for each sprite
         actions = []
-        for sprite, pos in zip(sprites, positions):
+        for sprite, pos in zip(sprites, positions, strict=False):
             move_action = MoveTo(pos, 1.0)
             actions.append(move_action)
 
@@ -253,7 +252,7 @@ class FormationPattern(Pattern):
 
     def _calculate_formation_positions(
         self, num_sprites: int, formation_type: str, spacing: float
-    ) -> List[Tuple[float, float]]:
+    ) -> list[tuple[float, float]]:
         """Calculate positions for different formation types."""
         positions = []
 
@@ -323,21 +322,21 @@ class AttackGroup:
         sprite_group: SpriteGroup,
         clock: "GameClock",
         scheduler: "Scheduler",
-        name: Optional[str] = None,
+        name: str | None = None,
         parent: Optional["AttackGroup"] = None,
     ):
         self.sprites = sprite_group
         self.clock = clock
         self.scheduler = scheduler
-        self.actions: List[GroupAction] = []  # Attached GroupAction instances
+        self.actions: list[GroupAction] = []  # Attached GroupAction instances
         self.time_of_birth = clock.time()
         self.is_destroyed = False
         self.name = name
-        self.scheduled_tasks: List[int] = []  # Track scheduled tasks for cleanup
+        self.scheduled_tasks: list[int] = []  # Track scheduled tasks for cleanup
         self.parent = parent
-        self.children: List["AttackGroup"] = []  # Child attack groups
-        self.on_destroy_callbacks: List[Callable[["AttackGroup"], None]] = []
-        self.on_breakaway_callbacks: List[Callable[["AttackGroup"], None]] = []
+        self.children: list[AttackGroup] = []  # Child attack groups
+        self.on_destroy_callbacks: list[Callable[[AttackGroup], None]] = []
+        self.on_breakaway_callbacks: list[Callable[[AttackGroup], None]] = []
         self._paused = False
         # Subscribe to clock's pause state
         self.clock.subscribe(self._on_pause_state_changed)
@@ -382,7 +381,7 @@ class AttackGroup:
         self.scheduled_tasks.append(task_id)
         return task_id
 
-    def breakaway(self, breakaway_sprites: List) -> "AttackGroup":
+    def breakaway(self, breakaway_sprites: list) -> "AttackGroup":
         """Remove given sprites and create a new AttackGroup."""
         new_sprite_group = self.sprites.breakaway(breakaway_sprites)
         new_group = AttackGroup(

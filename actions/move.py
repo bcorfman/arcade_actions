@@ -3,10 +3,11 @@ Actions for continuous movement and physics-based movement.
 """
 
 import math
-from typing import Tuple, Optional, List
-import arcade
-from .base import Action
 from enum import Enum, auto
+
+import arcade
+
+from .base import Action
 
 
 class Boundary(Enum):
@@ -60,9 +61,7 @@ class _Move(Action):
 class WrappedMove(_Move):
     """Move sprites with wrapping at screen bounds."""
 
-    def __init__(
-        self, width: float, height: float, on_boundary_hit=None, *cb_args, **cb_kwargs
-    ):
+    def __init__(self, width: float, height: float, on_boundary_hit=None, *cb_args, **cb_kwargs):
         super().__init__()
         self.width = width
         self.height = height
@@ -105,9 +104,7 @@ class WrappedMove(_Move):
         if hasattr(sprite, "pymunk") and sprite.pymunk:
             sprite.pymunk.position = (sprite.center_x, sprite.center_y)
         if self._on_boundary_hit and boundaries_crossed:
-            self._on_boundary_hit(
-                sprite, boundaries_crossed, *self._cb_args, **self._cb_kwargs
-            )
+            self._on_boundary_hit(sprite, boundaries_crossed, *self._cb_args, **self._cb_kwargs)
 
     def __repr__(self) -> str:
         return f"WrappedMove(width={self.width}, height={self.height})"
@@ -121,9 +118,7 @@ class BoundedMove(_Move):
     sprites when any sprite hits the boundary.
     """
 
-    def __init__(
-        self, width: float, height: float, on_boundary_hit=None, *cb_args, **cb_kwargs
-    ):
+    def __init__(self, width: float, height: float, on_boundary_hit=None, *cb_args, **cb_kwargs):
         super().__init__()
         self.width = width
         self.height = height
@@ -166,9 +161,7 @@ class BoundedMove(_Move):
                 else:
                     sprite.change_x *= -1
             if self._on_boundary_hit:
-                self._on_boundary_hit(
-                    hit_sprite, hit_boundaries, *self._cb_args, **self._cb_kwargs
-                )
+                self._on_boundary_hit(hit_sprite, hit_boundaries, *self._cb_args, **self._cb_kwargs)
         for sprite in self.target:
             if hasattr(sprite, "pymunk"):
                 pass
@@ -243,9 +236,7 @@ class BoundedMove(_Move):
                 boundaries_crossed.append(Boundary.BOTTOM)
             self.target.position = (x, y)
         if self._on_boundary_hit and boundaries_crossed:
-            self._on_boundary_hit(
-                self.target, boundaries_crossed, *self._cb_args, **self._cb_kwargs
-            )
+            self._on_boundary_hit(self.target, boundaries_crossed, *self._cb_args, **self._cb_kwargs)
 
     def __repr__(self) -> str:
         return f"BoundedMove(width={self.width}, height={self.height})"

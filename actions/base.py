@@ -3,14 +3,16 @@ Base classes for Arcade Actions system.
 Actions are used to animate sprites and sprite lists over time.
 """
 
-from abc import ABC, abstractmethod
 import copy
-from typing import Union, Optional, List, Tuple, TYPE_CHECKING
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
 import arcade
+
 from .game_clock import GameClock
 
 if TYPE_CHECKING:
-    from .composite import Sequence, Spawn, Repeat
+    from .composite import Repeat, Sequence, Spawn
 
 
 class Action(ABC):
@@ -23,8 +25,8 @@ class Action(ABC):
     Actions can be applied to individual sprites or sprite lists.
     """
 
-    def __init__(self, clock: Optional[GameClock] = None):
-        self.target: Optional[Union[arcade.Sprite, arcade.SpriteList]] = None
+    def __init__(self, clock: GameClock | None = None):
+        self.target: arcade.Sprite | arcade.SpriteList | None = None
         self._elapsed: float = 0.0
         self._done: bool = False
         self._paused: bool = False
@@ -149,9 +151,7 @@ class Action(ABC):
         Not all actions can be reversed. Override this method
         to implement reversal.
         """
-        raise NotImplementedError(
-            f"Action {self.__class__.__name__} cannot be reversed"
-        )
+        raise NotImplementedError(f"Action {self.__class__.__name__} cannot be reversed")
 
     def __repr__(self) -> str:
         """String representation for debugging."""
@@ -197,7 +197,7 @@ class GroupAction(Action):
         super().__init__()
         self.sprite_list = sprite_list
         self.action = action
-        self.actions: List[Action] = []
+        self.actions: list[Action] = []
 
     def start(self) -> None:
         # Create an action instance for each sprite
@@ -220,6 +220,10 @@ class GroupAction(Action):
                 all_done = False
 
         self._done = all_done
+
+    def done(self) -> bool:
+        """Returns True if all child actions are complete."""
+        return all(action.done() for action in self.actions)
 
     def stop(self) -> None:
         for action in self.actions:
@@ -244,11 +248,9 @@ class ActionSprite(arcade.Sprite):
     updating and cleanup of those actions automatically.
     """
 
-    def __init__(
-        self, filename: str, scale: float = 1.0, clock: Optional[GameClock] = None
-    ):
+    def __init__(self, filename: str, scale: float = 1.0, clock: GameClock | None = None):
         super().__init__(filename, scale)
-        self._actions: List[Action] = []
+        self._actions: list[Action] = []
         self._action = None  # Currently active action
         self._clock = clock
         if clock:

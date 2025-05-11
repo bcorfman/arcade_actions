@@ -3,15 +3,16 @@ Instant actions that happen immediately.
 """
 
 import copy
-from typing import Callable, Any, Tuple
-import arcade
+from collections.abc import Callable
+from typing import Any
+
 from .base import InstantAction
 
 
 class Place(InstantAction):
     """Place the sprite at a specific position."""
 
-    def __init__(self, position: Tuple[float, float] = None):
+    def __init__(self, position: tuple[float, float] = None):
         if position is None:
             raise ValueError("Must specify position")
 
@@ -20,6 +21,9 @@ class Place(InstantAction):
 
     def start(self) -> None:
         self.target.position = self.position
+
+    def stop(self) -> None:
+        super().stop()
 
     def __repr__(self) -> str:
         return f"Place(position={self.position})"
@@ -30,6 +34,9 @@ class Hide(InstantAction):
 
     def start(self) -> None:
         self.target.visible = False
+
+    def stop(self) -> None:
+        super().stop()
 
     def __reversed__(self) -> "Show":
         return Show()
@@ -44,6 +51,9 @@ class Show(InstantAction):
     def start(self) -> None:
         self.target.visible = True
 
+    def stop(self) -> None:
+        super().stop()
+
     def __reversed__(self) -> "Hide":
         return Hide()
 
@@ -56,6 +66,9 @@ class ToggleVisibility(InstantAction):
 
     def start(self) -> None:
         self.target.visible = not self.target.visible
+
+    def stop(self) -> None:
+        super().stop()
 
     def __reversed__(self) -> "ToggleVisibility":
         return self
@@ -79,6 +92,9 @@ class CallFunc(InstantAction):
     def start(self) -> None:
         self.func(*self.args, **self.kwargs)
 
+    def stop(self) -> None:
+        super().stop()
+
     def __deepcopy__(self, memo) -> "CallFunc":
         return copy.copy(self)
 
@@ -94,6 +110,9 @@ class CallFuncS(CallFunc):
 
     def start(self) -> None:
         self.func(self.target, *self.args, **self.kwargs)
+
+    def stop(self) -> None:
+        super().stop()
 
     def __repr__(self) -> str:
         return f"CallFuncS(func={self.func.__name__})"

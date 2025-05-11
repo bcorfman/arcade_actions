@@ -2,9 +2,6 @@
 Composite actions that combine other actions.
 """
 
-import copy
-from typing import List, Optional
-import arcade
 from .base import Action, IntervalAction
 
 
@@ -14,7 +11,7 @@ class Sequence(IntervalAction):
     def __init__(self, *actions: Action):
         super().__init__(sum(getattr(a, "duration", 0) for a in actions))
         self.actions = list(actions)
-        self.current_action: Optional[Action] = None
+        self.current_action: Action | None = None
         self.current_index = 0
         self._on_complete = None
         self._on_complete_args = ()

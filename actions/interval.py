@@ -2,10 +2,7 @@
 Interval actions that happen over time.
 """
 
-import math
-from typing import Tuple, Optional, Union
-import arcade
-from .base import IntervalAction, Action
+from .base import IntervalAction
 
 
 class MoveTo(IntervalAction):
@@ -13,7 +10,7 @@ class MoveTo(IntervalAction):
 
     def __init__(
         self,
-        position: Tuple[float, float] = None,
+        position: tuple[float, float] = None,
         duration: float = None,
         use_physics: bool = False,
     ):
@@ -40,6 +37,9 @@ class MoveTo(IntervalAction):
             self.target.change_x = dx / self.duration
             self.target.change_y = dy / self.duration
 
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
+
     def stop(self) -> None:
         if self.use_physics and hasattr(self.target, "pymunk"):
             # Clear any applied forces
@@ -58,7 +58,7 @@ class MoveBy(MoveTo):
 
     def __init__(
         self,
-        delta: Tuple[float, float] = None,
+        delta: tuple[float, float] = None,
         duration: float = None,
         use_physics: bool = False,
     ):
@@ -83,6 +83,9 @@ class MoveBy(MoveTo):
             self.target.change_x = dx / self.duration
             self.target.change_y = dy / self.duration
 
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
+
     def __reversed__(self) -> "MoveBy":
         return MoveBy((-self.delta[0], -self.delta[1]), self.duration, self.use_physics)
 
@@ -93,9 +96,7 @@ class MoveBy(MoveTo):
 class RotateTo(IntervalAction):
     """Rotate the sprite to a specific angle over time."""
 
-    def __init__(
-        self, angle: float = None, duration: float = None, use_physics: bool = False
-    ):
+    def __init__(self, angle: float = None, duration: float = None, use_physics: bool = False):
         if angle is None:
             raise ValueError("Must specify angle")
         if duration is None:
@@ -118,6 +119,9 @@ class RotateTo(IntervalAction):
             # Set angular velocity directly
             self.target.change_angle = angle_diff / self.duration
 
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
+
     def stop(self) -> None:
         if self.use_physics and hasattr(self.target, "pymunk"):
             self.target.pymunk.torque = 0
@@ -132,9 +136,7 @@ class RotateTo(IntervalAction):
 class RotateBy(RotateTo):
     """Rotate the sprite by a relative amount over time."""
 
-    def __init__(
-        self, angle: float = None, duration: float = None, use_physics: bool = False
-    ):
+    def __init__(self, angle: float = None, duration: float = None, use_physics: bool = False):
         if angle is None:
             raise ValueError("Must specify angle")
         if duration is None:
@@ -151,6 +153,9 @@ class RotateBy(RotateTo):
         else:
             # Set angular velocity directly
             self.target.change_angle = self.angle / self.duration
+
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
 
     def __reversed__(self) -> "RotateBy":
         return RotateBy(-self.angle, self.duration, self.use_physics)
@@ -178,9 +183,7 @@ class ScaleTo(IntervalAction):
         super().update(delta_time)
         # Linear interpolation between start and end scale
         progress = min(1.0, self._elapsed / self.duration)
-        self.target.scale = (
-            self.start_scale + (self.end_scale - self.start_scale) * progress
-        )
+        self.target.scale = self.start_scale + (self.end_scale - self.start_scale) * progress
 
     def stop(self) -> None:
         # Ensure we end exactly at the target scale
@@ -287,9 +290,7 @@ class FadeTo(IntervalAction):
         super().update(delta_time)
         # Linear interpolation between start and target alpha
         progress = min(1.0, self._elapsed / self.duration)
-        self.target.alpha = int(
-            self.start_alpha + (self.alpha - self.start_alpha) * progress
-        )
+        self.target.alpha = int(self.start_alpha + (self.alpha - self.start_alpha) * progress)
 
     def stop(self) -> None:
         # Ensure we end exactly at the target alpha
@@ -322,9 +323,7 @@ class Blink(IntervalAction):
             self.target.visible = self.original_visible
             self._done = True
         else:
-            self.target.visible = self.original_visible ^ (
-                int(self._elapsed / self.interval) % 2 == 0
-            )
+            self.target.visible = self.original_visible ^ (int(self._elapsed / self.interval) % 2 == 0)
 
     def stop(self) -> None:
         self.target.visible = self.original_visible

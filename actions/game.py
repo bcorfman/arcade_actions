@@ -2,10 +2,12 @@
 Game class that manages the entire game state, including clock, scheduler, sprites, and input.
 """
 
-from typing import List, Optional, Dict, Set, Callable
+from collections.abc import Callable
+
 import arcade
-from .game_clock import GameClock, Scheduler
+
 from .base import ActionSprite
+from .game_clock import GameClock, Scheduler
 from .group import AttackGroup, SpriteGroup
 
 
@@ -30,27 +32,25 @@ class Game(arcade.Window):
         update_rate: float = 1 / 60,
         antialiasing: bool = True,
     ):
-        super().__init__(
-            width, height, title, fullscreen, resizable, update_rate, antialiasing
-        )
+        super().__init__(width, height, title, fullscreen, resizable, update_rate, antialiasing)
         # Core systems
         self.clock = GameClock()
         self.scheduler = Scheduler(self.clock)
 
         # Sprite management
-        self.player: Optional[ActionSprite] = None
+        self.player: ActionSprite | None = None
         self.enemies: SpriteGroup = SpriteGroup()
         self.bullets: SpriteGroup = SpriteGroup()
         self.powerups: SpriteGroup = SpriteGroup()
         self.effects: SpriteGroup = SpriteGroup()
 
         # Attack groups
-        self.attack_groups: List[AttackGroup] = []
+        self.attack_groups: list[AttackGroup] = []
 
         # Input state
-        self.keys_pressed: Set[int] = set()
+        self.keys_pressed: set[int] = set()
         self.mouse_position: tuple[float, float] = (0, 0)
-        self.mouse_buttons: Set[int] = set()
+        self.mouse_buttons: set[int] = set()
 
         # Game state
         self.score: int = 0
@@ -59,10 +59,10 @@ class Game(arcade.Window):
         self.game_over: bool = False
 
         # Callbacks
-        self.on_pause_callbacks: List[Callable[[], None]] = []
-        self.on_resume_callbacks: List[Callable[[], None]] = []
-        self.on_game_over_callbacks: List[Callable[[], None]] = []
-        self.on_level_complete_callbacks: List[Callable[[], None]] = []
+        self.on_pause_callbacks: list[Callable[[], None]] = []
+        self.on_resume_callbacks: list[Callable[[], None]] = []
+        self.on_game_over_callbacks: list[Callable[[], None]] = []
+        self.on_level_complete_callbacks: list[Callable[[], None]] = []
 
     def setup(self):
         """Initialize the game state. Override this in your game."""

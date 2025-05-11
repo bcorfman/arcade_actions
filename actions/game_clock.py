@@ -1,6 +1,6 @@
 import heapq
 import itertools
-from typing import Callable, List, Optional, Dict, Any, Set
+from collections.abc import Callable
 
 
 class GameClock:
@@ -14,7 +14,7 @@ class GameClock:
     def __init__(self):
         self._time = 0.0
         self._paused = False
-        self._subscribers: Set[Callable[[bool], None]] = set()
+        self._subscribers: set[Callable[[bool], None]] = set()
 
     def subscribe(self, callback: Callable[[bool], None]) -> None:
         """Subscribe to pause/resume events.
@@ -80,21 +80,15 @@ class Scheduler:
         """Schedule a one-time task."""
         execute_at = self.clock.time() + delay
         task_id = next(self._counter)
-        heapq.heappush(
-            self._queue, (execute_at, task_id, func, args, kwargs, False, None)
-        )
+        heapq.heappush(self._queue, (execute_at, task_id, func, args, kwargs, False, None))
         self._tasks[task_id] = (execute_at, func, args, kwargs)
         return task_id
 
-    def schedule_interval(
-        self, interval: float, func: Callable, *args, **kwargs
-    ) -> int:
+    def schedule_interval(self, interval: float, func: Callable, *args, **kwargs) -> int:
         """Schedule a repeating task."""
         execute_at = self.clock.time() + interval
         task_id = next(self._counter)
-        heapq.heappush(
-            self._queue, (execute_at, task_id, func, args, kwargs, True, interval)
-        )
+        heapq.heappush(self._queue, (execute_at, task_id, func, args, kwargs, True, interval))
         self._tasks[task_id] = (execute_at, func, args, kwargs)
         return task_id
 
@@ -109,9 +103,7 @@ class Scheduler:
 
         now = self.clock.time()
         while self._queue and self._queue[0][0] <= now:
-            execute_at, task_id, func, args, kwargs, repeat, interval = heapq.heappop(
-                self._queue
-            )
+            execute_at, task_id, func, args, kwargs, repeat, interval = heapq.heappop(self._queue)
             if task_id not in self._tasks:
                 continue  # Task was cancelled
             func(*args, **kwargs)
