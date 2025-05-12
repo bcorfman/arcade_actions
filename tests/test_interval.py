@@ -57,7 +57,7 @@ class TestMoveTo:
 
         # Update halfway
         action.update(0.5)
-        assert not action.done()
+        assert not action.done
         # Let Arcade update the position based on velocity
         sprite.update(0.5)
         # Position should be updated by velocity * time
@@ -65,7 +65,7 @@ class TestMoveTo:
 
         # Complete the action
         action.update(0.5)
-        assert action.done()
+        assert action.done
         # Let Arcade update the position based on velocity
         sprite.update(0.5)
         assert sprite.position == position  # Should end at target position
@@ -116,7 +116,7 @@ class TestMoveBy:
 
         # Update halfway
         action.update(0.5)
-        assert not action.done()
+        assert not action.done
         # Let Arcade update the position based on velocity
         sprite.update(0.5)
         # Position should be updated by velocity * time
@@ -124,7 +124,7 @@ class TestMoveBy:
 
         # Complete the action
         action.update(0.5)
-        assert action.done()
+        assert action.done
         # Let Arcade update the position based on velocity
         sprite.update(0.5)
         assert sprite.position == delta  # Should end at delta position
@@ -184,7 +184,7 @@ class TestRotateTo:
 
         # Update halfway
         action.update(0.5)
-        assert not action.done()
+        assert not action.done
         # Let Arcade update the angle based on angular velocity
         sprite.update(0.5)
         # Angle should be updated by angular velocity * time
@@ -192,7 +192,7 @@ class TestRotateTo:
 
         # Complete the action
         action.update(0.5)
-        assert action.done()
+        assert action.done
         # Let Arcade update the angle based on angular velocity
         sprite.update(0.5)
         assert sprite.angle == angle  # Should end at target angle
@@ -241,7 +241,7 @@ class TestRotateBy:
 
         # Update halfway
         action.update(0.5)
-        assert not action.done()
+        assert not action.done
         # Let Arcade update the angle based on angular velocity
         sprite.update(0.5)
         # Angle should be updated by angular velocity * time
@@ -249,7 +249,7 @@ class TestRotateBy:
 
         # Complete the action
         action.update(0.5)
-        assert action.done()
+        assert action.done
         # Let Arcade update the angle based on angular velocity
         sprite.update(0.5)
         assert sprite.angle == angle  # Should end at target angle
@@ -309,11 +309,11 @@ class TestScaleTo:
         assert sprite.scale.y == 1.5
         assert sprite.width == 150  # 100 * 1.5
         assert sprite.height == 150  # 100 * 1.5
-        assert not action.done()
+        assert not action.done
 
         # Complete the action
         action.update(0.5)
-        assert action.done()
+        assert action.done
         assert sprite.scale.x == 2.0
         assert sprite.scale.y == 2.0
         assert sprite.width == 200  # 100 * 2.0
@@ -362,11 +362,11 @@ class TestScaleBy:
         assert sprite.scale.y == 1.5
         assert sprite.width == 150  # 100 * 1.5
         assert sprite.height == 150  # 100 * 1.5
-        assert not action.done()
+        assert not action.done
 
         # Complete the action
         action.update(0.5)
-        assert action.done()
+        assert action.done
         assert sprite.scale.x == 2.0
         assert sprite.scale.y == 2.0
         assert sprite.width == 200  # 100 * 2.0
@@ -413,11 +413,11 @@ class TestFadeOut:
         # Update halfway
         action.update(0.5)
         assert sprite.alpha == 127  # 255 * (1 - 0.5)
-        assert not action.done()
+        assert not action.done
 
         # Complete the action
         action.update(0.5)
-        assert action.done()
+        assert action.done
         assert sprite.alpha == 0
 
     def test_fade_out_reverse(self):
@@ -459,11 +459,11 @@ class TestFadeIn:
         # Update halfway
         action.update(0.5)
         assert sprite.alpha == 127  # 0 + (255 - 0) * 0.5
-        assert not action.done()
+        assert not action.done
 
         # Complete the action
         action.update(0.5)
-        assert action.done()
+        assert action.done
         assert sprite.alpha == 255
 
     def test_fade_in_reverse(self):
@@ -521,11 +521,11 @@ class TestFadeTo:
         # Update halfway
         action.update(0.5)
         assert sprite.alpha == 191  # 255 + (128 - 255) * 0.5
-        assert not action.done()
+        assert not action.done
 
         # Complete the action
         action.update(0.5)
-        assert action.done()
+        assert action.done
         assert sprite.alpha == 128
 
 
@@ -567,16 +567,16 @@ class TestBlink:
         # First interval
         action.update(0.33)
         assert not sprite.visible
-        assert not action.done()
+        assert not action.done
 
         # Second interval
         action.update(0.33)
         assert sprite.visible
-        assert not action.done()
+        assert not action.done
 
         # Third interval
         action.update(0.34)
-        assert action.done()
+        assert action.done
 
         # Ensure sprite is restored to original state
         assert sprite.visible

@@ -28,7 +28,7 @@ class Action(ABC):
     def __init__(self, clock: GameClock | None = None):
         self.target: arcade.Sprite | arcade.SpriteList | None = None
         self._elapsed: float = 0.0
-        self._done: bool = False
+        self.done: bool = False  # Public completion state
         self._paused: bool = False
         self._on_complete = None
         self._on_complete_args = ()
@@ -54,7 +54,7 @@ class Action(ABC):
         return self.on_complete(func, *args, **kwargs)
 
     def _check_complete(self):
-        if self._done and self._on_complete and not self._on_complete_called:
+        if self.done and self._on_complete and not self._on_complete_called:
             self._on_complete_called = True
             self._on_complete(*self._on_complete_args, **self._on_complete_kwargs)
 
@@ -72,7 +72,6 @@ class Action(ABC):
         This base implementation handles:
         - Pause state checking
         - Elapsed time tracking
-        - Completion checking
         - Completion callback triggering
 
         Override this method to add custom update behavior, but be sure to call
@@ -83,8 +82,6 @@ class Action(ABC):
         """
         if not self._paused:
             self._elapsed += delta_time
-            if self.done():
-                self._done = True
             self._check_complete()
 
     def stop(self) -> None:
@@ -103,14 +100,10 @@ class Action(ABC):
         self.target = None
         self._check_complete()
 
-    def done(self) -> bool:
-        """Returns whether the action has completed."""
-        return self._done
-
     def reset(self) -> None:
         """Reset the action to its initial state."""
         self._elapsed = 0.0
-        self._done = False
+        self.done = False
         self._paused = False
         self._on_complete_called = False
 
@@ -178,8 +171,11 @@ class IntervalAction(Action):
         super().__init__()
         self.duration = duration
 
-    def done(self) -> bool:
-        return self._elapsed >= self.duration
+    def update(self, delta_time: float) -> None:
+        """Update the action and check for completion."""
+        super().update(delta_time)
+        if self._elapsed >= self.duration:
+            self.done = True
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(duration={self.duration})"
@@ -194,10 +190,8 @@ class InstantAction(Action):
 
     def update(self, delta_time: float) -> None:
         """Instant actions complete immediately."""
-        self._done = True
-
-    def done(self) -> bool:
-        return True
+        super().update(delta_time)
+        self.done = True
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
@@ -228,26 +222,11 @@ class GroupAction(Action):
         # Update each sprite's action
         all_done = True
         for action in self.actions:
-            if not action.done():
+            if not action.done:
                 action.update(delta_time)
                 all_done = False
 
-        self._done = all_done
-
-    def done(self) -> bool:
-        """Returns True if all child actions are complete."""
-        return all(action.done() for action in self.actions)
-
-    def stop(self) -> None:
-        for action in self.actions:
-            action.stop()
-        self.actions = []
-        super().stop()
-
-    def reset(self) -> None:
-        for action in self.actions:
-            action.reset()
-        super().reset()
+        self.done = all_done
 
     def __repr__(self) -> str:
         return f"GroupAction(sprite_list={self.sprite_list}, action={self.action})"
@@ -310,7 +289,7 @@ class ActionSprite(arcade.Sprite):
         # Step all active actions
         for action in self._actions[:]:  # Copy list since we'll modify it
             action.update(delta_time)
-            if action.done():
+            if action.done:  # Check public done property
                 action.stop()
                 self._actions.remove(action)
                 if action == self._action:
@@ -328,7 +307,7 @@ class ActionSprite(arcade.Sprite):
 
     def has_active_actions(self) -> bool:
         """Return True if any actions are currently running."""
-        return any(not action.done() for action in self._actions)
+        return any(not action.done for action in self._actions)
 
     def pause(self):
         """Pause all actions on this sprite."""
@@ -344,7 +323,12 @@ class ActionSprite(arcade.Sprite):
 
     def is_busy(self) -> bool:
         """Return True if an action is currently running and not done."""
-        return self._action is not None and not self._action.done()
+        return self._action is not None and not self._action.done
+
+    def cleanup(self):
+        """Explicitly unsubscribe from the game clock."""
+        if self._clock:
+            self._clock.unsubscribe(self._on_pause_state_changed)
 
     def __del__(self):
         """Clean up clock subscription."""
