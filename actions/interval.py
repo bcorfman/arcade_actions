@@ -2,6 +2,9 @@
 Interval actions that happen over time.
 """
 
+import math
+import random
+
 from .base import IntervalAction
 
 
@@ -334,3 +337,198 @@ class Blink(IntervalAction):
 
     def __repr__(self) -> str:
         return f"Blink(times={self.times}, duration={self.duration})"
+
+
+class Bezier(IntervalAction):
+    """Move the sprite along a Bezier curve path over time.
+
+    A Bezier curve is defined by control points. The sprite will follow
+    the smooth curve defined by these points.
+    """
+
+    def __init__(
+        self,
+        control_points: list[tuple[float, float]],
+        duration: float = None,
+        use_physics: bool = False,
+    ):
+        if not control_points or len(control_points) < 2:
+            raise ValueError("Must specify at least 2 control points")
+        if duration is None:
+            raise ValueError("Must specify duration")
+
+        super().__init__(duration)
+        self.control_points = control_points
+        self.use_physics = use_physics
+
+    def _bezier_point(self, t: float) -> tuple[float, float]:
+        """Calculate point on Bezier curve at time t (0-1)."""
+        n = len(self.control_points) - 1
+        x = y = 0
+        for i, point in enumerate(self.control_points):
+            # Binomial coefficient * (1-t)^(n-i) * t^i
+            coef = math.comb(n, i) * (1 - t) ** (n - i) * t**i
+            x += point[0] * coef
+            y += point[1] * coef
+        return (x, y)
+
+    def start(self) -> None:
+        self.start_position = self.target.position
+        # Calculate initial velocity for physics
+        if self.use_physics and hasattr(self.target, "pymunk"):
+            next_point = self._bezier_point(0.1)  # Point slightly ahead
+            dx = next_point[0] - self.start_position[0]
+            dy = next_point[1] - self.start_position[1]
+            force = (dx / (self.duration * 0.1), dy / (self.duration * 0.1))
+            self.target.pymunk.apply_force_at_local_point(force)
+
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
+        progress = min(1.0, self._elapsed / self.duration)
+
+        if self.use_physics and hasattr(self.target, "pymunk"):
+            # For physics, we need to calculate the next point to apply force
+            next_progress = min(1.0, (self._elapsed + 0.1) / self.duration)
+            current = self._bezier_point(progress)
+            next_point = self._bezier_point(next_progress)
+            dx = next_point[0] - current[0]
+            dy = next_point[1] - current[1]
+            force = (dx / 0.1, dy / 0.1)  # Force to reach next point in 0.1 seconds
+            self.target.pymunk.apply_force_at_local_point(force)
+        else:
+            # For non-physics, directly set position
+            point = self._bezier_point(progress)
+            self.target.position = point
+
+    def stop(self) -> None:
+        if self.use_physics and hasattr(self.target, "pymunk"):
+            self.target.pymunk.force = (0, 0)
+        super().stop()
+
+    def __repr__(self) -> str:
+        return f"Bezier(control_points={self.control_points}, duration={self.duration}, use_physics={self.use_physics})"
+
+
+class Delay(IntervalAction):
+    """Delay execution for a specified duration.
+
+    This action does nothing but wait for the specified duration.
+    Useful in sequences to create pauses between actions.
+    """
+
+    def __init__(self, duration: float = None):
+        if duration is None:
+            raise ValueError("Must specify duration")
+        super().__init__(duration)
+
+    def start(self) -> None:
+        pass  # Nothing to do
+
+    def update(self, delta_time: float) -> None:
+        super().update(delta_time)
+
+    def __repr__(self) -> str:
+        return f"Delay(duration={self.duration})"
+
+
+class RandomDelay(Delay):
+    """Delay execution for a random duration between min and max values.
+
+    Useful for creating natural-looking variations in timing.
+    """
+
+    def __init__(self, min_duration: float = None, max_duration: float = None):
+        if min_duration is None or max_duration is None:
+            raise ValueError("Must specify both min and max duration")
+        if min_duration > max_duration:
+            raise ValueError("Min duration must be less than max duration")
+
+        # Choose random duration between min and max
+        duration = min_duration + random.random() * (max_duration - min_duration)
+        super().__init__(duration)
+        self.min_duration = min_duration
+        self.max_duration = max_duration
+
+    def __repr__(self) -> str:
+        return f"RandomDelay(min={self.min_duration}, max={self.max_duration})"
+
+
+class Accelerate(IntervalAction):
+    """Modify the speed of another action using a power function.
+
+    The action will start slow and accelerate over time.
+    The rate parameter controls how quickly it accelerates.
+    """
+
+    def __init__(self, action: IntervalAction, rate: float = 2.0):
+        if not isinstance(action, IntervalAction):
+            raise TypeError("Action must be an IntervalAction")
+        if rate <= 0:
+            raise ValueError("Rate must be positive")
+
+        super().__init__(action.duration)
+        self.action = action
+        self.rate = rate
+
+    def start(self) -> None:
+        self.action.target = self.target
+        self.action.start()
+
+    def update(self, delta_time: float) -> None:
+        # Calculate modified time using power function
+        progress = min(1.0, self._elapsed / self.duration)
+        modified_progress = progress**self.rate
+
+        # Update elapsed time to match modified progress
+        self.action._elapsed = modified_progress * self.action.duration
+        self.action.update(delta_time)
+
+        super().update(delta_time)
+
+    def stop(self) -> None:
+        self.action.stop()
+        super().stop()
+
+    def __repr__(self) -> str:
+        return f"Accelerate(action={self.action}, rate={self.rate})"
+
+
+class AccelDecel(IntervalAction):
+    """Modify the speed of another action using a smooth acceleration and deceleration curve.
+
+    The action will start slow, accelerate in the middle, and slow down at the end.
+    Uses a sigmoid function for smooth transitions.
+    """
+
+    def __init__(self, action: IntervalAction):
+        if not isinstance(action, IntervalAction):
+            raise TypeError("Action must be an IntervalAction")
+
+        super().__init__(action.duration)
+        self.action = action
+
+    def start(self) -> None:
+        self.action.target = self.target
+        self.action.start()
+
+    def update(self, delta_time: float) -> None:
+        # Calculate modified time using sigmoid function
+        progress = min(1.0, self._elapsed / self.duration)
+        if progress != 1.0:
+            # Sigmoid function: 1 / (1 + e^(-12(x-0.5)))
+            modified_progress = 1.0 / (1.0 + math.exp(-12 * (progress - 0.5)))
+        else:
+            modified_progress = 1.0
+
+        # Update elapsed time to match modified progress
+        self.action._elapsed = modified_progress * self.action.duration
+        self.action.update(delta_time)
+
+        super().update(delta_time)
+
+    def stop(self) -> None:
+        self.action.stop()
+        super().stop()
+
+    def __repr__(self) -> str:
+        return f"AccelDecel(action={self.action})"

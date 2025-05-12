@@ -27,6 +27,11 @@ Repeat	inherits_from	IntervalAction
 WrappedMove	inherits_from	_Move
 BoundedMove	inherits_from	_Move
 Driver	inherits_from	Action
+Bezier	inherits_from	IntervalAction
+Delay	inherits_from	IntervalAction
+RandomDelay	inherits_from	Delay
+Accelerate	inherits_from	IntervalAction
+AccelDecel	inherits_from	IntervalAction
 Action	contains	__init__
 Action	contains	clone
 Action	contains	is_done
@@ -110,6 +115,32 @@ BoundedMove	contains	__init__
 BoundedMove	contains	update
 Driver	contains	__init__
 Driver	contains	update
+Bezier	contains	__init__
+Bezier	contains	start
+Bezier	contains	update
+Bezier	contains	stop
+Bezier	contains	_bezier_point
+Delay	contains	__init__
+Delay	contains	start
+Delay	contains	update
+RandomDelay	contains	__init__
+Accelerate	contains	__init__
+Accelerate	contains	start
+Accelerate	contains	update
+Accelerate	contains	stop
+AccelDecel	contains	__init__
+AccelDecel	contains	start
+AccelDecel	contains	update
+AccelDecel	contains	stop
+Bezier.__init__	has_param	control_points
+Bezier.__init__	has_param	duration
+Bezier.__init__	has_param	use_physics
+Delay.__init__	has_param	duration
+RandomDelay.__init__	has_param	min_duration
+RandomDelay.__init__	has_param	max_duration
+Accelerate.__init__	has_param	action
+Accelerate.__init__	has_param	rate
+AccelDecel.__init__	has_param	action
 Action.start	has_param	target
 Action.update	has_param	dt
 InstantAction.update	has_param	dt
@@ -196,6 +227,11 @@ Repeat	belongs_to_category	composite
 WrappedMove	belongs_to_category	motion
 BoundedMove	belongs_to_category	motion
 Driver	belongs_to_category	motion
+Bezier	belongs_to_category	motion
+Delay	belongs_to_category	control
+RandomDelay	belongs_to_category	control
+Accelerate	belongs_to_category	control
+AccelDecel	belongs_to_category	control
 Action.update	has_default_implementation	true
 Action.stop	has_default_implementation	true
 Action.start	requires_override	true
@@ -237,4 +273,9 @@ Spawn	Run multiple actions in parallel	Use for simultaneous actions	sprite.do(ac
 Repeat	Repeat an action a number of times	Use for repeating actions	sprite.do(Repeat(action, 3))
 WrappedMove	Move sprites with wrapping at screen bounds	Use for toroidal movement	sprite.do(WrappedMove(width, height))
 BoundedMove	Move sprites with boundary bouncing	Use for bounded movement	sprite.do(BoundedMove(width, height))
-Driver	Move using velocity, acceleration and rotation	Use for physics-based movement	sprite.do(Driver(velocity, acceleration, rotation)) 
+Driver	Move using velocity, acceleration and rotation	Use for physics-based movement	sprite.do(Driver(velocity, acceleration, rotation))
+Bezier	Move a sprite along a smooth Bezier curve path	Use for complex curved movements like orbits or natural-looking paths	sprite.do(Bezier([(0,0), (100,100), (200,0)], duration=2.0))
+Delay	Create a pause in an action sequence	Use to add timing gaps between actions	sprite.do(action1 + Delay(1.0) + action2)
+RandomDelay	Create a random-length pause in an action sequence	Use to add natural variation to timing	sprite.do(action1 + RandomDelay(0.5, 1.5) + action2)
+Accelerate	Modify an action to start slow and speed up	Use to create acceleration effects	Accelerate(MoveBy((100,0), 2.0), rate=2.0)
+AccelDecel	Modify an action to start slow, speed up, then slow down	Use to create smooth acceleration and deceleration	AccelDecel(MoveBy((100,0), 2.0)) 
