@@ -62,7 +62,7 @@ The ActionSprite approach is probably cleaner since it encapsulates all the acti
 
 ActionSprites in an Arcade 3.x SpriteList can be used for more efficient updates, a way to move a whole group of enemies together with the same actions. Think Space Invaders where whole lines of aliens march back and forth across the screen and slowly work their way downwards towards the player.
 
-The ActionSprite class inherits from arcade.Sprite, so it's fully compatible with SpriteList. For the Space Invaders style movement, here's how you could structure it:
+The ActionSprite class inherits from arcade.Sprite, so it's fully compatible with SpriteList. For the Space Invaders style movement, here's how you could structure it without using BoundedMove:
 
 class Game(arcade.Window):
     def __init__(self):

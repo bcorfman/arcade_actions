@@ -1,0 +1,240 @@
+:structural:
+# Source	Relation	Target
+Action	inherits_from	ABC
+InstantAction	inherits_from	Action
+IntervalAction	inherits_from	Action
+GroupAction	inherits_from	Action
+_Move	inherits_from	Action
+MoveTo	inherits_from	IntervalAction
+MoveBy	inherits_from	MoveTo
+RotateTo	inherits_from	IntervalAction
+RotateBy	inherits_from	RotateTo
+ScaleTo	inherits_from	IntervalAction
+ScaleBy	inherits_from	ScaleTo
+FadeTo	inherits_from	IntervalAction
+FadeIn	inherits_from	FadeTo
+FadeOut	inherits_from	FadeTo
+Blink	inherits_from	IntervalAction
+Place	inherits_from	InstantAction
+Hide	inherits_from	InstantAction
+Show	inherits_from	InstantAction
+ToggleVisibility	inherits_from	InstantAction
+CallFunc	inherits_from	InstantAction
+CallFuncS	inherits_from	CallFunc
+Sequence	inherits_from	IntervalAction
+Spawn	inherits_from	IntervalAction
+Repeat	inherits_from	IntervalAction
+WrappedMove	inherits_from	_Move
+BoundedMove	inherits_from	_Move
+Driver	inherits_from	Action
+Action	contains	__init__
+Action	contains	clone
+Action	contains	is_done
+Action	contains	start
+Action	contains	update
+Action	contains	stop
+Action	contains	reset
+Action	contains	pause
+Action	contains	resume
+Action	contains	on_complete
+Action	contains	when_done
+InstantAction	contains	update
+IntervalAction	contains	__init__
+IntervalAction	contains	done
+MoveTo	contains	__init__
+MoveTo	contains	start
+MoveTo	contains	update
+MoveTo	contains	stop
+MoveBy	contains	__init__
+MoveBy	contains	start
+MoveBy	contains	update
+RotateTo	contains	__init__
+RotateTo	contains	start
+RotateTo	contains	update
+RotateTo	contains	stop
+RotateBy	contains	__init__
+RotateBy	contains	start
+RotateBy	contains	update
+ScaleTo	contains	__init__
+ScaleTo	contains	start
+ScaleTo	contains	update
+ScaleTo	contains	stop
+ScaleBy	contains	__init__
+ScaleBy	contains	start
+FadeTo	contains	__init__
+FadeTo	contains	start
+FadeTo	contains	update
+FadeTo	contains	stop
+FadeIn	contains	start
+FadeIn	contains	update
+FadeIn	contains	stop
+FadeOut	contains	start
+FadeOut	contains	update
+FadeOut	contains	stop
+Blink	contains	__init__
+Blink	contains	start
+Blink	contains	update
+Blink	contains	stop
+Place	contains	__init__
+Place	contains	start
+Place	contains	stop
+Hide	contains	start
+Hide	contains	stop
+Show	contains	start
+Show	contains	stop
+ToggleVisibility	contains	start
+ToggleVisibility	contains	stop
+CallFunc	contains	__init__
+CallFunc	contains	start
+CallFunc	contains	stop
+CallFuncS	contains	start
+CallFuncS	contains	stop
+Sequence	contains	__init__
+Sequence	contains	start
+Sequence	contains	update
+Sequence	contains	stop
+Sequence	contains	reset
+Spawn	contains	__init__
+Spawn	contains	start
+Spawn	contains	update
+Spawn	contains	stop
+Spawn	contains	reset
+Repeat	contains	__init__
+Repeat	contains	start
+Repeat	contains	update
+Repeat	contains	stop
+Repeat	contains	reset
+WrappedMove	contains	__init__
+WrappedMove	contains	update
+BoundedMove	contains	__init__
+BoundedMove	contains	update
+Driver	contains	__init__
+Driver	contains	update
+Action.start	has_param	target
+Action.update	has_param	dt
+InstantAction.update	has_param	dt
+IntervalAction.__init__	has_param	duration
+MoveTo.__init__	has_param	position
+MoveTo.__init__	has_param	duration
+MoveTo.__init__	has_param	use_physics
+MoveBy.__init__	has_param	delta
+MoveBy.__init__	has_param	duration
+MoveBy.__init__	has_param	use_physics
+RotateTo.__init__	has_param	angle
+RotateTo.__init__	has_param	duration
+RotateTo.__init__	has_param	use_physics
+RotateBy.__init__	has_param	angle
+RotateBy.__init__	has_param	duration
+RotateBy.__init__	has_param	use_physics
+ScaleTo.__init__	has_param	scale
+ScaleTo.__init__	has_param	duration
+ScaleBy.__init__	has_param	scale
+ScaleBy.__init__	has_param	duration
+FadeTo.__init__	has_param	alpha
+FadeTo.__init__	has_param	duration
+Blink.__init__	has_param	times
+Blink.__init__	has_param	duration
+Place.__init__	has_param	position
+CallFunc.__init__	has_param	func
+CallFunc.__init__	has_param	args
+CallFunc.__init__	has_param	kwargs
+Sequence.__init__	has_param	actions
+Repeat.__init__	has_param	action
+Repeat.__init__	has_param	times
+WrappedMove.__init__	has_param	width
+WrappedMove.__init__	has_param	height
+WrappedMove.__init__	has_param	on_boundary_hit
+BoundedMove.__init__	has_param	width
+BoundedMove.__init__	has_param	height
+BoundedMove.__init__	has_param	on_boundary_hit
+Driver.__init__	has_param	velocity
+Driver.__init__	has_param	acceleration
+Driver.__init__	has_param	rotation
+MoveTo.start	modifies	change_x
+MoveTo.start	modifies	change_y
+MoveBy.start	modifies	change_x
+MoveBy.start	modifies	change_y
+RotateTo.start	modifies	change_angle
+RotateBy.start	modifies	change_angle
+ScaleTo.update	modifies	scale
+FadeTo.update	modifies	alpha
+Hide.start	modifies	visible
+Show.start	modifies	visible
+ToggleVisibility.start	modifies	visible
+Blink.update	modifies	visible
+WrappedMove.update	modifies	center_x
+WrappedMove.update	modifies	center_y
+BoundedMove.update	modifies	center_x
+BoundedMove.update	modifies	center_y
+Driver.update	modifies	center_x
+Driver.update	modifies	center_y
+Driver.update	modifies	angle
+Action	belongs_to_category	abstract
+InstantAction	belongs_to_category	instant
+IntervalAction	belongs_to_category	interval
+GroupAction	belongs_to_category	composite
+_Move	belongs_to_category	abstract
+MoveTo	belongs_to_category	motion
+MoveBy	belongs_to_category	motion
+RotateTo	belongs_to_category	motion
+RotateBy	belongs_to_category	motion
+ScaleTo	belongs_to_category	motion
+ScaleBy	belongs_to_category	motion
+FadeTo	belongs_to_category	visibility
+FadeIn	belongs_to_category	visibility
+FadeOut	belongs_to_category	visibility
+Blink	belongs_to_category	visibility
+Place	belongs_to_category	motion
+Hide	belongs_to_category	visibility
+Show	belongs_to_category	visibility
+ToggleVisibility	belongs_to_category	visibility
+CallFunc	belongs_to_category	control
+CallFuncS	belongs_to_category	control
+Sequence	belongs_to_category	composite
+Spawn	belongs_to_category	composite
+Repeat	belongs_to_category	composite
+WrappedMove	belongs_to_category	motion
+BoundedMove	belongs_to_category	motion
+Driver	belongs_to_category	motion
+Action.update	has_default_implementation	true
+Action.stop	has_default_implementation	true
+Action.start	requires_override	true
+Action.update	calls_super	true
+Action.stop	calls_super	true
+InstantAction.update	overrides	Action.update
+InstantAction.update	has_default_implementation	true
+IntervalAction.done	overrides	Action.done
+IntervalAction.done	has_default_implementation	true
+Sequence.update	calls_super	true
+Spawn.update	calls_super	true
+Repeat.update	calls_super	true
+
+:semantic:
+# Action	Purpose	When to Use	Example Usage
+Action	Base class for all actions. Provides default implementations for update() and stop() that handle common functionality like pause state, elapsed time tracking, and completion callbacks. Only start() must be implemented by subclasses.	Use to define custom behaviors over time. Override start() for initialization, optionally extend update() and stop() for custom behavior while maintaining base functionality through super() calls.	Create a custom action by inheriting from Action and implementing start(). Extend update() and stop() only if additional behavior is needed beyond the base implementation.
+InstantAction	Triggers an effect immediately	Use for effects that complete instantly	sprite.do(Hide())
+IntervalAction	Runs over a time interval	Use for time-based animations	MoveBy((100,0), duration=1.0)
+GroupAction	Applies an action to all sprites in a sprite list	Use for coordinated group behaviors	sprite_list.do(GroupAction(action))
+_Move	Base class for continuous movement actions	Use for physics-based movement	class CustomMove(_Move): ...
+MoveTo	Move the sprite to a specific position over time	Use for guided movement to a destination	sprite.do(MoveTo((x, y), 1.0))
+MoveBy	Move the sprite by a relative amount over time	Use for relative movement	sprite.do(MoveBy((100, 0), 1.0))
+RotateTo	Rotate the sprite to a specific angle over time	Use for precise rotation	sprite.do(RotateTo(90, 1.0))
+RotateBy	Rotate the sprite by a relative amount over time	Use for relative rotation	sprite.do(RotateBy(180, 1.0))
+ScaleTo	Scale the sprite to a specific size over time	Use for precise scaling	sprite.do(ScaleTo(2.0, 1.0))
+ScaleBy	Scale the sprite by a relative amount over time	Use for relative scaling	sprite.do(ScaleBy(1.5, 1.0))
+FadeTo	Fade the sprite to a target alpha value	Use for partial transparency	sprite.do(FadeTo(128, 1.0))
+FadeIn	Fade the sprite in to full alpha	Use for appearing effects	sprite.do(FadeIn(1.0))
+FadeOut	Fade the sprite out to zero alpha	Use for disappearing effects	sprite.do(FadeOut(1.0))
+Blink	Toggle visibility repeatedly during duration	Use for blinking effects	sprite.do(Blink(5, 1.0))
+Place	Teleport the sprite to a location instantly	Use for instant positioning	sprite.do(Place((x, y)))
+Hide	Immediately hide the sprite	Use for instant hiding	sprite.do(Hide())
+Show	Immediately show the sprite	Use for instant showing	sprite.do(Show())
+ToggleVisibility	Toggle visibility state of the sprite	Use for visibility toggling	sprite.do(ToggleVisibility())
+CallFunc	Call a function when the action starts	Use for triggering callbacks	sprite.do(CallFunc(my_func))
+CallFuncS	Call a function with the sprite as first argument	Use for sprite-aware callbacks	sprite.do(CallFuncS(my_func))
+Sequence	Run multiple actions in order	Use for action sequences	sprite.do(action1 + action2)
+Spawn	Run multiple actions in parallel	Use for simultaneous actions	sprite.do(action1 | action2)
+Repeat	Repeat an action a number of times	Use for repeating actions	sprite.do(Repeat(action, 3))
+WrappedMove	Move sprites with wrapping at screen bounds	Use for toroidal movement	sprite.do(WrappedMove(width, height))
+BoundedMove	Move sprites with boundary bouncing	Use for bounded movement	sprite.do(BoundedMove(width, height))
+Driver	Move using velocity, acceleration and rotation	Use for physics-based movement	sprite.do(Driver(velocity, acceleration, rotation)) 

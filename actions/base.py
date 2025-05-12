@@ -66,9 +66,17 @@ class Action(ABC):
         """
         pass
 
-    @abstractmethod
     def update(self, delta_time: float) -> None:
         """Called each frame to update the action.
+
+        This base implementation handles:
+        - Pause state checking
+        - Elapsed time tracking
+        - Completion checking
+        - Completion callback triggering
+
+        Override this method to add custom update behavior, but be sure to call
+        super().update(delta_time) to maintain the base functionality.
 
         Args:
             delta_time: Time elapsed since last frame in seconds
@@ -79,11 +87,16 @@ class Action(ABC):
                 self._done = True
             self._check_complete()
 
-    @abstractmethod
     def stop(self) -> None:
         """Called when the action ends.
 
-        Override this to clean up any state and reset velocities.
+        This base implementation handles:
+        - Clock unsubscription
+        - Target cleanup
+        - Completion callback triggering
+
+        Override this method to add custom cleanup behavior, but be sure to call
+        super().stop() to maintain the base functionality.
         """
         if self._clock:
             self._clock.unsubscribe(self._on_pause_state_changed)
