@@ -19,7 +19,7 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 | `interval.py`         | Time-based actions (e.g., MoveBy, MoveTo, RotateBy, RotateTo, ScaleTo, FadeTo, JumpBy, JumpTo) that use real delta-time physics |
 | `move.py`            | Complex movement actions (`Driver`, `WrappedMove`, `BoundedMove`) for arcade-style patterns |
 | `group.py`           | `GroupAction` and `SpriteGroup` to coordinate synchronized sprite groups (e.g., Galaga attack waves) |
-| `composite.py`       | Composite actions for combining multiple actions (Sequence, Parallel, Repeat) |
+| `composite.py`       | Composite actions for combining multiple actions (Sequence, Spawn, Loop) with support for empty composites and immediate completion |
 | `game.py`            | Game state management and action scheduling integration |
 | `game_clock.py`      | Central game clock that manages time and pause state for the entire game, plus a scheduler for sequencing time-based and conditional events |
 | Delta-Time Compliance | All actions consume `delta_time` for frame-independent accuracy |
@@ -36,7 +36,11 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 - Per-sprite action management (`ActionSprite`)
 - Game-wide scheduler for coordinating action timelines
 - Delta-time based updates across all interval actions
-- Composite actions for complex behavior sequences
+- Composite actions for complex behavior sequences with support for:
+  - Empty composites (completing immediately)
+  - Immediate completion handling
+  - Proper iteration counting for loops
+  - Frame-independent timing
 - Game state management and action lifecycle
 - Unit and integration test coverage for actions and groups
 - Example demo game with:
@@ -85,11 +89,11 @@ This system:
 ✅ Supports **group behaviors** critical for arcade shooters  
 ✅ Provides **clean separation** between logic, physics, and visuals  
 ✅ Enables rapid prototyping of sophisticated gameplay without low-level math
-✅ Offers **composite actions** for complex behavior sequences
+✅ Offers **composite actions** for complex behavior sequences with robust edge case handling
 ✅ Integrates with Arcade's game state management
 
 ---
 
 ## 🌟 Summary
 
-We are delivering a **modern, extensible, production-ready Actions system** for Arcade that empowers indie devs to build complex 2D games faster, with cleaner and more maintainable code, and with an architecture grounded in real-time delta updates. The system includes comprehensive game state management, composite actions for complex behaviors, and a robust testing framework.
+We are delivering a **modern, extensible, production-ready Actions system** for Arcade that empowers indie devs to build complex 2D games faster, with cleaner and more maintainable code, and with an architecture grounded in real-time delta updates. The system includes comprehensive game state management, composite actions for complex behaviors with proper edge case handling, and a robust testing framework.

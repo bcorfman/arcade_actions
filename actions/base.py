@@ -12,7 +12,7 @@ import arcade
 from .game_clock import GameClock
 
 if TYPE_CHECKING:
-    from .composite import Repeat, Sequence, Spawn
+    from .composite import Sequence, Spawn
 
 
 class Action(ABC):
@@ -123,11 +123,11 @@ class Action(ABC):
         first do all that action1 would do; then
         perform all that action2 would do
         """
-        from .composite import Sequence
+        from .composite import sequence
 
-        return Sequence(self, other)
+        return sequence(self, other)
 
-    def __mul__(self, other: int) -> "Repeat":
+    def __mul__(self, other: int) -> "Loop":
         """Repeat operator - repeats the action n times.
 
         action * n -> action_result
@@ -138,18 +138,18 @@ class Action(ABC):
             raise TypeError("Can only multiply actions by ints")
         if other <= 1:
             return self
-        from .composite import Repeat
+        from .composite import loop
 
-        return Repeat(self, other)
+        return loop(self, other)
 
     def __or__(self, other: "Action") -> "Spawn":
         """Spawn operator - runs two actions in parallel.
 
         action1 | action2 -> action_result
         """
-        from .composite import Spawn
+        from .composite import spawn
 
-        return Spawn(self, other)
+        return spawn(self, other)
 
     def __reversed__(self) -> "Action":
         """Returns a reversed version of this action.
