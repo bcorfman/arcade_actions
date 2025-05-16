@@ -113,6 +113,9 @@ WrappedMove	contains	__init__
 WrappedMove	contains	update
 BoundedMove	contains	__init__
 BoundedMove	contains	update
+BoundedMove	contains	_update_sprite_list
+BoundedMove	contains	_update_single_sprite
+BoundedMove	contains	_update_sprite_position
 Driver	contains	__init__
 Driver	contains	update
 Bezier	contains	__init__
@@ -244,6 +247,27 @@ IntervalAction.done	has_default_implementation	true
 Sequence.update	calls_super	true
 Spawn.update	calls_super	true
 Repeat.update	calls_super	true
+WrappedMove	contains	_wrap_sprite
+WrappedMove	contains	_update_sprite_list
+WrappedMove	contains	_update_single_sprite
+WrappedMove._wrap_sprite	modifies	position
+WrappedMove._wrap_sprite	modifies	left
+WrappedMove._wrap_sprite	modifies	right
+WrappedMove._wrap_sprite	modifies	top
+WrappedMove._wrap_sprite	modifies	bottom
+WrappedMove._wrap_sprite	calls	_on_boundary_hit
+WrappedMove._update_sprite_list	calls	_wrap_sprite
+WrappedMove._update_single_sprite	calls	_wrap_sprite
+BoundedMove._update_sprite_list	modifies	change_x
+BoundedMove._update_sprite_list	modifies	change_y
+BoundedMove._update_sprite_list	modifies	position
+BoundedMove._update_single_sprite	modifies	change_x
+BoundedMove._update_single_sprite	modifies	change_y
+BoundedMove._update_single_sprite	modifies	position
+BoundedMove._update_sprite_position	modifies	change_x
+BoundedMove._update_sprite_position	modifies	change_y
+BoundedMove._update_sprite_position	modifies	position
+BoundedMove._update_sprite_position	modifies	angle
 
 :semantic:
 # Action	Purpose	When to Use	Example Usage
@@ -271,7 +295,7 @@ CallFuncS	Call a function with the sprite as first argument	Use for sprite-aware
 Sequence	Run multiple actions in order	Use for action sequences. Supports empty sequences that complete immediately.	sprite.do(action1 + action2)
 Spawn	Run multiple actions in parallel	Use for simultaneous actions. Supports empty spawns that complete immediately.	sprite.do(action1 | action2)
 Repeat	Repeat an action a number of times	Use for repeating actions. Properly handles actions that complete immediately.	sprite.do(Repeat(action, 3))
-WrappedMove	Move sprites with wrapping at screen bounds	Use for toroidal movement	sprite.do(WrappedMove(width, height))
+WrappedMove	Move sprites with screen wrapping behavior. Sprites must move completely off-screen before wrapping to the opposite edge, where they appear with their appropriate edge aligned to the boundary. Supports both individual sprites and sprite lists, with optional boundary hit callbacks.	Use for continuous movement across screen edges, like in space shooters or arcade games where objects should seamlessly wrap around the screen.	Create a WrappedMove action with screen dimensions and optional boundary hit callback. Apply to sprites or sprite lists for continuous movement with wrapping behavior.
 BoundedMove	Move sprites with boundary bouncing	Use for bounded movement	sprite.do(BoundedMove(width, height))
 Driver	Move using velocity, acceleration and rotation	Use for physics-based movement	sprite.do(Driver(velocity, acceleration, rotation))
 Bezier	Move a sprite along a smooth Bezier curve path	Use for complex curved movements like orbits or natural-looking paths	sprite.do(Bezier([(0,0), (100,100), (200,0)], duration=2.0))

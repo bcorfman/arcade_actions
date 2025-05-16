@@ -97,3 +97,134 @@ This system:
 ## 🌟 Summary
 
 We are delivering a **modern, extensible, production-ready Actions system** for Arcade that empowers indie devs to build complex 2D games faster, with cleaner and more maintainable code, and with an architecture grounded in real-time delta updates. The system includes comprehensive game state management, composite actions for complex behaviors with proper edge case handling, and a robust testing framework.
+
+## 🧪 Testing Requirements
+
+### Test Coverage Requirements
+
+1. **Core Action Testing**
+   - All action types must have comprehensive test coverage
+   - Edge cases must be explicitly tested
+   - Physics integration must be tested when applicable
+   - Boundary conditions must be tested for movement actions
+   - Composite actions must be tested for all combinations
+
+2. **Test Categories**
+   - Unit tests for individual actions
+   - Integration tests for action combinations
+   - Edge case tests for boundary conditions
+   - Physics integration tests where applicable
+   - Performance tests for critical paths
+
+3. **Documentation Requirements**
+   - Each test file must have a clear docstring explaining its purpose
+   - Each test class must document the specific action being tested
+   - Each test method must explain what aspect is being tested
+   - Complex test setups must be documented with comments
+   - Test fixtures must be documented with their purpose
+
+4. **Quality Requirements**
+   - Tests must be deterministic and repeatable
+   - Tests must be independent of each other
+   - Tests must clean up after themselves
+   - Tests must be fast and efficient
+   - Tests must be maintainable and readable
+
+For detailed testing patterns, examples, and best practices, see `docs/testing.md`.
+
+# Test Patterns Guide
+
+## Common Test Patterns
+
+### 1. Action Initialization Tests
+```python
+def test_action_initialization(self):
+    """Test action initialization."""
+    # Test required parameters
+    action = ActionClass(required_param=value)
+    assert action.param == value
+    
+    # Test optional parameters
+    assert action.optional_param == default_value
+    
+    # Test parameter validation
+    with pytest.raises(ValueError):
+        ActionClass()  # Missing required param
+```
+
+### 2. Action Lifecycle Tests
+```python
+def test_action_lifecycle(self, sprite):
+    """Test complete action lifecycle."""
+    action = ActionClass(params)
+    action.target = sprite
+    
+    # Start
+    action.start()
+    assert initial_conditions
+    
+    # Update
+    action.update(0.5)
+    assert intermediate_conditions
+    
+    # Complete
+    action.update(0.5)
+    assert action.done
+    assert final_conditions
+    
+    # Stop
+    action.stop()
+    assert cleanup_conditions
+```
+
+### 3. Edge Case Tests
+```python
+def test_edge_cases(self, sprite):
+    """Test edge cases."""
+    # Test zero duration
+    action = ActionClass(duration=0)
+    
+    # Test boundary conditions
+    action = ActionClass(param=boundary_value)
+    
+    # Test invalid inputs
+    with pytest.raises(ValueError):
+        ActionClass(param=invalid_value)
+```
+
+## Test Fixtures
+
+### Common Fixtures
+```python
+@pytest.fixture
+def sprite(self):
+    """Create a test sprite."""
+    sprite = create_test_sprite()
+    sprite.position = (0, 0)
+    return sprite
+
+@pytest.fixture
+def sprite_list(self):
+    """Create a test sprite list."""
+    return arcade.SpriteList()
+```
+
+## Test Categories
+
+### 1. Movement Actions
+- Test position updates
+- Test velocity calculations
+- Test boundary handling
+- Test physics integration
+
+### 2. Physics Actions
+- Test acceleration
+- Test gravity
+- Test collision response
+- Test force application
+
+### 3. Boundary Actions
+- Test wrapping behavior
+- Test bouncing behavior
+- Test boundary callbacks
+- Test sprite list handling
