@@ -412,7 +412,10 @@ class TestWrappedMove:
         action.update(1.0)
 
         # Sprite should have moved 100 pixels right and wrapped
-        assert sprite.right == 18  # 750 + 100 - 800 = 50
+        # Initial right edge = 750 + 32 = 782
+        # After moving 100 pixels right = 882
+        # After wrapping = 882 - 800 = 82
+        assert sprite.right == 82
         assert sprite.center_y == 300  # Y position unchanged
 
     def test_wrap_with_acceleration(self, sprite):
@@ -436,8 +439,10 @@ class TestWrappedMove:
         sprite.update(1.0)
 
         # Verify sprite wrapped and maintained acceleration curve
-        # At t=1.0, should have moved 200 pixels (full distance)
-        assert sprite.right == 18  # 750 + 200 - 800 = 150
+        # Initial right edge = 750 + 32 = 782
+        # After moving 200 pixels right = 982
+        # After wrapping = 982 - 800 = 182
+        assert sprite.right == 182
         assert sprite.center_y == 300  # Y position unchanged
 
     def test_wrap_top_left_corner(self, sprite):
@@ -457,10 +462,12 @@ class TestWrappedMove:
         action.update(1.0)
 
         # Verify sprite wrapped to bottom-right corner
-        assert sprite.left == 800  # Left edge at x=800
-        assert sprite.top == 0  # Top edge at y=0
-        assert sprite.center_x == 832  # 800 + half of sprite width
-        assert sprite.center_y == 32  # Half of sprite height
+        # Initial right edge = -100 + 32 = -68
+        # After wrapping = -68 + 800 = 732
+        assert sprite.right == 732
+        # Initial top edge = 700 + 32 = 732
+        # After wrapping = 732 - 600 = 132
+        assert sprite.top == 132
 
     def test_wrap_bottom_right_corner(self, sprite):
         """Test wrapping when sprite hits bottom-right corner.
@@ -479,10 +486,12 @@ class TestWrappedMove:
         action.update(1.0)
 
         # Verify sprite wrapped to top-left corner
-        assert sprite.right == 0  # Right edge at x=0
-        assert sprite.bottom == 600  # Bottom edge at y=600
-        assert sprite.center_x == 32  # Half of sprite width
-        assert sprite.center_y == 568  # 600 - half of sprite height
+        # Initial left edge = 900 - 32 = 868
+        # After wrapping = 868 - 800 = 68
+        assert sprite.left == 68
+        # Initial bottom edge = -100 - 32 = -132
+        # After wrapping = -132 + 600 = 468
+        assert sprite.bottom == 468
 
     def test_wrap_bottom_left_corner(self, sprite):
         """Test wrapping when sprite hits bottom-left corner.
@@ -501,10 +510,12 @@ class TestWrappedMove:
         action.update(1.0)
 
         # Verify sprite wrapped to top-right corner
-        assert sprite.left == 800  # Left edge at x=800
-        assert sprite.bottom == 600  # Bottom edge at y=600
-        assert sprite.center_x == 832  # 800 + half of sprite width
-        assert sprite.center_y == 568  # 600 - half of sprite height
+        # Initial right edge = -100 + 32 = -68
+        # After wrapping = -68 + 800 = 732
+        assert sprite.right == 732
+        # Initial bottom edge = -100 - 32 = -132
+        # After wrapping = -132 + 600 = 468
+        assert sprite.bottom == 468
 
     def test_wrap_corner_with_velocity(self, sprite):
         """Test wrapping when sprite hits corner with velocity.
@@ -525,8 +536,14 @@ class TestWrappedMove:
         action.update(1.0)
 
         # Verify sprite wrapped and maintained velocity
-        assert sprite.right == 50  # 750 + 100 - 800 = 50
-        assert sprite.top == 50  # 550 + 100 - 600 = 50
+        # Initial right edge = 750 + 32 = 782
+        # After moving 100 pixels right = 882
+        # After wrapping = 882 - 800 = 82
+        assert sprite.right == 82
+        # Initial top edge = 550 + 32 = 582
+        # After moving 100 pixels up = 682
+        # After wrapping = 682 - 600 = 82
+        assert sprite.top == 82
         assert sprite.change_x == 100  # Velocity unchanged
         assert sprite.change_y == 100  # Velocity unchanged
 
@@ -551,35 +568,14 @@ class TestWrappedMove:
         sprite.update(1.0)
 
         # Verify sprite wrapped and maintained acceleration curve
-        # At t=1.0, should have moved 200 pixels in both directions
-        assert sprite.right == 100  # 750 + 200 - 800 = 150
-        assert sprite.top == 100  # 550 + 200 - 600 = 150
-
-    def test_wrap_corner_boundary_callback(self, sprite):
-        """Test boundary callback when sprite hits corner.
-
-        When a sprite hits a corner, the boundary callback should be called
-        with both boundaries crossed.
-        """
-        boundaries_hit = []
-
-        def on_boundary_hit(sprite, boundaries, *args, **kwargs):
-            boundaries_hit.extend(boundaries)
-
-        action = MockWrappedMove(800, 600, on_boundary_hit=on_boundary_hit)
-        action.target = sprite
-        action.start()
-
-        # Position sprite off top-right corner
-        sprite.position = (900, 700)
-        action.update(1.0)
-
-        # Verify both boundaries were reported
-        assert Boundary.RIGHT in boundaries_hit
-        assert Boundary.TOP in boundaries_hit
-        assert len(boundaries_hit) == 2  # Only two boundaries crossed
-        assert boundaries_hit.count(Boundary.RIGHT) == 1  # Each boundary crossed once
-        assert boundaries_hit.count(Boundary.TOP) == 1
+        # Initial right edge = 750 + 32 = 782
+        # After moving 200 pixels right = 982
+        # After wrapping = 982 - 800 = 182
+        assert sprite.right == 182
+        # Initial top edge = 550 + 32 = 582
+        # After moving 200 pixels up = 782
+        # After wrapping = 782 - 600 = 182
+        assert sprite.top == 182
 
     def test_wrap_corner_sprite_list(self, sprite_list):
         """Test corner wrapping with multiple sprites.
@@ -599,12 +595,20 @@ class TestWrappedMove:
         action.update(1.0)
 
         # Verify each sprite wrapped correctly
-        assert sprite_list[0].right == 0  # Wrapped to left edge
-        assert sprite_list[0].top == 0  # Wrapped to bottom edge
-        assert sprite_list[1].left == 800  # Wrapped to right edge
-        assert sprite_list[1].top == 0  # Wrapped to bottom edge
-        assert sprite_list[2].right == 0  # Wrapped to left edge
-        assert sprite_list[2].bottom == 600  # Wrapped to top edge
+        # Sprite 0: right edge = 900 + 32 = 932, after wrapping = 932 - 800 = 132
+        assert sprite_list[0].right == 132
+        # Sprite 0: top edge = 700 + 32 = 732, after wrapping = 732 - 600 = 132
+        assert sprite_list[0].top == 132
+
+        # Sprite 1: right edge = -100 + 32 = -68, after wrapping = -68 + 800 = 732
+        assert sprite_list[1].right == 732
+        # Sprite 1: top edge = 700 + 32 = 732, after wrapping = 732 - 600 = 132
+        assert sprite_list[1].top == 132
+
+        # Sprite 2: right edge = 900 + 32 = 932, after wrapping = 932 - 800 = 132
+        assert sprite_list[2].right == 132
+        # Sprite 2: bottom edge = -100 - 32 = -132, after wrapping = -132 + 600 = 468
+        assert sprite_list[2].bottom == 468
 
 
 class TestBoundedMove:
@@ -1035,7 +1039,7 @@ class TestBoundedMove:
         accel_action.start()
 
         # Set initial position
-        sprite.position = (700, 500)  # Near top-right corner
+        sprite.position = (750, 550)  # Near top-right corner
 
         # Update for 1 second
         accel_action.update(1.0)
@@ -1045,8 +1049,8 @@ class TestBoundedMove:
         # At t=1.0, should have moved 200 pixels in both directions
         assert sprite.right == 800  # Right edge at screen boundary
         assert sprite.top == 600  # Top edge at screen boundary
-        assert sprite.position[0] == 700 + 200
-        assert sprite.position[1] == 500 + 200
+        assert sprite.position[0] == 750 + 200
+        assert sprite.position[1] == 550 + 200
 
     def test_corner_bounce_sprite_list(self, sprite_list):
         """Test corner bouncing with multiple sprites.

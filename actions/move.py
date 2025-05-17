@@ -121,17 +121,21 @@ class WrappedMove(_Move):
         boundaries_crossed = []
         # Handle x wrapping
         if sprite.right < 0:
-            sprite.left = self.width
+            # When wrapping from left to right, maintain the same offset from right edge
+            sprite.left = self.width + sprite.right
             boundaries_crossed.append(Boundary.LEFT)
         elif sprite.left > self.width:
-            sprite.right = 0
+            # When wrapping from right to left, maintain the same offset from left edge
+            sprite.right = sprite.left - self.width
             boundaries_crossed.append(Boundary.RIGHT)
         # Handle y wrapping
         if sprite.top < 0:
-            sprite.bottom = self.height
+            # When wrapping from bottom to top, maintain the same offset from top edge
+            sprite.bottom = self.height + sprite.top
             boundaries_crossed.append(Boundary.BOTTOM)
         elif sprite.bottom > self.height:
-            sprite.top = 0
+            # When wrapping from top to bottom, maintain the same offset from bottom edge
+            sprite.top = sprite.bottom - self.height
             boundaries_crossed.append(Boundary.TOP)
         if self._on_boundary_hit and boundaries_crossed:
             self._on_boundary_hit(sprite, boundaries_crossed, *self._cb_args, **self._cb_kwargs)
