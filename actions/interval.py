@@ -454,81 +454,78 @@ class RandomDelay(Delay):
 
 
 class Accelerate(IntervalAction):
-    """Modify the speed of another action using a power function.
+    """Modifies the timing of another action using a power function.
 
     The action will start slow and accelerate over time.
-    The rate parameter controls how quickly it accelerates.
+    The rate parameter controls how quickly it accelerates (1 is linear).
+
+    Example:
+        # Move the sprite 100 pixels right in 2 seconds, starting slow and ending fast
+        action = Accelerate(MoveBy((100, 0), 2), rate=2)
+        sprite.do(action)
     """
 
-    def __init__(self, action: IntervalAction, rate: float = 2.0):
-        if not isinstance(action, IntervalAction):
-            raise TypeError("Action must be an IntervalAction")
+    def __init__(self, other: IntervalAction, rate: float = 2.0):
         if rate <= 0:
             raise ValueError("Rate must be positive")
 
-        super().__init__(action.duration)
-        self.action = action
+        super().__init__(other.duration)
+        self.other = other
         self.rate = rate
 
     def start(self) -> None:
-        self.action.target = self.target
-        self.action.start()
+        self.other.target = self.target
+        self.other.start()
 
     def update(self, delta_time: float) -> None:
-        # Calculate modified time using power function
+        super().update(delta_time)
+        # Calculate progress using power function
         progress = min(1.0, self._elapsed / self.duration)
         modified_progress = progress**self.rate
-
-        # Update elapsed time to match modified progress
-        self.action._elapsed = modified_progress * self.action.duration
-        self.action.update(delta_time)
-
-        super().update(delta_time)
+        self.other.update(modified_progress)
 
     def stop(self) -> None:
-        self.action.stop()
+        self.other.stop()
         super().stop()
 
     def __repr__(self) -> str:
-        return f"Accelerate(action={self.action}, rate={self.rate})"
+        return f"Accelerate(other={self.other}, rate={self.rate})"
 
 
 class AccelDecel(IntervalAction):
-    """Modify the speed of another action using a smooth acceleration and deceleration curve.
+    """Modifies the timing of another action using a sigmoid function.
 
     The action will start slow, accelerate in the middle, and slow down at the end.
     Uses a sigmoid function for smooth transitions.
+
+    Example:
+        # Move the sprite 100 pixels right in 2 seconds, with smooth acceleration and deceleration
+        action = AccelDecel(MoveBy((100, 0), 2))
+        sprite.do(action)
     """
 
-    def __init__(self, action: IntervalAction):
-        if not isinstance(action, IntervalAction):
-            raise TypeError("Action must be an IntervalAction")
-
-        super().__init__(action.duration)
-        self.action = action
+    def __init__(self, other: IntervalAction):
+        super().__init__(other.duration)
+        self.other = other
 
     def start(self) -> None:
-        self.action.target = self.target
-        self.action.start()
+        self.other.target = self.target
+        self.other.start()
 
     def update(self, delta_time: float) -> None:
-        # Calculate modified time using sigmoid function
+        super().update(delta_time)
+        # Calculate progress using sigmoid function
         progress = min(1.0, self._elapsed / self.duration)
         if progress != 1.0:
             # Sigmoid function: 1 / (1 + e^(-12(x-0.5)))
             modified_progress = 1.0 / (1.0 + math.exp(-12 * (progress - 0.5)))
         else:
             modified_progress = 1.0
-
-        # Update elapsed time to match modified progress
-        self.action._elapsed = modified_progress * self.action.duration
-        self.action.update(delta_time)
-
-        super().update(delta_time)
+        self.other.update(modified_progress)
 
     def stop(self) -> None:
-        self.action.stop()
+        self.other.stop()
         super().stop()
 
     def __repr__(self) -> str:
-        return f"AccelDecel(action={self.action})"
+        return f"AccelDecel(other={self.other})"

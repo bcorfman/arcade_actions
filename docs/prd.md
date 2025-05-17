@@ -16,7 +16,7 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 |------------------------|---------------------------------------------------------------------|
 | `base.py`             | Core `Action` class hierarchy, `ActionSprite` wrapper to manage per-sprite actions |
 | `instant.py`          | Instantaneous actions (e.g., Hide, Show, Place, CallFunc) for sprite state changes |
-| `interval.py`         | Time-based actions (e.g., MoveBy, MoveTo, RotateBy, RotateTo, ScaleTo, FadeTo, JumpBy, JumpTo) that use real delta-time physics |
+| `interval.py`         | Time-based actions (e.g., MoveBy, MoveTo, RotateBy, RotateTo, ScaleTo, FadeTo, JumpBy, JumpTo) and action modifiers (Accelerate, AccelDecel) that use real delta-time physics and smooth interpolation |
 | `move.py`            | Complex movement actions (`Driver`, `WrappedMove`, `BoundedMove`) for arcade-style patterns |
 | `group.py`           | `GroupAction` and `SpriteGroup` to coordinate synchronized sprite groups (e.g., Galaga attack waves) |
 | `composite.py`       | Composite actions for combining multiple actions (Sequence, Spawn, Loop) with support for empty composites and immediate completion |
@@ -32,6 +32,7 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 
 - High-level declarative action API over Arcade 3.x
 - Core actions: Move, Rotate, Scale, Fade, Jump, Lerp, CallFunc
+- Action modifiers: Accelerate and AccelDecel for smooth interpolation of any action
 - Group actions and SpriteGroup coordination
 - Per-sprite action management (`ActionSprite`)
 - Game-wide scheduler for coordinating action timelines
@@ -48,6 +49,7 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
     - Enemy wave patterns using `BoundedMove` / `GroupAction`
     - Bullet cleanup and basic collision system
     - Composite action sequences for complex behaviors
+    - Smooth acceleration/deceleration using action modifiers
 
 ---
 
@@ -108,6 +110,7 @@ We are delivering a **modern, extensible, production-ready Actions system** for 
    - Physics integration must be tested when applicable
    - Boundary conditions must be tested for movement actions
    - Composite actions must be tested for all combinations
+   - Action modifiers must be tested with different types of actions
 
 2. **Test Categories**
    - Unit tests for individual actions
@@ -115,6 +118,7 @@ We are delivering a **modern, extensible, production-ready Actions system** for 
    - Edge case tests for boundary conditions
    - Physics integration tests where applicable
    - Performance tests for critical paths
+   - Modifier action tests for different interpolation curves
 
 3. **Documentation Requirements**
    - Each test file must have a clear docstring explaining its purpose

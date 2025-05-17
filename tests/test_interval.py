@@ -4,7 +4,20 @@ import arcade
 import pytest
 from arcade.texture import Texture
 
-from actions.interval import Blink, FadeIn, FadeOut, FadeTo, MoveBy, MoveTo, RotateBy, RotateTo, ScaleBy, ScaleTo
+from actions.interval import (
+    AccelDecel,
+    Accelerate,
+    Blink,
+    FadeIn,
+    FadeOut,
+    FadeTo,
+    MoveBy,
+    MoveTo,
+    RotateBy,
+    RotateTo,
+    ScaleBy,
+    ScaleTo,
+)
 
 
 def create_test_sprite(texture_size=(1, 1)) -> arcade.Sprite:
@@ -590,3 +603,192 @@ class TestBlink:
         assert isinstance(reversed_action, Blink)
         assert reversed_action.times == times
         assert reversed_action.duration == duration
+
+
+class TestAccelerate:
+    """Test suite for Accelerate action.
+
+    Tests that the Accelerate action properly modifies the timing of other actions
+    using a power function, making them start slow and accelerate over time.
+    """
+
+    @pytest.fixture
+    def sprite(self):
+        """Create a test sprite with initial position."""
+        sprite = create_test_sprite()
+        sprite.position = (0, 0)
+        return sprite
+
+    def test_accelerate_initialization(self):
+        """Test Accelerate action initialization."""
+        move_action = MoveBy((100, 0), 1.0)
+        rate = 2.0
+        action = Accelerate(move_action, rate)
+        assert action.other == move_action
+        assert action.rate == rate
+        assert action.duration == move_action.duration
+
+    def test_accelerate_requires_positive_rate(self):
+        """Test Accelerate requires positive rate."""
+        move_action = MoveBy((100, 0), 1.0)
+        with pytest.raises(ValueError):
+            Accelerate(move_action, rate=0)
+        with pytest.raises(ValueError):
+            Accelerate(move_action, rate=-1)
+
+    def test_accelerate_execution(self, sprite):
+        """Test Accelerate action execution.
+
+        Verifies that the action starts slow and accelerates over time.
+        """
+        move_action = MoveBy((100, 0), 1.0)
+        rate = 2.0
+        action = Accelerate(move_action, rate)
+        action.target = sprite
+        action.start()
+
+        # At 25% of duration, should be at ~6.25% of distance (0.25^2)
+        action.update(0.25)
+        sprite.update(0.25)
+        assert sprite.position[0] == pytest.approx(6.25, abs=0.1)
+
+        # At 50% of duration, should be at 25% of distance (0.5^2)
+        action.update(0.25)
+        sprite.update(0.25)
+        assert sprite.position[0] == pytest.approx(25, abs=0.1)
+
+        # At 75% of duration, should be at ~56.25% of distance (0.75^2)
+        action.update(0.25)
+        sprite.update(0.25)
+        assert sprite.position[0] == pytest.approx(56.25, abs=0.1)
+
+        # Complete the action
+        action.update(0.25)
+        sprite.update(0.25)
+        assert sprite.position[0] == 100
+        assert action.done
+
+    def test_accelerate_with_different_actions(self, sprite):
+        """Test Accelerate works with different types of actions."""
+        # Test with rotation
+        rotate_action = RotateBy(90, 1.0)
+        action = Accelerate(rotate_action, rate=2.0)
+        action.target = sprite
+        action.start()
+
+        # At 50% of duration, should be at 25% of rotation (0.5^2)
+        action.update(0.5)
+        sprite.update(0.5)
+        assert sprite.angle == pytest.approx(22.5, abs=0.1)
+
+        # Complete the action
+        action.update(0.5)
+        sprite.update(0.5)
+        assert sprite.angle == 90
+        assert action.done
+
+        # Test with scaling
+        sprite.scale = 1.0
+        scale_action = ScaleTo(2.0, 1.0)
+        action = Accelerate(scale_action, rate=2.0)
+        action.target = sprite
+        action.start()
+
+        # At 50% of duration, should be at 25% of scale change (0.5^2)
+        action.update(0.5)
+        assert sprite.scale == pytest.approx(1.25, abs=0.1)
+
+        # Complete the action
+        action.update(0.5)
+        assert sprite.scale == 2.0
+        assert action.done
+
+
+class TestAccelDecel:
+    """Test suite for AccelDecel action.
+
+    Tests that the AccelDecel action properly modifies the timing of other actions
+    using a sigmoid function, making them start slow, accelerate in the middle,
+    and slow down at the end.
+    """
+
+    @pytest.fixture
+    def sprite(self):
+        """Create a test sprite with initial position."""
+        sprite = create_test_sprite()
+        sprite.position = (0, 0)
+        return sprite
+
+    def test_accel_decel_initialization(self):
+        """Test AccelDecel action initialization."""
+        move_action = MoveBy((100, 0), 1.0)
+        action = AccelDecel(move_action)
+        assert action.other == move_action
+        assert action.duration == move_action.duration
+
+    def test_accel_decel_execution(self, sprite):
+        """Test AccelDecel action execution.
+
+        Verifies that the action starts slow, accelerates in the middle,
+        and slows down at the end.
+        """
+        move_action = MoveBy((100, 0), 1.0)
+        action = AccelDecel(move_action)
+        action.target = sprite
+        action.start()
+
+        # At 25% of duration, should be at ~12% of distance (sigmoid(0.25))
+        action.update(0.25)
+        sprite.update(0.25)
+        assert sprite.position[0] == pytest.approx(12, abs=1)
+
+        # At 50% of duration, should be at 50% of distance (sigmoid(0.5))
+        action.update(0.25)
+        sprite.update(0.25)
+        assert sprite.position[0] == pytest.approx(50, abs=1)
+
+        # At 75% of duration, should be at ~88% of distance (sigmoid(0.75))
+        action.update(0.25)
+        sprite.update(0.25)
+        assert sprite.position[0] == pytest.approx(88, abs=1)
+
+        # Complete the action
+        action.update(0.25)
+        sprite.update(0.25)
+        assert sprite.position[0] == 100
+        assert action.done
+
+    def test_accel_decel_with_different_actions(self, sprite):
+        """Test AccelDecel works with different types of actions."""
+        # Test with rotation
+        rotate_action = RotateBy(90, 1.0)
+        action = AccelDecel(rotate_action)
+        action.target = sprite
+        action.start()
+
+        # At 50% of duration, should be at 50% of rotation (sigmoid(0.5))
+        action.update(0.5)
+        sprite.update(0.5)
+        assert sprite.angle == pytest.approx(45, abs=1)
+
+        # Complete the action
+        action.update(0.5)
+        sprite.update(0.5)
+        assert sprite.angle == 90
+        assert action.done
+
+        # Test with scaling
+        sprite.scale = 1.0
+        scale_action = ScaleTo(2.0, 1.0)
+        action = AccelDecel(scale_action)
+        action.target = sprite
+        action.start()
+
+        # At 50% of duration, should be at 50% of scale change (sigmoid(0.5))
+        action.update(0.5)
+        assert sprite.scale == pytest.approx(1.5, abs=0.1)
+
+        # Complete the action
+        action.update(0.5)
+        assert sprite.scale == 2.0
+        assert action.done
