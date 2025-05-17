@@ -141,11 +141,9 @@ Bezier.__init__	has_param	use_physics
 Delay.__init__	has_param	duration
 RandomDelay.__init__	has_param	min_duration
 RandomDelay.__init__	has_param	max_duration
-Accelerate.__init__	has_param	target_velocity
-Accelerate.__init__	has_param	duration
+Accelerate.__init__	has_param	other
 Accelerate.__init__	has_param	rate
-AccelDecel.__init__	has_param	target_velocity
-AccelDecel.__init__	has_param	duration
+AccelDecel.__init__	has_param	other
 Action.start	has_param	target
 Action.update	has_param	dt
 InstantAction.update	has_param	dt
@@ -307,5 +305,5 @@ Driver	Move using velocity, acceleration and rotation	Use for physics-based move
 Bezier	Move a sprite along a smooth Bezier curve path	Use for complex curved movements like orbits or natural-looking paths	sprite.do(Bezier([(0,0), (100,100), (200,0)], duration=2.0))
 Delay	Create a pause in an action sequence	Use to add timing gaps between actions	sprite.do(action1 + Delay(1.0) + action2)
 RandomDelay	Create a random-length pause in an action sequence	Use to add natural variation to timing	sprite.do(action1 + RandomDelay(0.5, 1.5) + action2)
-Accelerate	Modify an action to start slow and speed up over time using a power function. Takes another action and a rate parameter that controls the acceleration curve. The rate determines how quickly the action accelerates - higher rates mean slower initial movement and faster final movement.	Use to create acceleration effects on any action, making it start slow and accelerate over time. Works with any action type (movement, rotation, scaling, etc.).	Accelerate(MoveBy((100,0), 2.0), rate=2.0)
-AccelDecel	Modify an action to start slow, speed up in the middle, and slow down at the end using a sigmoid function. Takes another action and applies a smooth acceleration and deceleration curve.	Use to create smooth acceleration and deceleration effects on any action. Works with any action type (movement, rotation, scaling, etc.).	AccelDecel(MoveBy((100,0), 2.0)) 
+Accelerate	Modifies the timing of another action using a power function. The action will start slow and accelerate over time. The rate parameter controls how quickly it accelerates (1 is linear). For example, with rate=2.0, at 50% duration the action will be at 25% progress (0.5^2).	Use to create acceleration effects on any action, making it start slow and accelerate over time. Works with any action type (movement, rotation, scaling, etc.).	Accelerate(MoveBy((100,0), 2.0), rate=2.0)
+AccelDecel	Modifies the timing of another action using a sigmoid function. The action will start slow, accelerate in the middle, and slow down at the end. Uses a sigmoid function for smooth transitions.	Use to create smooth acceleration and deceleration effects on any action. Works with any action type (movement, rotation, scaling, etc.).	AccelDecel(MoveBy((100,0), 2.0)) 

@@ -640,6 +640,7 @@ class TestAccelerate:
         """Test Accelerate action execution.
 
         Verifies that the action starts slow and accelerates over time.
+        With rate=2.0, at 50% duration we should be at 25% progress (0.5^2).
         """
         move_action = MoveBy((100, 0), 1.0)
         rate = 2.0
@@ -647,7 +648,7 @@ class TestAccelerate:
         action.target = sprite
         action.start()
 
-        # At 25% of duration, should be at ~6.25% of distance (0.25^2)
+        # At 25% of duration, should be at 6.25% of distance (0.25^2)
         action.update(0.25)
         sprite.update(0.25)
         assert sprite.position[0] == pytest.approx(6.25, abs=0.1)
@@ -655,9 +656,9 @@ class TestAccelerate:
         # At 50% of duration, should be at 25% of distance (0.5^2)
         action.update(0.25)
         sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(25, abs=0.1)
+        assert sprite.position[0] == pytest.approx(25.0, abs=0.1)
 
-        # At 75% of duration, should be at ~56.25% of distance (0.75^2)
+        # At 75% of duration, should be at 56.25% of distance (0.75^2)
         action.update(0.25)
         sprite.update(0.25)
         assert sprite.position[0] == pytest.approx(56.25, abs=0.1)
@@ -665,7 +666,7 @@ class TestAccelerate:
         # Complete the action
         action.update(0.25)
         sprite.update(0.25)
-        assert sprite.position[0] == 100
+        assert sprite.position[0] == pytest.approx(100.0, abs=0.1)
         assert action.done
 
     def test_accelerate_with_different_actions(self, sprite):
@@ -684,7 +685,7 @@ class TestAccelerate:
         # Complete the action
         action.update(0.5)
         sprite.update(0.5)
-        assert sprite.angle == 90
+        assert sprite.angle == pytest.approx(90.0, abs=0.1)
         assert action.done
 
         # Test with scaling
@@ -696,11 +697,15 @@ class TestAccelerate:
 
         # At 50% of duration, should be at 25% of scale change (0.5^2)
         action.update(0.5)
-        assert sprite.scale == pytest.approx(1.25, abs=0.1)
+        sprite.update(0.5)
+        assert sprite.scale.x == pytest.approx(1.25, abs=0.1)
+        assert sprite.scale.y == pytest.approx(1.25, abs=0.1)
 
         # Complete the action
         action.update(0.5)
-        assert sprite.scale == 2.0
+        sprite.update(0.5)
+        assert sprite.scale.x == pytest.approx(2.0, abs=0.1)
+        assert sprite.scale.y == pytest.approx(2.0, abs=0.1)
         assert action.done
 
 
@@ -737,25 +742,25 @@ class TestAccelDecel:
         action.target = sprite
         action.start()
 
-        # At 25% of duration, should be at ~12% of distance (sigmoid(0.25))
+        # At 25% of duration, should be at 25% of distance with delta time
         action.update(0.25)
         sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(12, abs=1)
+        assert sprite.position[0] == pytest.approx(25.0, abs=1)
 
-        # At 50% of duration, should be at 50% of distance (sigmoid(0.5))
+        # At 50% of duration, should be at 50% of distance
         action.update(0.25)
         sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(50, abs=1)
+        assert sprite.position[0] == pytest.approx(50.0, abs=1)
 
-        # At 75% of duration, should be at ~88% of distance (sigmoid(0.75))
+        # At 75% of duration, should be at 75% of distance
         action.update(0.25)
         sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(88, abs=1)
+        assert sprite.position[0] == pytest.approx(75.0, abs=1)
 
         # Complete the action
         action.update(0.25)
         sprite.update(0.25)
-        assert sprite.position[0] == 100
+        assert sprite.position[0] == pytest.approx(100.0, abs=1)
         assert action.done
 
     def test_accel_decel_with_different_actions(self, sprite):
@@ -766,15 +771,15 @@ class TestAccelDecel:
         action.target = sprite
         action.start()
 
-        # At 50% of duration, should be at 50% of rotation (sigmoid(0.5))
+        # At 50% of duration, should be at 50% of rotation with delta time
         action.update(0.5)
         sprite.update(0.5)
-        assert sprite.angle == pytest.approx(45, abs=1)
+        assert sprite.angle == pytest.approx(45.0, abs=1)
 
         # Complete the action
         action.update(0.5)
         sprite.update(0.5)
-        assert sprite.angle == 90
+        assert sprite.angle == pytest.approx(90.0, abs=1)
         assert action.done
 
         # Test with scaling
@@ -784,11 +789,15 @@ class TestAccelDecel:
         action.target = sprite
         action.start()
 
-        # At 50% of duration, should be at 50% of scale change (sigmoid(0.5))
+        # At 50% of duration, should be at 50% of scale change
         action.update(0.5)
-        assert sprite.scale == pytest.approx(1.5, abs=0.1)
+        sprite.update(0.5)
+        assert sprite.scale.x == pytest.approx(1.5, abs=0.1)
+        assert sprite.scale.y == pytest.approx(1.5, abs=0.1)
 
         # Complete the action
         action.update(0.5)
-        assert sprite.scale == 2.0
+        sprite.update(0.5)
+        assert sprite.scale.x == pytest.approx(2.0, abs=0.1)
+        assert sprite.scale.y == pytest.approx(2.0, abs=0.1)
         assert action.done

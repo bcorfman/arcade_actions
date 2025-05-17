@@ -184,7 +184,7 @@ class ScaleTo(IntervalAction):
 
     def update(self, delta_time: float) -> None:
         super().update(delta_time)
-        # Linear interpolation between start and end scale
+        # Use the progress value passed to update (which may be modified by Accelerate/AccelDecel)
         progress = min(1.0, self._elapsed / self.duration)
         self.target.scale = self.start_scale + (self.end_scale - self.start_scale) * progress
 
@@ -472,17 +472,24 @@ class Accelerate(IntervalAction):
         super().__init__(other.duration)
         self.other = other
         self.rate = rate
+        self._last_progress = 0.0
 
     def start(self) -> None:
         self.other.target = self.target
         self.other.start()
+        self._last_progress = 0.0
 
     def update(self, delta_time: float) -> None:
         super().update(delta_time)
-        # Calculate progress using power function
+        # Calculate current progress
         progress = min(1.0, self._elapsed / self.duration)
+        # Calculate modified progress using power function
         modified_progress = progress**self.rate
-        self.other.update(modified_progress)
+        # Calculate delta progress since last update
+        delta_progress = modified_progress - self._last_progress
+        # Update the other action with the delta progress
+        self.other.update(delta_progress * self.duration)
+        self._last_progress = modified_progress
 
     def stop(self) -> None:
         self.other.stop()
