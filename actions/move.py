@@ -70,6 +70,9 @@ class WrappedMove(_Move):
     This action can work with both individual sprites and sprite lists. When used with a
     sprite list, each sprite is wrapped independently.
 
+    Note: This action only handles wrapping behavior. The sprite's position should be updated
+    by other actions or directly before this action is updated.
+
     Attributes:
         width (float): The width of the screen/boundary.
         height (float): The height of the screen/boundary.
@@ -103,8 +106,11 @@ class WrappedMove(_Move):
         self._cb_kwargs = cb_kwargs
 
     def update(self, delta_time: float):
-        """Update sprite positions with wrapping."""
-        super().update(delta_time)
+        """Update sprite positions with wrapping.
+
+        Note: This method only handles wrapping behavior. The sprite's position should be
+        updated by other actions or directly before this method is called.
+        """
         if isinstance(self.target, arcade.SpriteList):
             self._update_sprite_list()
         else:
@@ -129,13 +135,13 @@ class WrappedMove(_Move):
             sprite.right = sprite.left - self.width
             boundaries_crossed.append(Boundary.RIGHT)
         # Handle y wrapping
-        if sprite.top < 0:
+        if sprite.bottom < 0:
             # When wrapping from bottom to top, maintain the same offset from top edge
-            sprite.bottom = self.height + sprite.top
+            sprite.top = self.height + sprite.bottom
             boundaries_crossed.append(Boundary.BOTTOM)
-        elif sprite.bottom > self.height:
+        elif sprite.top > self.height:
             # When wrapping from top to bottom, maintain the same offset from bottom edge
-            sprite.top = sprite.bottom - self.height
+            sprite.bottom = sprite.top - self.height
             boundaries_crossed.append(Boundary.TOP)
         if self._on_boundary_hit and boundaries_crossed:
             self._on_boundary_hit(sprite, boundaries_crossed, *self._cb_args, **self._cb_kwargs)
