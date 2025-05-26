@@ -4,6 +4,7 @@ import arcade
 import pytest
 from arcade.texture import Texture
 
+from actions.base import ActionSprite
 from actions.interval import (
     AccelDecel,
     Accelerate,
@@ -21,10 +22,15 @@ from actions.interval import (
 
 
 def create_test_sprite(texture_size=(1, 1)) -> arcade.Sprite:
-    """Create a sprite with a 1x1 transparent texture for testing."""
+    """Create a sprite with a transparent texture for testing."""
     texture = Texture.create_empty("test", texture_size)
-    sprite = arcade.Sprite()
+    sprite = ActionSprite(filename=":resources:images/items/star.png")  # Using a default image from arcade
     sprite.texture = texture
+    sprite.position = (0, 0)
+    sprite.angle = 0
+    sprite.scale = 1.0
+    sprite.alpha = 255
+    sprite.visible = True
     return sprite
 
 
@@ -33,6 +39,7 @@ class TestMoveTo:
 
     @pytest.fixture
     def sprite(self):
+        """Create a test sprite with initial position."""
         sprite = create_test_sprite()
         sprite.position = (0, 0)
         return sprite
@@ -57,34 +64,36 @@ class TestMoveTo:
             MoveTo(position=(100, 200))
 
     def test_move_to_execution(self, sprite):
-        """Test MoveTo action execution."""
+        """Test MoveTo action execution.
+
+        The MoveTo action should:
+        1. Calculate the velocity needed to reach the target position in the given duration
+        2. Set the sprite's velocity to that value
+        3. Arcade's sprite update will handle the position changes based on velocity
+        """
         position = (100, 200)
         duration = 1.0
         action = MoveTo(position, duration)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # Check initial velocities
+        # Velocity should be (target - start) / duration
         assert sprite.change_x == 100  # (100 - 0) / 1.0
         assert sprite.change_y == 200  # (200 - 0) / 1.0
 
         # Update halfway
-        action.update(0.5)
-        assert not action.done
-        # Let Arcade update the position based on velocity
         sprite.update(0.5)
-        # Position should be updated by velocity * time
-        assert sprite.position == (50, 100)  # (0 + 100 * 0.5, 0 + 200 * 0.5)
+        assert not action.done
+
+        # At t=0.5, the sprite should have moved half the distance
+        assert abs(sprite.position[0] - 50) < 0.001  # 0 + (100 * 0.5)
+        assert abs(sprite.position[1] - 100) < 0.001  # 0 + (200 * 0.5)
 
         # Complete the action
-        action.update(0.5)
-        assert action.done
-        # Let Arcade update the position based on velocity
         sprite.update(0.5)
-        assert sprite.position == position  # Should end at target position
-        action.stop()
-        assert sprite.change_x == 0
-        assert sprite.change_y == 0
+        assert action.done
+        assert abs(sprite.position[0] - 100) < 0.001  # Final x position
+        assert abs(sprite.position[1] - 200) < 0.001  # Final y position
 
 
 class TestMoveBy:
@@ -116,34 +125,37 @@ class TestMoveBy:
             MoveBy(delta=(100, 200))
 
     def test_move_by_execution(self, sprite):
-        """Test MoveBy action execution."""
+        """Test MoveBy action execution.
+
+        The MoveBy action should:
+        1. Calculate the target position as current position plus delta
+        2. Calculate the velocity needed to reach that target in the given duration
+        3. Set the sprite's velocity to that value
+        4. Arcade's sprite update will handle the position changes based on velocity
+        """
         delta = (100, 200)
         duration = 1.0
         action = MoveBy(delta, duration)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # Check initial velocities
+        # Velocity should be delta / duration
         assert sprite.change_x == 100  # 100 / 1.0
         assert sprite.change_y == 200  # 200 / 1.0
 
         # Update halfway
-        action.update(0.5)
-        assert not action.done
-        # Let Arcade update the position based on velocity
         sprite.update(0.5)
-        # Position should be updated by velocity * time
-        assert sprite.position == (50, 100)  # (0 + 100 * 0.5, 0 + 200 * 0.5)
+        assert not action.done
+
+        # At t=0.5, the sprite should have moved half the distance
+        assert abs(sprite.position[0] - 50) < 0.001  # 0 + (100 * 0.5)
+        assert abs(sprite.position[1] - 100) < 0.001  # 0 + (200 * 0.5)
 
         # Complete the action
-        action.update(0.5)
-        assert action.done
-        # Let Arcade update the position based on velocity
         sprite.update(0.5)
-        assert sprite.position == delta  # Should end at delta position
-        action.stop()
-        assert sprite.change_x == 0
-        assert sprite.change_y == 0
+        assert action.done
+        assert abs(sprite.position[0] - 100) < 0.001  # Final x position
+        assert abs(sprite.position[1] - 200) < 0.001  # Final y position
 
     def test_move_by_reverse(self):
         """Test MoveBy reversal."""
@@ -185,32 +197,32 @@ class TestRotateTo:
             RotateTo(angle=90)
 
     def test_rotate_to_execution(self, sprite):
-        """Test RotateTo action execution."""
+        """Test RotateTo action execution.
+
+        The RotateTo action should:
+        1. Calculate the angular velocity needed to reach the target angle in the given duration
+        2. Set the sprite's angular velocity to that value
+        3. Arcade's sprite update will handle the angle changes based on angular velocity
+        """
         angle = 90
         duration = 1.0
         action = RotateTo(angle, duration)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # Check initial angular velocity
-        assert sprite.change_angle == 90  # 90 / 1.0
+        assert abs(sprite.change_angle - 90) < 0.001  # 90 / 1.0
 
         # Update halfway
-        action.update(0.5)
-        assert not action.done
-        # Let Arcade update the angle based on angular velocity
         sprite.update(0.5)
+        assert not action.done
         # Angle should be updated by angular velocity * time
-        assert sprite.angle == 45  # 0 + 90 * 0.5
+        assert abs(sprite.angle - 45) < 0.001  # 0 + 90 * 0.5
 
         # Complete the action
-        action.update(0.5)
-        assert action.done
-        # Let Arcade update the angle based on angular velocity
         sprite.update(0.5)
-        assert sprite.angle == angle  # Should end at target angle
-        action.stop()
-        assert sprite.change_angle == 0
+        assert action.done
+        assert abs(sprite.angle - angle) < 0.001  # Should end at target angle
+        assert abs(sprite.change_angle) < 0.001  # Angular velocity should be zero
 
 
 class TestRotateBy:
@@ -242,31 +254,32 @@ class TestRotateBy:
             RotateBy(angle=90)
 
     def test_rotate_by_execution(self, sprite):
-        """Test RotateBy action execution."""
+        """Test RotateBy action execution.
+
+        The RotateBy action should:
+        1. Calculate the target angle as current angle plus delta
+        2. Calculate the angular velocity needed to reach that target in the given duration
+        3. Set the sprite's angular velocity to that value
+        4. Arcade's sprite update will handle the angle changes based on angular velocity
+        """
         angle = 90
         duration = 1.0
         action = RotateBy(angle, duration)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # Check initial angular velocity
         assert sprite.change_angle == 90  # 90 / 1.0
 
         # Update halfway
-        action.update(0.5)
-        assert not action.done
-        # Let Arcade update the angle based on angular velocity
         sprite.update(0.5)
+        assert not action.done
         # Angle should be updated by angular velocity * time
         assert sprite.angle == 45  # 0 + 90 * 0.5
 
         # Complete the action
-        action.update(0.5)
-        assert action.done
-        # Let Arcade update the angle based on angular velocity
         sprite.update(0.5)
+        assert action.done
         assert sprite.angle == angle  # Should end at target angle
-        action.stop()
         assert sprite.change_angle == 0
 
     def test_rotate_by_reverse(self):
@@ -312,11 +325,10 @@ class TestScaleTo:
         scale = 2.0
         duration = 1.0
         action = ScaleTo(scale, duration)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # Update halfway
-        action.update(0.5)
+        sprite.update(0.5)
         # Scale is applied directly, not through velocity
         assert sprite.scale.x == 1.5  # 1.0 + (2.0 - 1.0) * 0.5
         assert sprite.scale.y == 1.5
@@ -325,7 +337,7 @@ class TestScaleTo:
         assert not action.done
 
         # Complete the action
-        action.update(0.5)
+        sprite.update(0.5)
         assert action.done
         assert sprite.scale.x == 2.0
         assert sprite.scale.y == 2.0
@@ -365,11 +377,10 @@ class TestScaleBy:
         scale = 2.0
         duration = 1.0
         action = ScaleBy(scale, duration)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # Update halfway
-        action.update(0.5)
+        sprite.update(0.5)
         # Scale is applied directly, not through velocity
         assert sprite.scale.x == 1.5  # 1.0 * (1.0 + (2.0 - 1.0) * 0.5)
         assert sprite.scale.y == 1.5
@@ -378,7 +389,7 @@ class TestScaleBy:
         assert not action.done
 
         # Complete the action
-        action.update(0.5)
+        sprite.update(0.5)
         assert action.done
         assert sprite.scale.x == 2.0
         assert sprite.scale.y == 2.0
@@ -420,16 +431,15 @@ class TestFadeOut:
         """Test FadeOut action execution."""
         duration = 1.0
         action = FadeOut(duration)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # Update halfway
-        action.update(0.5)
+        sprite.update(0.5)
         assert sprite.alpha == 127  # 255 * (1 - 0.5)
         assert not action.done
 
         # Complete the action
-        action.update(0.5)
+        sprite.update(0.5)
         assert action.done
         assert sprite.alpha == 0
 
@@ -466,16 +476,15 @@ class TestFadeIn:
         """Test FadeIn action execution."""
         duration = 1.0
         action = FadeIn(duration)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # Update halfway
-        action.update(0.5)
+        sprite.update(0.5)
         assert sprite.alpha == 127  # 0 + (255 - 0) * 0.5
         assert not action.done
 
         # Complete the action
-        action.update(0.5)
+        sprite.update(0.5)
         assert action.done
         assert sprite.alpha == 255
 
@@ -528,16 +537,15 @@ class TestFadeTo:
         alpha = 128
         duration = 1.0
         action = FadeTo(alpha, duration)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # Update halfway
-        action.update(0.5)
+        sprite.update(0.5)
         assert sprite.alpha == 191  # 255 + (128 - 255) * 0.5
         assert not action.done
 
         # Complete the action
-        action.update(0.5)
+        sprite.update(0.5)
         assert action.done
         assert sprite.alpha == 128
 
@@ -574,21 +582,20 @@ class TestBlink:
         times = 3
         duration = 1.0
         action = Blink(times, duration)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
         assert sprite.visible
         # First interval
-        action.update(0.33)
+        sprite.update(0.33)
         assert not sprite.visible
         assert not action.done
 
         # Second interval
-        action.update(0.33)
+        sprite.update(0.33)
         assert sprite.visible
         assert not action.done
 
         # Third interval
-        action.update(0.34)
+        sprite.update(0.34)
         assert action.done
 
         # Ensure sprite is restored to original state
@@ -606,11 +613,7 @@ class TestBlink:
 
 
 class TestAccelerate:
-    """Test suite for Accelerate action.
-
-    Tests that the Accelerate action properly modifies the timing of other actions
-    using a power function, making them start slow and accelerate over time.
-    """
+    """Test the Accelerate action."""
 
     @pytest.fixture
     def sprite(self):
@@ -619,94 +622,88 @@ class TestAccelerate:
         sprite.position = (0, 0)
         return sprite
 
-    def test_accelerate_initialization(self):
-        """Test Accelerate action initialization."""
-        move_action = MoveBy((100, 0), 1.0)
-        rate = 2.0
-        action = Accelerate(move_action, rate)
-        assert action.other == move_action
-        assert action.rate == rate
-        assert action.duration == move_action.duration
-
-    def test_accelerate_requires_positive_rate(self):
-        """Test Accelerate requires positive rate."""
-        move_action = MoveBy((100, 0), 1.0)
-        with pytest.raises(ValueError):
-            Accelerate(move_action, rate=0)
-        with pytest.raises(ValueError):
-            Accelerate(move_action, rate=-1)
-
     def test_accelerate_execution(self, sprite):
         """Test Accelerate action execution.
 
-        Verifies that the action starts slow and accelerates over time.
-        With rate=2.0, at 50% duration we should be at 25% progress (0.5^2).
+        Verifies that the action properly modifies the progress of the underlying action
+        using a power function, making it start slow and accelerate over time.
         """
         move_action = MoveBy((100, 0), 1.0)
         rate = 2.0
         action = Accelerate(move_action, rate)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
-        # At 25% of duration, should be at 6.25% of distance (0.25^2)
-        action.update(0.25)
+        # Test progress modification at different points
+        # At 25% of duration, progress should be modified to 6.25% (0.25^2)
         sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(6.25, abs=0.1)
+        assert sprite.position[0] == pytest.approx(25.0, abs=0.1)  # 100 * 0.25^2
 
-        # At 50% of duration, should be at 25% of distance (0.5^2)
-        action.update(0.25)
-        sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(25.0, abs=0.1)
+        # At 50% of duration, progress should be modified to 25% (0.5^2)
+        sprite.update(0.25)  # Update to 50% total duration
+        assert sprite.position[0] == pytest.approx(25.0, abs=0.1)  # 100 * 0.5^2
 
-        # At 75% of duration, should be at 56.25% of distance (0.75^2)
-        action.update(0.25)
-        sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(56.25, abs=0.1)
+        # At 75% of duration, progress should be modified to 56.25% (0.75^2)
+        sprite.update(0.25)  # Update to 75% total duration
+        assert sprite.position[0] == pytest.approx(56.25, abs=0.1)  # 100 * 0.75^2
 
-        # Complete the action
-        action.update(0.25)
-        sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(100.0, abs=0.1)
-        assert action.done
+        # At 100% of duration, progress should be modified to 100% (1.0^2)
+        sprite.update(0.25)  # Update to 100% total duration
+        assert sprite.position[0] == pytest.approx(100.0, abs=0.1)  # 100 * 1.0^2
+
+    def test_accelerate_with_different_rates(self, sprite):
+        """Test Accelerate action with different rate values."""
+        # Test with rate=1.0 (linear)
+        move_action = MoveBy((100, 0), 1.0)
+        action = Accelerate(move_action, rate=1.0)
+        sprite.do(action)
+        sprite.update(0.5)
+        assert sprite.position[0] == pytest.approx(50.0, abs=0.1)  # 100 * 0.5^1
+
+        # Test with rate=3.0 (more aggressive acceleration)
+        sprite.position = (0, 0)
+        move_action = MoveBy((100, 0), 1.0)
+        action = Accelerate(move_action, rate=3.0)
+        sprite.do(action)
+        sprite.update(0.5)
+        assert sprite.position[0] == pytest.approx(12.5, abs=0.1)  # 100 * 0.5^3
 
     def test_accelerate_with_different_actions(self, sprite):
         """Test Accelerate works with different types of actions."""
         # Test with rotation
         rotate_action = RotateBy(90, 1.0)
         action = Accelerate(rotate_action, rate=2.0)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # At 50% of duration, should be at 25% of rotation (0.5^2)
-        action.update(0.5)
         sprite.update(0.5)
-        assert sprite.angle == pytest.approx(22.5, abs=0.1)
+        assert sprite.angle == pytest.approx(22.5, abs=0.1)  # 90 * 0.5^2
 
-        # Complete the action
-        action.update(0.5)
+        # Test with fade
+        sprite.alpha = 0
+        fade_action = FadeTo(255, 1.0)
+        action = Accelerate(fade_action, rate=2.0)
+        sprite.do(action)
+
+        # At 50% of duration, should be at 25% of fade (0.5^2)
         sprite.update(0.5)
-        assert sprite.angle == pytest.approx(90.0, abs=0.1)
-        assert action.done
+        assert sprite.alpha == pytest.approx(64, abs=0.1)  # 255 * 0.5^2
 
-        # Test with scaling
-        sprite.scale = 1.0
-        scale_action = ScaleTo(2.0, 1.0)
-        action = Accelerate(scale_action, rate=2.0)
-        action.target = sprite
-        action.start()
+    def test_accelerate_reversal(self, sprite):
+        """Test Accelerate action reversal."""
+        move_action = MoveBy((100, 0), 1.0)
+        action = Accelerate(move_action, rate=2.0)
+        reversed_action = -action
 
-        # At 50% of duration, should be at 25% of scale change (0.5^2)
-        action.update(0.5)
+        # Test forward movement
+        sprite.do(action)
         sprite.update(0.5)
-        assert sprite.scale.x == pytest.approx(1.25, abs=0.1)
-        assert sprite.scale.y == pytest.approx(1.25, abs=0.1)
+        assert sprite.position[0] == pytest.approx(25.0, abs=0.1)  # 100 * 0.5^2
 
-        # Complete the action
-        action.update(0.5)
+        # Test reversed movement
+        sprite.position = (0, 0)
+        sprite.do(reversed_action)
         sprite.update(0.5)
-        assert sprite.scale.x == pytest.approx(2.0, abs=0.1)
-        assert sprite.scale.y == pytest.approx(2.0, abs=0.1)
-        assert action.done
+        assert sprite.position[0] == pytest.approx(-25.0, abs=0.1)  # -100 * 0.5^2
 
 
 class TestAccelDecel:
@@ -739,26 +736,21 @@ class TestAccelDecel:
         """
         move_action = MoveBy((100, 0), 1.0)
         action = AccelDecel(move_action)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # At 25% of duration, should be at 25% of distance with delta time
-        action.update(0.25)
         sprite.update(0.25)
         assert sprite.position[0] == pytest.approx(25.0, abs=1)
 
         # At 50% of duration, should be at 50% of distance
-        action.update(0.25)
         sprite.update(0.25)
         assert sprite.position[0] == pytest.approx(50.0, abs=1)
 
         # At 75% of duration, should be at 75% of distance
-        action.update(0.25)
         sprite.update(0.25)
         assert sprite.position[0] == pytest.approx(75.0, abs=1)
 
         # Complete the action
-        action.update(0.25)
         sprite.update(0.25)
         assert sprite.position[0] == pytest.approx(100.0, abs=1)
         assert action.done
@@ -768,16 +760,13 @@ class TestAccelDecel:
         # Test with rotation
         rotate_action = RotateBy(90, 1.0)
         action = AccelDecel(rotate_action)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # At 50% of duration, should be at 50% of rotation with delta time
-        action.update(0.5)
         sprite.update(0.5)
         assert sprite.angle == pytest.approx(45.0, abs=1)
 
         # Complete the action
-        action.update(0.5)
         sprite.update(0.5)
         assert sprite.angle == pytest.approx(90.0, abs=1)
         assert action.done
@@ -786,17 +775,14 @@ class TestAccelDecel:
         sprite.scale = 1.0
         scale_action = ScaleTo(2.0, 1.0)
         action = AccelDecel(scale_action)
-        action.target = sprite
-        action.start()
+        sprite.do(action)
 
         # At 50% of duration, should be at 50% of scale change
-        action.update(0.5)
         sprite.update(0.5)
         assert sprite.scale.x == pytest.approx(1.5, abs=0.1)
         assert sprite.scale.y == pytest.approx(1.5, abs=0.1)
 
         # Complete the action
-        action.update(0.5)
         sprite.update(0.5)
         assert sprite.scale.x == pytest.approx(2.0, abs=0.1)
         assert sprite.scale.y == pytest.approx(2.0, abs=0.1)

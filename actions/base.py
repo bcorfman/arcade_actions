@@ -296,7 +296,7 @@ class ActionSprite(arcade.Sprite):
                     self._action = None
 
         # Then let Arcade apply velocities to position
-        super().update()
+        super().update(delta_time)
 
     def clear_actions(self):
         """Cancel all actions currently running on this sprite."""

@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 Refer to all documents in the /docs directory for context before proceeding with code generation.
 For any complex or critical task, ask any and all clarification questions needed before proceeding.

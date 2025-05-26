@@ -1,0 +1,27 @@
+{
+  "project_structure": {
+    "source_code": {
+      "path": "actions/",
+      "description": "Main project source code for ArcadeActions - contains the implementation of the Actions system"
+    },
+    "reference_code": {
+      "path": "references/arcade/",
+      "description": "Reference implementation from Arcade 3.x - used for understanding how to interface with Arcade's systems"
+    },
+    "tests": {
+      "path": "tests/",
+      "description": "Unit and integration tests for the Actions system"
+    },
+    "docs": {
+      "path": "docs/",
+      "description": "Project documentation"
+    }
+  },
+  "relationships": {
+    "actions_to_arcade": {
+      "description": "The Actions system in actions/ directory interfaces with Arcade 3.x functionality referenced in references/arcade/",
+      "source": "actions/",
+      "reference": "references/arcade/"
+    }
+  }
+} 

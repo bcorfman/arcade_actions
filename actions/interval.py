@@ -27,6 +27,10 @@ class MoveTo(IntervalAction):
         self.use_physics = use_physics
 
     def start(self) -> None:
+        """Start the movement action.
+
+        Calculate and set the velocity needed to reach the target position.
+        """
         self.start_position = self.target.position
         dx = self.end_position[0] - self.start_position[0]
         dy = self.end_position[1] - self.start_position[1]
@@ -41,15 +45,25 @@ class MoveTo(IntervalAction):
             self.target.change_y = dy / self.duration
 
     def update(self, delta_time: float) -> None:
+        """Update the action's progress.
+
+        We don't need to update position here as Arcade's sprite update will handle that.
+        """
         super().update(delta_time)
 
     def stop(self) -> None:
+        """Stop the movement action.
+
+        Clear velocity and ensure we end at the target position.
+        """
         if self.use_physics and hasattr(self.target, "pymunk"):
             # Clear any applied forces
             self.target.pymunk.force = (0, 0)
         else:
             self.target.change_x = 0
             self.target.change_y = 0
+            # Ensure we end exactly at the target position
+            self.target.position = self.end_position
         super().stop()
 
     def __repr__(self) -> str:
@@ -70,12 +84,19 @@ class MoveBy(MoveTo):
         if duration is None:
             raise ValueError("Must specify duration")
 
-        super().__init__(delta, duration, use_physics)
         self.delta = delta
+        super().__init__(delta, duration, use_physics)
 
     def start(self) -> None:
+        """Start the movement action.
+
+        Calculate the target position as current position plus delta.
+        Set the velocity to move by delta over duration.
+        """
         self.start_position = self.target.position
-        dx, dy = self.delta
+        self.end_position = (self.start_position[0] + self.delta[0], self.start_position[1] + self.delta[1])
+        dx = self.end_position[0] - self.start_position[0]
+        dy = self.end_position[1] - self.start_position[1]
 
         if self.use_physics and hasattr(self.target, "pymunk"):
             # Apply force to physics body
@@ -85,9 +106,6 @@ class MoveBy(MoveTo):
             # Set velocity directly
             self.target.change_x = dx / self.duration
             self.target.change_y = dy / self.duration
-
-    def update(self, delta_time: float) -> None:
-        super().update(delta_time)
 
     def __reversed__(self) -> "MoveBy":
         return MoveBy((-self.delta[0], -self.delta[1]), self.duration, self.use_physics)
@@ -110,6 +128,10 @@ class RotateTo(IntervalAction):
         self.use_physics = use_physics
 
     def start(self) -> None:
+        """Start the rotation action.
+
+        Calculate and set the angular velocity needed to reach the target angle.
+        """
         self.start_angle = self.target.angle % 360
         # Calculate shortest rotation path
         angle_diff = ((self.end_angle - self.start_angle + 180) % 360) - 180
@@ -123,13 +145,23 @@ class RotateTo(IntervalAction):
             self.target.change_angle = angle_diff / self.duration
 
     def update(self, delta_time: float) -> None:
+        """Update the action's progress.
+
+        We don't need to update angle here as Arcade's sprite update will handle that.
+        """
         super().update(delta_time)
 
     def stop(self) -> None:
+        """Stop the rotation action.
+
+        Clear angular velocity and ensure we end at the target angle.
+        """
         if self.use_physics and hasattr(self.target, "pymunk"):
             self.target.pymunk.torque = 0
         else:
             self.target.change_angle = 0
+            # Ensure we end exactly at the target angle
+            self.target.angle = self.end_angle
         super().stop()
 
     def __repr__(self) -> str:
@@ -149,6 +181,12 @@ class RotateBy(RotateTo):
         self.angle = angle
 
     def start(self) -> None:
+        """Start the rotation action.
+
+        Calculate the target angle as current angle plus delta.
+        Set the angular velocity to rotate by delta over duration.
+        """
+        self.start_angle = self.target.angle
         if self.use_physics and hasattr(self.target, "pymunk"):
             # Apply torque to physics body
             torque = self.angle / self.duration
@@ -157,8 +195,18 @@ class RotateBy(RotateTo):
             # Set angular velocity directly
             self.target.change_angle = self.angle / self.duration
 
-    def update(self, delta_time: float) -> None:
-        super().update(delta_time)
+    def stop(self) -> None:
+        """Stop the rotation action.
+
+        Clear angular velocity and ensure we end at the target angle.
+        """
+        if self.use_physics and hasattr(self.target, "pymunk"):
+            self.target.pymunk.torque = 0
+        else:
+            self.target.change_angle = 0
+            # Ensure we end exactly at the target angle
+            self.target.angle = (self.start_angle + self.angle) % 360
+        super().stop()
 
     def __reversed__(self) -> "RotateBy":
         return RotateBy(-self.angle, self.duration, self.use_physics)
@@ -180,17 +228,35 @@ class ScaleTo(IntervalAction):
         self.end_scale = scale
 
     def start(self) -> None:
-        self.start_scale = self.target.scale
+        """Start the scale action.
+
+        Store the initial scale and calculate the rate of change.
+        """
+        # Store initial scale as a float (average of x and y)
+        self.start_scale = (self.target.scale.x + self.target.scale.y) / 2
+        # Calculate how much scale should change per second
+        self.scale_change_rate = (self.end_scale - self.start_scale) / self.duration
 
     def update(self, delta_time: float) -> None:
+        """Update the scale action.
+
+        Calculate new scale based on elapsed time and rate of change.
+        """
         super().update(delta_time)
-        # Use the progress value passed to update (which may be modified by Accelerate/AccelDecel)
-        progress = min(1.0, self._elapsed / self.duration)
-        self.target.scale = self.start_scale + (self.end_scale - self.start_scale) * progress
+        if not self._paused:
+            # Calculate new scale based on time elapsed
+            new_scale = self.start_scale + (self.scale_change_rate * self._elapsed)
+            # Ensure scale stays positive
+            new_scale = max(0.001, new_scale)
+            # Apply same scale to both x and y
+            self.target.scale = (new_scale, new_scale)
 
     def stop(self) -> None:
-        # Ensure we end exactly at the target scale
-        self.target.scale = self.end_scale
+        """Stop the scale action.
+
+        Ensure we end exactly at the target scale.
+        """
+        self.target.scale = (self.end_scale, self.end_scale)
         super().stop()
 
     def __repr__(self) -> str:
@@ -210,8 +276,16 @@ class ScaleBy(ScaleTo):
         self.scale = scale
 
     def start(self) -> None:
-        self.start_scale = self.target.scale
+        """Start the scale action.
+
+        Store the initial scale and calculate the rate of change.
+        """
+        # Store initial scale as a float (average of x and y)
+        self.start_scale = (self.target.scale.x + self.target.scale.y) / 2
+        # Calculate target scale as relative change
         self.end_scale = self.start_scale * self.scale
+        # Calculate how much scale should change per second
+        self.scale_change_rate = (self.end_scale - self.start_scale) / self.duration
 
     def __reversed__(self) -> "ScaleBy":
         return ScaleBy(1.0 / self.scale, self.duration)
@@ -230,16 +304,30 @@ class FadeOut(IntervalAction):
         super().__init__(duration)
 
     def start(self) -> None:
+        """Start the fade out action.
+
+        Store the initial alpha value and calculate the rate of change.
+        """
         self.start_alpha = self.target.alpha
+        # Calculate how much alpha should change per second
+        self.alpha_change_rate = -self.start_alpha / self.duration
 
     def update(self, delta_time: float) -> None:
+        """Update the fade out action.
+
+        Calculate new alpha based on elapsed time and rate of change.
+        """
         super().update(delta_time)
-        # Linear interpolation from start alpha to 0
-        progress = min(1.0, self._elapsed / self.duration)
-        self.target.alpha = int(self.start_alpha * (1 - progress))
+        if not self._paused:
+            # Calculate new alpha based on time elapsed
+            new_alpha = max(0, self.start_alpha + (self.alpha_change_rate * self._elapsed))
+            self.target.alpha = int(new_alpha)
 
     def stop(self) -> None:
-        # Ensure we end completely transparent
+        """Stop the fade out action.
+
+        Ensure we end completely transparent.
+        """
         self.target.alpha = 0
         super().stop()
 
@@ -250,20 +338,40 @@ class FadeOut(IntervalAction):
         return f"FadeOut(duration={self.duration})"
 
 
-class FadeIn(FadeOut):
+class FadeIn(IntervalAction):
     """Fade in the sprite over time."""
 
+    def __init__(self, duration: float = None):
+        if duration is None:
+            raise ValueError("Must specify duration")
+
+        super().__init__(duration)
+
     def start(self) -> None:
+        """Start the fade in action.
+
+        Store the initial alpha value and calculate the rate of change.
+        """
         self.start_alpha = self.target.alpha
+        # Calculate how much alpha should change per second
+        self.alpha_change_rate = (255 - self.start_alpha) / self.duration
 
     def update(self, delta_time: float) -> None:
+        """Update the fade in action.
+
+        Calculate new alpha based on elapsed time and rate of change.
+        """
         super().update(delta_time)
-        # Linear interpolation from start alpha to 255
-        progress = min(1.0, self._elapsed / self.duration)
-        self.target.alpha = int(self.start_alpha + (255 - self.start_alpha) * progress)
+        if not self._paused:
+            # Calculate new alpha based on time elapsed
+            new_alpha = min(255, self.start_alpha + (self.alpha_change_rate * self._elapsed))
+            self.target.alpha = int(new_alpha)
 
     def stop(self) -> None:
-        # Ensure we end completely opaque
+        """Stop the fade in action.
+
+        Ensure we end completely opaque.
+        """
         self.target.alpha = 255
         super().stop()
 
@@ -287,16 +395,32 @@ class FadeTo(IntervalAction):
         self.alpha = min(255, max(0, alpha))
 
     def start(self) -> None:
+        """Start the fade to action.
+
+        Store the initial alpha value and calculate the rate of change.
+        """
         self.start_alpha = self.target.alpha
+        # Calculate how much alpha should change per second
+        self.alpha_change_rate = (self.alpha - self.start_alpha) / self.duration
 
     def update(self, delta_time: float) -> None:
+        """Update the fade to action.
+
+        Calculate new alpha based on elapsed time and rate of change.
+        """
         super().update(delta_time)
-        # Linear interpolation between start and target alpha
-        progress = min(1.0, self._elapsed / self.duration)
-        self.target.alpha = int(self.start_alpha + (self.alpha - self.start_alpha) * progress)
+        if not self._paused:
+            # Calculate new alpha based on time elapsed
+            new_alpha = self.start_alpha + (self.alpha_change_rate * self._elapsed)
+            # Clamp to valid range
+            new_alpha = max(0, min(255, new_alpha))
+            self.target.alpha = int(new_alpha)
 
     def stop(self) -> None:
-        # Ensure we end exactly at the target alpha
+        """Stop the fade to action.
+
+        Ensure we end exactly at the target alpha.
+        """
         self.target.alpha = self.alpha
         super().stop()
 
@@ -317,18 +441,33 @@ class Blink(IntervalAction):
         self.times = times
 
     def start(self) -> None:
+        """Start the blink action.
+
+        Store the initial visibility and calculate blink interval.
+        """
         self.original_visible = self.target.visible
-        self.interval = self.duration / self.times
+        # Calculate how long each blink should last
+        self.blink_interval = self.duration / self.times
+        # Track the last blink time
+        self.last_blink_time = 0
 
     def update(self, delta_time: float) -> None:
+        """Update the blink action.
+
+        Toggle visibility based on elapsed time and blink interval.
+        """
         super().update(delta_time)
-        if self._elapsed >= self.duration:
-            self.target.visible = self.original_visible
-            self._done = True
-        else:
-            self.target.visible = self.original_visible ^ (int(self._elapsed / self.interval) % 2 == 0)
+        if not self._paused:
+            # Calculate how many blinks should have occurred
+            current_blink = int(self._elapsed / self.blink_interval)
+            # Toggle visibility based on even/odd blink count
+            self.target.visible = self.original_visible ^ (current_blink % 2 == 0)
 
     def stop(self) -> None:
+        """Stop the blink action.
+
+        Restore original visibility state.
+        """
         self.target.visible = self.original_visible
         super().stop()
 
@@ -454,46 +593,61 @@ class RandomDelay(Delay):
 
 
 class Accelerate(IntervalAction):
-    """Modifies the timing of another action using a power function.
+    """Accelerate action.
 
-    The action will start slow and accelerate over time.
-    The rate parameter controls how quickly it accelerates (1 is linear).
+    Modifies the progress of another action using a power function,
+    making it start slow and accelerate over time.
 
-    Example:
-        # Move the sprite 100 pixels right in 2 seconds, starting slow and ending fast
-        action = Accelerate(MoveBy((100, 0), 2), rate=2)
-        sprite.do(action)
+    Args:
+        other: The action to accelerate
+        rate: The power to raise the progress to (default: 2.0)
     """
 
     def __init__(self, other: IntervalAction, rate: float = 2.0):
+        """Initialize the action."""
+        super().__init__(other.duration)
         if rate <= 0:
             raise ValueError("Rate must be positive")
-
-        super().__init__(other.duration)
         self.other = other
         self.rate = rate
+        self.duration = other.duration
         self._last_progress = 0.0
 
     def start(self) -> None:
+        """Start the action."""
         self.other.target = self.target
         self.other.start()
         self._last_progress = 0.0
 
     def update(self, delta_time: float) -> None:
-        super().update(delta_time)
-        # Calculate current progress
-        progress = min(1.0, self._elapsed / self.duration)
-        # Calculate modified progress using power function
-        modified_progress = progress**self.rate
-        # Calculate delta progress since last update
-        delta_progress = modified_progress - self._last_progress
-        # Update the other action with the delta progress
-        self.other.update(delta_progress * self.duration)
-        self._last_progress = modified_progress
+        """Update the action."""
+        if self.done:
+            return
+
+        self._elapsed += delta_time
+        if self._elapsed >= self.duration:
+            self._elapsed = self.duration
+            self.done = True
+
+        # Calculate progress (0 to 1)
+        t = self._elapsed / self.duration
+        # Apply power function to progress
+        current_progress = t**self.rate
+        # Calculate progress delta for this frame
+        progress_delta = current_progress - self._last_progress
+        # Update the wrapped action with the progress delta
+        self.other.update(progress_delta * self.duration)
+        # Store current progress for next frame
+        self._last_progress = current_progress
 
     def stop(self) -> None:
+        """Stop the action."""
         self.other.stop()
         super().stop()
+
+    def __neg__(self) -> "Accelerate":
+        """Return a reversed version of this action."""
+        return Accelerate(self.other.__reversed__(), self.rate)
 
     def __repr__(self) -> str:
         return f"Accelerate(other={self.other}, rate={self.rate})"

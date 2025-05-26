@@ -26,6 +26,42 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 | Test Suite           | Pytest-based unit and integration tests to validate core and edge behavior |
 | Demo Game           | Example Space Invaders / Galaga prototype showcasing actions on player, enemies, bullets |
 
+## 🔄 Property Update System
+
+The Actions framework handles two types of property updates:
+
+### 1. Arcade-Intrinsic Properties
+Properties that Arcade's sprite system manages internally:
+- Position (via `change_x`, `change_y`)
+- Angle (via `change_angle`)
+- Physics properties (via Pymunk integration)
+
+These properties are updated by:
+1. Actions calculate and set velocities/forces in `start()`
+2. Arcade's sprite update applies these changes over time
+3. Actions don't modify these properties directly in `update()`
+
+### 2. Custom Properties
+Properties that require direct management by the Actions system:
+- Alpha (transparency)
+- Scale
+- Custom sprite properties
+
+These properties are updated by:
+1. Actions calculate rate of change in `start()`
+2. Actions apply changes directly in `update()` using:
+   - Elapsed time tracking
+   - Rate-based interpolation
+   - Proper pause state handling
+3. Actions ensure clean completion in `stop()`
+
+### Time Management
+All property updates are managed through the `GameClock` system:
+- Delta-time based updates for frame independence
+- Proper pause state handling
+- Consistent timing across all action types
+- Support for action modifiers (Accelerate, AccelDecel)
+
 ---
 
 ## 🔍 In-Scope Items
@@ -112,27 +148,44 @@ We are delivering a **modern, extensible, production-ready Actions system** for 
    - Composite actions must be tested for all combinations
    - Action modifiers must be tested with different types of actions
 
-2. **Test Categories**
+2. **Property Update Testing**
+   - **Arcade-Intrinsic Properties**
+     - Test velocity/force calculations in `start()`
+     - Verify Arcade's update system applies changes correctly
+     - Test pause state handling
+     - Test boundary conditions
+   
+   - **Custom Properties**
+     - Test rate of change calculations in `start()`
+     - Verify time-based updates in `update()`
+     - Test pause state handling
+     - Test value clamping and bounds
+     - Test interpolation accuracy
+
+3. **Test Categories**
    - Unit tests for individual actions
    - Integration tests for action combinations
    - Edge case tests for boundary conditions
    - Physics integration tests where applicable
    - Performance tests for critical paths
    - Modifier action tests for different interpolation curves
+   - Time management tests for both property types
 
-3. **Documentation Requirements**
+4. **Documentation Requirements**
    - Each test file must have a clear docstring explaining its purpose
    - Each test class must document the specific action being tested
    - Each test method must explain what aspect is being tested
    - Complex test setups must be documented with comments
    - Test fixtures must be documented with their purpose
+   - Property update type must be clearly documented
 
-4. **Quality Requirements**
+5. **Quality Requirements**
    - Tests must be deterministic and repeatable
    - Tests must be independent of each other
    - Tests must clean up after themselves
    - Tests must be fast and efficient
    - Tests must be maintainable and readable
+   - Tests must verify both immediate and time-based updates
 
 For detailed testing patterns, examples, and best practices, see `docs/testing.md`.
 
@@ -181,7 +234,32 @@ def test_action_lifecycle(self, sprite):
     assert cleanup_conditions
 ```
 
-### 3. Edge Case Tests
+### 3. Property Update Tests
+```python
+def test_property_updates(self, sprite):
+    """Test property updates over time."""
+    # For Arcade-Intrinsic Properties
+    action = MovementAction(params)
+    action.target = sprite
+    action.start()
+    # Verify velocity/force is set correctly
+    assert sprite.change_x == expected_velocity_x
+    # Let Arcade update position
+    sprite.update(0.5)
+    assert sprite.position == expected_position
+
+    # For Custom Properties
+    action = CustomPropertyAction(params)
+    action.target = sprite
+    action.start()
+    # Verify rate of change is calculated
+    assert action.rate_of_change == expected_rate
+    # Verify time-based updates
+    action.update(0.5)
+    assert sprite.custom_property == expected_value
+```
+
+### 4. Edge Case Tests
 ```python
 def test_edge_cases(self, sprite):
     """Test edge cases."""
@@ -232,3 +310,10 @@ def sprite_list(self):
 - Test bouncing behavior
 - Test boundary callbacks
 - Test sprite list handling
+
+### 4. Custom Property Actions
+- Test rate calculations
+- Test time-based updates
+- Test pause handling
+- Test value clamping
+- Test interpolation accuracy
