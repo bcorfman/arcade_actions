@@ -6,9 +6,8 @@ from arcade.texture import Texture
 
 from actions.base import ActionSprite
 from actions.interval import (
-    AccelDecel,
-    Accelerate,
     Blink,
+    Easing,
     FadeIn,
     FadeOut,
     FadeTo,
@@ -67,25 +66,19 @@ class TestMoveTo:
         """Test MoveTo action execution.
 
         The MoveTo action should:
-        1. Calculate the velocity needed to reach the target position in the given duration
-        2. Set the sprite's velocity to that value
-        3. Arcade's sprite update will handle the position changes based on velocity
+        1. Store the initial position and calculate total change
+        2. Update position directly based on progress ratio
+        3. Ensure final position matches target
         """
         position = (100, 200)
         duration = 1.0
         action = MoveTo(position, duration)
         sprite.do(action)
 
-        # Check initial velocities
-        # Velocity should be (target - start) / duration
-        assert sprite.change_x == 100  # (100 - 0) / 1.0
-        assert sprite.change_y == 200  # (200 - 0) / 1.0
-
         # Update halfway
         sprite.update(0.5)
         assert not action.done
-
-        # At t=0.5, the sprite should have moved half the distance
+        # At t=0.5, position should be halfway between start and end
         assert abs(sprite.position[0] - 50) < 0.001  # 0 + (100 * 0.5)
         assert abs(sprite.position[1] - 100) < 0.001  # 0 + (200 * 0.5)
 
@@ -128,26 +121,19 @@ class TestMoveBy:
         """Test MoveBy action execution.
 
         The MoveBy action should:
-        1. Calculate the target position as current position plus delta
-        2. Calculate the velocity needed to reach that target in the given duration
-        3. Set the sprite's velocity to that value
-        4. Arcade's sprite update will handle the position changes based on velocity
+        1. Calculate target position as current position plus delta
+        2. Update position directly based on progress ratio
+        3. Ensure final position matches target
         """
         delta = (100, 200)
         duration = 1.0
         action = MoveBy(delta, duration)
         sprite.do(action)
 
-        # Check initial velocities
-        # Velocity should be delta / duration
-        assert sprite.change_x == 100  # 100 / 1.0
-        assert sprite.change_y == 200  # 200 / 1.0
-
         # Update halfway
         sprite.update(0.5)
         assert not action.done
-
-        # At t=0.5, the sprite should have moved half the distance
+        # At t=0.5, position should be halfway between start and end
         assert abs(sprite.position[0] - 50) < 0.001  # 0 + (100 * 0.5)
         assert abs(sprite.position[1] - 100) < 0.001  # 0 + (200 * 0.5)
 
@@ -612,8 +598,8 @@ class TestBlink:
         assert reversed_action.duration == duration
 
 
-class TestAccelerate:
-    """Test the Accelerate action."""
+class TestEasing:
+    """Test suite for Easing action."""
 
     @pytest.fixture
     def sprite(self):
@@ -622,168 +608,126 @@ class TestAccelerate:
         sprite.position = (0, 0)
         return sprite
 
-    def test_accelerate_execution(self, sprite):
-        """Test Accelerate action execution.
+    def test_easing_initialization(self):
+        """Test Easing action initialization."""
+        from arcade import easing
 
-        Verifies that the action properly modifies the progress of the underlying action
-        using a power function, making it start slow and accelerate over time.
-        """
-        move_action = MoveBy((100, 0), 1.0)
-        rate = 2.0
-        action = Accelerate(move_action, rate)
+        move = MoveTo((100, 200), duration=2.0)
+        action = Easing(move, ease_function=easing.ease_in_out)
+
+        assert action.duration == 2.0
+        assert isinstance(action.other, MoveTo)
+        assert action.ease_function == easing.ease_in_out
+        assert action.elapsed == 0.0
+        assert action.prev_eased == 0.0
+
+    def test_easing_execution(self, sprite):
+        """Test Easing action execution with ease_in_out function."""
+        from arcade import easing
+
+        move = MoveTo((100, 0), duration=1.0)
+        action = Easing(move, ease_function=easing.ease_in_out)
         sprite.do(action)
 
-        # Test progress modification at different points
-        # At 25% of duration, progress should be modified to 6.25% (0.25^2)
+        # At t=0.25, ease_in_out(0.25) ≈ 0.125
+        # This means the sprite should have moved 12.5% of the total distance
         sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(25.0, abs=0.1)  # 100 * 0.25^2
+        assert not action.done
+        # Position should be about 12.5% of the way (100 * 0.125)
+        assert abs(sprite.position[0] - 12.5) < 0.1
 
-        # At 50% of duration, progress should be modified to 25% (0.5^2)
-        sprite.update(0.25)  # Update to 50% total duration
-        assert sprite.position[0] == pytest.approx(25.0, abs=0.1)  # 100 * 0.5^2
-
-        # At 75% of duration, progress should be modified to 56.25% (0.75^2)
-        sprite.update(0.25)  # Update to 75% total duration
-        assert sprite.position[0] == pytest.approx(56.25, abs=0.1)  # 100 * 0.75^2
-
-        # At 100% of duration, progress should be modified to 100% (1.0^2)
-        sprite.update(0.25)  # Update to 100% total duration
-        assert sprite.position[0] == pytest.approx(100.0, abs=0.1)  # 100 * 1.0^2
-
-    def test_accelerate_with_different_rates(self, sprite):
-        """Test Accelerate action with different rate values."""
-        # Test with rate=1.0 (linear)
-        move_action = MoveBy((100, 0), 1.0)
-        action = Accelerate(move_action, rate=1.0)
-        sprite.do(action)
-        sprite.update(0.5)
-        assert sprite.position[0] == pytest.approx(50.0, abs=0.1)  # 100 * 0.5^1
-
-        # Test with rate=3.0 (more aggressive acceleration)
-        sprite.position = (0, 0)
-        move_action = MoveBy((100, 0), 1.0)
-        action = Accelerate(move_action, rate=3.0)
-        sprite.do(action)
-        sprite.update(0.5)
-        assert sprite.position[0] == pytest.approx(12.5, abs=0.1)  # 100 * 0.5^3
-
-    def test_accelerate_with_different_actions(self, sprite):
-        """Test Accelerate works with different types of actions."""
-        # Test with rotation
-        rotate_action = RotateBy(90, 1.0)
-        action = Accelerate(rotate_action, rate=2.0)
-        sprite.do(action)
-
-        # At 50% of duration, should be at 25% of rotation (0.5^2)
-        sprite.update(0.5)
-        assert sprite.angle == pytest.approx(22.5, abs=0.1)  # 90 * 0.5^2
-
-        # Test with fade
-        sprite.alpha = 0
-        fade_action = FadeTo(255, 1.0)
-        action = Accelerate(fade_action, rate=2.0)
-        sprite.do(action)
-
-        # At 50% of duration, should be at 25% of fade (0.5^2)
-        sprite.update(0.5)
-        assert sprite.alpha == pytest.approx(64, abs=0.1)  # 255 * 0.5^2
-
-    def test_accelerate_reversal(self, sprite):
-        """Test Accelerate action reversal."""
-        move_action = MoveBy((100, 0), 1.0)
-        action = Accelerate(move_action, rate=2.0)
-        reversed_action = -action
-
-        # Test forward movement
-        sprite.do(action)
-        sprite.update(0.5)
-        assert sprite.position[0] == pytest.approx(25.0, abs=0.1)  # 100 * 0.5^2
-
-        # Test reversed movement
-        sprite.position = (0, 0)
-        sprite.do(reversed_action)
-        sprite.update(0.5)
-        assert sprite.position[0] == pytest.approx(-25.0, abs=0.1)  # -100 * 0.5^2
-
-
-class TestAccelDecel:
-    """Test suite for AccelDecel action.
-
-    Tests that the AccelDecel action properly modifies the timing of other actions
-    using a sigmoid function, making them start slow, accelerate in the middle,
-    and slow down at the end.
-    """
-
-    @pytest.fixture
-    def sprite(self):
-        """Create a test sprite with initial position."""
-        sprite = create_test_sprite()
-        sprite.position = (0, 0)
-        return sprite
-
-    def test_accel_decel_initialization(self):
-        """Test AccelDecel action initialization."""
-        move_action = MoveBy((100, 0), 1.0)
-        action = AccelDecel(move_action)
-        assert action.other == move_action
-        assert action.duration == move_action.duration
-
-    def test_accel_decel_execution(self, sprite):
-        """Test AccelDecel action execution.
-
-        Verifies that the action starts slow, accelerates in the middle,
-        and slows down at the end.
-        """
-        move_action = MoveBy((100, 0), 1.0)
-        action = AccelDecel(move_action)
-        sprite.do(action)
-
-        # At 25% of duration, should be at 25% of distance with delta time
+        # At t=0.5, ease_in_out(0.5) = 0.5
         sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(25.0, abs=1)
+        assert not action.done
+        # Position should be 50% of the way
+        assert abs(sprite.position[0] - 50.0) < 0.1
 
-        # At 50% of duration, should be at 50% of distance
+        # At t=0.75, ease_in_out(0.75) ≈ 0.875
         sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(50.0, abs=1)
-
-        # At 75% of duration, should be at 75% of distance
-        sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(75.0, abs=1)
+        assert not action.done
+        # Position should be about 87.5% of the way
+        assert abs(sprite.position[0] - 87.5) < 0.1
 
         # Complete the action
         sprite.update(0.25)
-        assert sprite.position[0] == pytest.approx(100.0, abs=1)
         assert action.done
+        assert abs(sprite.position[0] - 100.0) < 0.1
 
-    def test_accel_decel_with_different_actions(self, sprite):
-        """Test AccelDecel works with different types of actions."""
-        # Test with rotation
-        rotate_action = RotateBy(90, 1.0)
-        action = AccelDecel(rotate_action)
+    def test_easing_with_different_functions(self, sprite):
+        """Test Easing action with different easing functions."""
+        from arcade import easing
+
+        # Test with ease_in
+        move = MoveTo((100, 0), duration=1.0)
+        action = Easing(move, ease_function=easing.ease_in)
         sprite.do(action)
 
-        # At 50% of duration, should be at 50% of rotation with delta time
+        # At t=0.5, ease_in(0.5) = 0.25
         sprite.update(0.5)
-        assert sprite.angle == pytest.approx(45.0, abs=1)
+        assert not action.done
+        # Position should be 25% of the way
+        assert abs(sprite.position[0] - 25.0) < 0.1
 
-        # Complete the action
+        # Test with ease_out
+        sprite.position = (0, 0)
+        move = MoveTo((100, 0), duration=1.0)
+        action = Easing(move, ease_function=easing.ease_out)
+        sprite.do(action)
+
+        # At t=0.5, ease_out(0.5) = 0.75
         sprite.update(0.5)
-        assert sprite.angle == pytest.approx(90.0, abs=1)
-        assert action.done
+        assert not action.done
+        # Position should be 75% of the way
+        assert abs(sprite.position[0] - 75.0) < 0.1
 
-        # Test with scaling
+    def test_easing_reversal(self):
+        """Test Easing action reversal."""
+        from arcade import easing
+
+        move = MoveTo((100, 200), duration=2.0)
+        action = Easing(move, ease_function=easing.ease_in_out)
+        reversed_action = action.__neg__()
+
+        assert isinstance(reversed_action, Easing)
+        assert reversed_action.duration == 2.0
+        assert reversed_action.ease_function == easing.ease_in_out
+        assert isinstance(reversed_action.other, MoveTo)
+        assert reversed_action.other.end_position == (-100, -200)
+
+    def test_easing_with_other_actions(self, sprite):
+        """Test Easing action with different types of actions."""
+        from arcade import easing
+
+        # Test with RotateTo
+        rotate = RotateTo(90, duration=1.0)
+        action = Easing(rotate, ease_function=easing.ease_in_out)
+        sprite.do(action)
+
+        # At t=0.5, ease_in_out(0.5) = 0.5
+        sprite.update(0.5)
+        assert not action.done
+        # Angle should be 45 degrees (90 * 0.5)
+        assert abs(sprite.angle - 45.0) < 0.1
+
+        # Test with ScaleTo
         sprite.scale = 1.0
-        scale_action = ScaleTo(2.0, 1.0)
-        action = AccelDecel(scale_action)
+        scale = ScaleTo(2.0, duration=1.0)
+        action = Easing(scale, ease_function=easing.ease_in_out)
         sprite.do(action)
 
-        # At 50% of duration, should be at 50% of scale change
+        # At t=0.5, ease_in_out(0.5) = 0.5
         sprite.update(0.5)
-        assert sprite.scale.x == pytest.approx(1.5, abs=0.1)
-        assert sprite.scale.y == pytest.approx(1.5, abs=0.1)
+        assert not action.done
+        # Scale should be 1.5 (1.0 + (2.0 - 1.0) * 0.5)
+        assert abs(sprite.scale.x - 1.5) < 0.1
+        assert abs(sprite.scale.y - 1.5) < 0.1
 
-        # Complete the action
-        sprite.update(0.5)
-        assert sprite.scale.x == pytest.approx(2.0, abs=0.1)
-        assert sprite.scale.y == pytest.approx(2.0, abs=0.1)
-        assert action.done
+    def test_easing_repr(self):
+        """Test Easing action string representation."""
+        from arcade import easing
+
+        move = MoveTo((100, 200), duration=2.0)
+        action = Easing(move, ease_function=easing.ease_in_out)
+
+        expected = f"<Easing(duration=2.0, ease_function=ease_in_out, wrapped={repr(move)})>"
+        assert repr(action) == expected

@@ -8,9 +8,10 @@ This module contains tests for some movement-related actions:
 """
 
 import arcade
+import arcade.easing as easing
 import pytest
 
-from actions.interval import Accelerate, MoveBy
+from actions.interval import Easing, MoveBy
 from actions.move import Boundary, BoundedMove, WrappedMove, _Move
 
 
@@ -312,35 +313,35 @@ class TestWrappedMove:
         assert sprite.center_y == 300  # Y position unchanged
 
     def test_wrap_with_acceleration(self, sprite):
-        """Test wrapping behavior with acceleration.
+        """Test wrapping behavior with easing.
 
-        A sprite with acceleration should wrap correctly while its velocity
-        changes over time using proper acceleration curves.
+        A sprite with easing should wrap correctly while its movement
+        is modified by the easing function.
         """
         # Create base movement action
         move_action = MoveBy((200, 0), 1.0)
-        # Create acceleration modifier
-        accel_action = Accelerate(move_action, rate=2.0)
+        # Create easing modifier using ease_in for acceleration effect
+        ease_action = Easing(move_action, ease_function=easing.ease_in)
         # Create wrapping action
         wrap_action = WrappedMove(800, 600)
 
         # Set up actions
-        accel_action.target = sprite
+        ease_action.target = sprite
         wrap_action.target = sprite
 
         # Set initial position
         sprite.position = (750, 300)
 
         # Start actions
-        accel_action.start()
+        ease_action.start()
         wrap_action.start()
 
         # Update for 1 second
-        accel_action.update(1.0)  # Updates change_x/y based on acceleration curve
+        ease_action.update(1.0)  # Updates position based on easing curve
         sprite.update(1.0)  # Updates position based on change_x/y
         wrap_action.update(1.0)  # Only handles wrapping, position already updated
 
-        # Verify sprite wrapped and maintained acceleration curve
+        # Verify sprite wrapped and maintained easing curve
         # Initial position = (750, 300)
         # After moving 200 pixels right = (950, 300)
         # After wrapping:
@@ -460,17 +461,17 @@ class TestWrappedMove:
         assert sprite.change_y == 100  # Velocity unchanged
 
     def test_wrap_corner_with_acceleration(self, sprite):
-        """Test wrapping when sprite hits corner with acceleration.
+        """Test wrapping when sprite hits corner with easing.
 
-        When a sprite with acceleration hits a corner, it should wrap correctly
-        and maintain its acceleration curve in both directions.
+        When a sprite with easing hits a corner, it should wrap correctly
+        and maintain its easing curve in both directions.
         """
         # Create base movement action
         move_action = MoveBy((200, 200), 1.0)
-        # Create acceleration modifier
-        accel_action = Accelerate(move_action, rate=2.0)
-        accel_action.target = sprite
-        accel_action.start()
+        # Create easing modifier using ease_in for acceleration effect
+        ease_action = Easing(move_action, ease_function=easing.ease_in)
+        ease_action.target = sprite
+        ease_action.start()
         wrap_action = WrappedMove(800, 600)
         wrap_action.target = sprite
         wrap_action.start()
@@ -479,10 +480,10 @@ class TestWrappedMove:
         sprite.position = (750, 550)  # Near top-right corner
 
         # Update for 1 second
-        accel_action.update(1.0)
+        ease_action.update(1.0)
         sprite.update(1.0)
         wrap_action.update(1.0)
-        # Verify sprite wrapped and maintained acceleration curve
+        # Verify sprite wrapped and maintained easing curve
         # Initial right edge = 750 + 32 = 782
         # After moving 200 pixels right = 982
         # After wrapping = 982 - 800 = 182
@@ -662,22 +663,26 @@ class TestBoundedMove:
         assert abs(sprite.change_x) == 100  # Speed unchanged
 
     def test_bounce_with_acceleration(self, sprite):
-        """Test bouncing with acceleration."""
+        """Test bouncing with easing.
+
+        When a sprite with easing hits a boundary, it should bounce correctly
+        and maintain its easing curve.
+        """
         # Create base movement action
         move_action = MoveBy((200, 0), 1.0)
-        # Create acceleration modifier
-        accel_action = Accelerate(move_action, rate=2.0)
-        accel_action.target = sprite
-        accel_action.start()
+        # Create easing modifier using ease_in for acceleration effect
+        ease_action = Easing(move_action, ease_function=easing.ease_in)
+        ease_action.target = sprite
+        ease_action.start()
 
         # Set initial position
         sprite.position = (700, 300)
 
         # Update for 1 second
-        accel_action.update(1.0)
+        ease_action.update(1.0)
         sprite.update(1.0)
 
-        # Verify sprite bounced and maintained acceleration curve
+        # Verify sprite bounced and maintained easing curve
         assert sprite.right == 800  # Right edge at screen boundary
         # At t=1.0, should have moved 200 pixels
         assert sprite.position[0] == 700 + 200
@@ -970,35 +975,35 @@ class TestBoundedMove:
         assert abs(sprite.change_y) == 100  # Speed maintained
 
     def test_corner_bounce_with_acceleration(self, sprite):
-        """Test corner bouncing with acceleration.
+        """Test corner bouncing with easing.
 
-        When a sprite with acceleration hits a corner, it should bounce correctly
-        and maintain its acceleration curve in both directions.
+        When a sprite with easing hits a corner, it should bounce correctly
+        and maintain its easing curve in both directions.
         """
         # Create base movement action
         move_action = MoveBy((200, 200), 1.0)
-        # Create acceleration modifier
-        accel_action = Accelerate(move_action, rate=2.0)
+        # Create easing modifier using ease_in for acceleration effect
+        ease_action = Easing(move_action, ease_function=easing.ease_in)
         # Create bounded movement action
         bound_action = BoundedMove(800, 600)
 
         # Set up actions
-        accel_action.target = sprite
+        ease_action.target = sprite
         bound_action.target = sprite
 
         # Set initial position
         sprite.position = (750, 550)  # Near top-right corner
 
         # Start actions
-        accel_action.start()
+        ease_action.start()
         bound_action.start()
 
         # Update for 1 second
-        accel_action.update(1.0)  # Updates change_x/y based on acceleration curve
+        ease_action.update(1.0)  # Updates position based on easing curve
         sprite.update(1.0)  # Updates position based on change_x/y
         bound_action.update(1.0)  # Handles boundary checking and bouncing
 
-        # Verify sprite bounced and maintained acceleration curve
+        # Verify sprite bounced and maintained easing curve
         # At t=1.0, should have moved 200 pixels in both directions
         assert sprite.right == 800  # Right edge at screen boundary
         assert sprite.top == 600  # Top edge at screen boundary

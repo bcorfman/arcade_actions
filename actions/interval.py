@@ -5,6 +5,8 @@ Interval actions that happen over time.
 import math
 import random
 
+from arcade import easing
+
 from .base import IntervalAction
 
 
@@ -25,46 +27,55 @@ class MoveTo(IntervalAction):
         super().__init__(duration)
         self.end_position = position
         self.use_physics = use_physics
+        self.start_position = None  # Will be set in start()
+        self.total_change = None  # Will be set in start()
 
     def start(self) -> None:
         """Start the movement action.
 
-        Calculate and set the velocity needed to reach the target position.
+        Store the initial position and calculate total change.
         """
         self.start_position = self.target.position
-        dx = self.end_position[0] - self.start_position[0]
-        dy = self.end_position[1] - self.start_position[1]
-
-        if self.use_physics and hasattr(self.target, "pymunk"):
-            # Apply force to physics body
-            force = (dx / self.duration, dy / self.duration)
-            self.target.pymunk.apply_force_at_local_point(force)
-        else:
-            # Set velocity directly
-            self.target.change_x = dx / self.duration
-            self.target.change_y = dy / self.duration
+        self.total_change = (
+            self.end_position[0] - self.start_position[0],
+            self.end_position[1] - self.start_position[1],
+        )
 
     def update(self, delta_time: float) -> None:
         """Update the action's progress.
 
-        We don't need to update position here as Arcade's sprite update will handle that.
+        Calculate new position based on elapsed time ratio.
         """
         super().update(delta_time)
+        if not self._paused:
+            # Calculate progress ratio
+            progress = self._elapsed / self.duration
+            # Calculate new position
+            self.target.position = (
+                self.start_position[0] + self.total_change[0] * progress,
+                self.start_position[1] + self.total_change[1] * progress,
+            )
 
     def stop(self) -> None:
         """Stop the movement action.
 
-        Clear velocity and ensure we end at the target position.
+        Ensure we end exactly at the target position.
         """
-        if self.use_physics and hasattr(self.target, "pymunk"):
-            # Clear any applied forces
-            self.target.pymunk.force = (0, 0)
-        else:
-            self.target.change_x = 0
-            self.target.change_y = 0
-            # Ensure we end exactly at the target position
-            self.target.position = self.end_position
+        self.target.position = self.end_position
         super().stop()
+
+    def __reversed__(self) -> "MoveTo":
+        """Returns a reversed version of this action.
+
+        The reversed action will move from the end position back to the start position.
+        If the action hasn't started yet, it will create a MoveTo that goes from the
+        current position to the negative of the target position.
+        """
+        if self.start_position is None:
+            # If we haven't started yet, create a MoveTo that goes from current to negative
+            return MoveTo((-self.end_position[0], -self.end_position[1]), self.duration, self.use_physics)
+        # If we have started, create a MoveTo that goes from end to start
+        return MoveTo(self.start_position, self.duration, self.use_physics)
 
     def __repr__(self) -> str:
         return f"MoveTo(position={self.end_position}, duration={self.duration}, use_physics={self.use_physics})"
@@ -91,21 +102,11 @@ class MoveBy(MoveTo):
         """Start the movement action.
 
         Calculate the target position as current position plus delta.
-        Set the velocity to move by delta over duration.
+        Store the initial position and total change.
         """
         self.start_position = self.target.position
         self.end_position = (self.start_position[0] + self.delta[0], self.start_position[1] + self.delta[1])
-        dx = self.end_position[0] - self.start_position[0]
-        dy = self.end_position[1] - self.start_position[1]
-
-        if self.use_physics and hasattr(self.target, "pymunk"):
-            # Apply force to physics body
-            force = (dx / self.duration, dy / self.duration)
-            self.target.pymunk.apply_force_at_local_point(force)
-        else:
-            # Set velocity directly
-            self.target.change_x = dx / self.duration
-            self.target.change_y = dy / self.duration
+        self.total_change = self.delta
 
     def __reversed__(self) -> "MoveBy":
         return MoveBy((-self.delta[0], -self.delta[1]), self.duration, self.use_physics)
@@ -512,36 +513,32 @@ class Bezier(IntervalAction):
         return (x, y)
 
     def start(self) -> None:
+        """Start the Bezier movement.
+
+        Store the initial position.
+        """
         self.start_position = self.target.position
-        # Calculate initial velocity for physics
-        if self.use_physics and hasattr(self.target, "pymunk"):
-            next_point = self._bezier_point(0.1)  # Point slightly ahead
-            dx = next_point[0] - self.start_position[0]
-            dy = next_point[1] - self.start_position[1]
-            force = (dx / (self.duration * 0.1), dy / (self.duration * 0.1))
-            self.target.pymunk.apply_force_at_local_point(force)
 
     def update(self, delta_time: float) -> None:
-        super().update(delta_time)
-        progress = min(1.0, self._elapsed / self.duration)
+        """Update the Bezier movement.
 
-        if self.use_physics and hasattr(self.target, "pymunk"):
-            # For physics, we need to calculate the next point to apply force
-            next_progress = min(1.0, (self._elapsed + 0.1) / self.duration)
-            current = self._bezier_point(progress)
-            next_point = self._bezier_point(next_progress)
-            dx = next_point[0] - current[0]
-            dy = next_point[1] - current[1]
-            force = (dx / 0.1, dy / 0.1)  # Force to reach next point in 0.1 seconds
-            self.target.pymunk.apply_force_at_local_point(force)
-        else:
-            # For non-physics, directly set position
+        Calculate new position based on progress along the curve.
+        """
+        super().update(delta_time)
+        if not self._paused:
+            # Calculate progress ratio
+            progress = self._elapsed / self.duration
+            # Calculate point on curve
             point = self._bezier_point(progress)
+            # Set position
             self.target.position = point
 
     def stop(self) -> None:
-        if self.use_physics and hasattr(self.target, "pymunk"):
-            self.target.pymunk.force = (0, 0)
+        """Stop the Bezier movement.
+
+        Ensure we end at the final control point.
+        """
+        self.target.position = self.control_points[-1]
         super().stop()
 
     def __repr__(self) -> str:
@@ -592,101 +589,74 @@ class RandomDelay(Delay):
         return f"RandomDelay(min={self.min_duration}, max={self.max_duration})"
 
 
-class Accelerate(IntervalAction):
-    """Accelerate action.
+class Easing(IntervalAction):
+    """
+    Wraps an IntervalAction and modulates its rate of progress using an easing function.
 
-    Modifies the progress of another action using a power function,
-    making it start slow and accelerate over time.
+    This allows the wrapped action to appear to accelerate, decelerate, or both — depending
+    on the easing curve used. The easing function transforms normalized time (t in [0,1])
+    into a new eased value, which is used to distort the time flow passed to the inner action.
 
-    Args:
-        other: The action to accelerate
-        rate: The power to raise the progress to (default: 2.0)
+    The underlying action must implement update(delta_time) and respond consistently to timing.
+
+    Parameters:
+        action (IntervalAction): The action to be wrapped and time-warped.
+        ease_function (Callable[[float], float]): Easing function taking t ∈ [0, 1] and returning eased t.
+
+    Example:
+        >>> from actions.move import MoveTo
+        >>> from arcade import easing
+        >>> move = MoveTo((100, 200), duration=2.0)
+        >>> wrapped = Easing(move, ease_function=easing.ease_in_out)
+        >>> wrapped.duration
+        2.0
+        >>> isinstance(wrapped.other, MoveTo)
+        True
+        >>> wrapped.ease_function == easing.ease_in_out
+        True
+
+        >>> reversed = -wrapped
+        >>> isinstance(reversed, Easing)
+        True
+        >>> repr(reversed).startswith("<Easing(")
+        True
     """
 
-    def __init__(self, other: IntervalAction, rate: float = 2.0):
-        """Initialize the action."""
-        super().__init__(other.duration)
-        if rate <= 0:
-            raise ValueError("Rate must be positive")
-        self.other = other
-        self.rate = rate
-        self.duration = other.duration
-        self._last_progress = 0.0
+    def __init__(self, action: IntervalAction, ease_function=easing.ease_in_out):
+        super().__init__(action.duration)
+        self.other = action
+        self.ease_function = ease_function
+        self.elapsed = 0.0
+        self.prev_eased = 0.0
 
-    def start(self) -> None:
-        """Start the action."""
+    def start(self):
         self.other.target = self.target
         self.other.start()
-        self._last_progress = 0.0
+        self.elapsed = 0.0
+        self.prev_eased = 0.0
 
-    def update(self, delta_time: float) -> None:
-        """Update the action."""
+    def update(self, delta_time: float):
         if self.done:
             return
 
-        self._elapsed += delta_time
-        if self._elapsed >= self.duration:
-            self._elapsed = self.duration
+        self.elapsed += delta_time
+        raw_t = min(self.elapsed / self.duration, 1.0)
+        eased_t = self.ease_function(raw_t)
+
+        # Convert eased progress to an eased delta_time
+        eased_elapsed = eased_t * self.duration
+        eased_delta = eased_elapsed - self.prev_eased
+        self.prev_eased = eased_elapsed
+
+        self.other.update(eased_delta)
+
+        # Mark as done when we reach the end
+        if raw_t >= 1.0:
             self.done = True
 
-        # Calculate progress (0 to 1)
-        t = self._elapsed / self.duration
-        # Apply power function to progress
-        current_progress = t**self.rate
-        # Calculate progress delta for this frame
-        progress_delta = current_progress - self._last_progress
-        # Update the wrapped action with the progress delta
-        self.other.update(progress_delta * self.duration)
-        # Store current progress for next frame
-        self._last_progress = current_progress
+    def __neg__(self):
+        return Easing(self.other.__reversed__(), ease_function=self.ease_function)
 
-    def stop(self) -> None:
-        """Stop the action."""
-        self.other.stop()
-        super().stop()
-
-    def __neg__(self) -> "Accelerate":
-        """Return a reversed version of this action."""
-        return Accelerate(self.other.__reversed__(), self.rate)
-
-    def __repr__(self) -> str:
-        return f"Accelerate(other={self.other}, rate={self.rate})"
-
-
-class AccelDecel(IntervalAction):
-    """Modifies the timing of another action using a sigmoid function.
-
-    The action will start slow, accelerate in the middle, and slow down at the end.
-    Uses a sigmoid function for smooth transitions.
-
-    Example:
-        # Move the sprite 100 pixels right in 2 seconds, with smooth acceleration and deceleration
-        action = AccelDecel(MoveBy((100, 0), 2))
-        sprite.do(action)
-    """
-
-    def __init__(self, other: IntervalAction):
-        super().__init__(other.duration)
-        self.other = other
-
-    def start(self) -> None:
-        self.other.target = self.target
-        self.other.start()
-
-    def update(self, delta_time: float) -> None:
-        super().update(delta_time)
-        # Calculate progress using sigmoid function
-        progress = min(1.0, self._elapsed / self.duration)
-        if progress != 1.0:
-            # Sigmoid function: 1 / (1 + e^(-12(x-0.5)))
-            modified_progress = 1.0 / (1.0 + math.exp(-12 * (progress - 0.5)))
-        else:
-            modified_progress = 1.0
-        self.other.update(modified_progress)
-
-    def stop(self) -> None:
-        self.other.stop()
-        super().stop()
-
-    def __repr__(self) -> str:
-        return f"AccelDecel(other={self.other})"
+    def __repr__(self):
+        ease_name = getattr(self.ease_function, "__name__", repr(self.ease_function))
+        return f"<Easing(duration={self.duration}, ease_function={ease_name}, wrapped={repr(self.other)})>"
