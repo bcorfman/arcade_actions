@@ -4,6 +4,8 @@
 
 This document provides detailed guidance for testing the movement actions in the ArcadeActions framework. These actions (`_Move`, `WrappedMove`, `BoundedMove`, `Driver`) have unique characteristics that require specialized testing approaches.
 
+For general testing patterns, fixtures, and best practices, see `testing.md`.
+
 ## Key Differences from Standard Actions
 
 Movement actions differ from standard actions in several ways:
@@ -21,7 +23,8 @@ Movement actions differ from standard actions in several ways:
 class TestWrappedMove:
     @pytest.fixture
     def sprite(self):
-        sprite = create_test_sprite()
+        """Create a test sprite with initial position and velocity."""
+        sprite = ActionSprite(":resources:images/items/star.png")
         sprite.position = (0, 0)
         sprite.change_x = 100  # Initial velocity
         sprite.change_y = 100
@@ -30,10 +33,10 @@ class TestWrappedMove:
     def test_continuous_movement(self, sprite):
         """Test that movement continues until stopped."""
         action = WrappedMove(800, 600)
-        action.target = sprite
+        sprite.do(action)
         
         # Movement should continue
-        action.update(1.0)
+        sprite.update(1.0)
         assert sprite.position != (0, 0)
         assert not action.done  # Never done unless stopped
 ```
@@ -44,11 +47,11 @@ class TestWrappedMove:
 def test_wrapping_behavior(self, sprite):
     """Test sprite wrapping at screen boundaries."""
     action = WrappedMove(800, 600)
-    action.target = sprite
+    sprite.do(action)
     
     # Move beyond right boundary
     sprite.position = (900, 300)
-    action.update(1.0)
+    sprite.update(1.0)
     assert sprite.left == 0  # Should wrap to left side
 ```
 
@@ -63,13 +66,13 @@ def test_physics_movement(self, sprite):
     sprite.pymunk.velocity = (100, 100)
     
     action = WrappedMove(800, 600)
-    action.target = sprite
+    sprite.do(action)
     
-    action.update(1.0)
+    sprite.update(1.0)
     assert sprite.pymunk.position != (0, 0)
 ```
 
-## Test Categories
+## Movement-Specific Test Categories
 
 ### 1. Movement Behavior
 - Continuous movement
@@ -101,7 +104,7 @@ def test_physics_movement(self, sprite):
 - Speed limits
 - Direction changes
 
-## Best Practices
+## Movement-Specific Best Practices
 
 1. **Test Setup**
    - Initialize sprites with known positions and velocities
@@ -123,4 +126,6 @@ def test_physics_movement(self, sprite):
    - Document test setup
    - Explain test expectations
    - Note any assumptions
-   - Document physics integration details 
+   - Document physics integration details
+
+For general testing best practices, see `testing.md`. 

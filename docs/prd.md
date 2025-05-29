@@ -14,9 +14,9 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 
 | Module / Feature      | Why It's Included                                                    |
 |------------------------|---------------------------------------------------------------------|
-| `base.py`             | Core `Action` class hierarchy, `ActionSprite` wrapper to manage per-sprite actions |
+| `base.py`             | Core `Action` class hierarchy and `ActionSprite` - the exclusive sprite class that supports actions |
 | `instant.py`          | Instantaneous actions (e.g., Hide, Show, Place, CallFunc) for sprite state changes |
-| `interval.py`         | Time-based actions (e.g., MoveBy, MoveTo, RotateBy, RotateTo, ScaleTo, FadeTo, JumpBy, JumpTo) and action modifiers (Accelerate, AccelDecel) that use real delta-time physics and smooth interpolation |
+| `interval.py`         | Time-based actions (e.g., MoveBy, MoveTo, RotateBy, RotateTo, ScaleTo, FadeTo, JumpBy, JumpTo) and action modifiers (Easing) that use real delta-time physics and smooth interpolation |
 | `move.py`            | Complex movement actions (`Driver`, `WrappedMove`, `BoundedMove`) for arcade-style patterns |
 | `group.py`           | `GroupAction` and `SpriteGroup` to coordinate synchronized sprite groups (e.g., Galaga attack waves) |
 | `composite.py`       | Composite actions for combining multiple actions (Sequence, Spawn, Loop) with support for empty composites and immediate completion |
@@ -28,39 +28,47 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 
 ## 🔄 Property Update System
 
-The Actions framework handles two types of property updates:
+The Actions framework handles two distinct property update systems:
 
-### 1. Arcade-Intrinsic Properties
-Properties that Arcade's sprite system manages internally:
-- Position (via `change_x`, `change_y`)
-- Angle (via `change_angle`)
-- Physics properties (via Pymunk integration)
-
-These properties are updated by:
-1. Actions calculate and set velocities/forces in `start()`
-2. Arcade's sprite update applies these changes over time
-3. Actions don't modify these properties directly in `update()`
-
-### 2. Custom Properties
-Properties that require direct management by the Actions system:
-- Alpha (transparency)
-- Scale
-- Custom sprite properties
+### 1. ActionSprite Properties
+Properties managed by the Actions system through `ActionSprite`:
+- Position (direct updates in `update()`)
+- Angle (direct updates in `update()`)
+- Scale (direct updates in `update()`)
+- Alpha (direct updates in `update()`)
+- Custom properties
 
 These properties are updated by:
-1. Actions calculate rate of change in `start()`
+1. Actions calculate changes in `start()`
 2. Actions apply changes directly in `update()` using:
    - Elapsed time tracking
    - Rate-based interpolation
    - Proper pause state handling
 3. Actions ensure clean completion in `stop()`
 
+### 2. Arcade Sprite Properties
+Properties managed by Arcade's standard sprite system:
+- Position (via `change_x`, `change_y`)
+- Angle (via `change_angle`)
+- Physics properties (via Pymunk integration)
+
+These properties are updated by:
+1. Arcade's sprite update system
+2. Velocity-based movement
+3. Physics integration
+
+### Clear Separation of Concerns
+- `ActionSprite` is the only class that can use Actions
+- Regular `arcade.Sprite` uses Arcade's standard velocity system
+- No mixing of the two systems on the same sprite
+- Explicit documentation that Actions only work with `ActionSprite`
+
 ### Time Management
 All property updates are managed through the `GameClock` system:
 - Delta-time based updates for frame independence
 - Proper pause state handling
 - Consistent timing across all action types
-- Support for action modifiers (Accelerate, AccelDecel)
+- Support for action modifiers (Easing)
 
 ---
 
@@ -68,7 +76,7 @@ All property updates are managed through the `GameClock` system:
 
 - High-level declarative action API over Arcade 3.x
 - Core actions: Move, Rotate, Scale, Fade, Jump, Lerp, CallFunc
-- Action modifiers: Accelerate and AccelDecel for smooth interpolation of any action
+- Action modifiers: Easing for smooth interpolation of any action
 - Group actions and SpriteGroup coordination
 - Per-sprite action management (`ActionSprite`)
 - Game-wide scheduler for coordinating action timelines
@@ -98,6 +106,7 @@ All property updates are managed through the `GameClock` system:
 - Multiplayer or networking features
 - Detailed particle system or visual effects integration
 - Arcade's platformer physics, tilemaps, or other unrelated features
+- Actions for regular `arcade.Sprite` instances
 
 ---
 
@@ -129,6 +138,7 @@ This system:
 ✅ Enables rapid prototyping of sophisticated gameplay without low-level math
 ✅ Offers **composite actions** for complex behavior sequences with robust edge case handling
 ✅ Integrates with Arcade's game state management
+✅ Maintains clear boundaries between Action and Arcade sprite systems
 
 ---
 
@@ -149,27 +159,21 @@ We are delivering a **modern, extensible, production-ready Actions system** for 
    - Action modifiers must be tested with different types of actions
 
 2. **Property Update Testing**
-   - **Arcade-Intrinsic Properties**
+   - **ActionSprite Properties**
+     - Test direct property updates in `update()`
+     - Verify time-based interpolation
+     - Test pause state handling
+     - Test value clamping and bounds
+     - Test interpolation accuracy
+   
+   - **Arcade Sprite Properties**
      - Test velocity/force calculations in `start()`
      - Verify Arcade's update system applies changes correctly
      - Test pause state handling
      - Test boundary conditions
-   
-   - **Custom Properties**
-     - Test rate of change calculations in `start()`
-     - Verify time-based updates in `update()`
-     - Test pause state handling
-     - Test value clamping and bounds
-     - Test interpolation accuracy
 
 3. **Test Categories**
-   - Unit tests for individual actions
-   - Integration tests for action combinations
-   - Edge case tests for boundary conditions
-   - Physics integration tests where applicable
-   - Performance tests for critical paths
-   - Modifier action tests for different interpolation curves
-   - Time management tests for both property types
+   See `testing.md` for detailed test categories and patterns.
 
 4. **Documentation Requirements**
    - Each test file must have a clear docstring explaining its purpose
@@ -214,18 +218,17 @@ def test_action_initialization(self):
 def test_action_lifecycle(self, sprite):
     """Test complete action lifecycle."""
     action = ActionClass(params)
-    action.target = sprite
+    sprite.do(action)  # Use ActionSprite.do()
     
     # Start
-    action.start()
     assert initial_conditions
     
     # Update
-    action.update(0.5)
+    sprite.update(0.5)  # Use ActionSprite.update()
     assert intermediate_conditions
     
     # Complete
-    action.update(0.5)
+    sprite.update(0.5)
     assert action.done
     assert final_conditions
     
@@ -238,25 +241,21 @@ def test_action_lifecycle(self, sprite):
 ```python
 def test_property_updates(self, sprite):
     """Test property updates over time."""
-    # For Arcade-Intrinsic Properties
+    # For ActionSprite Properties
+    action = CustomPropertyAction(params)
+    sprite.do(action)
+    # Verify direct property updates
+    sprite.update(0.5)
+    assert sprite.property == expected_value
+
+    # For Arcade Sprite Properties
     action = MovementAction(params)
-    action.target = sprite
-    action.start()
+    sprite.do(action)
     # Verify velocity/force is set correctly
     assert sprite.change_x == expected_velocity_x
     # Let Arcade update position
     sprite.update(0.5)
     assert sprite.position == expected_position
-
-    # For Custom Properties
-    action = CustomPropertyAction(params)
-    action.target = sprite
-    action.start()
-    # Verify rate of change is calculated
-    assert action.rate_of_change == expected_rate
-    # Verify time-based updates
-    action.update(0.5)
-    assert sprite.custom_property == expected_value
 ```
 
 ### 4. Edge Case Tests
@@ -276,44 +275,12 @@ def test_edge_cases(self, sprite):
 
 ## Test Fixtures
 
-### Common Fixtures
-```python
-@pytest.fixture
-def sprite(self):
-    """Create a test sprite."""
-    sprite = create_test_sprite()
-    sprite.position = (0, 0)
-    return sprite
-
-@pytest.fixture
-def sprite_list(self):
-    """Create a test sprite list."""
-    return arcade.SpriteList()
-```
+See `testing.md` for common test fixtures and their usage.
 
 ## Test Categories
 
-### 1. Movement Actions
-- Test position updates
-- Test velocity calculations
-- Test boundary handling
-- Test physics integration
+See `testing.md` for detailed test categories and patterns.
 
-### 2. Physics Actions
-- Test acceleration
-- Test gravity
-- Test collision response
-- Test force application
+## Best Practices
 
-### 3. Boundary Actions
-- Test wrapping behavior
-- Test bouncing behavior
-- Test boundary callbacks
-- Test sprite list handling
-
-### 4. Custom Property Actions
-- Test rate calculations
-- Test time-based updates
-- Test pause handling
-- Test value clamping
-- Test interpolation accuracy
+See `testing.md` for comprehensive testing best practices.

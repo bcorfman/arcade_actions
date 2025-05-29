@@ -10,9 +10,9 @@ All action classes must implement the following abstract methods:
 - `start()`: Called when the action begins. Must be implemented by all action classes.
 
 When testing action classes:
-1. Use real implementations of dependencies where possible
-2. Only use mocks when testing in isolation is necessary
-3. Call `start()` before `update()` in all tests
+1. Use `ActionSprite` for all sprite-based tests
+2. Use `sprite.do(action)` instead of setting target and calling start
+3. Use `sprite.update()` instead of calling action.update directly
 4. Verify that `start()` is called exactly once per action
 
 Example implementation showing proper dependency injection:
@@ -60,18 +60,17 @@ def test_action_lifecycle(self, sprite):
     
     # Create action with real dependencies
     action = MoveAction(physics_engine=physics_engine)
-    action.target = sprite
     
-    # Start - REQUIRED for all actions
-    action.start()  # Must be called before update
+    # Use ActionSprite.do() instead of setting target and calling start
+    sprite.do(action)
     assert physics_engine.is_initialized
     
-    # Update
-    action.update(0.5)
+    # Use ActionSprite.update() instead of action.update()
+    sprite.update(0.5)
     assert intermediate_conditions
     
     # Complete
-    action.update(0.5)
+    sprite.update(0.5)
     assert action.done
     assert final_conditions
     
@@ -92,14 +91,14 @@ def test_edge_cases(self, sprite):
         duration=0,
         physics_engine=physics_engine
     )
-    action.start()  # Required before update
+    sprite.do(action)  # Use ActionSprite.do()
     
     # Test boundary conditions
     action = MoveAction(
         param=boundary_value,
         physics_engine=physics_engine
     )
-    action.start()  # Required before update
+    sprite.do(action)  # Use ActionSprite.do()
     
     # Test invalid inputs
     with pytest.raises(ValueError):
@@ -122,8 +121,8 @@ def physics_engine():
 
 @pytest.fixture
 def sprite(physics_engine):
-    """Create a test sprite with real physics engine."""
-    sprite = create_test_sprite(physics_engine=physics_engine)
+    """Create a test ActionSprite with real physics engine."""
+    sprite = ActionSprite(":resources:images/items/star.png")
     sprite.position = (0, 0)
     return sprite
 
@@ -132,7 +131,7 @@ def sprite_list(physics_engine):
     """Create a test sprite list with real physics engine."""
     sprites = arcade.SpriteList()
     for _ in range(3):
-        sprite = create_test_sprite(physics_engine=physics_engine)
+        sprite = ActionSprite(":resources:images/items/star.png")
         sprite.position = (0, 0)
         sprites.append(sprite)
     return sprites
@@ -149,9 +148,8 @@ def test_continuous_movement(self, sprite, physics_engine):
         height=600,
         physics_engine=physics_engine
     )
-    action.target = sprite
-    action.start()  # Required before update
-    action.update(1.0)
+    sprite.do(action)  # Use ActionSprite.do()
+    sprite.update(1.0)  # Use ActionSprite.update()
     assert sprite.position != (0, 0)
     assert not action.done  # Never done unless stopped
 ```
@@ -169,9 +167,8 @@ def test_physics_movement(self, sprite, physics_engine):
         height=600,
         physics_engine=physics_engine
     )
-    action.target = sprite
-    action.start()  # Required before update
-    action.update(1.0)
+    sprite.do(action)  # Use ActionSprite.do()
+    sprite.update(1.0)  # Use ActionSprite.update()
     assert sprite.pymunk.position != (0, 0)
 ```
 
@@ -190,16 +187,15 @@ def test_sequence_execution(self, sprite, physics_engine):
         physics_engine=physics_engine
     )
     sequence = Sequence([action1, action2])
-    sequence.target = sprite
-    sequence.start()  # Required before update
+    sprite.do(sequence)  # Use ActionSprite.do()
     
     # First action
-    sequence.update(1.0)
+    sprite.update(1.0)  # Use ActionSprite.update()
     assert sprite.position == (100, 0)
     assert not sequence.done
     
     # Second action
-    sequence.update(1.0)
+    sprite.update(1.0)  # Use ActionSprite.update()
     assert sprite.angle == 90
     assert sequence.done
 ```
@@ -243,11 +239,11 @@ def test_network_error_handling(self):
    - Keep tests focused and atomic
 
 3. **Test Setup**
-   - Use real implementations by default
-   - Only use mocks when necessary
+   - Always use `ActionSprite` for sprite-based tests
+   - Use `sprite.do(action)` instead of setting target and calling start
+   - Use `sprite.update()` instead of calling action.update directly
    - Initialize sprites with known states
    - Set up boundary conditions explicitly
-   - Call start() before update() in all tests
    - Clean up after tests
 
 4. **Edge Cases**

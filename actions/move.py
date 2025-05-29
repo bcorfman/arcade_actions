@@ -79,8 +79,7 @@ class WrappedMove(_Move):
     by other actions or directly before this action is updated.
 
     Attributes:
-        width (float): The width of the screen/boundary.
-        height (float): The height of the screen/boundary.
+        bounds (tuple[float, float]): The screen bounds as (width, height).
         boundary_checker (callable): Function to check for boundary crossings.
         wrap_handler (callable): Function to handle wrapping behavior.
         _on_boundary_hit (callable, optional): Callback function to be called when a sprite
@@ -92,8 +91,7 @@ class WrappedMove(_Move):
 
     def __init__(
         self,
-        width: float,
-        height: float,
+        bounds: tuple[float, float],
         on_boundary_hit=None,
         boundary_checker=None,
         wrap_handler=None,
@@ -103,8 +101,7 @@ class WrappedMove(_Move):
         """Initialize the WrappedMove action.
 
         Args:
-            width (float): The width of the screen/boundary.
-            height (float): The height of the screen/boundary.
+            bounds (tuple[float, float]): The screen bounds as (width, height).
             on_boundary_hit (callable, optional): Callback function to be called when a sprite
                 crosses a boundary. The callback receives:
                 - sprite: The sprite that crossed the boundary
@@ -119,8 +116,7 @@ class WrappedMove(_Move):
             **cb_kwargs: Additional keyword arguments for the boundary hit callback.
         """
         super().__init__()
-        self.width = width
-        self.height = height
+        self.width, self.height = bounds
         self.boundary_checker = boundary_checker or self._detect_boundaries
         self.wrap_handler = wrap_handler or self._handle_wrapping
         self._on_boundary_hit = on_boundary_hit
@@ -210,7 +206,7 @@ class WrappedMove(_Move):
                 self._on_boundary_hit(sprite, boundaries, *self._cb_args, **self._cb_kwargs)
 
     def __repr__(self) -> str:
-        return f"WrappedMove(width={self.width}, height={self.height})"
+        return f"WrappedMove(bounds=({self.width}, {self.height}))"
 
 
 class BoundedMove(_Move):
@@ -229,8 +225,7 @@ class BoundedMove(_Move):
     sprite list, it will reverse the direction of all sprites when any sprite hits a boundary.
 
     Attributes:
-        width (float): The width of the screen/boundary.
-        height (float): The height of the screen/boundary.
+        bounds (tuple[float, float]): The screen bounds as (width, height).
         direction (int): The current horizontal movement direction (1 for right, -1 for left).
         independent_movement (bool): Whether sprites move independently or as a group.
         bounce_behavior (str): How to handle boundary collisions ("reverse", "stop", etc.).
@@ -247,8 +242,7 @@ class BoundedMove(_Move):
 
     def __init__(
         self,
-        width: float,
-        height: float,
+        bounds: tuple[float, float],
         on_boundary_hit=None,
         independent_movement: bool = True,
         bounce_behavior: str = "reverse",
@@ -259,8 +253,7 @@ class BoundedMove(_Move):
         """Initialize the BoundedMove action.
 
         Args:
-            width (float): The width of the screen/boundary.
-            height (float): The height of the screen/boundary.
+            bounds (tuple[float, float]): The screen bounds as (width, height).
             on_boundary_hit (callable, optional): Callback function to be called when a sprite
                 hits a boundary. The callback receives:
                 - sprite: The sprite that hit the boundary
@@ -275,8 +268,7 @@ class BoundedMove(_Move):
             **cb_kwargs: Additional keyword arguments for the boundary hit callback.
         """
         super().__init__()
-        self.width = width
-        self.height = height
+        self.width, self.height = bounds
         self.direction = 1  # 1 for right, -1 for left
         self.independent_movement = independent_movement
         self.bounce_behavior = bounce_behavior
@@ -417,7 +409,7 @@ class BoundedMove(_Move):
             sprite.angle += sprite.change_angle * delta_time
 
     def __repr__(self) -> str:
-        return f"BoundedMove(width={self.width}, height={self.height})"
+        return f"BoundedMove(bounds=({self.width}, {self.height}))"
 
 
 class Driver(Action):

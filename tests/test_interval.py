@@ -186,29 +186,25 @@ class TestRotateTo:
         """Test RotateTo action execution.
 
         The RotateTo action should:
-        1. Calculate the angular velocity needed to reach the target angle in the given duration
-        2. Set the sprite's angular velocity to that value
-        3. Arcade's sprite update will handle the angle changes based on angular velocity
+        1. Store the initial angle and calculate total change
+        2. Update the angle directly based on progress
+        3. End exactly at the target angle
         """
         angle = 90
         duration = 1.0
         action = RotateTo(angle, duration)
         sprite.do(action)
 
-        # Check initial angular velocity
-        assert abs(sprite.change_angle - 90) < 0.001  # 90 / 1.0
-
         # Update halfway
         sprite.update(0.5)
         assert not action.done
-        # Angle should be updated by angular velocity * time
+        # Angle should be updated based on progress
         assert abs(sprite.angle - 45) < 0.001  # 0 + 90 * 0.5
 
         # Complete the action
         sprite.update(0.5)
         assert action.done
         assert abs(sprite.angle - angle) < 0.001  # Should end at target angle
-        assert abs(sprite.change_angle) < 0.001  # Angular velocity should be zero
 
 
 class TestRotateBy:
@@ -243,30 +239,25 @@ class TestRotateBy:
         """Test RotateBy action execution.
 
         The RotateBy action should:
-        1. Calculate the target angle as current angle plus delta
-        2. Calculate the angular velocity needed to reach that target in the given duration
-        3. Set the sprite's angular velocity to that value
-        4. Arcade's sprite update will handle the angle changes based on angular velocity
+        1. Store the initial angle and calculate total change
+        2. Update the angle directly based on progress
+        3. End exactly at the target angle
         """
         angle = 90
         duration = 1.0
         action = RotateBy(angle, duration)
         sprite.do(action)
 
-        # Check initial angular velocity
-        assert sprite.change_angle == 90  # 90 / 1.0
-
         # Update halfway
         sprite.update(0.5)
         assert not action.done
-        # Angle should be updated by angular velocity * time
+        # Angle should be updated based on progress
         assert sprite.angle == 45  # 0 + 90 * 0.5
 
         # Complete the action
         sprite.update(0.5)
         assert action.done
         assert sprite.angle == angle  # Should end at target angle
-        assert sprite.change_angle == 0
 
     def test_rotate_by_reverse(self):
         """Test RotateBy reversal."""

@@ -278,7 +278,7 @@ class ActionSprite(arcade.Sprite):
         return action
 
     def update(self, delta_time: float = 1 / 60):
-        """Update all active actions and the sprite.
+        """Update all active actions.
 
         Args:
             delta_time: Time elapsed since last frame in seconds
@@ -294,9 +294,6 @@ class ActionSprite(arcade.Sprite):
                 self._actions.remove(action)
                 if action == self._action:
                     self._action = None
-
-        # Then let Arcade apply velocities to position
-        super().update(delta_time)
 
     def clear_actions(self):
         """Cancel all actions currently running on this sprite."""

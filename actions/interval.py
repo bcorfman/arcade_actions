@@ -127,42 +127,37 @@ class RotateTo(IntervalAction):
         super().__init__(duration)
         self.end_angle = angle % 360
         self.use_physics = use_physics
+        self.start_angle = None  # Will be set in start()
+        self.total_change = None  # Will be set in start()
 
     def start(self) -> None:
         """Start the rotation action.
 
-        Calculate and set the angular velocity needed to reach the target angle.
+        Store the initial angle and calculate total change.
         """
         self.start_angle = self.target.angle % 360
         # Calculate shortest rotation path
         angle_diff = ((self.end_angle - self.start_angle + 180) % 360) - 180
-
-        if self.use_physics and hasattr(self.target, "pymunk"):
-            # Apply torque to physics body
-            torque = angle_diff / self.duration
-            self.target.pymunk.torque = torque
-        else:
-            # Set angular velocity directly
-            self.target.change_angle = angle_diff / self.duration
+        self.total_change = angle_diff
 
     def update(self, delta_time: float) -> None:
         """Update the action's progress.
 
-        We don't need to update angle here as Arcade's sprite update will handle that.
+        Calculate new angle based on elapsed time ratio.
         """
         super().update(delta_time)
+        if not self._paused:
+            # Calculate progress ratio
+            progress = self._elapsed / self.duration
+            # Calculate new angle
+            self.target.angle = (self.start_angle + self.total_change * progress) % 360
 
     def stop(self) -> None:
         """Stop the rotation action.
 
-        Clear angular velocity and ensure we end at the target angle.
+        Ensure we end exactly at the target angle.
         """
-        if self.use_physics and hasattr(self.target, "pymunk"):
-            self.target.pymunk.torque = 0
-        else:
-            self.target.change_angle = 0
-            # Ensure we end exactly at the target angle
-            self.target.angle = self.end_angle
+        self.target.angle = self.end_angle
         super().stop()
 
     def __repr__(self) -> str:
@@ -185,28 +180,17 @@ class RotateBy(RotateTo):
         """Start the rotation action.
 
         Calculate the target angle as current angle plus delta.
-        Set the angular velocity to rotate by delta over duration.
+        Store the initial angle and total change.
         """
         self.start_angle = self.target.angle
-        if self.use_physics and hasattr(self.target, "pymunk"):
-            # Apply torque to physics body
-            torque = self.angle / self.duration
-            self.target.pymunk.torque = torque
-        else:
-            # Set angular velocity directly
-            self.target.change_angle = self.angle / self.duration
+        self.total_change = self.angle
 
     def stop(self) -> None:
         """Stop the rotation action.
 
-        Clear angular velocity and ensure we end at the target angle.
+        Ensure we end exactly at the target angle.
         """
-        if self.use_physics and hasattr(self.target, "pymunk"):
-            self.target.pymunk.torque = 0
-        else:
-            self.target.change_angle = 0
-            # Ensure we end exactly at the target angle
-            self.target.angle = (self.start_angle + self.angle) % 360
+        self.target.angle = (self.start_angle + self.angle) % 360
         super().stop()
 
     def __reversed__(self) -> "RotateBy":
