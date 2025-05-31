@@ -31,11 +31,12 @@ class MockAction(Action):
     def start(self) -> None:
         self.start_called = True
 
-    def update(self, delta_time: float) -> None:
+    def update(self, delta_time: float) -> float:
         self.update_called = True
         super().update(delta_time)
         if self._elapsed >= self.duration:
             self.done = True
+        return delta_time
 
     def stop(self) -> None:
         self.stop_called = True
@@ -54,11 +55,12 @@ class MockIntervalAction(IntervalAction):
     def start(self) -> None:
         self.start_called = True
 
-    def update(self, delta_time: float) -> None:
+    def update(self, delta_time: float) -> float:
         self.update_called = True
         super().update(delta_time)
         if self._elapsed >= self.duration:
             self.done = True
+        return delta_time
 
     def stop(self) -> None:
         self.stop_called = True
@@ -77,9 +79,10 @@ class MockInstantAction(InstantAction):
         """Start the instant action."""
         self.done = True
 
-    def update(self, delta_time: float) -> None:
+    def update(self, delta_time: float) -> float:
         self.update_called = True
         self.done = True
+        return delta_time
 
 
 class TestAction:

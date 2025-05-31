@@ -621,7 +621,7 @@ class Easing(IntervalAction):
 
     def update(self, delta_time: float):
         if self.done:
-            return
+            return delta_time
 
         self.elapsed += delta_time
         raw_t = min(self.elapsed / self.duration, 1.0)
@@ -637,6 +637,8 @@ class Easing(IntervalAction):
         # Mark as done when we reach the end
         if raw_t >= 1.0:
             self.done = True
+
+        return eased_delta
 
     def __neg__(self):
         return Easing(self.other.__reversed__(), ease_function=self.ease_function)

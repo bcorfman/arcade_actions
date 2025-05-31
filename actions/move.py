@@ -3,11 +3,12 @@ Actions for continuous movement and physics-based movement.
 """
 
 import math
+from collections.abc import Callable
 from enum import Enum, auto
 
 import arcade
 
-from .base import Action
+from actions.base import Action, ActionSprite
 
 
 class Boundary(Enum):
@@ -79,142 +80,112 @@ class WrappedMove(_Move):
     by other actions or directly before this action is updated.
 
     Attributes:
-        bounds (tuple[float, float]): The screen bounds as (width, height).
-        boundary_checker (callable): Function to check for boundary crossings.
-        wrap_handler (callable): Function to handle wrapping behavior.
-        _on_boundary_hit (callable, optional): Callback function to be called when a sprite
-            crosses a boundary. The callback receives the sprite, a list of boundaries crossed,
-            and any additional args/kwargs provided during initialization.
-        _cb_args (tuple): Additional positional arguments for the boundary hit callback.
-        _cb_kwargs (dict): Additional keyword arguments for the boundary hit callback.
+        get_bounds (Callable[[], Tuple[float, float]]): Function that returns current screen bounds.
+        wrap_horizontal (bool): Whether to enable horizontal wrapping.
+        wrap_vertical (bool): Whether to enable vertical wrapping.
+        on_wrap (Optional[Callable[[ActionSprite, str], None]]): Callback for wrap events.
     """
 
     def __init__(
         self,
-        bounds: tuple[float, float],
-        on_boundary_hit=None,
-        boundary_checker=None,
-        wrap_handler=None,
-        *cb_args,
-        **cb_kwargs,
+        get_bounds: Callable[[], tuple[float, float]],
+        wrap_horizontal: bool = True,
+        wrap_vertical: bool = True,
+        on_wrap: Callable[[ActionSprite, str], None] | None = None,
     ):
         """Initialize the WrappedMove action.
 
         Args:
-            bounds (tuple[float, float]): The screen bounds as (width, height).
-            on_boundary_hit (callable, optional): Callback function to be called when a sprite
-                crosses a boundary. The callback receives:
-                - sprite: The sprite that crossed the boundary
-                - boundaries: List of Boundary enum values indicating which boundaries were crossed
-                - *cb_args: Additional positional arguments
-                - **cb_kwargs: Additional keyword arguments
-            boundary_checker (callable, optional): Function to check for boundary crossings.
-                If None, uses the default boundary detection logic.
-            wrap_handler (callable, optional): Function to handle wrapping behavior.
-                If None, uses the default wrapping logic.
-            *cb_args: Additional positional arguments for the boundary hit callback.
-            **cb_kwargs: Additional keyword arguments for the boundary hit callback.
+            get_bounds: Function that returns current screen bounds (width, height).
+            wrap_horizontal: Whether to enable horizontal wrapping.
+            wrap_vertical: Whether to enable vertical wrapping.
+            on_wrap: Optional callback function called when a wrap occurs.
+                Signature: on_wrap(sprite: ActionSprite, axis: str) -> None
+                Where axis is "x" or "y" depending on which direction the wrap occurred.
         """
         super().__init__()
-        self.width, self.height = bounds
-        self.boundary_checker = boundary_checker or self._detect_boundaries
-        self.wrap_handler = wrap_handler or self._handle_wrapping
-        self._on_boundary_hit = on_boundary_hit
-        self._cb_args = cb_args
-        self._cb_kwargs = cb_kwargs
+        self.get_bounds = get_bounds
+        self.wrap_horizontal = wrap_horizontal
+        self.wrap_vertical = wrap_vertical
+        self._on_wrap = on_wrap
 
     def start(self) -> None:
         """Start the wrapping action."""
-        # No initialization needed, just call parent's start
         super().start()
 
-    def _detect_boundaries(self, sprite: arcade.Sprite) -> list[Boundary]:
-        """Detect which boundaries a sprite has crossed.
-
-        Args:
-            sprite (arcade.Sprite): The sprite to check for boundary crossings.
-
-        Returns:
-            list[Boundary]: List of boundaries that the sprite has crossed.
-        """
-        boundaries = []
-        # Handle x wrapping
-        if sprite.right < 0:
-            boundaries.append(Boundary.LEFT)
-        elif sprite.left > self.width:
-            boundaries.append(Boundary.RIGHT)
-        # Handle y wrapping
-        if sprite.bottom < 0:
-            boundaries.append(Boundary.BOTTOM)
-        elif sprite.top > self.height:
-            boundaries.append(Boundary.TOP)
-        return boundaries
-
-    def _handle_wrapping(self, sprite: arcade.Sprite, boundaries: list[Boundary]) -> None:
-        """Handle wrapping behavior when a sprite crosses boundaries.
-
-        Args:
-            sprite (arcade.Sprite): The sprite that crossed boundaries.
-            boundaries (list[Boundary]): List of boundaries that were crossed.
-        """
-        if Boundary.LEFT in boundaries:
-            # When wrapping from left to right, maintain the same offset from right edge
-            sprite.left = self.width + sprite.right
-        elif Boundary.RIGHT in boundaries:
-            # When wrapping from right to left, maintain the same offset from left edge
-            sprite.right = sprite.left - self.width
-        if Boundary.BOTTOM in boundaries:
-            # When wrapping from bottom to top, maintain the same offset from top edge
-            sprite.top = self.height + sprite.bottom
-        elif Boundary.TOP in boundaries:
-            # When wrapping from top to bottom, maintain the same offset from bottom edge
-            sprite.bottom = sprite.top - self.height
-
-    def update(self, delta_time: float):
+    def update(self, delta_time: float) -> None:
         """Update sprite positions with wrapping.
 
         Note: This method only handles wrapping behavior. The sprite's position should be
         updated by other actions or directly before this method is called.
         """
+        if self._paused:
+            return
+
         if isinstance(self.target, arcade.SpriteList):
             self._update_sprite_list()
         else:
             self._update_single_sprite()
 
-    def _update_sprite_list(self):
+    def _update_sprite_list(self) -> None:
         """Update all sprites in a sprite list."""
         for sprite in self.target:
             self._wrap_sprite(sprite)
 
-    def _update_single_sprite(self):
+    def _update_single_sprite(self) -> None:
         """Update a single sprite's position with wrapping."""
         self._wrap_sprite(self.target)
 
-    def _wrap_sprite(self, sprite: arcade.Sprite) -> None:
+    def _wrap_sprite(self, sprite: ActionSprite) -> None:
         """Wrap a sprite if it has crossed any boundaries.
 
         Args:
-            sprite (arcade.Sprite): The sprite to check and wrap.
+            sprite: The sprite to check and wrap.
         """
-        # Check for boundary crossings
-        boundaries = self.boundary_checker(sprite)
-        if boundaries:
-            # Handle wrapping
-            self.wrap_handler(sprite, boundaries)
-            # Call boundary hit callback if provided
-            if self._on_boundary_hit:
-                self._on_boundary_hit(sprite, boundaries, *self._cb_args, **self._cb_kwargs)
+        # Get current screen bounds
+        width, height = self.get_bounds()
+
+        # Get sprite's hit box and calculate bounding box
+        hit_box = sprite.hit_box
+        min_x = hit_box.left
+        max_x = hit_box.right
+        min_y = hit_box.bottom
+        max_y = hit_box.top
+        bbox_width = sprite.width
+        bbox_height = sprite.height
+
+        # Check horizontal wrapping
+        if self.wrap_horizontal:
+            if max_x < 0:
+                sprite.center_x = width + bbox_width / 2
+                if self._on_wrap:
+                    self._on_wrap(sprite, "x")
+            elif min_x > width:
+                sprite.center_x = -bbox_width / 2
+                if self._on_wrap:
+                    self._on_wrap(sprite, "x")
+
+        # Check vertical wrapping
+        if self.wrap_vertical:
+            if max_y < 0:
+                sprite.center_y = height + bbox_height / 2
+                if self._on_wrap:
+                    self._on_wrap(sprite, "y")
+            elif min_y > height:
+                sprite.center_y = -bbox_height / 2
+                if self._on_wrap:
+                    self._on_wrap(sprite, "y")
 
     def __repr__(self) -> str:
-        return f"WrappedMove(bounds=({self.width}, {self.height}))"
+        return f"WrappedMove(wrap_horizontal={self.wrap_horizontal}, wrap_vertical={self.wrap_vertical})"
 
 
 class BoundedMove(_Move):
-    """Move the sprite but limit position to screen bounds.
+    """Move sprites with bouncing at screen bounds.
 
     This action moves sprites within screen boundaries, bouncing them off the edges
     when they collide. The bounce behavior is determined by the sprite's movement
-    direction and its edges:
+    direction and its hit box:
 
     - When moving right, the sprite bounces when its right edge hits the right boundary
     - When moving left, the sprite bounces when its left edge hits the left boundary
@@ -222,194 +193,113 @@ class BoundedMove(_Move):
     - When moving down, the sprite bounces when its bottom edge hits the bottom boundary
 
     This action can work with both individual sprites and sprite lists. When used with a
-    sprite list, it will reverse the direction of all sprites when any sprite hits a boundary.
+    sprite list, each sprite bounces independently.
+
+    Note: This action only handles bouncing behavior. The sprite's position should be
+    updated by other actions or directly before this action is updated.
 
     Attributes:
-        bounds (tuple[float, float]): The screen bounds as (width, height).
-        direction (int): The current horizontal movement direction (1 for right, -1 for left).
-        independent_movement (bool): Whether sprites move independently or as a group.
-        bounce_behavior (str): How to handle boundary collisions ("reverse", "stop", etc.).
-        boundary_checker (callable): Function to check for boundary collisions.
-        _on_boundary_hit (callable, optional): Callback function to be called when a sprite
-            hits a boundary. The callback receives:
-            - sprite: The sprite that hit the boundary
-            - boundaries: List of Boundary enum values indicating which boundaries were hit
-            - *cb_args: Additional positional arguments
-            - **cb_kwargs: Additional keyword arguments
-        _cb_args (tuple): Additional positional arguments for the boundary hit callback.
-        _cb_kwargs (dict): Additional keyword arguments for the boundary hit callback.
+        get_bounds (Callable[[], Tuple[float, float, float, float]]): Function that returns
+            current bounding zone (left, bottom, right, top).
+        bounce_horizontal (bool): Whether to enable horizontal bouncing.
+        bounce_vertical (bool): Whether to enable vertical bouncing.
+        on_bounce (Optional[Callable[[ActionSprite, str], None]]): Callback for bounce events.
     """
 
     def __init__(
         self,
-        bounds: tuple[float, float],
-        on_boundary_hit=None,
-        independent_movement: bool = True,
-        bounce_behavior: str = "reverse",
-        boundary_checker=None,
-        *cb_args,
-        **cb_kwargs,
+        get_bounds: Callable[[], tuple[float, float, float, float]],
+        bounce_horizontal: bool = True,
+        bounce_vertical: bool = True,
+        on_bounce: Callable[[ActionSprite, str], None] | None = None,
     ):
         """Initialize the BoundedMove action.
 
         Args:
-            bounds (tuple[float, float]): The screen bounds as (width, height).
-            on_boundary_hit (callable, optional): Callback function to be called when a sprite
-                hits a boundary. The callback receives:
-                - sprite: The sprite that hit the boundary
-                - boundaries: List of Boundary enum values indicating which boundaries were hit
-                - *cb_args: Additional positional arguments
-                - **cb_kwargs: Additional keyword arguments
-            independent_movement (bool): Whether sprites move independently or as a group.
-            bounce_behavior (str): How to handle boundary collisions ("reverse", "stop", etc.).
-            boundary_checker (callable, optional): Function to check for boundary collisions.
-                If None, uses the default boundary detection logic.
-            *cb_args: Additional positional arguments for the boundary hit callback.
-            **cb_kwargs: Additional keyword arguments for the boundary hit callback.
+            get_bounds: Function that returns current bounding zone (left, bottom, right, top).
+            bounce_horizontal: Whether to enable horizontal bouncing.
+            bounce_vertical: Whether to enable vertical bouncing.
+            on_bounce: Optional callback function called when a bounce occurs.
+                Signature: on_bounce(sprite: ActionSprite, axis: str) -> None
+                Where axis is "x" or "y" depending on which direction the bounce occurred.
         """
         super().__init__()
-        self.width, self.height = bounds
-        self.direction = 1  # 1 for right, -1 for left
-        self.independent_movement = independent_movement
-        self.bounce_behavior = bounce_behavior
-        self.boundary_checker = boundary_checker or self._detect_boundaries
-        self._on_boundary_hit = on_boundary_hit
-        self._cb_args = cb_args
-        self._cb_kwargs = cb_kwargs
+        self.get_bounds = get_bounds
+        self.bounce_horizontal = bounce_horizontal
+        self.bounce_vertical = bounce_vertical
+        self._on_bounce = on_bounce
 
     def start(self) -> None:
         """Start the bounded movement action."""
-        # No initialization needed, just call parent's start
         super().start()
-
-    def _detect_boundaries(self, sprite: arcade.Sprite) -> list[Boundary]:
-        """Detect which boundaries a sprite has crossed.
-
-        Args:
-            sprite (arcade.Sprite): The sprite to check for boundary collisions.
-
-        Returns:
-            list[Boundary]: List of boundaries that the sprite has crossed.
-        """
-        boundaries = []
-        # Check horizontal boundaries based on movement direction
-        if sprite.change_x > 0 and sprite.right >= self.width:
-            boundaries.append(Boundary.RIGHT)
-        elif sprite.change_x < 0 and sprite.left <= 0:
-            boundaries.append(Boundary.LEFT)
-        # Check vertical boundaries based on movement direction
-        if sprite.change_y > 0 and sprite.top >= self.height:
-            boundaries.append(Boundary.TOP)
-        elif sprite.change_y < 0 and sprite.bottom <= 0:
-            boundaries.append(Boundary.BOTTOM)
-        return boundaries
-
-    def _handle_boundary_collision(self, sprite: arcade.Sprite, boundaries: list[Boundary]) -> None:
-        """Handle what happens when a sprite hits a boundary.
-
-        Args:
-            sprite (arcade.Sprite): The sprite that hit the boundary.
-            boundaries (list[Boundary]): List of boundaries that were hit.
-        """
-        if self.bounce_behavior == "reverse":
-            if Boundary.RIGHT in boundaries or Boundary.LEFT in boundaries:
-                sprite.change_x *= -1
-            if Boundary.TOP in boundaries or Boundary.BOTTOM in boundaries:
-                sprite.change_y *= -1
-        elif self.bounce_behavior == "stop":
-            if Boundary.RIGHT in boundaries or Boundary.LEFT in boundaries:
-                sprite.change_x = 0
-            if Boundary.TOP in boundaries or Boundary.BOTTOM in boundaries:
-                sprite.change_y = 0
-
-        # Adjust position to keep sprite within bounds
-        if Boundary.RIGHT in boundaries:
-            sprite.right = self.width
-        elif Boundary.LEFT in boundaries:
-            sprite.left = 0
-        if Boundary.TOP in boundaries:
-            sprite.top = self.height
-        elif Boundary.BOTTOM in boundaries:
-            sprite.bottom = 0
 
     def update(self, delta_time: float) -> None:
         """Update sprite positions with boundary bouncing."""
+        if self._paused:
+            return
+
         if isinstance(self.target, arcade.SpriteList):
-            self._update_sprite_list(delta_time)
+            self._update_sprite_list()
         else:
-            self._update_single_sprite(delta_time)
+            self._update_single_sprite()
 
-    def _update_sprite_list(self, delta_time: float) -> None:
+    def _update_sprite_list(self) -> None:
         """Update all sprites in a sprite list."""
-        hit_boundary = False
-        hit_sprite = None
-        hit_boundaries = []
-
-        # First check for boundary hits
         for sprite in self.target:
-            boundaries = self.boundary_checker(sprite)
-            if boundaries:
-                hit_boundary = True
-                hit_sprite = sprite
-                hit_boundaries = boundaries
-                break
+            self._bounce_sprite(sprite)
 
-        # If any sprite hit a boundary, handle it based on movement mode
-        if hit_boundary:
-            if self.independent_movement:
-                # Only handle the sprite that hit the boundary
-                self._handle_boundary_collision(hit_sprite, hit_boundaries)
-            else:
-                # Handle all sprites in the list
-                for sprite in self.target:
-                    self._handle_boundary_collision(sprite, hit_boundaries)
-            if self._on_boundary_hit:
-                self._on_boundary_hit(hit_sprite, hit_boundaries, *self._cb_args, **self._cb_kwargs)
-
-        # Update all sprite positions
-        for sprite in self.target:
-            self._update_sprite_position(sprite, delta_time)
-
-    def _update_single_sprite(self, delta_time: float) -> None:
+    def _update_single_sprite(self) -> None:
         """Update a single sprite's position with boundary bouncing."""
-        # Update position based on velocity and acceleration
-        super().update(delta_time)
+        self._bounce_sprite(self.target)
 
-        # Check for boundary collisions
-        boundaries = self.boundary_checker(self.target)
-        if boundaries:
-            self._handle_boundary_collision(self.target, boundaries)
-            if self._on_boundary_hit:
-                self._on_boundary_hit(self.target, boundaries, *self._cb_args, **self._cb_kwargs)
+    def _bounce_sprite(self, sprite: ActionSprite) -> None:
+        """Bounce a sprite if it has collided with any boundaries.
 
-    def _update_sprite_position(self, sprite, delta_time: float) -> None:
-        """Update a sprite's position based on its velocity and acceleration."""
-        x, y = sprite.position
-        dx, dy = sprite.change_x, sprite.change_y
+        Args:
+            sprite: The sprite to check and bounce.
+        """
+        # Get current bounding zone
+        left, bottom, right, top = self.get_bounds()
 
-        # Apply acceleration if present
-        if hasattr(sprite, "acceleration"):
-            ax, ay = sprite.acceleration
-            dx += ax * delta_time
-            dy += ay * delta_time
+        # Get sprite's hit box and calculate bounding box
+        hit_box = sprite.hit_box
+        min_x = hit_box.left
+        max_x = hit_box.right
+        min_y = hit_box.bottom
+        max_y = hit_box.top
 
-        # Apply gravity if present
-        if hasattr(sprite, "gravity"):
-            dy += sprite.gravity * delta_time
+        # Check horizontal bouncing
+        if self.bounce_horizontal:
+            if min_x < left:
+                # Bounce off left boundary
+                sprite.center_x += 2 * (left - min_x)
+                sprite.change_x *= -1
+                if self._on_bounce:
+                    self._on_bounce(sprite, "x")
+            elif max_x > right:
+                # Bounce off right boundary
+                sprite.center_x -= 2 * (max_x - right)
+                sprite.change_x *= -1
+                if self._on_bounce:
+                    self._on_bounce(sprite, "x")
 
-        # Update velocity
-        sprite.change_x = dx
-        sprite.change_y = dy
-
-        # Update position
-        sprite.position = (x + dx * delta_time, y + dy * delta_time)
-
-        # Update rotation if needed
-        if hasattr(sprite, "change_angle"):
-            sprite.angle += sprite.change_angle * delta_time
+        # Check vertical bouncing
+        if self.bounce_vertical:
+            if min_y < bottom:
+                # Bounce off bottom boundary
+                sprite.center_y += 2 * (bottom - min_y)
+                sprite.change_y *= -1
+                if self._on_bounce:
+                    self._on_bounce(sprite, "y")
+            elif max_y > top:
+                # Bounce off top boundary
+                sprite.center_y -= 2 * (max_y - top)
+                sprite.change_y *= -1
+                if self._on_bounce:
+                    self._on_bounce(sprite, "y")
 
     def __repr__(self) -> str:
-        return f"BoundedMove(bounds=({self.width}, {self.height}))"
+        return f"BoundedMove(bounce_horizontal={self.bounce_horizontal}, bounce_vertical={self.bounce_vertical})"
 
 
 class Driver(Action):
