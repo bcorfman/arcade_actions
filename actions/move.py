@@ -270,13 +270,13 @@ class BoundedMove(_Move):
 
         # Check horizontal bouncing
         if self.bounce_horizontal:
-            if min_x < left:
+            if min_x <= left and sprite.change_x < 0:  # Moving left into left boundary
                 # Bounce off left boundary
                 sprite.center_x += 2 * (left - min_x)
                 sprite.change_x *= -1
                 if self._on_bounce:
                     self._on_bounce(sprite, "x")
-            elif max_x > right:
+            elif max_x >= right and sprite.change_x > 0:  # Moving right into right boundary
                 # Bounce off right boundary
                 sprite.center_x -= 2 * (max_x - right)
                 sprite.change_x *= -1
@@ -285,13 +285,13 @@ class BoundedMove(_Move):
 
         # Check vertical bouncing
         if self.bounce_vertical:
-            if min_y < bottom:
+            if min_y <= bottom and sprite.change_y < 0:  # Moving down into bottom boundary
                 # Bounce off bottom boundary
                 sprite.center_y += 2 * (bottom - min_y)
                 sprite.change_y *= -1
                 if self._on_bounce:
                     self._on_bounce(sprite, "y")
-            elif max_y > top:
+            elif max_y >= top and sprite.change_y > 0:  # Moving up into top boundary
                 # Bounce off top boundary
                 sprite.center_y -= 2 * (max_y - top)
                 sprite.change_y *= -1

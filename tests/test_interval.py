@@ -622,35 +622,27 @@ class TestEasing:
 
         # At t=0.25, ease_in_out(0.25) ≈ 0.125
         # This means the sprite should have moved 12.5% of the total distance
-        delta = sprite.update(0.25)
+        sprite.update(0.25)
         assert not action.done
         # Position should be about 12.5% of the way (100 * 0.125)
         assert abs(sprite.position[0] - 12.5) < 0.1
-        # Delta time should be eased
-        assert abs(delta - 0.125) < 0.1
 
         # At t=0.5, ease_in_out(0.5) = 0.5
-        delta = sprite.update(0.25)
+        sprite.update(0.25)
         assert not action.done
         # Position should be 50% of the way
         assert abs(sprite.position[0] - 50.0) < 0.1
-        # Delta time should be eased
-        assert abs(delta - 0.375) < 0.1
 
         # At t=0.75, ease_in_out(0.75) ≈ 0.875
-        delta = sprite.update(0.25)
+        sprite.update(0.25)
         assert not action.done
         # Position should be about 87.5% of the way
         assert abs(sprite.position[0] - 87.5) < 0.1
-        # Delta time should be eased
-        assert abs(delta - 0.375) < 0.1
 
         # Complete the action
-        delta = sprite.update(0.25)
+        sprite.update(0.25)
         assert action.done
         assert abs(sprite.position[0] - 100.0) < 0.1
-        # Delta time should be eased
-        assert abs(delta - 0.125) < 0.1
 
     def test_easing_with_different_functions(self, sprite):
         """Test Easing action with different easing functions."""
@@ -662,12 +654,10 @@ class TestEasing:
         sprite.do(action)
 
         # At t=0.5, ease_in(0.5) = 0.25
-        delta = sprite.update(0.5)
+        sprite.update(0.5)
         assert not action.done
         # Position should be 25% of the way
         assert abs(sprite.position[0] - 25.0) < 0.1
-        # Delta time should be eased
-        assert abs(delta - 0.25) < 0.1
 
         # Test with ease_out
         sprite.position = (0, 0)
@@ -676,12 +666,10 @@ class TestEasing:
         sprite.do(action)
 
         # At t=0.5, ease_out(0.5) = 0.75
-        delta = sprite.update(0.5)
+        sprite.update(0.5)
         assert not action.done
         # Position should be 75% of the way
         assert abs(sprite.position[0] - 75.0) < 0.1
-        # Delta time should be eased
-        assert abs(delta - 0.75) < 0.1
 
     def test_easing_reversal(self):
         """Test Easing action reversal."""
@@ -707,12 +695,10 @@ class TestEasing:
         sprite.do(action)
 
         # At t=0.5, ease_in_out(0.5) = 0.5
-        delta = sprite.update(0.5)
+        sprite.update(0.5)
         assert not action.done
         # Angle should be 45 degrees (90 * 0.5)
         assert abs(sprite.angle - 45.0) < 0.1
-        # Delta time should be eased
-        assert abs(delta - 0.5) < 0.1
 
         # Test with ScaleTo
         sprite.scale = 1.0
@@ -721,13 +707,11 @@ class TestEasing:
         sprite.do(action)
 
         # At t=0.5, ease_in_out(0.5) = 0.5
-        delta = sprite.update(0.5)
+        sprite.update(0.5)
         assert not action.done
         # Scale should be 1.5 (1.0 + (2.0 - 1.0) * 0.5)
         assert abs(sprite.scale.x - 1.5) < 0.1
         assert abs(sprite.scale.y - 1.5) < 0.1
-        # Delta time should be eased
-        assert abs(delta - 0.5) < 0.1
 
     def test_easing_repr(self):
         """Test Easing action string representation."""

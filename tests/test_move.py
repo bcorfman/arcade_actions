@@ -32,7 +32,7 @@ class TestMove:
     @pytest.fixture
     def sprite(self):
         """Create a test sprite with initial position and velocity."""
-        sprite = ActionSprite(":resources:images/items/star.png")
+        sprite = ActionSprite(":resources:images/enemies/bee.png")
         sprite.position = (0, 0)
         sprite.change_x = 100  # Initial velocity
         sprite.change_y = 100
@@ -85,7 +85,7 @@ class TestWrappedMove:
     @pytest.fixture
     def sprite(self):
         """Create a test sprite with initial position and velocity."""
-        sprite = ActionSprite(":resources:images/items/star.png")
+        sprite = ActionSprite(":resources:images/items/ladderMid.png")
         sprite.position = (0, 0)
         sprite.change_x = 100  # Initial velocity
         sprite.change_y = 100
@@ -96,7 +96,7 @@ class TestWrappedMove:
         """Create a list of test sprites for group behavior testing."""
         sprites = arcade.SpriteList()
         for _ in range(3):
-            sprite = ActionSprite(":resources:images/items/star.png")
+            sprite = ActionSprite(":resources:images/items/ladderMid.png")
             sprite.position = (0, 0)
             sprite.change_x = 100
             sprite.change_y = 100
@@ -271,7 +271,6 @@ class TestWrappedMove:
         - Wrapping works with easing
         - Easing curve is maintained
         - Position is correctly aligned after wrapping
-        - Eased timing is properly propagated
         """
         # Create base movement action
         move_action = MoveBy((200, 0), 1.0)
@@ -289,13 +288,11 @@ class TestWrappedMove:
         sprite.center_y = 300
 
         # Update for 0.1 seconds
-        delta = sprite.update(0.1)  # Updates position based on easing curve and handles wrapping
+        sprite.update(0.1)  # Updates position based on easing curve and handles wrapping
 
         # Verify sprite wrapped and maintained easing curve
         assert sprite.center_x < 0  # Wrapped to left edge
         assert sprite.center_y == 300  # Y position unchanged
-        # Delta time should be eased (ease_in(0.1) ≈ 0.01)
-        assert abs(delta - 0.01) < 0.01
 
     def test_disable_horizontal_wrapping(self, sprite, get_bounds):
         """Test disabling horizontal wrapping.
@@ -412,7 +409,7 @@ class TestBoundedMove:
     @pytest.fixture
     def sprite(self):
         """Create a test sprite with initial position and velocity."""
-        sprite = ActionSprite(":resources:images/items/star.png")
+        sprite = ActionSprite(":resources:images/items/ladderMid.png")
         sprite.position = (0, 0)
         sprite.change_x = 100  # Initial velocity
         sprite.change_y = 100
@@ -423,7 +420,7 @@ class TestBoundedMove:
         """Create a list of test sprites for group behavior testing."""
         sprites = arcade.SpriteList()
         for _ in range(3):
-            sprite = ActionSprite(":resources:images/items/star.png")
+            sprite = ActionSprite(":resources:images/items/ladderMid.png")
             sprite.position = (0, 0)
             sprite.change_x = 100
             sprite.change_y = 100
@@ -439,14 +436,15 @@ class TestBoundedMove:
         """Test bouncing when sprite hits right edge.
 
         Verifies that:
-        - Sprite bounces at right edge
-        - Velocity is reversed
+        - Sprite bounces at right edge when moving right
+        - Sprite does not bounce when moving left
+        - Velocity is reversed only when bouncing
         - Position is correctly adjusted
         """
         action = BoundedMove(get_bounds)
         sprite.do(action)
 
-        # Position sprite at right edge
+        # Test 1: Moving right into right edge
         sprite.center_x = 736  # right edge at 800
         sprite.center_y = 300
         sprite.change_x = 100  # Moving right
@@ -456,18 +454,29 @@ class TestBoundedMove:
         assert sprite.change_x == -100  # X direction reversed
         assert sprite.center_y == 300  # Y position unchanged
 
+        # Test 2: Moving left at right edge (should not bounce)
+        sprite.center_x = 736  # right edge at 800
+        sprite.center_y = 300
+        sprite.change_x = -100  # Moving left
+        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Verify sprite did not bounce
+        assert sprite.change_x == -100  # X direction unchanged
+        assert sprite.center_y == 300  # Y position unchanged
+
     def test_bounce_left_edge(self, sprite, get_bounds):
         """Test bouncing when sprite hits left edge.
 
         Verifies that:
-        - Sprite bounces at left edge
-        - Velocity is reversed
+        - Sprite bounces at left edge when moving left
+        - Sprite does not bounce when moving right
+        - Velocity is reversed only when bouncing
         - Position is correctly adjusted
         """
         action = BoundedMove(get_bounds)
         sprite.do(action)
 
-        # Position sprite at left edge
+        # Test 1: Moving left into left edge
         sprite.center_x = 64  # left edge at 0
         sprite.center_y = 300
         sprite.change_x = -100  # Moving left
@@ -477,18 +486,29 @@ class TestBoundedMove:
         assert sprite.change_x == 100  # X direction reversed
         assert sprite.center_y == 300  # Y position unchanged
 
+        # Test 2: Moving right at left edge (should not bounce)
+        sprite.center_x = 64  # left edge at 0
+        sprite.center_y = 300
+        sprite.change_x = 100  # Moving right
+        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Verify sprite did not bounce
+        assert sprite.change_x == 100  # X direction unchanged
+        assert sprite.center_y == 300  # Y position unchanged
+
     def test_bounce_top_edge(self, sprite, get_bounds):
         """Test bouncing when sprite hits top edge.
 
         Verifies that:
-        - Sprite bounces at top edge
-        - Velocity is reversed
+        - Sprite bounces at top edge when moving up
+        - Sprite does not bounce when moving down
+        - Velocity is reversed only when bouncing
         - Position is correctly adjusted
         """
         action = BoundedMove(get_bounds)
         sprite.do(action)
 
-        # Position sprite at top edge
+        # Test 1: Moving up into top edge
         sprite.center_x = 300
         sprite.center_y = 536  # top edge at 600
         sprite.change_y = 100  # Moving up
@@ -498,18 +518,29 @@ class TestBoundedMove:
         assert sprite.change_y == -100  # Y direction reversed
         assert sprite.center_x == 300  # X position unchanged
 
+        # Test 2: Moving down at top edge (should not bounce)
+        sprite.center_x = 300
+        sprite.center_y = 536  # top edge at 600
+        sprite.change_y = -100  # Moving down
+        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Verify sprite did not bounce
+        assert sprite.change_y == -100  # Y direction unchanged
+        assert sprite.center_x == 300  # X position unchanged
+
     def test_bounce_bottom_edge(self, sprite, get_bounds):
         """Test bouncing when sprite hits bottom edge.
 
         Verifies that:
-        - Sprite bounces at bottom edge
-        - Velocity is reversed
+        - Sprite bounces at bottom edge when moving down
+        - Sprite does not bounce when moving up
+        - Velocity is reversed only when bouncing
         - Position is correctly adjusted
         """
         action = BoundedMove(get_bounds)
         sprite.do(action)
 
-        # Position sprite at bottom edge
+        # Test 1: Moving down into bottom edge
         sprite.center_x = 300
         sprite.center_y = 64  # bottom edge at 0
         sprite.change_y = -100  # Moving down
@@ -519,18 +550,29 @@ class TestBoundedMove:
         assert sprite.change_y == 100  # Y direction reversed
         assert sprite.center_x == 300  # X position unchanged
 
+        # Test 2: Moving up at bottom edge (should not bounce)
+        sprite.center_x = 300
+        sprite.center_y = 64  # bottom edge at 0
+        sprite.change_y = 100  # Moving up
+        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Verify sprite did not bounce
+        assert sprite.change_y == 100  # Y direction unchanged
+        assert sprite.center_x == 300  # X position unchanged
+
     def test_bounce_corner(self, sprite, get_bounds):
         """Test bouncing when sprite hits a corner.
 
         Verifies that:
-        - Sprite bounces in both directions
-        - Velocities are reversed
+        - Sprite bounces in both directions when moving toward corner
+        - Sprite only bounces in direction of movement
+        - Velocities are reversed only when bouncing
         - Position is correctly adjusted
         """
         action = BoundedMove(get_bounds)
         sprite.do(action)
 
-        # Position sprite at top-right corner
+        # Test 1: Moving toward top-right corner
         sprite.center_x = 736  # right edge at 800
         sprite.center_y = 536  # top edge at 600
         sprite.change_x = 100  # Moving right
@@ -540,6 +582,17 @@ class TestBoundedMove:
         # Verify sprite bounced in both directions
         assert sprite.change_x == -100  # X direction reversed
         assert sprite.change_y == -100  # Y direction reversed
+
+        # Test 2: Moving away from top-right corner
+        sprite.center_x = 736  # right edge at 800
+        sprite.center_y = 536  # top edge at 600
+        sprite.change_x = -100  # Moving left
+        sprite.change_y = -100  # Moving down
+        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Verify sprite did not bounce
+        assert sprite.change_x == -100  # X direction unchanged
+        assert sprite.change_y == -100  # Y direction unchanged
 
     def test_bounce_callback(self, sprite, get_bounds):
         """Test bounce callback with correct axis information.
@@ -573,6 +626,7 @@ class TestBoundedMove:
 
         Verifies that:
         - Each sprite bounces independently
+        - Bouncing only occurs when moving toward boundary
         - List-level updates work correctly
         - Velocities are reversed correctly
         """
@@ -583,22 +637,37 @@ class TestBoundedMove:
         # Position sprites at different locations
         sprite_list[0].center_x = 736  # Near right edge
         sprite_list[0].center_y = 300
+        sprite_list[0].change_x = 100  # Moving right
+        sprite_list[0].change_y = 0  # No vertical movement
+
         sprite_list[1].center_x = 300  # Near top edge
         sprite_list[1].center_y = 536
+        sprite_list[1].change_x = 0  # No horizontal movement
+        sprite_list[1].change_y = 100  # Moving up
+
         sprite_list[2].center_x = 64  # Near left edge
         sprite_list[2].center_y = 300
-
-        # Set velocities
-        for sprite in sprite_list:
-            sprite.change_x = 100  # All moving right
-            sprite.change_y = 100  # All moving up
+        sprite_list[2].change_x = -100  # Moving left
+        sprite_list[2].change_y = 0  # No vertical movement
 
         action.update(0.1)  # Update with 0.1s time step
 
         # Verify each sprite bounced correctly
-        assert sprite_list[0].change_x == -100  # Reversed X direction
-        assert sprite_list[1].change_y == -100  # Reversed Y direction
-        assert sprite_list[2].change_x == 100  # Reversed X direction
+        assert sprite_list[0].change_x == -100  # Reversed X direction (moving right)
+        assert sprite_list[1].change_y == -100  # Reversed Y direction (moving up)
+        assert sprite_list[2].change_x == 100  # Reversed X direction (moving left)
+
+        # Test moving away from boundaries (should not bounce)
+        sprite_list[0].change_x = -100  # Moving left at right edge
+        sprite_list[1].change_y = -100  # Moving down at top edge
+        sprite_list[2].change_x = 100  # Moving right at left edge
+
+        action.update(0.1)  # Update with 0.1s time step
+
+        # Verify no bouncing occurred
+        assert sprite_list[0].change_x == -100  # X direction unchanged
+        assert sprite_list[1].change_y == -100  # Y direction unchanged
+        assert sprite_list[2].change_x == 100  # X direction unchanged
 
     def test_disable_horizontal_bouncing(self, sprite, get_bounds):
         """Test disabling horizontal bouncing.

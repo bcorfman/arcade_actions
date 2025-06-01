@@ -282,23 +282,18 @@ class ActionSprite(arcade.Sprite):
 
         Args:
             delta_time: Time elapsed since last frame in seconds
-
-        Returns:
-            The final modified delta_time after all actions have updated
         """
         if self._paused:
-            return delta_time
+            return
 
         # Step all active actions
         for action in self._actions[:]:  # Copy list since we'll modify it
-            delta_time = action.update(delta_time)
+            action.update(delta_time)
             if action.done:  # Check public done property
                 action.stop()
                 self._actions.remove(action)
                 if action == self._action:
                     self._action = None
-
-        return delta_time
 
     def clear_actions(self):
         """Cancel all actions currently running on this sprite."""
