@@ -485,8 +485,7 @@ class Bezier(IntervalAction):
         super().__init__(duration)
         self.control_points = control_points
         self.use_physics = use_physics
-        self.start_position = None  # Will be set in start()
-        self.prev_point = None  # Track previous point for relative movement
+        self.last_point = None  # Will store last calculated point for relative movement
 
     def _bezier_point(self, t: float) -> tuple[float, float]:
         """Calculate point on Bezier curve at time t (0-1)."""
@@ -502,16 +501,15 @@ class Bezier(IntervalAction):
     def start(self) -> None:
         """Start the Bezier movement.
 
-        Store the initial position and first point on curve.
+        Calculate initial point on curve for relative movement.
         """
-        self.start_position = self.target.position
-        self.prev_point = self._bezier_point(0)
+        self.last_point = self._bezier_point(0)
 
     def update(self, delta_time: float) -> None:
         """Update the Bezier movement.
 
         Calculate new position based on progress along the curve.
-        Apply movement relative to current position.
+        Use relative movement from last position to handle intermediate changes.
         """
         super().update(delta_time)
         if not self._paused:
@@ -520,16 +518,16 @@ class Bezier(IntervalAction):
             # Calculate current point on curve
             current_point = self._bezier_point(progress)
 
-            # Calculate movement relative to previous point
-            dx = current_point[0] - self.prev_point[0]
-            dy = current_point[1] - self.prev_point[1]
+            # Calculate relative movement from last point
+            dx = current_point[0] - self.last_point[0]
+            dy = current_point[1] - self.last_point[1]
 
-            # Apply movement relative to current position
+            # Apply relative movement
             self.target.center_x += dx
             self.target.center_y += dy
 
-            # Update previous point for next frame
-            self.prev_point = current_point
+            # Store current point for next update
+            self.last_point = current_point
 
     def stop(self) -> None:
         """Stop the Bezier movement.
@@ -537,8 +535,12 @@ class Bezier(IntervalAction):
         Ensure we end at the final control point.
         """
         final_point = self.control_points[-1]
-        self.target.center_x = final_point[0]
-        self.target.center_y = final_point[1]
+        # Calculate final relative movement
+        dx = final_point[0] - self.last_point[0]
+        dy = final_point[1] - self.last_point[1]
+        # Apply final movement
+        self.target.center_x += dx
+        self.target.center_y += dy
         super().stop()
 
     def __repr__(self) -> str:

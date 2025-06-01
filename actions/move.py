@@ -76,8 +76,13 @@ class WrappedMove(_Move):
     This action can work with both individual sprites and sprite lists. When used with a
     sprite list, each sprite is wrapped independently.
 
-    Note: This action only handles wrapping behavior. The sprite's position should be updated
-    by other actions or directly before this action is updated.
+    Important: This action must be the outermost action in a chain of actions for a sprite.
+    For example, if using with Easing or MoveBy, apply those actions first, then apply
+    WrappedMove last. This ensures that wrapping occurs after all position updates from
+    other actions have been applied.
+
+    Note: This action only handles wrapping behavior. The sprite's position should be
+    updated by other actions or directly before this action is updated.
 
     Attributes:
         get_bounds (Callable[[], Tuple[float, float]]): Function that returns current screen bounds.
@@ -194,6 +199,11 @@ class BoundedMove(_Move):
 
     This action can work with both individual sprites and sprite lists. When used with a
     sprite list, each sprite bounces independently.
+
+    Important: This action must be the outermost action in a chain of actions for a sprite.
+    For example, if using with Easing or MoveBy, apply those actions first, then apply
+    BoundedMove last. This ensures that bouncing occurs after all position updates from
+    other actions have been applied.
 
     Note: This action only handles bouncing behavior. The sprite's position should be
     updated by other actions or directly before this action is updated.
