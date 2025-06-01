@@ -616,6 +616,10 @@ class TestEasing:
         """Test Easing action execution with ease_in_out function."""
         from arcade import easing
 
+        # Start at origin
+        sprite.center_x = 0
+        sprite.center_y = 0
+
         move = MoveTo((100, 0), duration=1.0)
         action = Easing(move, ease_function=easing.ease_in_out)
         sprite.do(action)
@@ -625,24 +629,29 @@ class TestEasing:
         sprite.update(0.25)
         assert not action.done
         # Position should be about 12.5% of the way (100 * 0.125)
-        assert abs(sprite.position[0] - 12.5) < 0.1
+        assert abs(sprite.center_x - 12.5) < 0.1
 
         # At t=0.5, ease_in_out(0.5) = 0.5
+        # The movement should be relative to the current position
+        # So we expect: 12.5 + (100 - 12.5) * 0.5 = 12.5 + 43.75 = 62.5
         sprite.update(0.25)
         assert not action.done
-        # Position should be 50% of the way
-        assert abs(sprite.position[0] - 50.0) < 0.1
+        # Position should be 50% of the remaining distance from current position
+        assert abs(sprite.center_x - 62.5) < 0.1
 
         # At t=0.75, ease_in_out(0.75) ≈ 0.875
+        # Movement should be relative to current position
+        # So we expect: 62.5 + (100 - 62.5) * 0.875 = 62.5 + 87.5 = 150.0
         sprite.update(0.25)
         assert not action.done
-        # Position should be about 87.5% of the way
-        assert abs(sprite.position[0] - 87.5) < 0.1
+        # Position should be 87.5% of the remaining distance from current position
+        assert abs(sprite.center_x - 150.0) < 0.1
 
-        # Complete the action
+        # At t=1.0, ease_in_out(1.0) = 1.0
+        # Final position should be exactly at target
         sprite.update(0.25)
         assert action.done
-        assert abs(sprite.position[0] - 100.0) < 0.1
+        assert abs(sprite.center_x - 100.0) < 0.1
 
     def test_easing_with_different_functions(self, sprite):
         """Test Easing action with different easing functions."""

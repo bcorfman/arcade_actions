@@ -15,7 +15,7 @@ import arcade.easing as easing
 import pytest
 
 from actions.base import ActionSprite
-from actions.interval import Easing, MoveBy
+from actions.interval import Bezier, Easing, MoveBy, MoveTo
 from actions.move import BoundedMove, WrappedMove, _Move
 
 
@@ -279,20 +279,29 @@ class TestWrappedMove:
         # Create wrapped movement action
         wrap_action = WrappedMove(get_bounds)
 
+        # Set initial position - important to set before doing actions
+        # Position sprite very close to right edge (800 - sprite.width/2)
+        sprite.center_x = 737  # right edge at 801, sprite width is 128
+        sprite.center_y = 300
+
         # Set up actions
         sprite.do(ease_action)
         sprite.do(wrap_action)
 
-        # Set initial position
-        sprite.center_x = 700  # Near right edge
-        sprite.center_y = 300
-
-        # Update for 0.1 seconds
-        sprite.update(0.1)  # Updates position based on easing curve and handles wrapping
+        # Update for 0.8 seconds to allow enough movement for wrapping
+        # With ease_in, at t=0.8, progress = 0.8² = 0.64
+        # So sprite moves 128 pixels (0.64 * 200)
+        # Starting at 736 + 128 = 864, which is past screen width
+        sprite.update(0.8)  # Updates position based on easing curve and handles wrapping
 
         # Verify sprite wrapped and maintained easing curve
         assert sprite.center_x < 0  # Wrapped to left edge
         assert sprite.center_y == 300  # Y position unchanged
+
+        # Verify the sprite is still moving with easing
+        old_x = sprite.center_x
+        sprite.update(0.1)  # Update a bit more
+        assert sprite.center_x > old_x  # Still moving right after wrapping
 
     def test_disable_horizontal_wrapping(self, sprite, get_bounds):
         """Test disabling horizontal wrapping.
@@ -392,6 +401,39 @@ class TestWrappedMove:
         assert sprite.center_x < 0  # Wrapped to left edge
         assert sprite.center_y == 300  # Y position unchanged
         assert sprite.angle == 45  # Rotation unchanged
+
+    def test_wrap_with_move_to(self, sprite, get_bounds):
+        """Test wrapping behavior with MoveTo action.
+
+        Verifies that:
+        - Wrapping works with MoveTo
+        - Movement continues correctly after wrapping
+        - Position updates are relative to current position
+        """
+        # Create base movement action
+        move_action = MoveTo((900, 300), 1.0)  # Move to position off right edge
+        # Create wrapped movement action
+        wrap_action = WrappedMove(get_bounds)
+
+        # Set initial position
+        sprite.center_x = 400  # Start in middle of screen
+        sprite.center_y = 300
+
+        # Set up actions
+        sprite.do(move_action)
+        sprite.do(wrap_action)
+
+        # Update for 0.5 seconds to allow movement and wrapping
+        sprite.update(0.5)
+
+        # Verify sprite wrapped and continued moving
+        assert sprite.center_x < 400  # Should have wrapped and moved left
+        assert sprite.center_y == 300  # Y position unchanged
+
+        # Verify the sprite is still moving with MoveTo
+        old_x = sprite.center_x
+        sprite.update(0.1)  # Update a bit more
+        assert sprite.center_x > old_x  # Still moving right after wrapping
 
 
 class TestBoundedMove:
@@ -772,3 +814,110 @@ class TestBoundedMove:
         assert sprite.change_x == -100  # X direction reversed
         assert sprite.center_y == 300  # Y position unchanged
         assert sprite.angle == 45  # Rotation unchanged
+
+    def test_bounce_with_move_by(self, sprite, get_bounds):
+        """Test bouncing behavior with MoveBy action.
+
+        Verifies that:
+        - Bouncing works with MoveBy
+        - Movement continues correctly after bouncing
+        - Position updates are relative to current position
+        """
+        # Create base movement action
+        move_action = MoveBy((200, 0), 1.0)  # Move right by 200 pixels
+        # Create bounded movement action
+        bounce_action = BoundedMove(get_bounds)
+
+        # Set initial position near right edge
+        sprite.center_x = 736  # right edge at 800
+        sprite.center_y = 300
+
+        # Set up actions
+        sprite.do(move_action)
+        sprite.do(bounce_action)
+
+        # Update for 0.5 seconds to allow movement and bouncing
+        sprite.update(0.5)
+
+        # Verify sprite bounced and continued moving
+        assert sprite.center_x < 736  # Should have bounced and moved left
+        assert sprite.center_y == 300  # Y position unchanged
+
+        # Verify the sprite is still moving with MoveBy
+        old_x = sprite.center_x
+        sprite.update(0.1)  # Update a bit more
+        assert sprite.center_x < old_x  # Still moving left after bounce
+
+    def test_wrap_with_bezier(self, sprite, get_bounds):
+        """Test wrapping behavior with Bezier action.
+
+        Verifies that:
+        - Wrapping works with Bezier curve movement
+        - Curve following continues correctly after wrapping
+        - Position updates are relative to current position
+        """
+        # Create Bezier curve that moves off right edge
+        control_points = [
+            (400, 300),  # Start in middle
+            (600, 300),  # Move right
+            (900, 300),  # End off right edge
+        ]
+        bezier_action = Bezier(control_points, 1.0)
+        wrap_action = WrappedMove(get_bounds)
+
+        # Set initial position
+        sprite.center_x = 400
+        sprite.center_y = 300
+
+        # Set up actions
+        sprite.do(bezier_action)
+        sprite.do(wrap_action)
+
+        # Update for 0.5 seconds to allow movement and wrapping
+        sprite.update(0.5)
+
+        # Verify sprite wrapped and continued following curve
+        assert sprite.center_x < 400  # Should have wrapped
+        assert sprite.center_y == 300  # Y position unchanged
+
+        # Verify the sprite is still following the curve
+        old_x = sprite.center_x
+        sprite.update(0.1)  # Update a bit more
+        assert sprite.center_x > old_x  # Still following curve after wrapping
+
+    def test_bounce_with_bezier(self, sprite, get_bounds):
+        """Test bouncing behavior with Bezier action.
+
+        Verifies that:
+        - Bouncing works with Bezier curve movement
+        - Curve following continues correctly after bouncing
+        - Position updates are relative to current position
+        """
+        # Create Bezier curve that moves toward right edge
+        control_points = [
+            (400, 300),  # Start in middle
+            (600, 300),  # Move right
+            (900, 300),  # End past right edge
+        ]
+        bezier_action = Bezier(control_points, 1.0)
+        bounce_action = BoundedMove(get_bounds)
+
+        # Set initial position
+        sprite.center_x = 400
+        sprite.center_y = 300
+
+        # Set up actions
+        sprite.do(bezier_action)
+        sprite.do(bounce_action)
+
+        # Update for 0.5 seconds to allow movement and bouncing
+        sprite.update(0.5)
+
+        # Verify sprite bounced and continued following curve
+        assert sprite.center_x < 736  # Should have bounced
+        assert sprite.center_y == 300  # Y position unchanged
+
+        # Verify the sprite is still following the curve
+        old_x = sprite.center_x
+        sprite.update(0.1)  # Update a bit more
+        assert sprite.center_x < old_x  # Still following curve after bounce
