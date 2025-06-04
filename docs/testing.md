@@ -18,19 +18,20 @@ When testing action classes:
 Example implementation showing proper dependency injection:
 ```python
 class MoveAction(Action):
-    def __init__(self, physics_engine: PhysicsEngine):
+    def __init__(self, get_bounds: Callable[[], tuple[float, float]]):
         """
         Initialize the move action.
         
         Args:
-            physics_engine: The physics engine to use for movement calculations
+            get_bounds: Function that returns current screen bounds
         """
         super().__init__()
-        self.physics_engine = physics_engine
+        self.get_bounds = get_bounds
 
     def start(self) -> None:
         """Required abstract method implementation."""
-        self.physics_engine.initialize()
+        width, height = self.get_bounds()
+        # Initialize movement based on bounds
 ```
 
 ## Test Structure
@@ -38,13 +39,13 @@ class MoveAction(Action):
 ### 1. Action Initialization Tests
 ```python
 def test_action_initialization(self):
-    """Test action initialization with real dependencies."""
-    # Use real physics engine
-    physics_engine = PhysicsEngine()
+    """Test action initialization with dependencies."""
+    # Mock bounds function
+    get_bounds = lambda: (800, 600)
     
-    # Test required parameters with real dependencies
-    action = MoveAction(physics_engine=physics_engine)
-    assert action.physics_engine == physics_engine
+    # Test required parameters
+    action = MoveAction(get_bounds=get_bounds)
+    assert action.get_bounds == get_bounds
     
     # Test parameter validation
     with pytest.raises(ValueError):
@@ -54,58 +55,49 @@ def test_action_initialization(self):
 ### 2. Action Lifecycle Tests
 ```python
 def test_action_lifecycle(self, sprite):
-    """Test complete action lifecycle with real dependencies."""
-    # Use real physics engine
-    physics_engine = PhysicsEngine()
+    """Test complete action lifecycle."""
+    # Mock bounds function
+    get_bounds = lambda: (800, 600)
     
-    # Create action with real dependencies
-    action = MoveAction(physics_engine=physics_engine)
+    # Create action with dependencies
+    action = MoveAction(get_bounds=get_bounds)
     
     # Use ActionSprite.do() instead of setting target and calling start
     sprite.do(action)
-    assert physics_engine.is_initialized
+    assert sprite.position == (0, 0)  # Initial position
     
     # Use ActionSprite.update() instead of action.update()
     sprite.update(0.5)
-    assert intermediate_conditions
+    assert sprite.position != (0, 0)  # Position should change
     
     # Complete
     sprite.update(0.5)
     assert action.done
-    assert final_conditions
-    
-    # Stop and cleanup
-    action.stop()
-    assert cleanup_conditions
-    physics_engine.cleanup()
+    assert sprite.position == (100, 100)  # Final position
 ```
 
 ### 3. Edge Case Tests
 ```python
 def test_edge_cases(self, sprite):
-    """Test edge cases with real dependencies."""
-    physics_engine = PhysicsEngine()
+    """Test edge cases."""
+    get_bounds = lambda: (800, 600)
     
     # Test zero duration
     action = MoveAction(
         duration=0,
-        physics_engine=physics_engine
+        get_bounds=get_bounds
     )
-    sprite.do(action)  # Use ActionSprite.do()
+    sprite.do(action)
+    assert action.done  # Should complete immediately
     
     # Test boundary conditions
     action = MoveAction(
-        param=boundary_value,
-        physics_engine=physics_engine
+        get_bounds=get_bounds
     )
-    sprite.do(action)  # Use ActionSprite.do()
-    
-    # Test invalid inputs
-    with pytest.raises(ValueError):
-        MoveAction(
-            param=invalid_value,
-            physics_engine=physics_engine
-        )
+    sprite.position = (800, 600)  # At boundary
+    sprite.do(action)
+    sprite.update(1.0)
+    assert sprite.position == (0, 0)  # Should wrap
 ```
 
 ## Test Fixtures
@@ -113,22 +105,15 @@ def test_edge_cases(self, sprite):
 ### Common Fixtures
 ```python
 @pytest.fixture
-def physics_engine():
-    """Create a real physics engine for testing."""
-    engine = PhysicsEngine()
-    yield engine
-    engine.cleanup()  # Proper cleanup
-
-@pytest.fixture
-def sprite(physics_engine):
-    """Create a test ActionSprite with real physics engine."""
+def sprite():
+    """Create a test ActionSprite."""
     sprite = ActionSprite(":resources:images/items/star.png")
     sprite.position = (0, 0)
     return sprite
 
 @pytest.fixture
-def sprite_list(physics_engine):
-    """Create a test sprite list with real physics engine."""
+def sprite_list():
+    """Create a test sprite list."""
     sprites = arcade.SpriteList()
     for _ in range(3):
         sprite = ActionSprite(":resources:images/items/star.png")
@@ -137,91 +122,84 @@ def sprite_list(physics_engine):
     return sprites
 ```
 
-## Action-Specific Test Patterns
-
-### 1. Movement Actions
-```python
-def test_continuous_movement(self, sprite, physics_engine):
-    """Test that movement continues until stopped."""
-    action = MoveAction(
-        width=800,
-        height=600,
-        physics_engine=physics_engine
-    )
-    sprite.do(action)  # Use ActionSprite.do()
-    sprite.update(1.0)  # Use ActionSprite.update()
-    assert sprite.position != (0, 0)
-    assert not action.done  # Never done unless stopped
-```
-
-### 2. Physics Actions
-```python
-def test_physics_movement(self, sprite, physics_engine):
-    """Test movement with real physics body."""
-    sprite.pymunk = physics_engine.create_body()
-    sprite.pymunk.position = (0, 0)
-    sprite.pymunk.velocity = (100, 100)
-    
-    action = MoveAction(
-        width=800,
-        height=600,
-        physics_engine=physics_engine
-    )
-    sprite.do(action)  # Use ActionSprite.do()
-    sprite.update(1.0)  # Use ActionSprite.update()
-    assert sprite.pymunk.position != (0, 0)
-```
-
-### 3. Composite Actions
-```python
-def test_sequence_execution(self, sprite, physics_engine):
-    """Test action sequence execution with real dependencies."""
-    action1 = MoveAction(
-        offset=(100, 0),
-        duration=1.0,
-        physics_engine=physics_engine
-    )
-    action2 = RotateAction(
-        angle=90,
-        duration=1.0,
-        physics_engine=physics_engine
-    )
-    sequence = Sequence([action1, action2])
-    sprite.do(sequence)  # Use ActionSprite.do()
-    
-    # First action
-    sprite.update(1.0)  # Use ActionSprite.update()
-    assert sprite.position == (100, 0)
-    assert not sequence.done
-    
-    # Second action
-    sprite.update(1.0)  # Use ActionSprite.update()
-    assert sprite.angle == 90
-    assert sequence.done
-```
-
 ## When to Use Mocks
 
 While we prefer using real implementations, there are cases where mocks are necessary:
 
-1. **External Dependencies**: When testing code that depends on external services or systems
-2. **Slow Operations**: When real implementations are too slow for unit tests
-3. **Unpredictable Behavior**: When real implementations have non-deterministic behavior
-4. **Isolation Testing**: When testing error conditions or edge cases that are hard to reproduce
-5. **Resource Constraints**: When real implementations require significant resources
+1. **External Dependencies**
+   - Screen bounds functions
+   - Random number generators
+   - Time-based functions
+   Example:
+   ```python
+   def test_wrapped_movement(self, sprite):
+       """Test movement with wrapped boundaries."""
+       # Mock bounds function
+       get_bounds = lambda: (800, 600)
+       action = WrappedMove(get_bounds=get_bounds)
+       sprite.do(action)
+       # Test wrapping behavior
+   ```
 
-Example of when to use a mock:
-```python
-def test_network_error_handling(self):
-    """Test handling of network errors."""
-    # Use mock network client to simulate errors
-    mock_network = MockNetworkClient()
-    mock_network.simulate_error()
-    
-    action = NetworkAction(network_client=mock_network)
-    with pytest.raises(NetworkError):
-        action.start()
-```
+2. **Slow Operations**
+   - Complex calculations
+   - File operations
+   - Network requests
+   Example:
+   ```python
+   def test_complex_path(self, sprite):
+       """Test movement along a complex path."""
+       # Mock path calculation
+       get_path = lambda: [(0, 0), (100, 100), (200, 0)]
+       action = FollowPath(get_path=get_path)
+       sprite.do(action)
+       # Test path following
+   ```
+
+3. **Unpredictable Behavior**
+   - Random number generation
+   - Time-based operations
+   - User input
+   Example:
+   ```python
+   def test_random_movement(self, sprite):
+       """Test random movement pattern."""
+       # Mock random number generator
+       get_random = lambda: 0.5  # Always return 0.5 for testing
+       action = RandomMove(get_random=get_random)
+       sprite.do(action)
+       # Test movement pattern
+   ```
+
+4. **Isolation Testing**
+   - Error conditions
+   - Edge cases
+   - Boundary conditions
+   Example:
+   ```python
+   def test_boundary_conditions(self, sprite):
+       """Test behavior at screen boundaries."""
+       # Mock bounds function
+       get_bounds = lambda: (800, 600)
+       action = BoundedMove(get_bounds=get_bounds)
+       sprite.position = (800, 600)  # At boundary
+       sprite.do(action)
+       # Test bouncing behavior
+   ```
+
+5. **Resource Constraints**
+   - Memory-intensive operations
+   - CPU-intensive calculations
+   - File system operations
+   Example:
+   ```python
+   def test_large_sprite_list(self, sprite):
+       """Test action with large sprite list."""
+       # Mock sprite list with 1000 sprites
+       sprites = [ActionSprite() for _ in range(1000)]
+       action = GroupAction(sprites, MoveBy((100, 0), 1.0))
+       # Test group movement
+   ```
 
 ## Best Practices
 
@@ -248,17 +226,14 @@ def test_network_error_handling(self):
 
 4. **Edge Cases**
    - Test boundary conditions
-   - Test zero values
+   - Test zero durations
    - Test maximum values
    - Test invalid inputs
    - Test error conditions
 
-5. **Documentation**
-   - Document test setup and dependencies
-   - Explain test expectations
-   - Note any assumptions
-   - Document when and why mocks are used
-   - Document dependency lifecycle
+For detailed testing patterns for specific action types, see:
+- `testing_movement.md` for movement actions
+- `testing_index.md` for a complete list of test files
 
 ## Test Categories
 
