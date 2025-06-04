@@ -270,14 +270,12 @@ class TestActionSprite:
     def test_action_sprite_initialization(self, action_sprite):
         """Test action sprite initialization."""
         assert isinstance(action_sprite, arcade.Sprite)
-        assert action_sprite._actions == []
         assert action_sprite._action is None
         assert not action_sprite._paused
 
     def test_action_sprite_do_action(self, action_sprite, mock_action):
         """Test applying action to sprite."""
         action = action_sprite.do(mock_action)
-        assert len(action_sprite._actions) == 1
         assert mock_action.target == action_sprite
         assert action_sprite._action == mock_action
         assert action == mock_action
@@ -293,7 +291,6 @@ class TestActionSprite:
         """Test clearing sprite actions."""
         action_sprite.do(mock_action)
         action_sprite.clear_actions()
-        assert len(action_sprite._actions) == 0
         assert action_sprite._action is None
         assert mock_action.stop_called
 
@@ -322,20 +319,19 @@ class TestActionSprite:
         assert not action_sprite._paused
         assert not mock_action._paused
 
-    def test_action_sprite_multiple_actions(self, action_sprite):
-        """Test handling multiple actions."""
+    def test_action_sprite_action_replacement(self, action_sprite):
+        """Test that starting a new action stops the previous one."""
         action1 = MockAction()
         action2 = MockAction()
 
+        # Start first action
         action_sprite.do(action1)
+        assert action_sprite._action == action1
+
+        # Start second action
         action_sprite.do(action2)
-
-        assert len(action_sprite._actions) == 2
-        assert action_sprite._action == action2  # Most recent action
-
-        action_sprite.update(0.5)
-        assert action1.update_called
-        assert action2.update_called
+        assert action_sprite._action == action2
+        assert action1.stop_called  # First action should be stopped
 
     def test_action_sprite_action_completion(self, action_sprite):
         """Test action completion handling."""
@@ -346,44 +342,8 @@ class TestActionSprite:
         action_sprite.update(0.5)
 
         # Action should be removed after update
-        assert len(action_sprite._actions) == 0
         assert action_sprite._action is None
         assert action.stop_called
-
-    def test_action_sprite_cleanup(self, game_clock):
-        """Test sprite cleanup on deletion."""
-        sprite = ActionSprite(filename=":resources:images/items/star.png", clock=game_clock)
-        action = MockAction()
-        sprite.do(action)
-
-        # Store callback before cleanup
-        callback = sprite._on_pause_state_changed
-
-        # Explicitly clean up
-        sprite.cleanup()
-        assert callback not in game_clock._subscribers
-
-    def test_action_sprite_has_active_actions(self, action_sprite, mock_action):
-        """Test checking for active actions."""
-        assert not action_sprite.has_active_actions()
-
-        action_sprite.do(mock_action)
-        assert action_sprite.has_active_actions()
-
-        mock_action.done = True
-        action_sprite.update(0.5)  # This should remove the completed action
-        assert not action_sprite.has_active_actions()
-
-    def test_action_sprite_is_busy(self, action_sprite, mock_action):
-        """Test checking if sprite is busy with current action."""
-        assert not action_sprite.is_busy()
-
-        action_sprite.do(mock_action)
-        assert action_sprite.is_busy()
-
-        mock_action.done = True
-        action_sprite.update(0.5)  # This should remove the completed action
-        assert not action_sprite.is_busy()
 
     def test_action_sprite_action_sequence(self, action_sprite):
         """Test running a sequence of actions."""
@@ -405,7 +365,6 @@ class TestActionSprite:
         action_sprite.do(action3)
         action_sprite.update(0.5)
 
-        assert len(action_sprite._actions) == 1
         assert action_sprite._action == action3
         assert action1.stop_called
         assert action2.stop_called

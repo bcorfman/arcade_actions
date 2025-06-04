@@ -236,13 +236,20 @@ class ActionSprite(arcade.Sprite):
     """A sprite that supports time-based Actions like MoveBy, RotateBy, etc.
 
     This class extends arcade.Sprite to add action management capabilities.
-    It allows sprites to have actions applied to them and handles the
-    updating and cleanup of those actions automatically.
+    It allows sprites to have a single action applied to them and handles the
+    updating and cleanup of that action automatically.
+
+    Note: This class is designed to manage only one action at a time. To achieve
+    multiple behaviors simultaneously, use composite actions like Spawn or Sequence.
+    For example:
+        # Run two actions in parallel
+        sprite.do(action1 | action2)
+        # Run actions in sequence
+        sprite.do(action1 + action2)
     """
 
     def __init__(self, filename: str, scale: float = 1.0, clock: GameClock | None = None):
         super().__init__(filename, scale)
-        self._actions: list[Action] = []
         self._action = None  # Currently active action
         self._clock = clock
         if clock:
@@ -252,15 +259,18 @@ class ActionSprite(arcade.Sprite):
     def _on_pause_state_changed(self, paused: bool) -> None:
         """Handle pause state changes from the game clock."""
         self._paused = paused
-        # Pause/resume all actions
-        for action in self._actions:
+        # Pause/resume current action
+        if self._action:
             if paused:
-                action.pause()
+                self._action.pause()
             else:
-                action.resume()
+                self._action.resume()
 
     def do(self, action: Action) -> Action:
         """Start an action on this sprite.
+
+        If another action is currently running, it will be stopped before
+        starting the new action.
 
         Args:
             action: The action to start
@@ -268,9 +278,12 @@ class ActionSprite(arcade.Sprite):
         Returns:
             The started action instance
         """
+        # Stop any existing action
+        if self._action:
+            self._action.stop()
+
         action.target = self
         action.start()
-        self._actions.append(action)
         self._action = action
         # Set initial pause state
         if self._paused:
@@ -278,45 +291,40 @@ class ActionSprite(arcade.Sprite):
         return action
 
     def update(self, delta_time: float = 1 / 60):
-        """Update all active actions.
+        """Update the current action.
 
         Args:
             delta_time: Time elapsed since last frame in seconds
         """
-        if self._paused:
+        if self._paused or not self._action:
             return
 
-        # Step all active actions
-        for action in self._actions[:]:  # Copy list since we'll modify it
-            action.update(delta_time)
-            if action.done:  # Check public done property
-                action.stop()
-                self._actions.remove(action)
-                if action == self._action:
-                    self._action = None
+        self._action.update(delta_time)
+        if self._action.done:
+            self._action.stop()
+            self._action = None
 
     def clear_actions(self):
-        """Cancel all actions currently running on this sprite."""
-        for action in self._actions:
-            action.stop()
-        self._actions.clear()
-        self._action = None
+        """Cancel the current action if any."""
+        if self._action:
+            self._action.stop()
+            self._action = None
 
     def has_active_actions(self) -> bool:
-        """Return True if any actions are currently running."""
-        return any(not action.done for action in self._actions)
+        """Return True if an action is currently running."""
+        return self._action is not None and not self._action.done
 
     def pause(self):
-        """Pause all actions on this sprite."""
+        """Pause the current action."""
         self._paused = True
-        for action in self._actions:
-            action.pause()
+        if self._action:
+            self._action.pause()
 
     def resume(self):
-        """Resume all actions on this sprite."""
+        """Resume the current action."""
         self._paused = False
-        for action in self._actions:
-            action.resume()
+        if self._action:
+            self._action.resume()
 
     def is_busy(self) -> bool:
         """Return True if an action is currently running and not done."""

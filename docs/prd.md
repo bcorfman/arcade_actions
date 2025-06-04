@@ -46,6 +46,14 @@ These properties are updated by:
    - Proper pause state handling
 3. Actions ensure clean completion in `stop()`
 
+Note: `ActionSprite` is designed to manage only one action at a time. To achieve multiple behaviors simultaneously, use composite actions:
+- `Spawn` (|) for parallel actions
+- `Sequence` (+) for sequential actions
+- `Repeat` (*) for repeating actions
+- `Loop` for finite repetitions
+
+This design choice simplifies the action management system and makes the behavior more predictable. When a new action is started, any existing action is automatically stopped.
+
 ### 2. Arcade Sprite Properties
 Properties managed by Arcade's standard sprite system:
 - Position (via `change_x`, `change_y`)

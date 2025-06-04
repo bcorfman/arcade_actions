@@ -659,8 +659,11 @@ class TestEasing:
         # Position should be 25% of the way
         assert abs(sprite.position[0] - 25.0) < 0.1
 
+        # Clean up first action
+        sprite.clear_actions()
+        sprite.position = (0, 0)  # Reset position
+
         # Test with ease_out
-        sprite.position = (0, 0)
         move = MoveTo((100, 0), duration=1.0)
         action = Easing(move, ease_function=easing.ease_out)
         sprite.do(action)

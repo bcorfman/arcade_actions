@@ -28,16 +28,20 @@ class MoveTo(IntervalAction):
         self.end_position = position
         self.use_physics = use_physics
         self.total_change = None  # Will be set in start()
+        self.last_progress = 0.0  # Initialize here
 
     def start(self) -> None:
         """Start the movement action.
 
         Calculate total change needed to reach target position.
         """
+        self.start_x = self.target.center_x
+        self.start_y = self.target.center_y
         self.total_change = (
             self.end_position[0] - self.target.center_x,
             self.end_position[1] - self.target.center_y,
         )
+        self.last_progress = 0.0  # Reset on start
 
     def update(self, delta_time: float) -> None:
         """Update the action's progress.
@@ -48,12 +52,14 @@ class MoveTo(IntervalAction):
         if not self._paused:
             # Calculate progress ratio
             progress = self._elapsed / self.duration
-            # Calculate movement for this frame
-            dx = self.total_change[0] * progress
-            dy = self.total_change[1] * progress
+            # Calculate movement for this frame based on progress change
+            dx = self.total_change[0] * (progress - self.last_progress)
+            dy = self.total_change[1] * (progress - self.last_progress)
             # Apply movement relative to current position
             self.target.center_x += dx
             self.target.center_y += dy
+            # Store progress for next frame
+            self.last_progress = progress
 
     def stop(self) -> None:
         """Stop the movement action.
@@ -97,6 +103,7 @@ class MoveBy(MoveTo):
 
         self.delta = delta
         super().__init__(delta, duration, use_physics)
+        self.last_progress = 0.0  # Initialize here
 
     def start(self) -> None:
         """Start the movement action.
@@ -108,6 +115,7 @@ class MoveBy(MoveTo):
             self.target.center_y + self.delta[1],
         )
         self.total_change = self.delta
+        self.last_progress = 0.0  # Reset on start
 
     def __reversed__(self) -> "MoveBy":
         return MoveBy((-self.delta[0], -self.delta[1]), self.duration, self.use_physics)
@@ -645,10 +653,9 @@ class Easing(IntervalAction):
         raw_t = min(self.elapsed / self.duration, 1.0)
         eased_t = self.ease_function(raw_t)
 
-        # Convert eased progress to an eased delta_time
-        eased_elapsed = eased_t * self.duration
-        eased_delta = eased_elapsed - self.prev_eased
-        self.prev_eased = eased_elapsed
+        # Calculate the eased delta time based on the change in eased progress
+        eased_delta = (eased_t - self.prev_eased) * self.duration
+        self.prev_eased = eased_t
 
         self.other.update(eased_delta)
 

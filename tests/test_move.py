@@ -284,9 +284,9 @@ class TestWrappedMove:
         sprite.center_x = 737  # right edge at 801, sprite width is 128
         sprite.center_y = 300
 
-        # Set up actions
-        sprite.do(ease_action)
-        sprite.do(wrap_action)
+        # Use Spawn to run both actions in parallel
+        combined_action = ease_action | wrap_action
+        sprite.do(combined_action)
 
         # Update for 0.8 seconds to allow enough movement for wrapping
         # With ease_in, at t=0.8, progress = 0.8² = 0.64
