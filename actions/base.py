@@ -1,252 +1,341 @@
+"""
+Base classes for Arcade Actions system.
+Actions are used to animate sprites and sprite lists over time.
+"""
+
+import copy
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
 import arcade
 
+from .game_clock import GameClock
 
-class Action:
-    def __init__(self):
-        self.target = None
-        self._elapsed = 0.0
-        self._done = False
-        self.scheduled_to_remove = False
+if TYPE_CHECKING:
+    from .composite import Sequence, Spawn
 
-    def start(self):
+
+class Action(ABC):
+    """Base class for all actions.
+
+    Actions modify sprite properties over time using Arcade's velocity-based
+    movement system (change_x, change_y, change_angle, etc.) rather than
+    directly modifying position/angle/scale.
+
+    Actions can be applied to individual sprites or sprite lists.
+    """
+
+    def __init__(self, clock: GameClock | None = None):
+        self.target: arcade.Sprite | arcade.SpriteList | None = None
+        self._elapsed: float = 0.0
+        self.done: bool = False  # Public completion state
+        self._paused: bool = False
+        self._on_complete = None
+        self._on_complete_args = ()
+        self._on_complete_kwargs = {}
+        self._on_complete_called = False
+        self._clock = clock
+        if clock:
+            clock.subscribe(self._on_pause_state_changed)
+
+    def _on_pause_state_changed(self, paused: bool) -> None:
+        """Handle pause state changes from the game clock."""
+        self._paused = paused
+
+    def on_complete(self, func, *args, **kwargs):
+        """Register a callback to be triggered when the action completes."""
+        self._on_complete = func
+        self._on_complete_args = args
+        self._on_complete_kwargs = kwargs
+        return self
+
+    def when_done(self, func, *args, **kwargs):
+        """Alias for on_complete(), more readable for game scripting."""
+        return self.on_complete(func, *args, **kwargs)
+
+    def _check_complete(self):
+        if self.done and self._on_complete and not self._on_complete_called:
+            self._on_complete_called = True
+            self._on_complete(*self._on_complete_args, **self._on_complete_kwargs)
+
+    @abstractmethod
+    def start(self) -> None:
+        """Called when the action begins.
+
+        Override this to set up initial state and velocities.
+        """
         pass
 
-    def step(self, dt: float):
-        self._elapsed += dt
+    def update(self, delta_time: float) -> None:
+        """Called each frame to update the action.
 
-    def done(self) -> bool:
-        return self._done
+        This base implementation handles:
+        - Pause state checking
+        - Elapsed time tracking
+        - Completion callback triggering
 
-    def stop(self):
+        Override this method to add custom update behavior, but be sure to call
+        super().update(delta_time) to maintain the base functionality.
+
+        Args:
+            delta_time: Time elapsed since last frame in seconds
+        """
+        if not self._paused:
+            self._elapsed += delta_time
+            self._check_complete()
+
+    def stop(self) -> None:
+        """Called when the action ends.
+
+        This base implementation handles:
+        - Clock unsubscription
+        - Target cleanup
+        - Completion callback triggering
+
+        Override this method to add custom cleanup behavior, but be sure to call
+        super().stop() to maintain the base functionality.
+        """
+        if self._clock:
+            self._clock.unsubscribe(self._on_pause_state_changed)
         self.target = None
+        self._check_complete()
 
-    def __add__(self, other):
+    def reset(self) -> None:
+        """Reset the action to its initial state."""
+        self._elapsed = 0.0
+        self.done = False
+        self._paused = False
+        self._on_complete_called = False
+
+    def pause(self) -> None:
+        """Pause the action."""
+        self._paused = True
+
+    def resume(self) -> None:
+        """Resume the action."""
+        self._paused = False
+
+    def __add__(self, other: "Action") -> "Sequence":
+        """Sequence operator - concatenates actions.
+
+        action1 + action2 -> action_result
+        where action_result performs as:
+        first do all that action1 would do; then
+        perform all that action2 would do
+        """
+        from .composite import sequence
+
         return sequence(self, other)
 
-    def __mul__(self, other: int):
+    def __mul__(self, other: int) -> "Loop":
+        """Repeat operator - repeats the action n times.
+
+        action * n -> action_result
+        where action result performs as:
+        repeat n times the changes that action would do
+        """
         if not isinstance(other, int):
             raise TypeError("Can only multiply actions by ints")
         if other <= 1:
             return self
-        return Loop(self, other)
+        from .composite import loop
 
-    def __or__(self, other):
+        return loop(self, other)
+
+    def __or__(self, other: "Action") -> "Spawn":
+        """Spawn operator - runs two actions in parallel.
+
+        action1 | action2 -> action_result
+        """
+        from .composite import spawn
+
         return spawn(self, other)
 
-    def __reversed__(self):
+    def __reversed__(self) -> "Action":
+        """Returns a reversed version of this action.
+
+        Not all actions can be reversed. Override this method
+        to implement reversal.
+        """
         raise NotImplementedError(f"Action {self.__class__.__name__} cannot be reversed")
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return f"{self.__class__.__name__}()"
 
 
 class IntervalAction(Action):
+    """Base class for actions that have a fixed duration."""
+
     def __init__(self, duration: float):
         super().__init__()
         self.duration = duration
 
-    def step(self, dt: float):
-        super().step(dt)
-        t = min(1, self._elapsed / self.duration)
-        self.update(t)
-        if t == 1:
-            self._done = True
+    def update(self, delta_time: float) -> None:
+        """Update the action and check for completion."""
+        super().update(delta_time)
+        if self._elapsed >= self.duration:
+            self.done = True
 
-    def update(self, t: float):
-        pass
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(duration={self.duration})"
 
 
-class InstantAction(IntervalAction):
+class InstantAction(Action):
+    """Base class for actions that happen instantly."""
+
     def __init__(self):
-        super().__init__(0)
-
-    def step(self, dt: float):
-        pass
-
-    def start(self):
-        self._done = True
-
-    def update(self, t: float):
-        pass
-
-    def stop(self):
-        pass
-
-
-class Loop(Action):
-    def __init__(self, action: Action, times: int):
         super().__init__()
+        self.duration = 0.0
+
+    def update(self, delta_time: float) -> None:
+        """Instant actions complete immediately."""
+        super().update(delta_time)
+        self.done = True
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+
+class GroupAction(Action):
+    """Applies an action to all sprites in a sprite list."""
+
+    def __init__(self, sprite_list: arcade.SpriteList, action: Action):
+        super().__init__()
+        self.sprite_list = sprite_list
         self.action = action
-        self.times = times
-        self.current_action = None
-
-    def start(self):
-        self.current_action = self.action
-        self.current_action.target = self.target
-        self.current_action.start()
-
-    def step(self, dt: float):
-        super().step(dt)
-        self.current_action.step(dt)
-        if self.current_action.done():
-            self.current_action.stop()
-            self.times -= 1
-            if self.times == 0:
-                self._done = True
-            else:
-                self.current_action = self.action
-                self.current_action.target = self.target
-                self.current_action.start()
-
-    def stop(self):
-        if not self._done:
-            self.current_action.stop()
-        super().stop()
-
-
-def sequence(*actions: Action) -> Action:
-    if len(actions) < 2:
-        return actions[0] if actions else None
-    return Sequence(actions)
-
-
-class Sequence(Action):
-    def __init__(self, actions: list[Action]):
-        super().__init__()
-        self.actions = actions
-        self.current_index = 0
-
-    def start(self):
-        for action in self.actions:
-            action.target = self.target
-        self.actions[0].start()
-
-    def step(self, dt: float):
-        super().step(dt)
-        current_action = self.actions[self.current_index]
-        current_action.step(dt)
-        if current_action.done():
-            current_action.stop()
-            self.current_index += 1
-            if self.current_index < len(self.actions):
-                self.actions[self.current_index].start()
-            else:
-                self._done = True
-
-    def stop(self):
-        if not self._done:
-            self.actions[self.current_index].stop()
-        super().stop()
-
-
-def spawn(*actions: Action) -> Action:
-    return Spawn(actions)
-
-
-class Spawn(Action):
-    def __init__(self, actions: list[Action]):
-        super().__init__()
-        self.actions = actions
-
-    def start(self):
-        for action in self.actions:
-            action.target = self.target
-            action.start()
-
-    def step(self, dt: float):
-        super().step(dt)
-        all_done = True
-        for action in self.actions:
-            if not action.done():
-                action.step(dt)
-                all_done = False
-        self._done = all_done
-
-    def stop(self):
-        for action in self.actions:
-            action.stop()
-        super().stop()
-
-
-class Repeat(Action):
-    def __init__(self, action: Action):
-        super().__init__()
-        self.action = action
-        self.current_action = None
-
-    def start(self):
-        self.current_action = self.action
-        self.current_action.target = self.target
-        self.current_action.start()
-
-    def step(self, dt: float):
-        super().step(dt)
-        self.current_action.step(dt)
-        if self.current_action.done():
-            self.current_action.stop()
-            self.current_action = self.action
-            self.current_action.target = self.target
-            self.current_action.start()
-
-    def stop(self):
-        if self.current_action:
-            self.current_action.stop()
-        super().stop()
-
-
-# Integrate with Arcade Sprite
-class ActionSprite(arcade.Sprite):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.actions: list[Action] = []
 
-    def do(self, action: Action):
+    def start(self) -> None:
+        # Create an action instance for each sprite
+        self.actions = []
+        for sprite in self.sprite_list:
+            action_copy = copy.deepcopy(self.action)
+            action_copy.target = sprite
+            action_copy.start()
+            self.actions.append(action_copy)
+
+    def update(self, delta_time: float) -> None:
+        if self._paused:
+            return
+
+        # Update each sprite's action
+        all_done = True
+        for action in self.actions:
+            if not action.done:
+                action.update(delta_time)
+                all_done = False
+
+        self.done = all_done
+
+    def __repr__(self) -> str:
+        return f"GroupAction(sprite_list={self.sprite_list}, action={self.action})"
+
+
+class ActionSprite(arcade.Sprite):
+    """A sprite that supports time-based Actions like MoveBy, RotateBy, etc.
+
+    This class extends arcade.Sprite to add action management capabilities.
+    It allows sprites to have a single action applied to them and handles the
+    updating and cleanup of that action automatically.
+
+    Note: This class is designed to manage only one action at a time. To achieve
+    multiple behaviors simultaneously, use composite actions like Spawn or Sequence.
+    For example:
+        # Run two actions in parallel
+        sprite.do(action1 | action2)
+        # Run actions in sequence
+        sprite.do(action1 + action2)
+    """
+
+    def __init__(self, filename: str, scale: float = 1.0, clock: GameClock | None = None):
+        super().__init__(filename, scale)
+        self._action = None  # Currently active action
+        self._clock = clock
+        if clock:
+            clock.subscribe(self._on_pause_state_changed)
+        self._paused = False
+
+    def _on_pause_state_changed(self, paused: bool) -> None:
+        """Handle pause state changes from the game clock."""
+        self._paused = paused
+        # Pause/resume current action
+        if self._action:
+            if paused:
+                self._action.pause()
+            else:
+                self._action.resume()
+
+    def do(self, action: Action) -> Action:
+        """Start an action on this sprite.
+
+        If another action is currently running, it will be stopped before
+        starting the new action.
+
+        Args:
+            action: The action to start
+
+        Returns:
+            The started action instance
+        """
+        # Stop any existing action
+        if self._action:
+            self._action.stop()
+
         action.target = self
         action.start()
-        self.actions.append(action)
+        self._action = action
+        # Set initial pause state
+        if self._paused:
+            action.pause()
+        return action
 
-    def update(self):
-        super().update()
-        for action in self.actions[:]:
-            action.step(1 / 60)  # Assuming 60 FPS, adjust as needed
-            if action.done():
-                action.stop()
-                self.actions.remove(action)
+    def update(self, delta_time: float = 1 / 60):
+        """Update the current action.
 
-    def remove_action(self, action: Action):
-        if action in self.actions:
-            action.stop()
-            self.actions.remove(action)
+        Args:
+            delta_time: Time elapsed since last frame in seconds
+        """
+        if self._paused or not self._action:
+            return
 
+        self._action.update(delta_time)
+        if self._action.done:
+            self._action.stop()
+            self._action = None
 
-# Usage example
-if __name__ == "__main__":
-    window = arcade.Window(800, 600, "Base Action System Example")
+    def clear_actions(self):
+        """Cancel the current action if any."""
+        if self._action:
+            self._action.stop()
+            self._action = None
 
-    sprite = ActionSprite(":resources:images/animated_characters/female_person/femalePerson_idle.png", 0.5)
-    sprite.center_x = 400
-    sprite.center_y = 300
+    def has_active_actions(self) -> bool:
+        """Return True if an action is currently running."""
+        return self._action is not None and not self._action.done
 
-    class SimpleMove(IntervalAction):
-        def __init__(self, dx: float, dy: float, duration: float):
-            super().__init__(duration)
-            self.dx = dx
-            self.dy = dy
+    def pause(self):
+        """Pause the current action."""
+        self._paused = True
+        if self._action:
+            self._action.pause()
 
-        def update(self, t: float):
-            self.target.center_x += self.dx * t
-            self.target.center_y += self.dy * t
+    def resume(self):
+        """Resume the current action."""
+        self._paused = False
+        if self._action:
+            self._action.resume()
 
-    action = SimpleMove(100, 100, 2.0) + SimpleMove(-100, -100, 2.0)
-    repeated_action = Repeat(action)
+    def is_busy(self) -> bool:
+        """Return True if an action is currently running and not done."""
+        return self._action is not None and not self._action.done
 
-    sprite.do(repeated_action)
+    def cleanup(self):
+        """Explicitly unsubscribe from the game clock."""
+        if self._clock:
+            self._clock.unsubscribe(self._on_pause_state_changed)
 
-    @window.event
-    def on_draw():
-        arcade.start_render()
-        sprite.draw()
-
-    def update(delta_time):
-        sprite.update()
-
-    arcade.schedule(update, 1 / 60)
-
-    arcade.run()
+    def __del__(self):
+        """Clean up clock subscription."""
+        if self._clock:
+            self._clock.unsubscribe(self._on_pause_state_changed)
