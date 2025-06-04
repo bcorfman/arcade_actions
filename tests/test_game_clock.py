@@ -128,6 +128,69 @@ class TestScheduler:
         assert len(scheduler._queue) == 0
         assert not scheduler._paused
 
+    def test_basic_timing(self, scheduler):
+        """Test basic timing functionality without pause."""
+        task_called = False
+
+        def task():
+            nonlocal task_called
+            task_called = True
+
+        # Schedule task for 0.5 seconds in the future
+        scheduler.schedule(0.5, task)
+        assert len(scheduler._tasks) == 1
+        assert len(scheduler._queue) == 1
+
+        # Update with less than the scheduled time
+        scheduler.clock.update(0.3)
+        scheduler.update()
+        assert not task_called
+
+        # Update to exactly the scheduled time
+        scheduler.clock.update(0.2)
+        scheduler.update()
+        assert task_called
+
+    def test_pause_timing(self, scheduler):
+        """Test timing behavior with pause/resume."""
+        task_called = False
+        task_time = 0.0
+
+        def task():
+            nonlocal task_called, task_time
+            task_called = True
+            task_time = scheduler.clock.time
+
+        # Schedule task for 0.5 seconds in the future
+        scheduler.schedule(0.5, task)
+        assert len(scheduler._tasks) == 1
+
+        # Update 0.3 seconds
+        scheduler.clock.update(0.3)
+        scheduler.update()
+        assert not task_called
+        assert scheduler.clock.time == 0.3
+
+        # Pause
+        scheduler.clock.paused = True
+        assert scheduler._paused
+
+        # Update while paused (should not affect time)
+        scheduler.clock.update(0.2)
+        scheduler.update()
+        assert not task_called
+        assert scheduler.clock.time == 0.3  # Time should not have advanced
+
+        # Resume
+        scheduler.clock.paused = False
+        assert not scheduler._paused
+
+        # Update remaining time
+        scheduler.clock.update(0.2)
+        scheduler.update()
+        assert task_called
+        assert task_time == 0.5  # Task should execute at the correct time
+
     def test_one_time_task(self, scheduler):
         """Test one-time task scheduling and execution."""
         task_called = False
@@ -194,24 +257,33 @@ class TestScheduler:
     def test_pause_handling(self, scheduler):
         """Test pause state handling."""
         task_called = False
+        task_time = 0.0
 
         def task():
-            nonlocal task_called
+            nonlocal task_called, task_time
             task_called = True
+            task_time = scheduler.clock.time
 
         # Schedule task
-        scheduler.schedule(0.5, task)
+        task_id = scheduler.schedule(0.5, task)
+        assert task_id in scheduler._tasks
+        assert len(scheduler._queue) == 1
+        assert scheduler._queue[0][0] == 0.5  # Check scheduled time
 
         # Pause before task time
         scheduler.clock.paused = True
         scheduler.clock.update(0.5)
         scheduler.update()
         assert not task_called
+        assert scheduler.clock.time == 0.0  # Time should NOT advance when paused
 
         # Resume and execute
         scheduler.clock.paused = False
+        scheduler.clock.update(0.5)  # Now advance time to task execution
         scheduler.update()
         assert task_called
+        assert task_time == 0.5  # Task should execute at the correct time
+        assert len(scheduler._queue) == 0  # Task should be removed from queue
 
     def test_task_cleanup(self, scheduler):
         """Test task cleanup after execution."""

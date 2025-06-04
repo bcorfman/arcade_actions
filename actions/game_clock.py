@@ -37,6 +37,7 @@ class GameClock:
         self._subscribers: set[Callable[[bool], None]] = set()
         self._time_provider = time_provider or ArcadeTimeProvider()
         self._sync_with_arcade = False
+        self._paused_time = 0.0  # Time when the clock was paused
 
     def enable_arcade_sync(self) -> None:
         """Enable synchronization with Arcade's global clock."""
@@ -72,6 +73,8 @@ class GameClock:
         """Set the pause state and notify all subscribers."""
         if self._paused != value:
             self._paused = value
+            if value:  # If pausing, store the current time
+                self._paused_time = self._time
             for callback in self._subscribers:
                 callback(value)
 
@@ -92,6 +95,7 @@ class GameClock:
     def reset(self) -> None:
         """Reset the game time to 0."""
         self._time = 0.0
+        self._paused_time = 0.0
 
     def __repr__(self) -> str:
         return f"<GameClock time={self._time:.2f} paused={self._paused} subscribers={len(self._subscribers)}>"
@@ -105,14 +109,30 @@ class Scheduler:
         self._counter = itertools.count()
         self._queue = []
         self._tasks = {}
-        # Subscribe to clock's pause state
-        self.clock.subscribe(self._on_pause_state_changed)
         self._paused = False
+        self._last_update_time = 0.0
+        self._paused_time = 0.0
+        # Subscribe to clock's pause state after all variables are initialized
+        self.clock.subscribe(self._on_pause_state_changed)
 
     def _on_pause_state_changed(self, paused: bool) -> None:
         """Handle pause state changes from the game clock."""
         self._paused = paused
-        if not paused:  # If we're resuming from pause, check for tasks that need to execute
+        if paused:
+            self._paused_time = self.clock.time
+        else:
+            # When resuming, we need to adjust task times by the pause duration
+            pause_duration = self.clock.time - self._paused_time
+            if pause_duration > 0:
+                # Adjust all task times by the pause duration
+                new_queue = []
+                for execute_at, task_id, func, args, kwargs, repeat, interval in self._queue:
+                    new_execute_at = execute_at + pause_duration
+                    heapq.heappush(new_queue, (new_execute_at, task_id, func, args, kwargs, repeat, interval))
+                    if task_id in self._tasks:
+                        self._tasks[task_id] = (new_execute_at, func, args, kwargs)
+                self._queue = new_queue
+            self._last_update_time = self.clock.time
             self.update()
 
     def schedule(self, delay: float, func: Callable, *args, **kwargs) -> int:
@@ -141,12 +161,15 @@ class Scheduler:
             return
 
         now = self.clock.time
+        # Process all tasks that should have executed by now
         while self._queue and self._queue[0][0] <= now:
             execute_at, task_id, func, args, kwargs, repeat, interval = heapq.heappop(self._queue)
             if task_id not in self._tasks:
                 continue  # Task was cancelled
+            # Execute the task
             func(*args, **kwargs)
             if repeat:
+                # For repeating tasks, schedule the next execution
                 next_time = now + interval
                 heapq.heappush(
                     self._queue,
@@ -154,7 +177,9 @@ class Scheduler:
                 )
                 self._tasks[task_id] = (next_time, func, args, kwargs)
             else:
+                # For one-time tasks, remove from tracking
                 self._tasks.pop(task_id, None)
+        self._last_update_time = now
 
     def schedule_arcade(self, delay: float, func: Callable, *args, **kwargs) -> None:
         """Schedule a task using Arcade's scheduling system.
