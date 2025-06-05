@@ -669,3 +669,141 @@ class Easing(IntervalAction):
     def __repr__(self):
         ease_name = getattr(self.ease_function, "__name__", repr(self.ease_function))
         return f"<Easing(duration={self.duration}, ease_function={ease_name}, wrapped={repr(self.other)})>"
+
+
+class JumpTo(IntervalAction):
+    """Moves a sprite to a specific position, simulating a series of jumps."""
+
+    def __init__(
+        self,
+        position: tuple[float, float],
+        height: float,
+        jumps: int,
+        duration: float,
+    ):
+        """
+        Initialize the JumpTo action.
+
+        :param position: The target (x, y) coordinates.
+        :param height: The height of each jump.
+        :param jumps: The number of jumps to perform.
+        :param duration: The total time for the action in seconds.
+        """
+        if position is None:
+            raise ValueError("Must specify position")
+        if height is None:
+            raise ValueError("Must specify height")
+        if jumps is None or jumps < 1:
+            raise ValueError("Must specify at least one jump")
+        if duration is None:
+            raise ValueError("Must specify duration")
+
+        super().__init__(duration)
+        self.end_position = position
+        self.height = height
+        self.jumps = jumps
+        self.delta = (0, 0)
+
+    def start(self) -> None:
+        """Called when the action begins."""
+        self.start_x = self.target.center_x
+        self.start_y = self.target.center_y
+        self.delta = (
+            self.end_position[0] - self.start_x,
+            self.end_position[1] - self.start_y,
+        )
+        self.last_progress = 0.0
+
+    def update(self, delta_time: float) -> None:
+        """Called each frame to update the action."""
+        super().update(delta_time)
+        if self._paused:
+            return
+
+        progress = min(1.0, self._elapsed / self.duration) if self.duration > 0 else 1.0
+
+        # Previous position based on last progress
+        prev_x_component = self.delta[0] * self.last_progress
+        prev_y_component = self.delta[1] * self.last_progress
+        prev_jump_y = self.height * abs(math.sin(self.last_progress * math.pi * self.jumps))
+
+        # Current position based on current progress
+        x_component = self.delta[0] * progress
+        y_component = self.delta[1] * progress
+        jump_y = self.height * abs(math.sin(progress * math.pi * self.jumps))
+
+        # Calculate the change since last update
+        dx = x_component - prev_x_component
+        dy = (y_component + jump_y) - (prev_y_component + prev_jump_y)
+
+        self.target.center_x += dx
+        self.target.center_y += dy
+
+        self.last_progress = progress
+
+    def stop(self) -> None:
+        """Called when the action ends."""
+        self.target.center_x = self.end_position[0]
+        self.target.center_y = self.end_position[1]
+        super().stop()
+
+    def __reversed__(self) -> "JumpTo":
+        """Returns a reversed version of this action."""
+        # Note: Reversing a JumpTo is not fully supported as it depends on
+        # the sprite's position when the reversal happens. This is a placeholder.
+        raise NotImplementedError("JumpTo cannot be reversed.")
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return (
+            f"JumpTo(position={self.end_position}, height={self.height}, jumps={self.jumps}, duration={self.duration})"
+        )
+
+
+class JumpBy(JumpTo):
+    """Moves a sprite by a relative amount, simulating a series of jumps."""
+
+    def __init__(
+        self,
+        delta: tuple[float, float],
+        height: float,
+        jumps: int,
+        duration: float,
+    ):
+        """
+        Initialize the JumpBy action.
+
+        :param delta: The relative (dx, dy) amount to move.
+        :param height: The height of each jump.
+        :param jumps: The number of jumps to perform.
+        :param duration: The total time for the action in seconds.
+        """
+        if delta is None:
+            raise ValueError("Must specify delta")
+        if height is None:
+            raise ValueError("Must specify height")
+        if jumps is None or jumps < 1:
+            raise ValueError("Must specify at least one jump")
+        if duration is None:
+            raise ValueError("Must specify duration")
+
+        super().__init__((0, 0), height, jumps, duration)
+        self.delta = delta
+
+    def start(self) -> None:
+        """Called when the action begins."""
+        self.start_x = self.target.center_x
+        self.start_y = self.target.center_y
+        self.end_position = (
+            self.start_x + self.delta[0],
+            self.start_y + self.delta[1],
+        )
+        self.last_progress = 0.0
+
+    def __reversed__(self) -> "JumpBy":
+        """Returns a reversed version of this action."""
+        return JumpBy((-self.delta[0], -self.delta[1]), self.height, self.jumps, self.duration)
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return f"JumpBy(delta={self.delta}, height={self.height}, jumps={self.jumps}, duration={self.duration})"
