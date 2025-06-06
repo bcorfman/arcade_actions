@@ -2,17 +2,16 @@ import math
 import sys
 
 import arcade
+from arcade import easing
 from loguru import logger
 
-from actions.base import ActionSprite, Repeat, Spawn, spawn
+from actions.base import ActionSprite
 from actions.interval import (
-    AccelDecel,
-    Accelerate,
     Bezier,
     Blink,
+    Easing,
     FadeIn,
     FadeOut,
-    IntervalAction,
     JumpTo,
     MoveBy,
     MoveTo,
@@ -20,7 +19,6 @@ from actions.interval import (
     ScaleBy,
     ScaleTo,
 )
-from actions.move import BoundedMove
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -50,12 +48,11 @@ class DemoSprite(ActionSprite):
             "angle": 0,
             "alpha": 255,
             "scale": 0.5,
-            "elapsed": 0.0,
         }
         self.reset_state()
 
-    def update(self, elapsed_time: 0.0):
-        super().update(elapsed_time)
+    def update(self, delta_time: float):
+        super().update(delta_time)
         # Ensure sprite stays within screen bounds and below text
         self.center_x = max(self.width / 2, min(self.center_x, SCREEN_WIDTH - self.width / 2))
         self.center_y = max(self.height / 2 + TEXT_MARGIN, min(self.center_y, SCREEN_HEIGHT - self.height / 2))
@@ -63,50 +60,6 @@ class DemoSprite(ActionSprite):
     def reset_state(self):
         for attr, value in self.initial_state.items():
             setattr(self, attr, value)
-
-
-class FormationMove(IntervalAction):
-    def __init__(self, speed: float, drop_amount: float):
-        super().__init__(float("inf"))
-        self.speed = speed
-        self.drop_amount = drop_amount
-        self.prev_width = None
-
-    def start(self):
-        # Get initial formation width
-        active_enemies = [e for e in self.target.parent_list if not e.sprite_lists]
-        self.prev_width = max(e.center_x for e in active_enemies) - min(e.center_x for e in active_enemies)
-
-        # Initial movement sequence
-        self.move_right = MoveBy((self.prev_width, 0), self.speed)
-        self.drop = MoveBy((0, -self.drop_amount), 0.5)
-        self.move_left = MoveBy((-self.prev_width, 0), self.speed)
-
-        sequence = self.move_right + self.drop + self.move_left + self.drop
-        self.movement = Repeat(sequence)
-
-        # Apply bounded wrapper
-        bounds = (50, 750, 100, 500)
-        bounded = BoundedMove(bounds)
-
-        # Combine movements
-        combined = spawn(self.movement, bounded)
-        combined.target = self.target
-        combined.start()
-
-    def update(self, t: float):
-        # Get current formation bounds
-        active_enemies = [e for e in self.target.parent_list if not e.scheduled_to_remove]
-        if not active_enemies:
-            return
-
-        # Check if formation width has changed
-        current_width = max(e.center_x for e in active_enemies) - min(e.center_x for e in active_enemies)
-
-        if current_width != self.prev_width:
-            self.move_right.update_delta(current_width, 0)
-            self.move_left.update_delta(-current_width, 0)
-            self.prev_width = current_width
 
 
 class ActionDemo(arcade.Window):
@@ -128,8 +81,8 @@ class ActionDemo(arcade.Window):
             ("ScaleTo", lambda: ScaleTo(1.5, 2.0)),
             ("ScaleBy", lambda: ScaleBy(0.5, 2.0)),
             ("Blink", lambda: Blink(5, 2.0)),
-            ("Accelerate", lambda: Accelerate(MoveTo((600, 300), 2.0), 2.0)),
-            ("AccelDecel", lambda: AccelDecel(MoveTo((200, 300), 2.0))),
+            ("Accelerate", lambda: Easing(MoveTo((600, 300), 2.0), easing.ease_in)),
+            ("AccelDecel", lambda: Easing(MoveTo((200, 300), 2.0), easing.ease_in_out)),
             ("Bezier", lambda: Bezier([(0, 0), (200, 200), (400, -200), (600, 0)], 3.0)),
             ("JumpTo", lambda: JumpTo((400, 300), 100, 3, 2.0)),
             ("Spawn with Bezier", self.create_spawn_bezier_action),
@@ -147,7 +100,6 @@ class ActionDemo(arcade.Window):
         )
 
         self.demo_active = False
-        self.elapsed = 0.0
         self.start_demo()
 
     def create_spawn_bezier_action(self):
@@ -185,8 +137,7 @@ class ActionDemo(arcade.Window):
             sprite.center_y = spawn_y
             self.sprite_list.append(sprite)
 
-        actions = [Bezier(path, 4.0) for path in bezier_paths]
-        return Spawn(actions)
+        return [Bezier(path, 4.0) for path in bezier_paths]
 
     def start_demo(self):
         self.demo_active = True
@@ -200,15 +151,13 @@ class ActionDemo(arcade.Window):
 
     def start_next_action(self):
         if self.current_action < len(self.actions):
-            self.elapsed = 0.0
             action_name, action_creator = self.actions[self.current_action]
             self.message = f"Current Action: {action_name}"
             self.text_sprite.text = self.message
             if action_name == "Spawn with Bezier":
-                action = action_creator()
-                if action:
-                    for sprite, subaction in zip(self.sprite_list, action.actions, strict=False):
-                        sprite.do(subaction)
+                actions = action_creator()
+                for sprite, subaction in zip(self.sprite_list, actions, strict=False):
+                    sprite.do(subaction)
             else:
                 self.sprite.do(action_creator())
             self.current_action += 1
@@ -223,10 +172,20 @@ class ActionDemo(arcade.Window):
         self.text_sprite.draw()
 
     def on_update(self, delta_time):
-        self.elapsed += delta_time
-        self.sprite_list.update(self.elapsed)
-        if self.demo_active and all(not sprite.actions for sprite in self.sprite_list):
-            self.start_next_action()
+        self.sprite_list.update(delta_time)
+
+        if self.demo_active:
+            all_actions_done = True
+            if not self.sprite_list:
+                all_actions_done = True
+            else:
+                for sprite in self.sprite_list:
+                    if isinstance(sprite, ActionSprite) and sprite.has_active_actions():
+                        all_actions_done = False
+                        break
+
+            if all_actions_done:
+                self.start_next_action()
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.SPACE and not self.demo_active:
