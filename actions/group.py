@@ -11,53 +11,32 @@ import arcade
 from .base import Action
 from .composite import Sequence
 from .game_clock import GameClock, Scheduler
-from .move import MoveBy, MoveTo
+from .interval import MoveBy, MoveTo
 
 
-class SpriteGroup:
+class SpriteGroup(arcade.SpriteList):
     """A container for managing groups of sprites and their actions.
 
-    This class provides a simple interface for managing multiple sprites as a group,
-    allowing actions to be applied to all sprites in the group simultaneously.
+    This class extends `arcade.SpriteList`, providing a simple interface for
+    managing multiple sprites as a group and allowing actions to be applied
+    to all sprites in the group simultaneously.
     """
 
-    def __init__(self, sprites=None):
-        self.sprites = sprites if sprites is not None else []
+    def __init__(self, sprites: list[arcade.Sprite] | None = None):
+        super().__init__()
+        if sprites:
+            for sprite in sprites:
+                self.append(sprite)
 
-    def append(self, sprite):
-        """Add a sprite to the group."""
-        self.sprites.append(sprite)
-
-    def extend(self, sprite_list):
-        """Add multiple sprites to the group."""
-        self.sprites.extend(sprite_list)
-
-    def update(self, delta_time: float):
-        """Update all sprites in the group."""
-        for sprite in self.sprites:
-            sprite.update(delta_time)
-
-    def __iter__(self):
-        """Iterate over sprites in the group."""
-        return iter(self.sprites)
-
-    def __getitem__(self, index):
-        """Get a sprite by index."""
-        return self.sprites[index]
-
-    def __len__(self):
-        """Get the number of sprites in the group."""
-        return len(self.sprites)
-
-    def center(self):
+    def center(self) -> tuple[float, float]:
         """Get the center point of all sprites in the group."""
-        if not self.sprites:
+        if not self:
             return (0, 0)
-        avg_x = sum(sprite.center_x for sprite in self.sprites) / len(self.sprites)
-        avg_y = sum(sprite.center_y for sprite in self.sprites) / len(self.sprites)
+        avg_x = sum(sprite.center_x for sprite in self) / len(self)
+        avg_y = sum(sprite.center_y for sprite in self) / len(self)
         return avg_x, avg_y
 
-    def do(self, action):
+    def do(self, action: Action) -> "GroupAction":
         """Apply an action to all sprites in the group.
 
         Args:
@@ -66,17 +45,17 @@ class SpriteGroup:
         Returns:
             The GroupAction instance managing the action
         """
-        group_action = GroupAction(self.sprites, action)
+        group_action = GroupAction(self, action)
         group_action.start()
         return group_action
 
     def clear_actions(self):
         """Clear all actions from sprites in the group."""
-        for sprite in self.sprites:
+        for sprite in self:
             if hasattr(sprite, "clear_actions"):
                 sprite.clear_actions()
 
-    def breakaway(self, breakaway_sprites):
+    def breakaway(self, breakaway_sprites: list[arcade.Sprite]) -> "SpriteGroup":
         """Remove given sprites and return a new SpriteGroup.
 
         Args:
@@ -86,7 +65,8 @@ class SpriteGroup:
             A new SpriteGroup containing the removed sprites
         """
         for sprite in breakaway_sprites:
-            self.sprites.remove(sprite)
+            if sprite in self:
+                self.remove(sprite)
         return SpriteGroup(breakaway_sprites)
 
 

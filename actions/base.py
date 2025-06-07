@@ -248,17 +248,22 @@ class ActionSprite(arcade.Sprite):
         sprite.do(action1 + action2)
     """
 
-    def __init__(self, filename: str, scale: float = 1.0, clock: GameClock | None = None):
-        super().__init__(filename, scale)
-        self._action = None  # Currently active action
-        self._clock = clock
-        if clock:
-            clock.subscribe(self._on_pause_state_changed)
-        self._paused = False
+    def __init__(self, *args, **kwargs):
+        # Pop the clock if provided, otherwise create a default one
+        self._clock = kwargs.pop("clock", GameClock())
+        super().__init__(*args, **kwargs)
+
+        self._action: Action | None = None
+        self._is_paused: bool = False
+        self._is_cleaning_up: bool = False
+
+        # Subscribe to the clock's pause state
+        if self._clock:
+            self._clock.subscribe(self._on_pause_state_changed)
 
     def _on_pause_state_changed(self, paused: bool) -> None:
         """Handle pause state changes from the game clock."""
-        self._paused = paused
+        self._is_paused = paused
         # Pause/resume current action
         if self._action:
             if paused:
@@ -286,7 +291,7 @@ class ActionSprite(arcade.Sprite):
         action.start()
         self._action = action
         # Set initial pause state
-        if self._paused:
+        if self._is_paused:
             action.pause()
         return action
 
@@ -296,7 +301,7 @@ class ActionSprite(arcade.Sprite):
         Args:
             delta_time: Time elapsed since last frame in seconds
         """
-        if self._paused or not self._action:
+        if self._is_paused or not self._action:
             return
 
         self._action.update(delta_time)
@@ -316,13 +321,13 @@ class ActionSprite(arcade.Sprite):
 
     def pause(self):
         """Pause the current action."""
-        self._paused = True
+        self._is_paused = True
         if self._action:
             self._action.pause()
 
     def resume(self):
         """Resume the current action."""
-        self._paused = False
+        self._is_paused = False
         if self._action:
             self._action.resume()
 
@@ -336,6 +341,5 @@ class ActionSprite(arcade.Sprite):
             self._clock.unsubscribe(self._on_pause_state_changed)
 
     def __del__(self):
-        """Clean up clock subscription."""
-        if self._clock:
-            self._clock.unsubscribe(self._on_pause_state_changed)
+        """Ensure cleanup is called when the sprite is garbage collected."""
+        self.cleanup()

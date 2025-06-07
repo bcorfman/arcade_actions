@@ -124,6 +124,7 @@ class WrappedMove(_Move):
         Note: This method only handles wrapping behavior. The sprite's position should be
         updated by other actions or directly before this method is called.
         """
+        super().update(delta_time)
         if self._paused:
             return
 
@@ -245,6 +246,7 @@ class BoundedMove(_Move):
 
     def update(self, delta_time: float) -> None:
         """Update sprite positions with boundary bouncing."""
+        super().update(delta_time)
         if self._paused:
             return
 
