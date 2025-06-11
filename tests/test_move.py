@@ -87,8 +87,6 @@ class TestWrappedMove:
         """Create a test sprite with initial position and velocity."""
         sprite = ActionSprite(":resources:images/items/ladderMid.png")
         sprite.position = (0, 0)
-        sprite.change_x = 100  # Initial velocity
-        sprite.change_y = 100
         return sprite
 
     @pytest.fixture
@@ -98,8 +96,6 @@ class TestWrappedMove:
         for _ in range(3):
             sprite = ActionSprite(":resources:images/items/ladderMid.png")
             sprite.position = (0, 0)
-            sprite.change_x = 100
-            sprite.change_y = 100
             sprites.append(sprite)
         return sprites
 
@@ -420,8 +416,6 @@ class TestBoundedMove:
         """Create a test sprite with initial position and velocity."""
         sprite = ActionSprite(":resources:images/items/ladderMid.png")
         sprite.position = (0, 0)
-        sprite.change_x = 100  # Initial velocity
-        sprite.change_y = 100
         return sprite
 
     @pytest.fixture
@@ -431,8 +425,6 @@ class TestBoundedMove:
         for _ in range(3):
             sprite = ActionSprite(":resources:images/items/ladderMid.png")
             sprite.position = (0, 0)
-            sprite.change_x = 100
-            sprite.change_y = 100
             sprites.append(sprite)
         return sprites
 

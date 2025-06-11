@@ -2,6 +2,7 @@
 Group actions and sprite groups for managing multiple sprites together.
 """
 
+import copy
 import math
 from collections.abc import Callable
 from typing import Optional
@@ -11,53 +12,32 @@ import arcade
 from .base import Action
 from .composite import Sequence
 from .game_clock import GameClock, Scheduler
-from .move import MoveBy, MoveTo
+from .interval import MoveBy, MoveTo
 
 
-class SpriteGroup:
+class SpriteGroup(arcade.SpriteList):
     """A container for managing groups of sprites and their actions.
 
-    This class provides a simple interface for managing multiple sprites as a group,
-    allowing actions to be applied to all sprites in the group simultaneously.
+    This class extends `arcade.SpriteList`, providing a simple interface for
+    managing multiple sprites as a group and allowing actions to be applied
+    to all sprites in the group simultaneously.
     """
 
-    def __init__(self, sprites=None):
-        self.sprites = sprites if sprites is not None else []
+    def __init__(self, sprites: list[arcade.Sprite] | None = None):
+        super().__init__()
+        if sprites:
+            for sprite in sprites:
+                self.append(sprite)
 
-    def append(self, sprite):
-        """Add a sprite to the group."""
-        self.sprites.append(sprite)
-
-    def extend(self, sprite_list):
-        """Add multiple sprites to the group."""
-        self.sprites.extend(sprite_list)
-
-    def update(self, delta_time: float):
-        """Update all sprites in the group."""
-        for sprite in self.sprites:
-            sprite.update(delta_time)
-
-    def __iter__(self):
-        """Iterate over sprites in the group."""
-        return iter(self.sprites)
-
-    def __getitem__(self, index):
-        """Get a sprite by index."""
-        return self.sprites[index]
-
-    def __len__(self):
-        """Get the number of sprites in the group."""
-        return len(self.sprites)
-
-    def center(self):
+    def center(self) -> tuple[float, float]:
         """Get the center point of all sprites in the group."""
-        if not self.sprites:
+        if not self:
             return (0, 0)
-        avg_x = sum(sprite.center_x for sprite in self.sprites) / len(self.sprites)
-        avg_y = sum(sprite.center_y for sprite in self.sprites) / len(self.sprites)
+        avg_x = sum(sprite.center_x for sprite in self) / len(self)
+        avg_y = sum(sprite.center_y for sprite in self) / len(self)
         return avg_x, avg_y
 
-    def do(self, action):
+    def do(self, action: Action) -> "GroupAction":
         """Apply an action to all sprites in the group.
 
         Args:
@@ -66,17 +46,17 @@ class SpriteGroup:
         Returns:
             The GroupAction instance managing the action
         """
-        group_action = GroupAction(self.sprites, action)
+        group_action = GroupAction(self, action)
         group_action.start()
         return group_action
 
     def clear_actions(self):
         """Clear all actions from sprites in the group."""
-        for sprite in self.sprites:
+        for sprite in self:
             if hasattr(sprite, "clear_actions"):
                 sprite.clear_actions()
 
-    def breakaway(self, breakaway_sprites):
+    def breakaway(self, breakaway_sprites: list[arcade.Sprite]) -> "SpriteGroup":
         """Remove given sprites and return a new SpriteGroup.
 
         Args:
@@ -86,7 +66,8 @@ class SpriteGroup:
             A new SpriteGroup containing the removed sprites
         """
         for sprite in breakaway_sprites:
-            self.sprites.remove(sprite)
+            if sprite in self:
+                self.remove(sprite)
         return SpriteGroup(breakaway_sprites)
 
 
@@ -96,34 +77,44 @@ class GroupAction:
     def __init__(self, group: arcade.SpriteList | list[arcade.Sprite], action: Action):
         self.group = list(group)
         self.template = action
-        self.active = None  # will hold the cloned group-wide action
+        self.actions: list[Action] = []  # Individual actions for each sprite
 
     def start(self):
         """Start the action on the group."""
-        self.active = self.template.__class__(*self.template.__dict__.values())
-        self.active.target = self.group
-        self.active.start()
+        # Create an action instance for each sprite
+        self.actions = []
+        for sprite in self.group:
+            action_copy = copy.deepcopy(self.template)
+            action_copy.target = sprite
+            action_copy.start()
+            self.actions.append(action_copy)
 
     def update(self, delta_time: float):
         """Update the group action."""
-        if self.active and not self.active.done():
-            self.active.update(delta_time)
+        if not self.actions:
+            return
+
+        # Update each sprite's action
+        all_done = True
+        for action in self.actions:
+            if not action.done:
+                action.update(delta_time)
+                all_done = False
 
     def stop(self):
         """Stop the current group action."""
-        if self.active:
-            self.active.stop()
-            self.active = None
+        for action in self.actions:
+            action.stop()
+        self.actions = []
 
     def reset(self):
         """Reset and restart the group action."""
-        if self.active:
-            self.active.stop()
+        self.stop()
         self.start()
 
     def done(self) -> bool:
         """Check if the group action is complete."""
-        return self.active.done() if self.active else True
+        return all(action.done for action in self.actions) if self.actions else True
 
     def replace(self, new_action: Action):
         """Replace the current group action with a new one (auto-started).
@@ -135,8 +126,18 @@ class GroupAction:
         self.template = new_action
         self.start()
 
+    def pause(self):
+        """Pause all actions in the group."""
+        for action in self.actions:
+            action.pause()
+
+    def resume(self):
+        """Resume all actions in the group."""
+        for action in self.actions:
+            action.resume()
+
     def __repr__(self) -> str:
-        return f"GroupAction(action={self.template})"
+        return f"GroupAction(group={len(self.group)} sprites, action={self.template})"
 
 
 class Pattern:
@@ -158,6 +159,10 @@ class DivePattern(Pattern):
         self.angle = angle
 
     def apply(self, attack_group: "AttackGroup", *args, **kwargs):
+        # Early return if no sprites to apply pattern to
+        if not attack_group.sprites:
+            return
+
         rad_angle = math.radians(self.angle)
         dx = self.speed * math.cos(rad_angle)
         dy = self.speed * math.sin(rad_angle)
@@ -176,9 +181,11 @@ class CirclePattern(Pattern):
         self._current_angle = 0.0
 
     def apply(self, attack_group: "AttackGroup", *args, **kwargs):
-        center = attack_group.sprites.center()
-        if not center:
+        # Early return if no sprites to apply pattern to
+        if not attack_group.sprites:
             return
+
+        center = attack_group.sprites.center()
 
         # Calculate the time needed for one complete circle
         circumference = 2 * math.pi * self.radius
@@ -210,6 +217,10 @@ class ZigzagPattern(Pattern):
         self.speed = speed
 
     def apply(self, attack_group: "AttackGroup", *args, **kwargs):
+        # Early return if no sprites to apply pattern to
+        if not attack_group.sprites:
+            return
+
         # Calculate the time needed for one complete zigzag
         distance = math.sqrt(self.width**2 + self.height**2)
         duration = distance / self.speed
@@ -299,6 +310,10 @@ class WavePattern(Pattern):
         self.speed = speed
 
     def apply(self, attack_group: "AttackGroup", *args, **kwargs):
+        # Early return if no sprites to apply pattern to
+        if not attack_group.sprites:
+            return
+
         # Create a sequence of moves that form a wave
         num_points = 8
         actions = []
@@ -329,7 +344,7 @@ class AttackGroup:
         self.clock = clock
         self.scheduler = scheduler
         self.actions: list[GroupAction] = []  # Attached GroupAction instances
-        self.time_of_birth = clock.time()
+        self.time_of_birth = clock.time
         self.is_destroyed = False
         self.name = name
         self.scheduled_tasks: list[int] = []  # Track scheduled tasks for cleanup

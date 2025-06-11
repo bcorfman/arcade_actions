@@ -3,7 +3,6 @@ Base classes for Arcade Actions system.
 Actions are used to animate sprites and sprite lists over time.
 """
 
-import copy
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -23,10 +22,19 @@ class Action(ABC):
     directly modifying position/angle/scale.
 
     Actions can be applied to individual sprites or sprite lists.
+
+    Important: Actions are not meant to be used directly. They must be applied to
+    an ActionSprite using the sprite's do() method. For example:
+        sprite = ActionSprite(...)
+        action = MoveBy((100, 0), duration=1.0)
+        sprite.do(action)  # This is the correct way to use actions
+
+    Attempting to use actions directly (e.g. calling start() or update() manually)
+    will result in errors since the action requires a valid target sprite.
     """
 
     def __init__(self, clock: GameClock | None = None):
-        self.target: arcade.Sprite | arcade.SpriteList | None = None
+        self.target: ActionSprite | arcade.SpriteList | None = None
         self._elapsed: float = 0.0
         self.done: bool = False  # Public completion state
         self._paused: bool = False
@@ -197,41 +205,6 @@ class InstantAction(Action):
         return f"{self.__class__.__name__}()"
 
 
-class GroupAction(Action):
-    """Applies an action to all sprites in a sprite list."""
-
-    def __init__(self, sprite_list: arcade.SpriteList, action: Action):
-        super().__init__()
-        self.sprite_list = sprite_list
-        self.action = action
-        self.actions: list[Action] = []
-
-    def start(self) -> None:
-        # Create an action instance for each sprite
-        self.actions = []
-        for sprite in self.sprite_list:
-            action_copy = copy.deepcopy(self.action)
-            action_copy.target = sprite
-            action_copy.start()
-            self.actions.append(action_copy)
-
-    def update(self, delta_time: float) -> None:
-        if self._paused:
-            return
-
-        # Update each sprite's action
-        all_done = True
-        for action in self.actions:
-            if not action.done:
-                action.update(delta_time)
-                all_done = False
-
-        self.done = all_done
-
-    def __repr__(self) -> str:
-        return f"GroupAction(sprite_list={self.sprite_list}, action={self.action})"
-
-
 class ActionSprite(arcade.Sprite):
     """A sprite that supports time-based Actions like MoveBy, RotateBy, etc.
 
@@ -248,17 +221,22 @@ class ActionSprite(arcade.Sprite):
         sprite.do(action1 + action2)
     """
 
-    def __init__(self, filename: str, scale: float = 1.0, clock: GameClock | None = None):
-        super().__init__(filename, scale)
-        self._action = None  # Currently active action
-        self._clock = clock
-        if clock:
-            clock.subscribe(self._on_pause_state_changed)
-        self._paused = False
+    def __init__(self, *args, **kwargs):
+        # Pop the clock if provided, otherwise create a default one
+        self._clock = kwargs.pop("clock", GameClock())
+        super().__init__(*args, **kwargs)
+
+        self._action: Action | None = None
+        self._is_paused: bool = False
+        self._is_cleaning_up: bool = False
+
+        # Subscribe to the clock's pause state
+        if self._clock:
+            self._clock.subscribe(self._on_pause_state_changed)
 
     def _on_pause_state_changed(self, paused: bool) -> None:
         """Handle pause state changes from the game clock."""
-        self._paused = paused
+        self._is_paused = paused
         # Pause/resume current action
         if self._action:
             if paused:
@@ -286,7 +264,7 @@ class ActionSprite(arcade.Sprite):
         action.start()
         self._action = action
         # Set initial pause state
-        if self._paused:
+        if self._is_paused:
             action.pause()
         return action
 
@@ -296,7 +274,7 @@ class ActionSprite(arcade.Sprite):
         Args:
             delta_time: Time elapsed since last frame in seconds
         """
-        if self._paused or not self._action:
+        if self._is_paused or not self._action:
             return
 
         self._action.update(delta_time)
@@ -316,13 +294,13 @@ class ActionSprite(arcade.Sprite):
 
     def pause(self):
         """Pause the current action."""
-        self._paused = True
+        self._is_paused = True
         if self._action:
             self._action.pause()
 
     def resume(self):
         """Resume the current action."""
-        self._paused = False
+        self._is_paused = False
         if self._action:
             self._action.resume()
 
@@ -336,6 +314,5 @@ class ActionSprite(arcade.Sprite):
             self._clock.unsubscribe(self._on_pause_state_changed)
 
     def __del__(self):
-        """Clean up clock subscription."""
-        if self._clock:
-            self._clock.unsubscribe(self._on_pause_state_changed)
+        """Ensure cleanup is called when the sprite is garbage collected."""
+        self.cleanup()
