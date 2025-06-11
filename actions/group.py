@@ -159,6 +159,10 @@ class DivePattern(Pattern):
         self.angle = angle
 
     def apply(self, attack_group: "AttackGroup", *args, **kwargs):
+        # Early return if no sprites to apply pattern to
+        if not attack_group.sprites:
+            return
+
         rad_angle = math.radians(self.angle)
         dx = self.speed * math.cos(rad_angle)
         dy = self.speed * math.sin(rad_angle)
@@ -177,9 +181,11 @@ class CirclePattern(Pattern):
         self._current_angle = 0.0
 
     def apply(self, attack_group: "AttackGroup", *args, **kwargs):
-        center = attack_group.sprites.center()
-        if not center:
+        # Early return if no sprites to apply pattern to
+        if not attack_group.sprites:
             return
+
+        center = attack_group.sprites.center()
 
         # Calculate the time needed for one complete circle
         circumference = 2 * math.pi * self.radius
@@ -211,6 +217,10 @@ class ZigzagPattern(Pattern):
         self.speed = speed
 
     def apply(self, attack_group: "AttackGroup", *args, **kwargs):
+        # Early return if no sprites to apply pattern to
+        if not attack_group.sprites:
+            return
+
         # Calculate the time needed for one complete zigzag
         distance = math.sqrt(self.width**2 + self.height**2)
         duration = distance / self.speed
@@ -300,6 +310,10 @@ class WavePattern(Pattern):
         self.speed = speed
 
     def apply(self, attack_group: "AttackGroup", *args, **kwargs):
+        # Early return if no sprites to apply pattern to
+        if not attack_group.sprites:
+            return
+
         # Create a sequence of moves that form a wave
         num_points = 8
         actions = []
@@ -330,7 +344,7 @@ class AttackGroup:
         self.clock = clock
         self.scheduler = scheduler
         self.actions: list[GroupAction] = []  # Attached GroupAction instances
-        self.time_of_birth = clock.time()
+        self.time_of_birth = clock.time
         self.is_destroyed = False
         self.name = name
         self.scheduled_tasks: list[int] = []  # Track scheduled tasks for cleanup
