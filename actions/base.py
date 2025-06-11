@@ -3,7 +3,6 @@ Base classes for Arcade Actions system.
 Actions are used to animate sprites and sprite lists over time.
 """
 
-import copy
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -23,10 +22,19 @@ class Action(ABC):
     directly modifying position/angle/scale.
 
     Actions can be applied to individual sprites or sprite lists.
+
+    Important: Actions are not meant to be used directly. They must be applied to
+    an ActionSprite using the sprite's do() method. For example:
+        sprite = ActionSprite(...)
+        action = MoveBy((100, 0), duration=1.0)
+        sprite.do(action)  # This is the correct way to use actions
+
+    Attempting to use actions directly (e.g. calling start() or update() manually)
+    will result in errors since the action requires a valid target sprite.
     """
 
     def __init__(self, clock: GameClock | None = None):
-        self.target: arcade.Sprite | arcade.SpriteList | None = None
+        self.target: ActionSprite | arcade.SpriteList | None = None
         self._elapsed: float = 0.0
         self.done: bool = False  # Public completion state
         self._paused: bool = False
@@ -195,41 +203,6 @@ class InstantAction(Action):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
-
-
-class GroupAction(Action):
-    """Applies an action to all sprites in a sprite list."""
-
-    def __init__(self, sprite_list: arcade.SpriteList, action: Action):
-        super().__init__()
-        self.sprite_list = sprite_list
-        self.action = action
-        self.actions: list[Action] = []
-
-    def start(self) -> None:
-        # Create an action instance for each sprite
-        self.actions = []
-        for sprite in self.sprite_list:
-            action_copy = copy.deepcopy(self.action)
-            action_copy.target = sprite
-            action_copy.start()
-            self.actions.append(action_copy)
-
-    def update(self, delta_time: float) -> None:
-        if self._paused:
-            return
-
-        # Update each sprite's action
-        all_done = True
-        for action in self.actions:
-            if not action.done:
-                action.update(delta_time)
-                all_done = False
-
-        self.done = all_done
-
-    def __repr__(self) -> str:
-        return f"GroupAction(sprite_list={self.sprite_list}, action={self.action})"
 
 
 class ActionSprite(arcade.Sprite):

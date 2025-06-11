@@ -108,7 +108,7 @@ class InvadersGame(Game):
 
         self.background_color = arcade.color.AMAZON
         self.setup_level_one()
-        self.window.set_mouse_visible(False)
+        self.set_mouse_visible(False)
 
     def setup_level_one(self):
         # Create rows and columns of enemies

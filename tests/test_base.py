@@ -1,13 +1,13 @@
 """Test suite for base.py - Core Action system architecture."""
 
-import copy
-
 import arcade
 import pytest
 from arcade.texture import Texture
 
-from actions.base import Action, ActionSprite, GroupAction, InstantAction, IntervalAction
+from actions.base import ActionSprite
 from actions.game_clock import GameClock
+from actions.group import SpriteGroup
+from actions.interval import MoveBy
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -18,76 +18,17 @@ def create_test_sprite() -> arcade.Sprite:
     return sprite
 
 
-class MockAction(Action):
-    """Mock action for testing base Action functionality."""
-
-    def __init__(self, duration: float = 1.0, clock: GameClock = None):
-        super().__init__(clock=clock)
-        self.duration = duration
-        self.start_called = False
-        self.update_called = False
-        self.stop_called = False
-
-    def start(self) -> None:
-        self.start_called = True
-
-    def update(self, delta_time: float) -> None:
-        self.update_called = True
-        super().update(delta_time)
-        if self._elapsed >= self.duration:
-            self.done = True
-
-    def stop(self) -> None:
-        self.stop_called = True
-        super().stop()
-
-
-class MockIntervalAction(IntervalAction):
-    """Mock interval action for testing."""
-
-    def __init__(self, duration: float = 1.0):
-        super().__init__(duration)
-        self.start_called = False
-        self.stop_called = False
-        self.update_called = False
-
-    def start(self) -> None:
-        self.start_called = True
-
-    def update(self, delta_time: float) -> None:
-        self.update_called = True
-        super().update(delta_time)
-        if self._elapsed >= self.duration:
-            self.done = True
-
-    def stop(self) -> None:
-        self.stop_called = True
-        super().stop()
-
-
-class MockInstantAction(InstantAction):
-    """Mock instant action for testing."""
-
-    def __init__(self):
-        super().__init__()
-        self.update_called = False
-        self.done = True  # Instant actions are done immediately
-
-    def start(self) -> None:
-        """Start the instant action."""
-        self.done = True
-
-    def update(self, delta_time: float) -> None:
-        self.update_called = True
-        self.done = True
-
-
 class TestAction:
     """Test suite for base Action class."""
 
     @pytest.fixture
     def action(self):
-        return MockAction()
+        # Use a real, simple action for testing
+        return MoveBy((100, 0), duration=1.0)
+
+    @pytest.fixture
+    def sprite(self):
+        return ActionSprite(":resources:images/items/star.png")
 
     @pytest.fixture
     def clock(self):
@@ -101,49 +42,40 @@ class TestAction:
         assert not action._paused
         assert action._on_complete is None
 
-    def test_action_lifecycle(self, action):
+    def test_action_lifecycle(self, action, sprite):
         """Test complete action lifecycle."""
-        # Start
-        action.start()
-        assert action.start_called
+        sprite.do(action)
+        assert action.target == sprite
+        assert not action.done
 
-        # Update
-        action.update(0.5)
-        assert action.update_called
+        sprite.update(0.5)
         assert action._elapsed == 0.5
         assert not action.done
 
-        # Complete
-        action.update(0.5)
+        sprite.update(0.5)
         assert action.done
 
-        # Stop
-        action.stop()
-        assert action.stop_called
+        sprite.clear_actions()
         assert action.target is None
 
-    def test_action_pause_resume(self, action, clock):
+    def test_action_pause_resume(self, action, sprite, clock):
         """Test action pause/resume functionality."""
-        action = MockAction(clock=clock)
-
-        # Start and update
-        action.start()
-        action.update(0.5)
+        sprite._clock = clock
+        sprite.do(action)
+        sprite.update(0.5)
         assert action._elapsed == 0.5
 
-        # Pause
-        action.pause()
+        sprite.pause()
         assert action._paused
-        action.update(0.5)
-        assert action._elapsed == 0.5  # Should not update while paused
+        sprite.update(0.5)
+        assert action._elapsed == 0.5
 
-        # Resume
-        action.resume()
+        sprite.resume()
         assert not action._paused
-        action.update(0.5)
+        sprite.update(0.5)
         assert action._elapsed == 1.0
 
-    def test_action_completion_callback(self, action):
+    def test_action_completion_callback(self, action, sprite):
         """Test action completion callback."""
         callback_called = False
 
@@ -152,15 +84,14 @@ class TestAction:
             callback_called = True
 
         action.on_complete(on_complete)
-        action.start()
-        action.done = True  # Set completion directly
-        action.update(1.0)  # Trigger callback
+        sprite.do(action)
+        sprite.update(1.0)
         assert callback_called
 
-    def test_action_reset(self, action):
+    def test_action_reset(self, action, sprite):
         """Test action reset functionality."""
-        action.start()
-        action.update(0.5)
+        sprite.do(action)
+        sprite.update(0.5)
         action.reset()
 
         assert action._elapsed == 0.0
@@ -174,78 +105,61 @@ class TestIntervalAction:
 
     @pytest.fixture
     def interval_action(self):
-        return MockIntervalAction(duration=1.0)
+        return MoveBy((100, 0), duration=1.0)
 
-    def test_interval_action_duration(self, interval_action):
+    @pytest.fixture
+    def sprite(self):
+        return ActionSprite(":resources:images/items/star.png")
+
+    def test_interval_action_duration(self, interval_action, sprite):
         """Test interval action duration handling."""
         assert interval_action.duration == 1.0
         assert not interval_action.done
 
-        interval_action.update(0.5)
+        sprite.do(interval_action)
+        sprite.update(0.5)
         assert not interval_action.done
 
-        interval_action.update(0.5)
+        sprite.update(0.5)
         assert interval_action.done
-
-
-class TestInstantAction:
-    """Test suite for InstantAction class."""
-
-    @pytest.fixture
-    def instant_action(self):
-        return MockInstantAction()
-
-    def test_instant_action_completion(self, instant_action):
-        """Test instant action immediate completion."""
-        assert instant_action.done
-        instant_action.update(0.0)
-        assert instant_action.done
 
 
 class TestGroupAction:
     """Test suite for GroupAction class."""
 
     @pytest.fixture
-    def sprite_list(self):
-        return arcade.SpriteList()
+    def move_action(self):
+        return MoveBy((100, 0), duration=1.0)
 
     @pytest.fixture
-    def mock_action(self):
-        return MockAction()
+    def sprite_group(self):
+        return SpriteGroup()
 
-    @pytest.fixture
-    def group_action(self, sprite_list, mock_action):
-        return GroupAction(sprite_list, mock_action)
-
-    def test_group_action_initialization(self, group_action, sprite_list, mock_action):
+    def test_group_action_initialization(self, sprite_group, move_action):
         """Test group action initialization."""
-        assert group_action.sprite_list == sprite_list
-        assert group_action.action == mock_action
+        group_action = sprite_group.do(move_action)
+        assert group_action.group == list(sprite_group)
+        assert group_action.template == move_action
         assert group_action.actions == []
 
-    def test_group_action_lifecycle(self, group_action, sprite_list):
+    def test_group_action_lifecycle(self, sprite_group, move_action):
         """Test group action lifecycle with multiple sprites."""
-        # Add sprites
-        sprite1 = ActionSprite(filename=":resources:images/items/star.png")
-        sprite2 = ActionSprite(filename=":resources:images/items/star.png")
-        sprite_list.append(sprite1)
-        sprite_list.append(sprite2)
+        sprite1 = ActionSprite(":resources:images/items/star.png")
+        sprite2 = ActionSprite(":resources:images/items/star.png")
+        sprite_group.append(sprite1)
+        sprite_group.append(sprite2)
 
-        # Start
-        group_action.start()
+        group_action = sprite_group.do(move_action)
         assert len(group_action.actions) == 2
-        assert all(action.start_called for action in group_action.actions)
+        assert all(isinstance(a, MoveBy) for a in group_action.actions)
 
-        # Update
         group_action.update(0.5)
-        assert all(action.update_called for action in group_action.actions)
-        assert not group_action.done
+        assert all(a._elapsed > 0 for a in group_action.actions)
+        assert not group_action.done()
 
-        # Complete
         group_action.update(0.5)
-        assert group_action.done
+        assert group_action.done()
 
-        # Stop
         group_action.stop()
         assert len(group_action.actions) == 0
 
@@ -255,150 +169,119 @@ class TestActionSprite:
 
     @pytest.fixture
     def action_sprite(self):
-        sprite = ActionSprite(filename=":resources:images/items/star.png")
-        sprite.texture = Texture.create_empty("test", (1, 1))
-        return sprite
-
-    @pytest.fixture
-    def mock_action(self):
-        return MockAction()
+        """Fixture for creating a test ActionSprite."""
+        # Use a real image file for the sprite
+        return ActionSprite(":resources:images/items/star.png", scale=1.0)
 
     @pytest.fixture
     def game_clock(self):
+        """Fixture for creating a GameClock."""
         return GameClock()
 
     def test_action_sprite_initialization(self, action_sprite):
-        """Test action sprite initialization."""
-        assert isinstance(action_sprite, arcade.Sprite)
+        """Test ActionSprite initialization."""
         assert action_sprite._action is None
-        assert not action_sprite._paused
+        assert not action_sprite.is_busy()
 
-    def test_action_sprite_do_action(self, action_sprite, mock_action):
-        """Test applying action to sprite."""
-        action = action_sprite.do(mock_action)
-        assert mock_action.target == action_sprite
-        assert action_sprite._action == mock_action
-        assert action == mock_action
+    def test_action_sprite_do_action(self, action_sprite):
+        """Test applying an action to the sprite."""
+        move_action = MoveBy((100, 0), 1.0)
+        action_sprite.do(move_action)
+        assert action_sprite._action == move_action
+        assert action_sprite.is_busy()
 
-    def test_action_sprite_update(self, action_sprite, mock_action):
-        """Test sprite action updates."""
-        action_sprite.do(mock_action)
+    def test_action_sprite_update(self, action_sprite):
+        """Test updating the sprite's action."""
+        move_action = MoveBy((100, 0), 1.0)
+        action_sprite.do(move_action)
         action_sprite.update(0.5)
-        assert mock_action.update_called
-        assert mock_action._elapsed == 0.5
+        assert action_sprite.center_x > 0
+        assert not action_sprite._action.done
 
-    def test_action_sprite_clear_actions(self, action_sprite, mock_action):
-        """Test clearing sprite actions."""
-        action_sprite.do(mock_action)
+    def test_action_sprite_clear_actions(self, action_sprite):
+        """Test clearing actions from the sprite."""
+        move_action = MoveBy((100, 0), 1.0)
+        action_sprite.do(move_action)
         action_sprite.clear_actions()
         assert action_sprite._action is None
-        assert mock_action.stop_called
+        assert not action_sprite.is_busy()
 
-    def test_action_sprite_pause_resume(self, action_sprite, mock_action):
-        """Test sprite action pause/resume."""
-        action_sprite.do(mock_action)
+    def test_action_sprite_pause_resume(self, action_sprite):
+        """Test pausing and resuming the sprite's action."""
+        move_action = MoveBy((100, 0), 1.0)
+        action_sprite.do(move_action)
+        action_sprite.update(0.5)
+        initial_x = action_sprite.center_x
 
         action_sprite.pause()
-        assert action_sprite._paused
-        assert mock_action._paused
+        action_sprite.update(0.5)
+        assert action_sprite.center_x == initial_x
 
         action_sprite.resume()
-        assert not action_sprite._paused
-        assert not mock_action._paused
+        action_sprite.update(0.5)
+        assert action_sprite.center_x > initial_x
 
-    def test_action_sprite_game_clock_integration(self, action_sprite, mock_action, game_clock):
-        """Test sprite integration with game clock."""
-        action_sprite = ActionSprite(filename=":resources:images/items/star.png", clock=game_clock)
-        action_sprite.do(mock_action)
+    def test_action_sprite_game_clock_integration(self, action_sprite, game_clock):
+        """Test integration with a game clock for pause/resume."""
+        sprite_with_clock = ActionSprite(":resources:images/items/star.png", scale=1.0, clock=game_clock)
+        move_action = MoveBy((100, 0), 1.0)
+        sprite_with_clock.do(move_action)
+        sprite_with_clock.update(0.5)
+        initial_x = sprite_with_clock.center_x
 
         game_clock.paused = True
-        assert action_sprite._paused
-        assert mock_action._paused
+        sprite_with_clock.update(0.5)
+        assert sprite_with_clock.center_x == initial_x
 
         game_clock.paused = False
-        assert not action_sprite._paused
-        assert not mock_action._paused
+        sprite_with_clock.update(0.5)
+        assert sprite_with_clock.center_x > initial_x
 
     def test_action_sprite_action_replacement(self, action_sprite):
-        """Test that starting a new action stops the previous one."""
-        action1 = MockAction()
-        action2 = MockAction()
+        """Test replacing an existing action with a new one."""
+        move_action1 = MoveBy((100, 0), 1.0)
+        move_action2 = MoveBy((0, 100), 1.0)
 
-        # Start first action
-        action_sprite.do(action1)
-        assert action_sprite._action == action1
+        action_sprite.do(move_action1)
+        action_sprite.do(move_action2)
+        assert action_sprite._action == move_action2
 
-        # Start second action
-        action_sprite.do(action2)
-        assert action_sprite._action == action2
-        assert action1.stop_called  # First action should be stopped
+        action_sprite.update(0.5)
+        assert action_sprite.center_x == 0
+        assert action_sprite.center_y > 0
 
     def test_action_sprite_action_completion(self, action_sprite):
-        """Test action completion handling."""
-        action = MockAction()
-        action.done = True  # Simulate completed action
+        """Test action completion and cleanup."""
+        move_action = MoveBy((100, 0), 1.0)
+        action_sprite.do(move_action)
 
-        action_sprite.do(action)
-        action_sprite.update(0.5)
+        # Before completion, action should exist and not be done
+        assert action_sprite._action == move_action
+        assert not move_action.done
+        assert action_sprite.is_busy()
 
-        # Action should be removed after update
-        assert action_sprite._action is None
-        assert action.stop_called
+        # After completion, action should be cleaned up automatically
+        action_sprite.update(1.0)
+        assert move_action.done  # The action instance itself is done
+        assert action_sprite._action is None  # But ActionSprite cleaned it up
+        assert not action_sprite.is_busy()  # Sprite is no longer busy
 
     def test_action_sprite_action_sequence(self, action_sprite):
         """Test running a sequence of actions."""
-        action1 = MockAction()
-        action2 = MockAction()
-        action3 = MockAction()
+        move1 = MoveBy((100, 0), 1.0)
+        move2 = MoveBy((0, 100), 1.0)
+        sequence = move1 + move2
 
-        # Run actions in sequence
-        action_sprite.do(action1)
-        action_sprite.update(0.5)
-        action1.done = True
-        action_sprite.update(0.5)
+        action_sprite.do(sequence)
 
-        action_sprite.do(action2)
-        action_sprite.update(0.5)
-        action2.done = True
-        action_sprite.update(0.5)
+        # After first action completes, sprite should be at (100, 0) and still busy with second action
+        action_sprite.update(1.0)
+        assert action_sprite.center_x == 100
+        assert action_sprite.center_y == 0
+        assert action_sprite.is_busy()  # Still busy with second action
 
-        action_sprite.do(action3)
-        action_sprite.update(0.5)
-
-        assert action_sprite._action == action3
-        assert action1.stop_called
-        assert action2.stop_called
-        assert not action3.stop_called
-
-
-class GroupAction(Action):
-    """Apply an action to all sprites in a sprite list."""
-
-    def __init__(self, sprite_list: arcade.SpriteList, action: Action):
-        super().__init__()
-        self.sprite_list = sprite_list
-        self.action = action
-        self.actions: list[Action] = []
-
-    def start(self) -> None:
-        """Start the action on all sprites."""
-        self.actions = []
-        for sprite in self.sprite_list:
-            if isinstance(sprite, ActionSprite):
-                action = copy.deepcopy(self.action)
-                sprite.do(action)
-                self.actions.append(action)
-
-    def update(self, delta_time: float) -> None:
-        """Update all sprite actions."""
-        for action in self.actions:
-            action.update(delta_time)
-        # Check if all child actions are done
-        self.done = all(action.done for action in self.actions)
-
-    def stop(self) -> None:
-        """Stop all sprite actions and clear the actions list."""
-        for action in self.actions:
-            action.stop()
-        self.actions = []
-        super().stop()
+        # After second action completes, sprite should be at (100, 100) and no longer busy
+        action_sprite.update(1.0)
+        assert action_sprite.center_x == 100
+        assert action_sprite.center_y == 100
+        assert not action_sprite.is_busy()  # No longer busy

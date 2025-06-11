@@ -2,6 +2,7 @@
 Group actions and sprite groups for managing multiple sprites together.
 """
 
+import copy
 import math
 from collections.abc import Callable
 from typing import Optional
@@ -76,34 +77,44 @@ class GroupAction:
     def __init__(self, group: arcade.SpriteList | list[arcade.Sprite], action: Action):
         self.group = list(group)
         self.template = action
-        self.active = None  # will hold the cloned group-wide action
+        self.actions: list[Action] = []  # Individual actions for each sprite
 
     def start(self):
         """Start the action on the group."""
-        self.active = self.template.__class__(*self.template.__dict__.values())
-        self.active.target = self.group
-        self.active.start()
+        # Create an action instance for each sprite
+        self.actions = []
+        for sprite in self.group:
+            action_copy = copy.deepcopy(self.template)
+            action_copy.target = sprite
+            action_copy.start()
+            self.actions.append(action_copy)
 
     def update(self, delta_time: float):
         """Update the group action."""
-        if self.active and not self.active.done():
-            self.active.update(delta_time)
+        if not self.actions:
+            return
+
+        # Update each sprite's action
+        all_done = True
+        for action in self.actions:
+            if not action.done:
+                action.update(delta_time)
+                all_done = False
 
     def stop(self):
         """Stop the current group action."""
-        if self.active:
-            self.active.stop()
-            self.active = None
+        for action in self.actions:
+            action.stop()
+        self.actions = []
 
     def reset(self):
         """Reset and restart the group action."""
-        if self.active:
-            self.active.stop()
+        self.stop()
         self.start()
 
     def done(self) -> bool:
         """Check if the group action is complete."""
-        return self.active.done() if self.active else True
+        return all(action.done for action in self.actions) if self.actions else True
 
     def replace(self, new_action: Action):
         """Replace the current group action with a new one (auto-started).
@@ -115,8 +126,18 @@ class GroupAction:
         self.template = new_action
         self.start()
 
+    def pause(self):
+        """Pause all actions in the group."""
+        for action in self.actions:
+            action.pause()
+
+    def resume(self):
+        """Resume all actions in the group."""
+        for action in self.actions:
+            action.resume()
+
     def __repr__(self) -> str:
-        return f"GroupAction(action={self.template})"
+        return f"GroupAction(group={len(self.group)} sprites, action={self.template})"
 
 
 class Pattern:

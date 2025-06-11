@@ -34,6 +34,14 @@ class _Move(Action):
         if self._paused:
             return
 
+        # Handle both individual sprites and sprite lists
+        if isinstance(self.target, (arcade.SpriteList, list)):
+            self._move_sprite_list(delta_time)
+        else:
+            self._move_single_sprite(delta_time)
+
+    def _move_single_sprite(self, delta_time: float) -> None:
+        """Update a single sprite's position based on velocity and physics."""
         # Regular sprite - update position based on velocity
         x, y = self.target.position
         dx, dy = self.target.change_x, self.target.change_y
@@ -58,6 +66,18 @@ class _Move(Action):
         # Update rotation if needed
         if hasattr(self.target, "change_angle"):
             self.target.angle += self.target.change_angle * delta_time
+
+    def _move_sprite_list(self, delta_time: float) -> None:
+        """Update all sprites in a sprite list."""
+        for sprite in self.target:
+            # Store current target
+            original_target = self.target
+            # Temporarily set target to individual sprite
+            self.target = sprite
+            # Update the sprite
+            self._move_single_sprite(delta_time)
+            # Restore original target
+            self.target = original_target
 
 
 class WrappedMove(_Move):
@@ -128,7 +148,7 @@ class WrappedMove(_Move):
         if self._paused:
             return
 
-        if isinstance(self.target, arcade.SpriteList):
+        if isinstance(self.target, (arcade.SpriteList, list)):
             self._update_sprite_list()
         else:
             self._update_single_sprite()
@@ -250,7 +270,7 @@ class BoundedMove(_Move):
         if self._paused:
             return
 
-        if isinstance(self.target, arcade.SpriteList):
+        if isinstance(self.target, (arcade.SpriteList, list)):
             self._update_sprite_list()
         else:
             self._update_single_sprite()
@@ -326,7 +346,7 @@ class Driver(Action):
         if self._paused:
             return
 
-        if isinstance(self.target, arcade.SpriteList):
+        if isinstance(self.target, (arcade.SpriteList, list)):
             self._update_sprite_list(delta_time)
         else:
             self._update_single_sprite(delta_time)

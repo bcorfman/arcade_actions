@@ -64,10 +64,8 @@ class MoveTo(IntervalAction):
     def stop(self) -> None:
         """Stop the movement action.
 
-        Ensure we end exactly at the target position.
+        Leave the sprite at its current position without jumping to the end.
         """
-        self.target.center_x = self.end_position[0]
-        self.target.center_y = self.end_position[1]
         super().stop()
 
     def __reversed__(self) -> "MoveTo":
@@ -164,9 +162,8 @@ class RotateTo(IntervalAction):
     def stop(self) -> None:
         """Stop the rotation action.
 
-        Ensure we end exactly at the target angle.
+        Leave the sprite at its current angle without jumping to the end.
         """
-        self.target.angle = self.end_angle
         super().stop()
 
     def __repr__(self) -> str:
@@ -197,9 +194,8 @@ class RotateBy(RotateTo):
     def stop(self) -> None:
         """Stop the rotation action.
 
-        Ensure we end exactly at the target angle.
+        Leave the sprite at its current angle without jumping to the end.
         """
-        self.target.angle = (self.start_angle + self.angle) % 360
         super().stop()
 
     def __reversed__(self) -> "RotateBy":
@@ -248,9 +244,8 @@ class ScaleTo(IntervalAction):
     def stop(self) -> None:
         """Stop the scale action.
 
-        Ensure we end exactly at the target scale.
+        Leave the sprite at its current scale without jumping to the end.
         """
-        self.target.scale = (self.end_scale, self.end_scale)
         super().stop()
 
     def __repr__(self) -> str:
@@ -320,9 +315,8 @@ class FadeOut(IntervalAction):
     def stop(self) -> None:
         """Stop the fade out action.
 
-        Ensure we end completely transparent.
+        Leave the sprite at its current alpha without jumping to the end.
         """
-        self.target.alpha = 0
         super().stop()
 
     def __reversed__(self) -> "FadeIn":
@@ -364,9 +358,8 @@ class FadeIn(IntervalAction):
     def stop(self) -> None:
         """Stop the fade in action.
 
-        Ensure we end completely opaque.
+        Leave the sprite at its current alpha without jumping to the end.
         """
-        self.target.alpha = 255
         super().stop()
 
     def __reversed__(self) -> "FadeOut":
@@ -413,9 +406,8 @@ class FadeTo(IntervalAction):
     def stop(self) -> None:
         """Stop the fade to action.
 
-        Ensure we end exactly at the target alpha.
+        Leave the sprite at its current alpha without jumping to the end.
         """
-        self.target.alpha = self.alpha
         super().stop()
 
     def __repr__(self) -> str:
@@ -540,15 +532,8 @@ class Bezier(IntervalAction):
     def stop(self) -> None:
         """Stop the Bezier movement.
 
-        Ensure we end at the final control point.
+        Leave the sprite at its current position without jumping to the end.
         """
-        final_point = self.control_points[-1]
-        # Calculate final relative movement
-        dx = final_point[0] - self.last_point[0]
-        dy = final_point[1] - self.last_point[1]
-        # Apply final movement
-        self.target.center_x += dx
-        self.target.center_y += dy
         super().stop()
 
     def __repr__(self) -> str:
@@ -742,9 +727,10 @@ class JumpTo(IntervalAction):
         self.last_progress = progress
 
     def stop(self) -> None:
-        """Called when the action ends."""
-        self.target.center_x = self.end_position[0]
-        self.target.center_y = self.end_position[1]
+        """Called when the action ends.
+
+        Leave the sprite at its current position without jumping to the end.
+        """
         super().stop()
 
     def __reversed__(self) -> "JumpTo":
