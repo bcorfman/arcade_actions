@@ -136,8 +136,9 @@ While we prefer using real implementations, there are cases where mocks are nece
        """Test movement with wrapped boundaries."""
        # Mock bounds function
        get_bounds = lambda: (800, 600)
-       action = WrappedMove(get_bounds=get_bounds)
-       sprite.do(action)
+       move_action = MoveBy((200, 0), 1.0)
+       wrap_action = WrappedMove(get_bounds)
+       sprite.do(move_action | wrap_action)
        # Test wrapping behavior
    ```
 
@@ -180,10 +181,11 @@ While we prefer using real implementations, there are cases where mocks are nece
    def test_boundary_conditions(self, sprite):
        """Test behavior at screen boundaries."""
        # Mock bounds function
-       get_bounds = lambda: (800, 600)
-       action = BoundedMove(get_bounds=get_bounds)
-       sprite.position = (800, 600)  # At boundary
-       sprite.do(action)
+       get_bounds = lambda: (0, 0, 800, 600)  # left, bottom, right, top
+       move_action = MoveBy((100, 0), 1.0)
+       bounce_action = BoundedMove(get_bounds)
+       sprite.position = (750, 300)  # Near boundary
+       sprite.do(move_action | bounce_action)
        # Test bouncing behavior
    ```
 

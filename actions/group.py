@@ -28,6 +28,17 @@ class SpriteGroup(arcade.SpriteList):
         if sprites:
             for sprite in sprites:
                 self.append(sprite)
+        self._collision_handlers: list[tuple[arcade.SpriteList | list[arcade.Sprite], Callable]] = []
+
+    def update(self, delta_time: float = 1 / 60):
+        """Update all sprites in the group.
+
+        Args:
+            delta_time: Time elapsed since last frame in seconds
+        """
+        for sprite in self:
+            if hasattr(sprite, "update"):
+                sprite.update(delta_time)
 
     def center(self) -> tuple[float, float]:
         """Get the center point of all sprites in the group."""
@@ -55,6 +66,37 @@ class SpriteGroup(arcade.SpriteList):
         for sprite in self:
             if hasattr(sprite, "clear_actions"):
                 sprite.clear_actions()
+
+    def on_collision_with(
+        self, other_group: arcade.SpriteList | list[arcade.Sprite], callback: Callable
+    ) -> "SpriteGroup":
+        """Register a collision handler between this group and another.
+
+        Args:
+            other_group: The sprite list or group to check collisions against
+            callback: Function to call when collision occurs. Should accept (colliding_sprite, hit_sprites)
+
+        Returns:
+            Self to allow method chaining
+        """
+        self._collision_handlers.append((other_group, callback))
+        return self
+
+    def update_collisions(self):
+        """Check for collisions and trigger callbacks."""
+        for sprite in self:
+            for other_group, callback in self._collision_handlers:
+                # Convert regular lists to SpriteList for arcade compatibility
+                if isinstance(other_group, list) and not isinstance(other_group, arcade.SpriteList):
+                    # Create a temporary SpriteList
+                    temp_sprite_list = arcade.SpriteList()
+                    for s in other_group:
+                        temp_sprite_list.append(s)
+                    hits = arcade.check_for_collision_with_list(sprite, temp_sprite_list)
+                else:
+                    hits = arcade.check_for_collision_with_list(sprite, other_group)
+                if hits:
+                    callback(sprite, hits)
 
     def breakaway(self, breakaway_sprites: list[arcade.Sprite]) -> "SpriteGroup":
         """Remove given sprites and return a new SpriteGroup.
@@ -84,10 +126,57 @@ class GroupAction:
         # Create an action instance for each sprite
         self.actions = []
         for sprite in self.group:
-            action_copy = copy.deepcopy(self.template)
+            # Instead of deepcopy, create a shallow copy and handle special cases
+            action_copy = self._safe_copy_action(self.template)
             action_copy.target = sprite
             action_copy.start()
             self.actions.append(action_copy)
+
+    def _safe_copy_action(self, action: Action) -> Action:
+        """Create a safe copy of an action that avoids deepcopy issues with callbacks.
+
+        This method creates a new instance of the same action type with the same
+        parameters, but avoids deep copying bound methods and other problematic objects.
+        """
+        # For most basic actions, we can create a new instance
+        action_type = type(action)
+
+        # Handle different action types appropriately
+        if hasattr(action, "__dict__"):
+            # Create a new instance and copy safe attributes
+            try:
+                # Try to create a new instance with no args first
+                new_action = action_type()
+
+                # Copy attributes, but skip problematic ones
+                for key, value in action.__dict__.items():
+                    if key.startswith("_") and ("callback" in key.lower() or "bounce" in key.lower()):
+                        # For callback functions, keep the reference (don't deep copy)
+                        setattr(new_action, key, value)
+                    elif not callable(value) and not key.startswith("target"):
+                        # Copy non-callable, non-target attributes
+                        try:
+                            setattr(new_action, key, copy.deepcopy(value))
+                        except (TypeError, ValueError):
+                            # If deepcopy fails, just use reference
+                            setattr(new_action, key, value)
+                    else:
+                        # For other attributes, use reference
+                        setattr(new_action, key, value)
+
+                return new_action
+
+            except (TypeError, ValueError):
+                # If we can't create a new instance, fallback to shallow copy
+                new_action = copy.copy(action)
+                # Reset target to None
+                new_action.target = None
+                return new_action
+        else:
+            # Fallback to shallow copy for actions without __dict__
+            new_action = copy.copy(action)
+            new_action.target = None
+            return new_action
 
     def update(self, delta_time: float):
         """Update the group action."""

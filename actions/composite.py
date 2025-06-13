@@ -7,6 +7,39 @@ import copy
 from .base import Action, IntervalAction
 
 
+def _safe_copy_action(action: Action) -> Action:
+    """Create a safe copy of an action that avoids deepcopy issues with callbacks."""
+    # Import here to avoid circular imports
+    from .move import BoundedMove, WrappedMove
+
+    # Handle specific action types that might have callback issues
+    if isinstance(action, BoundedMove):
+        # Create a new BoundedMove with the same parameters but preserve callbacks by reference
+        new_action = BoundedMove(
+            action.get_bounds,
+            bounce_horizontal=action.bounce_horizontal,
+            bounce_vertical=action.bounce_vertical,
+            on_bounce=action._on_bounce,  # Preserve callback by reference
+        )
+        return new_action
+    elif isinstance(action, WrappedMove):
+        # Create a new WrappedMove with the same parameters but preserve callbacks by reference
+        new_action = WrappedMove(
+            action.get_bounds,
+            wrap_horizontal=action.wrap_horizontal,
+            wrap_vertical=action.wrap_vertical,
+            on_wrap=action._on_wrap,  # Preserve callback by reference
+        )
+        return new_action
+    else:
+        # For other actions, try shallow copy first, fall back to creating new instance
+        try:
+            return copy.copy(action)
+        except Exception:
+            # If copy fails, create a new instance with same parameters
+            return type(action)(**action.__dict__)
+
+
 def sequence(action_1: Action, action_2: Action) -> "Sequence":
     """Returns an action that runs first action_1 and then action_2.
 
@@ -27,7 +60,7 @@ def spawn(action_1: Action, action_2: Action) -> "Spawn":
     """Returns an action that runs action_1 and action_2 in parallel.
 
     The returned action will be a Spawn that performs both actions simultaneously.
-    Both actions are deepcopied to ensure independence.
+    Both actions are safely copied to ensure independence.
 
     Args:
         action_1: The first action to execute in parallel
@@ -36,7 +69,7 @@ def spawn(action_1: Action, action_2: Action) -> "Spawn":
     Returns:
         A new Spawn action that runs both actions simultaneously
     """
-    return Spawn(copy.deepcopy(action_1), copy.deepcopy(action_2))
+    return Spawn(_safe_copy_action(action_1), _safe_copy_action(action_2))
 
 
 def loop(action: Action, times: int) -> "Loop":

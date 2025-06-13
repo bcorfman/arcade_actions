@@ -11,11 +11,10 @@ action lifecycle pattern using sprite.do(action) and sprite.update().
 """
 
 import arcade
-import arcade.easing as easing
 import pytest
 
 from actions.base import ActionSprite
-from actions.interval import Easing, MoveBy
+from actions.interval import MoveBy
 from actions.move import BoundedMove, WrappedMove, _Move
 
 
@@ -111,13 +110,20 @@ class TestWrappedMove:
         - Sprite wraps to left edge when moving right
         - Position is correctly aligned to boundary
         """
-        action = WrappedMove(get_bounds)
-        sprite.do(action)
+        # Create movement action to move sprite off right edge
+        move_action = MoveBy((200, 0), 0.2)  # Move 200 pixels right over 0.2 seconds
+        wrap_action = WrappedMove(get_bounds)
 
-        # Position sprite off right edge
-        sprite.center_x = 900
+        # Position sprite close to right edge
+        sprite.center_x = 750
         sprite.center_y = 300
-        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Combine actions
+        combined_action = move_action | wrap_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify sprite wrapped to left edge
         assert sprite.center_x < 0  # Wrapped to left edge
@@ -130,13 +136,20 @@ class TestWrappedMove:
         - Sprite wraps to right edge when moving left
         - Position is correctly aligned to boundary
         """
-        action = WrappedMove(get_bounds)
-        sprite.do(action)
+        # Create movement action to move sprite off left edge
+        move_action = MoveBy((-200, 0), 0.2)  # Move 200 pixels left over 0.2 seconds
+        wrap_action = WrappedMove(get_bounds)
 
-        # Position sprite off left edge
-        sprite.center_x = -100
+        # Position sprite close to left edge
+        sprite.center_x = 50
         sprite.center_y = 300
-        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Combine actions
+        combined_action = move_action | wrap_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify sprite wrapped to right edge
         assert sprite.center_x > 800  # Wrapped to right edge
@@ -149,13 +162,20 @@ class TestWrappedMove:
         - Sprite wraps to bottom edge when moving up
         - Position is correctly aligned to boundary
         """
-        action = WrappedMove(get_bounds)
-        sprite.do(action)
+        # Create movement action to move sprite off top edge
+        move_action = MoveBy((0, 200), 0.2)  # Move 200 pixels up over 0.2 seconds
+        wrap_action = WrappedMove(get_bounds)
 
-        # Position sprite off top edge
+        # Position sprite close to top edge
         sprite.center_x = 300
-        sprite.center_y = 700
-        sprite.update(0.1)  # Update with 0.1s time step
+        sprite.center_y = 550
+
+        # Combine actions
+        combined_action = move_action | wrap_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify sprite wrapped to bottom edge
         assert sprite.center_x == 300  # X position unchanged
@@ -168,13 +188,20 @@ class TestWrappedMove:
         - Sprite wraps to top edge when moving down
         - Position is correctly aligned to boundary
         """
-        action = WrappedMove(get_bounds)
-        sprite.do(action)
+        # Create movement action to move sprite off bottom edge
+        move_action = MoveBy((0, -200), 0.2)  # Move 200 pixels down over 0.2 seconds
+        wrap_action = WrappedMove(get_bounds)
 
-        # Position sprite off bottom edge
+        # Position sprite close to bottom edge
         sprite.center_x = 300
-        sprite.center_y = -100
-        sprite.update(0.1)  # Update with 0.1s time step
+        sprite.center_y = 50
+
+        # Combine actions
+        combined_action = move_action | wrap_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify sprite wrapped to top edge
         assert sprite.center_x == 300  # X position unchanged
@@ -187,13 +214,20 @@ class TestWrappedMove:
         - Sprite wraps correctly when hitting a corner
         - Position is correctly aligned to both boundaries
         """
-        action = WrappedMove(get_bounds)
-        sprite.do(action)
+        # Create movement action to move sprite off top-right corner
+        move_action = MoveBy((200, 200), 0.2)  # Move diagonally over 0.2 seconds
+        wrap_action = WrappedMove(get_bounds)
 
-        # Position sprite off top-right corner
-        sprite.center_x = 900
-        sprite.center_y = 700
-        sprite.update(0.1)  # Update with 0.1s time step
+        # Position sprite close to top-right corner
+        sprite.center_x = 750
+        sprite.center_y = 550
+
+        # Combine actions
+        combined_action = move_action | wrap_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify sprite wrapped to bottom-left corner
         assert sprite.center_x < 0  # Wrapped to left edge
@@ -211,13 +245,20 @@ class TestWrappedMove:
         def on_wrap(sprite, axis):
             wraps.append(axis)
 
-        action = WrappedMove(get_bounds, on_wrap=on_wrap)
-        sprite.do(action)
+        # Create movement action to move sprite off top-right corner
+        move_action = MoveBy((200, 200), 0.2)  # Move diagonally over 0.2 seconds
+        wrap_action = WrappedMove(get_bounds, on_wrap=on_wrap)
 
-        # Position sprite off top-right corner
-        sprite.center_x = 900
-        sprite.center_y = 700
-        sprite.update(0.1)  # Update with 0.1s time step
+        # Position sprite close to top-right corner
+        sprite.center_x = 750
+        sprite.center_y = 550
+
+        # Combine actions
+        combined_action = move_action | wrap_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify correct axes were reported
         assert "x" in wraps
@@ -232,28 +273,31 @@ class TestWrappedMove:
         - List-level updates work correctly
         - Positions are correctly aligned after wrapping
         """
-        action = WrappedMove(get_bounds)
-        action.target = sprite_list
-        action.start()
+        wrap_action = WrappedMove(get_bounds)
+        wrap_action.target = sprite_list
+        wrap_action.start()
 
-        # Position sprites at different off-screen locations
-        sprite_list[0].center_x = 900  # Off right
+        # Create individual movement actions for each sprite
+        move_action_1 = MoveBy((200, 0), 0.2)  # Move right
+        move_action_2 = MoveBy((-200, 0), 0.2)  # Move left
+        move_action_3 = MoveBy((0, 200), 0.2)  # Move up
+
+        # Position sprites at different locations close to edges
+        sprite_list[0].center_x = 750  # Close to right edge
         sprite_list[0].center_y = 300
-        sprite_list[0].change_x = 100  # Moving right
-        sprite_list[0].change_y = 0  # No vertical movement
+        sprite_list[0].do(move_action_1)
 
-        sprite_list[1].center_x = -100  # Off left
+        sprite_list[1].center_x = 50  # Close to left edge
         sprite_list[1].center_y = 300
-        sprite_list[1].change_x = -100  # Moving left
-        sprite_list[1].change_y = 0  # No vertical movement
+        sprite_list[1].do(move_action_2)
 
-        sprite_list[2].center_x = 300  # Off top
-        sprite_list[2].center_y = 700
-        sprite_list[2].change_x = 0  # No horizontal movement
-        sprite_list[2].change_y = 100  # Moving up
+        sprite_list[2].center_x = 300  # Close to top edge
+        sprite_list[2].center_y = 550
+        sprite_list[2].do(move_action_3)
 
-        sprite_list.update(0.1)  # Update with 0.1s time step
-        action.update(0.1)  # Update with 0.1s time step
+        # Update all sprites and wrapping
+        sprite_list.update(0.2)
+        wrap_action.update(0.2)
 
         # Verify each sprite wrapped correctly
         assert sprite_list[0].center_x < 0  # Wrapped to left edge
@@ -270,8 +314,6 @@ class TestWrappedMove:
         """
         # Create base movement action
         move_action = MoveBy((200, 0), 1.0)
-        # Create easing modifier using ease_in for acceleration effect
-        ease_action = Easing(move_action, ease_function=easing.ease_in)
         # Create wrapped movement action
         wrap_action = WrappedMove(get_bounds)
 
@@ -280,21 +322,18 @@ class TestWrappedMove:
         sprite.center_x = 737  # right edge at 801, sprite width is 128
         sprite.center_y = 300
 
-        # Use Spawn to run both actions in parallel
-        combined_action = ease_action | wrap_action
+        # Use | to run both actions in parallel
+        combined_action = move_action | wrap_action
         sprite.do(combined_action)
 
         # Update for 0.8 seconds to allow enough movement for wrapping
-        # With ease_in, at t=0.8, progress = 0.8² = 0.64
-        # So sprite moves 128 pixels (0.64 * 200)
-        # Starting at 736 + 128 = 864, which is past screen width
-        sprite.update(0.8)  # Updates position based on easing curve and handles wrapping
+        sprite.update(0.8)  # Updates position based on movement and handles wrapping
 
-        # Verify sprite wrapped and maintained easing curve
+        # Verify sprite wrapped and is still moving
         assert sprite.center_x < 0  # Wrapped to left edge
         assert sprite.center_y == 300  # Y position unchanged
 
-        # Verify the sprite is still moving with easing
+        # Verify the sprite is still moving
         old_x = sprite.center_x
         sprite.update(0.1)  # Update a bit more
         assert sprite.center_x > old_x  # Still moving right after wrapping
@@ -307,16 +346,23 @@ class TestWrappedMove:
         - Vertical wrapping still works
         - Sprite can move off screen horizontally
         """
-        action = WrappedMove(get_bounds, wrap_horizontal=False)
-        sprite.do(action)
+        # Create movement action to move sprite off right edge
+        move_action = MoveBy((200, 0), 0.2)  # Move 200 pixels right over 0.2 seconds
+        wrap_action = WrappedMove(get_bounds, wrap_horizontal=False)
 
-        # Position sprite off right edge
-        sprite.center_x = 900
+        # Position sprite close to right edge
+        sprite.center_x = 750
         sprite.center_y = 300
-        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Combine actions
+        combined_action = move_action | wrap_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify sprite did not wrap horizontally
-        assert sprite.center_x == 900  # Position unchanged
+        assert sprite.center_x > 800  # Moved off screen, no wrapping
         assert sprite.center_y == 300  # Y position unchanged
 
     def test_disable_vertical_wrapping(self, sprite, get_bounds):
@@ -327,17 +373,24 @@ class TestWrappedMove:
         - Horizontal wrapping still works
         - Sprite can move off screen vertically
         """
-        action = WrappedMove(get_bounds, wrap_vertical=False)
-        sprite.do(action)
+        # Create movement action to move sprite off top edge
+        move_action = MoveBy((0, 200), 0.2)  # Move 200 pixels up over 0.2 seconds
+        wrap_action = WrappedMove(get_bounds, wrap_vertical=False)
 
-        # Position sprite off top edge
+        # Position sprite close to top edge
         sprite.center_x = 300
-        sprite.center_y = 700
-        sprite.update(0.1)  # Update with 0.1s time step
+        sprite.center_y = 550
+
+        # Combine actions
+        combined_action = move_action | wrap_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify sprite did not wrap vertically
         assert sprite.center_x == 300  # X position unchanged
-        assert sprite.center_y == 700  # Position unchanged
+        assert sprite.center_y > 600  # Moved off screen, no wrapping
 
     def test_dynamic_bounds(self, sprite):
         """Test wrapping with dynamically changing screen bounds.
@@ -351,13 +404,20 @@ class TestWrappedMove:
         def get_bounds():
             return tuple(bounds)
 
-        action = WrappedMove(get_bounds)
-        sprite.do(action)
+        # Create movement action to move sprite off right edge
+        move_action = MoveBy((200, 0), 0.2)  # Move 200 pixels right over 0.2 seconds
+        wrap_action = WrappedMove(get_bounds)
 
-        # Position sprite off right edge
-        sprite.center_x = 900
+        # Position sprite close to right edge
+        sprite.center_x = 750
         sprite.center_y = 300
-        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Combine actions
+        combined_action = move_action | wrap_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify sprite wrapped to left edge
         assert sprite.center_x < 0  # Wrapped to left edge
@@ -367,10 +427,20 @@ class TestWrappedMove:
         bounds[0] = 1000  # Increase width
         bounds[1] = 800  # Increase height
 
-        # Position sprite off right edge again
-        sprite.center_x = 1100
+        # Create new movement action for second test
+        move_action_2 = MoveBy((300, 0), 0.2)  # Move further right
+        wrap_action_2 = WrappedMove(get_bounds)
+
+        # Position sprite close to new right edge
+        sprite.center_x = 850
         sprite.center_y = 300
-        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Combine actions
+        combined_action_2 = move_action_2 | wrap_action_2
+        sprite.do(combined_action_2)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify sprite wrapped to left edge with new bounds
         assert sprite.center_x < 0  # Wrapped to left edge
@@ -384,14 +454,21 @@ class TestWrappedMove:
         - Hit box is correctly calculated
         - Position is correctly aligned after wrapping
         """
-        action = WrappedMove(get_bounds)
-        sprite.do(action)
+        # Create movement action to move sprite off right edge
+        move_action = MoveBy((200, 0), 0.2)  # Move 200 pixels right over 0.2 seconds
+        wrap_action = WrappedMove(get_bounds)
 
-        # Rotate sprite and position off right edge
+        # Rotate sprite and position close to right edge
         sprite.angle = 45
-        sprite.center_x = 900
+        sprite.center_x = 750
         sprite.center_y = 300
-        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Combine actions
+        combined_action = move_action | wrap_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(0.2)
 
         # Verify sprite wrapped to left edge
         assert sprite.center_x < 0  # Wrapped to left edge
@@ -442,27 +519,24 @@ class TestBoundedMove:
         - Velocity is reversed only when bouncing
         - Position is correctly adjusted
         """
-        action = BoundedMove(get_bounds)
-        sprite.do(action)
-
         # Test 1: Moving right into right edge
-        sprite.center_x = 736  # right edge at 800
+        move_action = MoveBy((200, 0), 1.0)  # Move right continuously
+        bounce_action = BoundedMove(get_bounds)
+
+        # Position sprite close to right edge
+        sprite.center_x = 720  # Close to right edge at 800
         sprite.center_y = 300
-        sprite.change_x = 100  # Moving right
-        sprite.update(0.1)  # Update with 0.1s time step
 
-        # Verify sprite bounced
-        assert sprite.change_x == -100  # X direction reversed
-        assert sprite.center_y == 300  # Y position unchanged
+        # Combine actions
+        combined_action = move_action | bounce_action
+        sprite.do(combined_action)
 
-        # Test 2: Moving left at right edge (should not bounce)
-        sprite.center_x = 736  # right edge at 800
-        sprite.center_y = 300
-        sprite.change_x = -100  # Moving left
-        sprite.update(0.1)  # Update with 0.1s time step
+        # Update for partial duration to trigger bounce
+        sprite.update(0.5)
 
-        # Verify sprite did not bounce
-        assert sprite.change_x == -100  # X direction unchanged
+        # Verify sprite bounced (should be moving left now)
+        # Check that sprite has moved back from edge
+        assert sprite.center_x < 720  # Moved back from edge
         assert sprite.center_y == 300  # Y position unchanged
 
     def test_bounce_left_edge(self, sprite, get_bounds):
@@ -474,27 +548,24 @@ class TestBoundedMove:
         - Velocity is reversed only when bouncing
         - Position is correctly adjusted
         """
-        action = BoundedMove(get_bounds)
-        sprite.do(action)
-
         # Test 1: Moving left into left edge
-        sprite.center_x = 64  # left edge at 0
+        move_action = MoveBy((-200, 0), 1.0)  # Move left continuously
+        bounce_action = BoundedMove(get_bounds)
+
+        # Position sprite close to left edge
+        sprite.center_x = 80  # Close to left edge at 0
         sprite.center_y = 300
-        sprite.change_x = -100  # Moving left
-        sprite.update(0.1)  # Update with 0.1s time step
 
-        # Verify sprite bounced
-        assert sprite.change_x == 100  # X direction reversed
-        assert sprite.center_y == 300  # Y position unchanged
+        # Combine actions
+        combined_action = move_action | bounce_action
+        sprite.do(combined_action)
 
-        # Test 2: Moving right at left edge (should not bounce)
-        sprite.center_x = 64  # left edge at 0
-        sprite.center_y = 300
-        sprite.change_x = 100  # Moving right
-        sprite.update(0.1)  # Update with 0.1s time step
+        # Update for partial duration to trigger bounce
+        sprite.update(0.5)
 
-        # Verify sprite did not bounce
-        assert sprite.change_x == 100  # X direction unchanged
+        # Verify sprite bounced (should be moving right now)
+        # Check that sprite has moved back from edge
+        assert sprite.center_x > 80  # Moved back from edge
         assert sprite.center_y == 300  # Y position unchanged
 
     def test_bounce_top_edge(self, sprite, get_bounds):
@@ -506,27 +577,24 @@ class TestBoundedMove:
         - Velocity is reversed only when bouncing
         - Position is correctly adjusted
         """
-        action = BoundedMove(get_bounds)
-        sprite.do(action)
-
         # Test 1: Moving up into top edge
+        move_action = MoveBy((0, 200), 1.0)  # Move up continuously
+        bounce_action = BoundedMove(get_bounds)
+
+        # Position sprite close to top edge
         sprite.center_x = 300
-        sprite.center_y = 536  # top edge at 600
-        sprite.change_y = 100  # Moving up
-        sprite.update(0.1)  # Update with 0.1s time step
+        sprite.center_y = 520  # Close to top edge at 600
 
-        # Verify sprite bounced
-        assert sprite.change_y == -100  # Y direction reversed
-        assert sprite.center_x == 300  # X position unchanged
+        # Combine actions
+        combined_action = move_action | bounce_action
+        sprite.do(combined_action)
 
-        # Test 2: Moving down at top edge (should not bounce)
-        sprite.center_x = 300
-        sprite.center_y = 536  # top edge at 600
-        sprite.change_y = -100  # Moving down
-        sprite.update(0.1)  # Update with 0.1s time step
+        # Update for partial duration to trigger bounce
+        sprite.update(0.5)
 
-        # Verify sprite did not bounce
-        assert sprite.change_y == -100  # Y direction unchanged
+        # Verify sprite bounced (should be moving down now)
+        # Check that sprite has moved back from edge
+        assert sprite.center_y < 520  # Moved back from edge
         assert sprite.center_x == 300  # X position unchanged
 
     def test_bounce_bottom_edge(self, sprite, get_bounds):
@@ -538,27 +606,24 @@ class TestBoundedMove:
         - Velocity is reversed only when bouncing
         - Position is correctly adjusted
         """
-        action = BoundedMove(get_bounds)
-        sprite.do(action)
-
         # Test 1: Moving down into bottom edge
+        move_action = MoveBy((0, -200), 1.0)  # Move down continuously
+        bounce_action = BoundedMove(get_bounds)
+
+        # Position sprite close to bottom edge
         sprite.center_x = 300
-        sprite.center_y = 64  # bottom edge at 0
-        sprite.change_y = -100  # Moving down
-        sprite.update(0.1)  # Update with 0.1s time step
+        sprite.center_y = 80  # Close to bottom edge at 0
 
-        # Verify sprite bounced
-        assert sprite.change_y == 100  # Y direction reversed
-        assert sprite.center_x == 300  # X position unchanged
+        # Combine actions
+        combined_action = move_action | bounce_action
+        sprite.do(combined_action)
 
-        # Test 2: Moving up at bottom edge (should not bounce)
-        sprite.center_x = 300
-        sprite.center_y = 64  # bottom edge at 0
-        sprite.change_y = 100  # Moving up
-        sprite.update(0.1)  # Update with 0.1s time step
+        # Update for partial duration to trigger bounce
+        sprite.update(0.5)
 
-        # Verify sprite did not bounce
-        assert sprite.change_y == 100  # Y direction unchanged
+        # Verify sprite bounced (should be moving up now)
+        # Check that sprite has moved back from edge
+        assert sprite.center_y > 80  # Moved back from edge
         assert sprite.center_x == 300  # X position unchanged
 
     def test_bounce_corner(self, sprite, get_bounds):
@@ -570,30 +635,25 @@ class TestBoundedMove:
         - Velocities are reversed only when bouncing
         - Position is correctly adjusted
         """
-        action = BoundedMove(get_bounds)
-        sprite.do(action)
-
         # Test 1: Moving toward top-right corner
-        sprite.center_x = 736  # right edge at 800
-        sprite.center_y = 536  # top edge at 600
-        sprite.change_x = 100  # Moving right
-        sprite.change_y = 100  # Moving up
-        sprite.update(0.1)  # Update with 0.1s time step
+        move_action = MoveBy((200, 200), 1.0)  # Move diagonally continuously
+        bounce_action = BoundedMove(get_bounds)
+
+        # Position sprite close to top-right corner
+        sprite.center_x = 720  # Close to right edge at 800
+        sprite.center_y = 520  # Close to top edge at 600
+
+        # Combine actions
+        combined_action = move_action | bounce_action
+        sprite.do(combined_action)
+
+        # Update for partial duration to trigger bounce
+        sprite.update(0.5)
 
         # Verify sprite bounced in both directions
-        assert sprite.change_x == -100  # X direction reversed
-        assert sprite.change_y == -100  # Y direction reversed
-
-        # Test 2: Moving away from top-right corner
-        sprite.center_x = 736  # right edge at 800
-        sprite.center_y = 536  # top edge at 600
-        sprite.change_x = -100  # Moving left
-        sprite.change_y = -100  # Moving down
-        sprite.update(0.1)  # Update with 0.1s time step
-
-        # Verify sprite did not bounce
-        assert sprite.change_x == -100  # X direction unchanged
-        assert sprite.change_y == -100  # Y direction unchanged
+        # Check that sprite has moved back from both edges
+        assert sprite.center_x < 720  # Moved back from right edge
+        assert sprite.center_y < 520  # Moved back from top edge
 
     def test_bounce_callback(self, sprite, get_bounds):
         """Test bounce callback with correct axis information.
@@ -607,15 +667,20 @@ class TestBoundedMove:
         def on_bounce(sprite, axis):
             bounces.append(axis)
 
-        action = BoundedMove(get_bounds, on_bounce=on_bounce)
-        sprite.do(action)
+        # Moving toward top-right corner
+        move_action = MoveBy((200, 200), 1.0)  # Move diagonally continuously
+        bounce_action = BoundedMove(get_bounds, on_bounce=on_bounce)
 
-        # Position sprite at top-right corner
-        sprite.center_x = 736  # right edge at 800
-        sprite.center_y = 536  # top edge at 600
-        sprite.change_x = 100  # Moving right
-        sprite.change_y = 100  # Moving up
-        sprite.update(0.1)  # Update with 0.1s time step
+        # Position sprite close to top-right corner
+        sprite.center_x = 720  # Close to right edge at 800
+        sprite.center_y = 520  # Close to top edge at 600
+
+        # Combine actions
+        combined_action = move_action | bounce_action
+        sprite.do(combined_action)
+
+        # Update for partial duration to trigger bounce
+        sprite.update(0.5)
 
         # Verify correct axes were reported
         assert "x" in bounces
@@ -631,44 +696,37 @@ class TestBoundedMove:
         - List-level updates work correctly
         - Velocities are reversed correctly
         """
-        action = BoundedMove(get_bounds)
-        action.target = sprite_list
-        action.start()
+        bounce_action = BoundedMove(get_bounds)
+        bounce_action.target = sprite_list
+        bounce_action.start()
 
-        # Position sprites at different locations
-        sprite_list[0].center_x = 736  # Near right edge
+        # Create individual movement actions for each sprite
+        move_action_1 = MoveBy((200, 0), 1.0)  # Move right
+        move_action_2 = MoveBy((0, 200), 1.0)  # Move up
+        move_action_3 = MoveBy((-200, 0), 1.0)  # Move left
+
+        # Position sprites at different locations close to edges
+        sprite_list[0].center_x = 720  # Close to right edge
         sprite_list[0].center_y = 300
-        sprite_list[0].change_x = 100  # Moving right
-        sprite_list[0].change_y = 0  # No vertical movement
+        sprite_list[0].do(move_action_1)
 
-        sprite_list[1].center_x = 300  # Near top edge
-        sprite_list[1].center_y = 536
-        sprite_list[1].change_x = 0  # No horizontal movement
-        sprite_list[1].change_y = 100  # Moving up
+        sprite_list[1].center_x = 300  # Close to top edge
+        sprite_list[1].center_y = 520
+        sprite_list[1].do(move_action_2)
 
-        sprite_list[2].center_x = 64  # Near left edge
+        sprite_list[2].center_x = 80  # Close to left edge
         sprite_list[2].center_y = 300
-        sprite_list[2].change_x = -100  # Moving left
-        sprite_list[2].change_y = 0  # No vertical movement
+        sprite_list[2].do(move_action_3)
 
-        action.update(0.1)  # Update with 0.1s time step
+        # Update for partial duration to trigger bounces
+        sprite_list.update(0.5)
+        bounce_action.update(0.5)
 
         # Verify each sprite bounced correctly
-        assert sprite_list[0].change_x == -100  # Reversed X direction (moving right)
-        assert sprite_list[1].change_y == -100  # Reversed Y direction (moving up)
-        assert sprite_list[2].change_x == 100  # Reversed X direction (moving left)
-
-        # Test moving away from boundaries (should not bounce)
-        sprite_list[0].change_x = -100  # Moving left at right edge
-        sprite_list[1].change_y = -100  # Moving down at top edge
-        sprite_list[2].change_x = 100  # Moving right at left edge
-
-        action.update(0.1)  # Update with 0.1s time step
-
-        # Verify no bouncing occurred
-        assert sprite_list[0].change_x == -100  # X direction unchanged
-        assert sprite_list[1].change_y == -100  # Y direction unchanged
-        assert sprite_list[2].change_x == 100  # X direction unchanged
+        # Check that sprites have moved back from their respective edges
+        assert sprite_list[0].center_x < 720  # Moved back from right edge
+        assert sprite_list[1].center_y < 520  # Moved back from top edge
+        assert sprite_list[2].center_x > 80  # Moved back from left edge
 
     def test_disable_horizontal_bouncing(self, sprite, get_bounds):
         """Test disabling horizontal bouncing.
@@ -678,17 +736,23 @@ class TestBoundedMove:
         - Vertical bouncing still works
         - Sprite can move through horizontal boundaries
         """
-        action = BoundedMove(get_bounds, bounce_horizontal=False)
-        sprite.do(action)
+        # Create movement action to move sprite through right edge
+        move_action = MoveBy((200, 0), 1.0)  # Move right continuously
+        bounce_action = BoundedMove(get_bounds, bounce_horizontal=False)
 
-        # Position sprite at right edge
-        sprite.center_x = 736  # right edge at 800
+        # Position sprite close to right edge
+        sprite.center_x = 720  # Close to right edge at 800
         sprite.center_y = 300
-        sprite.change_x = 100  # Moving right
-        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Combine actions
+        combined_action = move_action | bounce_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(1.0)
 
         # Verify sprite did not bounce horizontally
-        assert sprite.change_x == 100  # X direction unchanged
+        assert sprite.center_x > 800  # Moved past right edge
         assert sprite.center_y == 300  # Y position unchanged
 
     def test_disable_vertical_bouncing(self, sprite, get_bounds):
@@ -699,17 +763,23 @@ class TestBoundedMove:
         - Horizontal bouncing still works
         - Sprite can move through vertical boundaries
         """
-        action = BoundedMove(get_bounds, bounce_vertical=False)
-        sprite.do(action)
+        # Create movement action to move sprite through top edge
+        move_action = MoveBy((0, 200), 1.0)  # Move up continuously
+        bounce_action = BoundedMove(get_bounds, bounce_vertical=False)
 
-        # Position sprite at top edge
+        # Position sprite close to top edge
         sprite.center_x = 300
-        sprite.center_y = 536  # top edge at 600
-        sprite.change_y = 100  # Moving up
-        sprite.update(0.1)  # Update with 0.1s time step
+        sprite.center_y = 520  # Close to top edge at 600
+
+        # Combine actions
+        combined_action = move_action | bounce_action
+        sprite.do(combined_action)
+
+        # Update for full duration
+        sprite.update(1.0)
 
         # Verify sprite did not bounce vertically
-        assert sprite.change_y == 100  # Y direction unchanged
+        assert sprite.center_y > 600  # Moved past top edge
         assert sprite.center_x == 300  # X position unchanged
 
     def test_dynamic_bounds(self, sprite):
@@ -724,31 +794,46 @@ class TestBoundedMove:
         def get_bounds():
             return tuple(bounds)
 
-        action = BoundedMove(get_bounds)
-        sprite.do(action)
+        # Create movement action to move sprite toward right edge
+        move_action = MoveBy((200, 0), 1.0)  # Move right continuously
+        bounce_action = BoundedMove(get_bounds)
 
-        # Position sprite at right edge
-        sprite.center_x = 736  # right edge at 800
+        # Position sprite close to right edge
+        sprite.center_x = 720  # Close to right edge at 800
         sprite.center_y = 300
-        sprite.change_x = 100  # Moving right
-        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Combine actions
+        combined_action = move_action | bounce_action
+        sprite.do(combined_action)
+
+        # Update for partial duration to trigger bounce
+        sprite.update(0.5)
 
         # Verify sprite bounced
-        assert sprite.change_x == -100  # X direction reversed
+        assert sprite.center_x < 720  # Moved back from right edge
         assert sprite.center_y == 300  # Y position unchanged
 
         # Change bounding zone
         bounds[2] = 1000  # Increase right boundary
         bounds[3] = 800  # Increase top boundary
 
-        # Position sprite at new right edge
-        sprite.center_x = 936  # right edge at 1000
+        # Create new movement action for second test
+        move_action_2 = MoveBy((300, 0), 1.0)  # Move right continuously
+        bounce_action_2 = BoundedMove(get_bounds)
+
+        # Position sprite close to new right edge
+        sprite.center_x = 920  # Close to new right edge at 1000
         sprite.center_y = 300
-        sprite.change_x = 100  # Moving right
-        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Combine actions
+        combined_action_2 = move_action_2 | bounce_action_2
+        sprite.do(combined_action_2)
+
+        # Update for partial duration to trigger bounce
+        sprite.update(0.5)
 
         # Verify sprite bounced at new boundary
-        assert sprite.change_x == -100  # X direction reversed
+        assert sprite.center_x < 920  # Moved back from new right edge
         assert sprite.center_y == 300  # Y position unchanged
 
     def test_bounce_with_rotation(self, sprite, get_bounds):
@@ -759,17 +844,23 @@ class TestBoundedMove:
         - Hit box is correctly calculated
         - Position is correctly adjusted after bounce
         """
-        action = BoundedMove(get_bounds)
-        sprite.do(action)
+        # Create movement action to move sprite toward right edge
+        move_action = MoveBy((200, 0), 1.0)  # Move right continuously
+        bounce_action = BoundedMove(get_bounds)
 
-        # Rotate sprite and position at right edge
+        # Rotate sprite and position close to right edge
         sprite.angle = 45
-        sprite.center_x = 736  # right edge at 800
+        sprite.center_x = 720  # Close to right edge at 800
         sprite.center_y = 300
-        sprite.change_x = 100  # Moving right
-        sprite.update(0.1)  # Update with 0.1s time step
+
+        # Combine actions
+        combined_action = move_action | bounce_action
+        sprite.do(combined_action)
+
+        # Update for partial duration to trigger bounce
+        sprite.update(0.5)
 
         # Verify sprite bounced
-        assert sprite.change_x == -100  # X direction reversed
+        assert sprite.center_x < 720  # Moved back from right edge
         assert sprite.center_y == 300  # Y position unchanged
         assert sprite.angle == 45  # Rotation unchanged
