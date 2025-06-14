@@ -159,18 +159,30 @@ class InvadersView(arcade.View):
                 return
 
             # BoundedMove now automatically handles edge detection, so any callback means an edge sprite bounced
+            # Clear all current actions first to prevent accumulation
+            self.enemies.clear_actions()
+
             # Move ALL enemies down using GroupAction (Space Invaders grid behavior)
             move_down_action = MoveBy((0, -ENEMY_MOVE_DOWN_AMOUNT), 0.1)  # Quick downward movement
-            self.enemies.do(move_down_action)
 
             # Reverse direction and update textures for ALL enemies
             self.enemy_move_direction *= -1
             for enemy in self.enemies:
                 enemy.texture = self.texture_enemy_left if self.enemy_move_direction > 0 else self.texture_enemy_right
 
-            # Clear horizontal movement actions and start new movement after downward movement completes
-            # Note: We don't clear the move_down_action since it's already started
-            self._start_enemy_grid_movement()
+            # Chain the actions: move down THEN start horizontal movement
+            # Use a sequence to ensure move down completes before horizontal movement starts
+            from actions.composite import Sequence
+
+            # Calculate horizontal movement parameters
+            move_distance = abs(RIGHT_ENEMY_BORDER - LEFT_ENEMY_BORDER)
+            move_duration = move_distance / self.enemy_move_speed
+            dx = move_distance * self.enemy_move_direction
+            horizontal_move_action = MoveBy((dx, 0), move_duration)
+
+            # Create sequence: move down, then move horizontally
+            sequence_action = Sequence(move_down_action, horizontal_move_action)
+            self.enemies.do(sequence_action)
 
         # Create BoundedMove action for the entire enemy group
         self.boundary_action = BoundedMove(

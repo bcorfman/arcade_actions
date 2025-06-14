@@ -490,14 +490,24 @@ class BoundedMove(Action):
             action: The action to reverse
             axis: 'x' for horizontal, 'y' for vertical
         """
+        # Handle Sequence actions (created by + operator)
+        if hasattr(action, "actions") and hasattr(action, "current_action"):
+            # For Sequence, only reverse the currently active action
+            if action.current_action:
+                self._reverse_action_movement(action.current_action, axis)
+            # Also reverse any remaining actions in the sequence
+            for child_action in action.actions[action.current_index :]:
+                self._reverse_action_movement(child_action, axis)
+            return
+
         # Handle Spawn actions (created by | operator)
-        if hasattr(action, "actions"):
+        elif hasattr(action, "actions"):
             for child_action in action.actions:
                 self._reverse_action_movement(child_action, axis)
             return
 
         # Handle MoveBy actions
-        if hasattr(action, "delta") and hasattr(action, "total_change"):
+        if hasattr(action, "delta") and hasattr(action, "total_change") and action.total_change is not None:
             if axis == "x":
                 # Reverse horizontal movement
                 action.delta = (-action.delta[0], action.delta[1])
@@ -508,7 +518,7 @@ class BoundedMove(Action):
                 action.total_change = (action.total_change[0], -action.total_change[1])
 
         # Handle MoveTo actions by reversing their target
-        elif hasattr(action, "end_position") and hasattr(action, "total_change"):
+        elif hasattr(action, "end_position") and hasattr(action, "total_change") and action.total_change is not None:
             if axis == "x":
                 # Calculate new end position for horizontal reversal
                 current_x = action.target.center_x

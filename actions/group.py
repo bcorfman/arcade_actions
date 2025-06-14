@@ -154,47 +154,88 @@ class GroupAction:
         """Create a safe copy of an action that avoids deepcopy issues with callbacks.
 
         This method creates a new instance of the same action type with the same
-        parameters, but avoids deep copying bound methods and other problematic objects.
+        parameters, but handles composite actions like Sequence properly.
         """
-        # For most basic actions, we can create a new instance
-        action_type = type(action)
+        from .composite import Loop, Sequence, Spawn
+        from .move import BoundedMove, WrappedMove
 
-        # Handle different action types appropriately
-        if hasattr(action, "__dict__"):
-            # Create a new instance and copy safe attributes
+        # Handle composite actions specially
+        if isinstance(action, Sequence):
+            # For Sequence, recursively copy each sub-action
+            copied_actions = [self._safe_copy_action(sub_action) for sub_action in action.actions]
+            new_sequence = Sequence(*copied_actions)
+            # Copy completion callbacks
+            if hasattr(action, "_on_complete"):
+                new_sequence._on_complete = action._on_complete
+                new_sequence._on_complete_args = action._on_complete_args
+                new_sequence._on_complete_kwargs = action._on_complete_kwargs
+            return new_sequence
+
+        elif isinstance(action, Spawn):
+            # For Spawn, recursively copy each sub-action
+            copied_actions = [self._safe_copy_action(sub_action) for sub_action in action.actions]
+            new_spawn = Spawn(*copied_actions)
+            return new_spawn
+
+        elif isinstance(action, Loop):
+            # For Loop, copy the wrapped action
+            copied_action = self._safe_copy_action(action.action)
+            new_loop = Loop(copied_action, action.times)
+            return new_loop
+
+        elif isinstance(action, BoundedMove):
+            # Create a new BoundedMove with the same parameters but preserve callbacks by reference
+            new_action = BoundedMove(
+                action.get_bounds,
+                bounce_horizontal=action.bounce_horizontal,
+                bounce_vertical=action.bounce_vertical,
+                on_bounce=action._on_bounce,  # Preserve callback by reference
+            )
+            return new_action
+
+        elif isinstance(action, WrappedMove):
+            # Create a new WrappedMove with the same parameters but preserve callbacks by reference
+            new_action = WrappedMove(
+                action.get_bounds,
+                wrap_horizontal=action.wrap_horizontal,
+                wrap_vertical=action.wrap_vertical,
+                on_wrap=action._on_wrap,  # Preserve callback by reference
+            )
+            return new_action
+
+        else:
+            # For basic actions, try shallow copy first
             try:
-                # Try to create a new instance with no args first
-                new_action = action_type()
-
-                # Copy attributes, but skip problematic ones
-                for key, value in action.__dict__.items():
-                    if key.startswith("_") and ("callback" in key.lower() or "bounce" in key.lower()):
-                        # For callback functions, keep the reference (don't deep copy)
-                        setattr(new_action, key, value)
-                    elif not callable(value) and not key.startswith("target"):
-                        # Copy non-callable, non-target attributes
-                        try:
-                            setattr(new_action, key, copy.deepcopy(value))
-                        except (TypeError, ValueError):
-                            # If deepcopy fails, just use reference
-                            setattr(new_action, key, value)
-                    else:
-                        # For other attributes, use reference
-                        setattr(new_action, key, value)
-
-                return new_action
-
-            except (TypeError, ValueError):
-                # If we can't create a new instance, fallback to shallow copy
                 new_action = copy.copy(action)
                 # Reset target to None
                 new_action.target = None
                 return new_action
-        else:
-            # Fallback to shallow copy for actions without __dict__
-            new_action = copy.copy(action)
-            new_action.target = None
-            return new_action
+            except Exception:
+                # If copy fails, try to create a new instance with same parameters
+                try:
+                    action_type = type(action)
+                    new_action = action_type()
+
+                    # Copy safe attributes
+                    for key, value in action.__dict__.items():
+                        if key.startswith("_") and ("callback" in key.lower() or "bounce" in key.lower()):
+                            # For callback functions, keep the reference (don't deep copy)
+                            setattr(new_action, key, value)
+                        elif not callable(value) and not key.startswith("target"):
+                            # Copy non-callable, non-target attributes
+                            try:
+                                setattr(new_action, key, copy.deepcopy(value))
+                            except (TypeError, ValueError):
+                                # If deepcopy fails, just use reference
+                                setattr(new_action, key, value)
+                        else:
+                            # For other attributes, use reference
+                            setattr(new_action, key, value)
+
+                    return new_action
+                except Exception:
+                    # Last resort: just return the original action (not ideal but works)
+                    return action
 
     def update(self, delta_time: float):
         """Update the group action."""
