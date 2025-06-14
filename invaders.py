@@ -291,6 +291,7 @@ class InvadersView(arcade.View):
 
         # Check enemy boundaries for grid reversal
         self._check_enemy_boundaries()
+        self.allow_enemies_to_fire()
 
         # Handle all collisions declaratively
         self.player_bullets.update_collisions()
@@ -331,7 +332,7 @@ class InvadersView(arcade.View):
     def allow_enemies_to_fire(self):
         """Randomly select enemies to fire."""
         x_spawn = []
-        for enemy in self.enemies:
+        for enemy in self.enemies.sprite_list:
             chance = 4 + len(self.enemies) * 4
             if random.randrange(chance) == 0 and enemy.center_x not in x_spawn:
                 bullet = ActionSprite(
@@ -344,7 +345,7 @@ class InvadersView(arcade.View):
                 # Use MoveBy action for continuous downward movement
                 bullet.do(MoveBy((0, -WINDOW_HEIGHT), duration=WINDOW_HEIGHT / BULLET_SPEED))
                 self.enemy_bullets.append(bullet)
-                x_spawn.append(enemy.center_x)
+            x_spawn.append(enemy.center_x)
 
 
 class InvadersGame(Game):
