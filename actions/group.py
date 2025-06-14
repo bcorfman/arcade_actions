@@ -29,16 +29,26 @@ class SpriteGroup(arcade.SpriteList):
             for sprite in sprites:
                 self.append(sprite)
         self._collision_handlers: list[tuple[arcade.SpriteList | list[arcade.Sprite], Callable]] = []
+        self._group_actions: list[GroupAction] = []  # Track active GroupAction instances
 
     def update(self, delta_time: float = 1 / 60):
-        """Update all sprites in the group.
+        """Update all sprites in the group and any active GroupActions.
 
         Args:
             delta_time: Time elapsed since last frame in seconds
         """
+        # Update individual sprites
         for sprite in self:
             if hasattr(sprite, "update"):
                 sprite.update(delta_time)
+
+        # Update active GroupActions and remove completed ones
+        active_actions = []
+        for group_action in self._group_actions:
+            group_action.update(delta_time)
+            if not group_action.done():
+                active_actions.append(group_action)
+        self._group_actions = active_actions
 
     def center(self) -> tuple[float, float]:
         """Get the center point of all sprites in the group."""
@@ -59,13 +69,21 @@ class SpriteGroup(arcade.SpriteList):
         """
         group_action = GroupAction(self, action)
         group_action.start()
+        # Track this GroupAction so it gets updated automatically
+        self._group_actions.append(group_action)
         return group_action
 
     def clear_actions(self):
-        """Clear all actions from sprites in the group."""
+        """Clear all actions from sprites in the group and stop any GroupActions."""
+        # Clear individual sprite actions
         for sprite in self:
             if hasattr(sprite, "clear_actions"):
                 sprite.clear_actions()
+
+        # Stop and clear all GroupActions
+        for group_action in self._group_actions:
+            group_action.stop()
+        self._group_actions.clear()
 
     def on_collision_with(
         self, other_group: arcade.SpriteList | list[arcade.Sprite], callback: Callable

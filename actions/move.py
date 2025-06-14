@@ -165,27 +165,88 @@ class WrappedMove(Action):
         bbox_width = sprite.width
         bbox_height = sprite.height
 
+        # Check if we're working with a SpriteGroup (for edge detection)
+        is_sprite_group = hasattr(self.target, "_group_actions")
+
         # Check horizontal wrapping
         if self.wrap_horizontal:
-            if max_x < 0:
-                sprite.center_x = width + bbox_width / 2
-                if self._on_wrap:
-                    self._on_wrap(sprite, "x")
-            elif min_x > width:
-                sprite.center_x = -bbox_width / 2
-                if self._on_wrap:
-                    self._on_wrap(sprite, "x")
+            if max_x < 0:  # Sprite has moved off left edge
+                # For SpriteGroup, only process if this is a leftmost sprite
+                if is_sprite_group and not self._is_edge_sprite(sprite, "left"):
+                    pass  # Skip non-edge sprites
+                else:
+                    # For SpriteGroup, skip position correction - let callback handle it
+                    if not is_sprite_group:
+                        sprite.center_x = width + bbox_width / 2
+                    if self._on_wrap:
+                        self._on_wrap(sprite, "x")
+            elif min_x > width:  # Sprite has moved off right edge
+                # For SpriteGroup, only process if this is a rightmost sprite
+                if is_sprite_group and not self._is_edge_sprite(sprite, "right"):
+                    pass  # Skip non-edge sprites
+                else:
+                    # For SpriteGroup, skip position correction - let callback handle it
+                    if not is_sprite_group:
+                        sprite.center_x = -bbox_width / 2
+                    if self._on_wrap:
+                        self._on_wrap(sprite, "x")
 
         # Check vertical wrapping
         if self.wrap_vertical:
-            if max_y < 0:
-                sprite.center_y = height + bbox_height / 2
-                if self._on_wrap:
-                    self._on_wrap(sprite, "y")
-            elif min_y > height:
-                sprite.center_y = -bbox_height / 2
-                if self._on_wrap:
-                    self._on_wrap(sprite, "y")
+            if max_y < 0:  # Sprite has moved off bottom edge
+                # For SpriteGroup, only process if this is a bottommost sprite
+                if is_sprite_group and not self._is_edge_sprite(sprite, "bottom"):
+                    pass  # Skip non-edge sprites
+                else:
+                    # For SpriteGroup, skip position correction - let callback handle it
+                    if not is_sprite_group:
+                        sprite.center_y = height + bbox_height / 2
+                    if self._on_wrap:
+                        self._on_wrap(sprite, "y")
+            elif min_y > height:  # Sprite has moved off top edge
+                # For SpriteGroup, only process if this is a topmost sprite
+                if is_sprite_group and not self._is_edge_sprite(sprite, "top"):
+                    pass  # Skip non-edge sprites
+                else:
+                    # For SpriteGroup, skip position correction - let callback handle it
+                    if not is_sprite_group:
+                        sprite.center_y = -bbox_height / 2
+                    if self._on_wrap:
+                        self._on_wrap(sprite, "y")
+
+    def _is_edge_sprite(self, sprite: ActionSprite, edge: str) -> bool:
+        """Check if a sprite is on the specified edge of the group.
+
+        Args:
+            sprite: The sprite to check
+            edge: The edge to check ("left", "right", "top", "bottom")
+
+        Returns:
+            True if the sprite is on the specified edge
+        """
+        if not hasattr(self.target, "_group_actions"):
+            return True  # Not a SpriteGroup, treat as edge sprite
+
+        sprites = list(self.target)
+        if not sprites:
+            return True
+
+        tolerance = 5  # Pixel tolerance for edge detection
+
+        if edge == "left":
+            leftmost_x = min(s.center_x for s in sprites)
+            return abs(sprite.center_x - leftmost_x) < tolerance
+        elif edge == "right":
+            rightmost_x = max(s.center_x for s in sprites)
+            return abs(sprite.center_x - rightmost_x) < tolerance
+        elif edge == "top":
+            topmost_y = max(s.center_y for s in sprites)
+            return abs(sprite.center_y - topmost_y) < tolerance
+        elif edge == "bottom":
+            bottommost_y = min(s.center_y for s in sprites)
+            return abs(sprite.center_y - bottommost_y) < tolerance
+
+        return False
 
     def __repr__(self) -> str:
         return f"WrappedMove(wrap_horizontal={self.wrap_horizontal}, wrap_vertical={self.wrap_vertical})"
@@ -289,59 +350,120 @@ class BoundedMove(Action):
         dx = sprite.center_x - prev_x
         dy = sprite.center_y - prev_y
 
+        # Check if we're working with a SpriteGroup (for edge detection)
+        is_sprite_group = hasattr(self.target, "_group_actions")
+
         # Check horizontal bouncing
         if self.bounce_horizontal:
             bounced_x = False
 
             if max_x > right:  # Right edge beyond right boundary
-                # Bounce off right boundary
-                sprite.center_x -= 2 * (max_x - right)
-                # Reverse horizontal velocity if present
-                if hasattr(sprite, "change_x"):
-                    sprite.change_x = -abs(sprite.change_x)
-                self._reverse_movement_actions(sprite, "x")
-                bounced_x = True
-                if self._on_bounce:
-                    self._on_bounce(sprite, "x")
+                # For SpriteGroup, only process if this is a rightmost sprite
+                if is_sprite_group and not self._is_edge_sprite(sprite, "right"):
+                    pass  # Skip non-edge sprites
+                else:
+                    # For SpriteGroup, skip position correction - let callback handle it
+                    if not is_sprite_group:
+                        # Bounce off right boundary
+                        sprite.center_x -= 2 * (max_x - right)
+                        # Reverse horizontal velocity if present
+                        if hasattr(sprite, "change_x"):
+                            sprite.change_x = -abs(sprite.change_x)
+                    self._reverse_movement_actions(sprite, "x")
+                    bounced_x = True
+                    if self._on_bounce:
+                        self._on_bounce(sprite, "x")
             elif min_x < left:  # Left edge beyond left boundary
-                # Bounce off left boundary
-                sprite.center_x += 2 * (left - min_x)
-                # Reverse horizontal velocity if present
-                if hasattr(sprite, "change_x"):
-                    sprite.change_x = abs(sprite.change_x)
-                self._reverse_movement_actions(sprite, "x")
-                bounced_x = True
-                if self._on_bounce:
-                    self._on_bounce(sprite, "x")
+                # For SpriteGroup, only process if this is a leftmost sprite
+                if is_sprite_group and not self._is_edge_sprite(sprite, "left"):
+                    pass  # Skip non-edge sprites
+                else:
+                    # For SpriteGroup, skip position correction - let callback handle it
+                    if not is_sprite_group:
+                        # Bounce off left boundary
+                        sprite.center_x += 2 * (left - min_x)
+                        # Reverse horizontal velocity if present
+                        if hasattr(sprite, "change_x"):
+                            sprite.change_x = abs(sprite.change_x)
+                    self._reverse_movement_actions(sprite, "x")
+                    bounced_x = True
+                    if self._on_bounce:
+                        self._on_bounce(sprite, "x")
 
         # Check vertical bouncing
         if self.bounce_vertical:
             bounced_y = False
 
             if max_y > top:  # Top edge beyond top boundary
-                # Bounce off top boundary
-                sprite.center_y -= 2 * (max_y - top)
-                # Reverse vertical velocity if present
-                if hasattr(sprite, "change_y"):
-                    sprite.change_y = -abs(sprite.change_y)
-                self._reverse_movement_actions(sprite, "y")
-                bounced_y = True
-                if self._on_bounce:
-                    self._on_bounce(sprite, "y")
+                # For SpriteGroup, only process if this is a topmost sprite
+                if is_sprite_group and not self._is_edge_sprite(sprite, "top"):
+                    pass  # Skip non-edge sprites
+                else:
+                    # For SpriteGroup, skip position correction - let callback handle it
+                    if not is_sprite_group:
+                        # Bounce off top boundary
+                        sprite.center_y -= 2 * (max_y - top)
+                        # Reverse vertical velocity if present
+                        if hasattr(sprite, "change_y"):
+                            sprite.change_y = -abs(sprite.change_y)
+                    self._reverse_movement_actions(sprite, "y")
+                    bounced_y = True
+                    if self._on_bounce:
+                        self._on_bounce(sprite, "y")
             elif min_y < bottom:  # Bottom edge beyond bottom boundary
-                # Bounce off bottom boundary
-                sprite.center_y += 2 * (bottom - min_y)
-                # Reverse vertical velocity if present
-                if hasattr(sprite, "change_y"):
-                    sprite.change_y = abs(sprite.change_y)
-                self._reverse_movement_actions(sprite, "y")
-                bounced_y = True
-                if self._on_bounce:
-                    self._on_bounce(sprite, "y")
+                # For SpriteGroup, only process if this is a bottommost sprite
+                if is_sprite_group and not self._is_edge_sprite(sprite, "bottom"):
+                    pass  # Skip non-edge sprites
+                else:
+                    # For SpriteGroup, skip position correction - let callback handle it
+                    if not is_sprite_group:
+                        # Bounce off bottom boundary
+                        sprite.center_y += 2 * (bottom - min_y)
+                        # Reverse vertical velocity if present
+                        if hasattr(sprite, "change_y"):
+                            sprite.change_y = abs(sprite.change_y)
+                    self._reverse_movement_actions(sprite, "y")
+                    bounced_y = True
+                    if self._on_bounce:
+                        self._on_bounce(sprite, "y")
 
         # Store current position for next frame
         sprite._prev_x = sprite.center_x
         sprite._prev_y = sprite.center_y
+
+    def _is_edge_sprite(self, sprite: ActionSprite, edge: str) -> bool:
+        """Check if a sprite is on the specified edge of the group.
+
+        Args:
+            sprite: The sprite to check
+            edge: The edge to check ("left", "right", "top", "bottom")
+
+        Returns:
+            True if the sprite is on the specified edge
+        """
+        if not hasattr(self.target, "_group_actions"):
+            return True  # Not a SpriteGroup, treat as edge sprite
+
+        sprites = list(self.target)
+        if not sprites:
+            return True
+
+        tolerance = 5  # Pixel tolerance for edge detection
+
+        if edge == "left":
+            leftmost_x = min(s.center_x for s in sprites)
+            return abs(sprite.center_x - leftmost_x) < tolerance
+        elif edge == "right":
+            rightmost_x = max(s.center_x for s in sprites)
+            return abs(sprite.center_x - rightmost_x) < tolerance
+        elif edge == "top":
+            topmost_y = max(s.center_y for s in sprites)
+            return abs(sprite.center_y - topmost_y) < tolerance
+        elif edge == "bottom":
+            bottommost_y = min(s.center_y for s in sprites)
+            return abs(sprite.center_y - bottommost_y) < tolerance
+
+        return False
 
     def _reverse_movement_actions(self, sprite: ActionSprite, axis: str) -> None:
         """Reverse movement actions for the specified axis.
@@ -350,9 +472,16 @@ class BoundedMove(Action):
             sprite: The sprite whose actions to reverse
             axis: 'x' for horizontal, 'y' for vertical
         """
-        # Find and reverse any IntervalActions that are currently running
-        if hasattr(sprite, "_action") and sprite._action:
-            self._reverse_action_movement(sprite._action, axis)
+        # Check if we're working with a SpriteGroup that has GroupActions
+        if hasattr(self.target, "_group_actions") and self.target._group_actions:
+            # Reverse all GroupActions for the entire group
+            for group_action in self.target._group_actions:
+                for action in group_action.actions:
+                    self._reverse_action_movement(action, axis)
+        else:
+            # Find and reverse any IntervalActions that are currently running for individual sprite
+            if hasattr(sprite, "_action") and sprite._action:
+                self._reverse_action_movement(sprite._action, axis)
 
     def _reverse_action_movement(self, action, axis: str) -> None:
         """Reverse movement for a specific action.

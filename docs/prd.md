@@ -18,7 +18,7 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 | `instant.py`          | Instantaneous actions (e.g., Hide, Show, Place, CallFunc) for sprite state changes |
 | `interval.py`         | Time-based actions (e.g., MoveBy, MoveTo, RotateBy, RotateTo, ScaleTo, FadeTo, JumpBy, JumpTo) and action modifiers (Easing) that use real delta-time physics and smooth interpolation |
 | `move.py`            | Complex movement actions (`Driver`, `WrappedMove`, `BoundedMove`) for arcade-style patterns |
-| `group.py`           | `GroupAction` and `SpriteGroup` to coordinate synchronized sprite groups (e.g., Galaga attack waves) |
+| `group.py`           | `GroupAction` and `SpriteGroup` to coordinate synchronized sprite groups with automatic management (e.g., Space Invaders formations, Galaga attack waves) |
 | `composite.py`       | Composite actions for combining multiple actions (Sequence, Spawn, Loop) with support for empty composites and immediate completion |
 | `game.py`            | Game state management and action scheduling integration |
 | `game_clock.py`      | Central game clock that manages time and pause state for the entire game, plus a scheduler for sequencing time-based and conditional events |
@@ -97,8 +97,10 @@ All property updates are managed through the `GameClock` system:
 - Game state management and action lifecycle
 - Unit and integration test coverage for actions and groups
 - Example demo game with:
-    - Player movement + shooting
-    - Enemy wave patterns using `BoundedMove` / `GroupAction`
+    - Player movement + shooting using `ActionSprite`
+    - Enemy formations using `SpriteGroup` with automatic `GroupAction` management
+    - Space Invaders-style movement with `BoundedMove` edge detection and callbacks
+    - Collision detection using `SpriteGroup.on_collision_with()` method chaining
     - Bullet cleanup and basic collision system
     - Composite action sequences for complex behaviors
     - Smooth acceleration/deceleration using action modifiers

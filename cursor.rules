@@ -23,5 +23,33 @@
       "source": "actions/",
       "reference": "references/arcade/"
     }
+  },
+  "api_usage_patterns": {
+    "sprite_types": {
+      "ActionSprite": "REQUIRED for all sprites that use actions. Only ActionSprite supports the Actions system.",
+      "arcade.Sprite": "NOT compatible with Actions. Use only for sprites that don't need action-based behavior."
+    },
+    "group_management": {
+      "SpriteGroup": "Use for coordinated group behavior. Extends arcade.SpriteList with automatic GroupAction management.",
+      "GroupAction": "Created automatically by SpriteGroup.do(). Rarely created directly.",
+      "arcade.SpriteList": "Use only for sprites that don't need coordinated actions."
+    },
+    "boundary_interactions": {
+      "BoundedMove_individual": "Apply to individual ActionSprite for simple bouncing behavior.",
+      "BoundedMove_group": "Apply to SpriteGroup for coordinated group bouncing (Space Invaders pattern). Only edge sprites trigger callbacks.",
+      "WrappedMove": "Apply to individual sprites or groups for screen wrapping behavior."
+    },
+    "common_patterns": {
+      "individual_control": "ActionSprite.do(action) for single sprite behaviors",
+      "group_coordination": "SpriteGroup.do(action) for synchronized group movements",
+      "collision_detection": "SpriteGroup.on_collision_with() for efficient group collisions",
+      "boundary_detection": "BoundedMove + SpriteGroup for formation-style movement with edge detection"
+    },
+    "testing_patterns": {
+      "individual_actions": "Use ActionSprite fixtures, test with sprite.do() and sprite.update()",
+      "group_actions": "Use SpriteGroup fixtures, verify GroupAction creation and automatic cleanup",
+      "boundary_actions": "Test edge detection, callback coordination, and spacing preservation",
+      "collision_detection": "Test SpriteGroup collision handlers and method chaining"
+    }
   }
 } 

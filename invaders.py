@@ -18,6 +18,7 @@ from actions.base import ActionSprite
 from actions.game import Game
 from actions.group import SpriteGroup
 from actions.interval import MoveBy
+from actions.move import BoundedMove
 
 SPRITE_SCALING_PLAYER = 0.75
 SPRITE_SCALING_enemy = 0.75
@@ -60,7 +61,10 @@ class InvadersView(arcade.View):
         self.player_bullets = SpriteGroup()  # ActionSprite group for player bullets
         self.enemy_bullets = SpriteGroup()  # ActionSprite group for enemy bullets
 
-        # Enemy movement will be handled by the grid movement system
+        # Enemy movement state
+        self.enemy_move_direction = 1  # 1 for right, -1 for left
+        self.enemy_move_speed = ENEMY_SPEED
+        self.boundary_action = None  # Will hold the BoundedMove action
 
         # Load sounds and textures
         self.gun_sound = arcade.load_sound(":resources:sounds/hurt5.wav")
@@ -127,10 +131,7 @@ class InvadersView(arcade.View):
         y_start = 470
         y_spacing = 60
 
-        # Track if we've already handled a boundary collision this frame
-        self._boundary_handled_this_frame = False
-
-        # Track enemy movement direction and state
+        # Reset enemy movement state
         self.enemy_move_direction = 1  # 1 for right, -1 for left
         self.enemy_move_speed = ENEMY_SPEED
 
@@ -139,75 +140,63 @@ class InvadersView(arcade.View):
                 enemy = ActionSprite(self.texture_enemy_right, scale=SPRITE_SCALING_enemy, center_x=x, center_y=y)
                 self.enemies.append(enemy)
 
-        # Create a single movement action for the entire enemy grid
-        self._setup_enemy_grid_movement()
+        # Set up the enemy movement system with BoundedMove
+        self._setup_enemy_bounded_movement()
 
-    def _setup_enemy_grid_movement(self):
-        """Set up movement for the entire enemy grid as one unit."""
+    def _setup_enemy_bounded_movement(self):
+        """Set up BoundedMove action for the entire enemy group, using callback for Space Invaders behavior."""
         if not self.enemies:
             return
 
-        # Calculate the movement distance and duration for one direction
-        move_distance = RIGHT_ENEMY_BORDER - LEFT_ENEMY_BORDER
+        # Create the bounds function that returns the movement boundaries
+        def get_enemy_bounds():
+            return (LEFT_ENEMY_BORDER, 0, RIGHT_ENEMY_BORDER, WINDOW_HEIGHT)
+
+        # Create the bounce callback that handles boundary hits
+        def on_enemy_bounce(sprite, axis):
+            """Handle when edge enemies hit boundaries - coordinate entire grid behavior."""
+            if axis != "x" or not self.enemies:  # Only handle horizontal bounces
+                return
+
+            # BoundedMove now automatically handles edge detection, so any callback means an edge sprite bounced
+            # Move ALL enemies down using GroupAction (Space Invaders grid behavior)
+            move_down_action = MoveBy((0, -ENEMY_MOVE_DOWN_AMOUNT), 0.1)  # Quick downward movement
+            self.enemies.do(move_down_action)
+
+            # Reverse direction and update textures for ALL enemies
+            self.enemy_move_direction *= -1
+            for enemy in self.enemies:
+                enemy.texture = self.texture_enemy_left if self.enemy_move_direction > 0 else self.texture_enemy_right
+
+            # Clear horizontal movement actions and start new movement after downward movement completes
+            # Note: We don't clear the move_down_action since it's already started
+            self._start_enemy_grid_movement()
+
+        # Create BoundedMove action for the entire enemy group
+        self.boundary_action = BoundedMove(
+            get_enemy_bounds, bounce_horizontal=True, bounce_vertical=False, on_bounce=on_enemy_bounce
+        )
+
+        # Apply boundary action to the entire enemy group
+        self.boundary_action.target = self.enemies
+        self.boundary_action.start()
+
+        # Set up initial movement for ALL sprites
+        self._start_enemy_grid_movement()
+
+    def _start_enemy_grid_movement(self):
+        """Start continuous movement for ALL enemies."""
+        if not self.enemies:
+            return
+
+        # Calculate movement parameters
+        move_distance = abs(RIGHT_ENEMY_BORDER - LEFT_ENEMY_BORDER)
         move_duration = move_distance / self.enemy_move_speed
 
-        # Create a continuous horizontal movement for all enemies
-        for enemy in self.enemies:
-            # Create movement action that moves the full distance in the current direction
-            dx = move_distance * self.enemy_move_direction
-            move_action = MoveBy((dx, 0), move_duration)
-            enemy.do(move_action)
-
-    def _check_enemy_boundaries(self):
-        """Check if any enemy has hit a boundary and handle grid reversal."""
-        if not self.enemies or self._boundary_handled_this_frame:
-            return
-
-        # Find the leftmost and rightmost enemies
-        leftmost_x = min(enemy.center_x - enemy.width / 2 for enemy in self.enemies)
-        rightmost_x = max(enemy.center_x + enemy.width / 2 for enemy in self.enemies)
-
-        should_reverse = False
-
-        # Check boundaries based on movement direction
-        if self.enemy_move_direction > 0:  # Moving right
-            if rightmost_x >= RIGHT_ENEMY_BORDER:
-                should_reverse = True
-        else:  # Moving left
-            if leftmost_x <= LEFT_ENEMY_BORDER:
-                should_reverse = True
-
-        if should_reverse:
-            self._reverse_enemy_grid()
-
-    def _reverse_enemy_grid(self):
-        """Reverse the entire enemy grid direction and move down."""
-        if self._boundary_handled_this_frame:
-            return
-        self._boundary_handled_this_frame = True
-
-        # Move all enemies down
-        for enemy in self.enemies:
-            enemy.center_y -= ENEMY_MOVE_DOWN_AMOUNT
-
-        # Reverse direction
-        self.enemy_move_direction *= -1
-
-        # Update textures based on new direction
-        for enemy in self.enemies:
-            enemy.texture = self.texture_enemy_left if self.enemy_move_direction > 0 else self.texture_enemy_right
-
-        # Stop current movement actions and start new ones in opposite direction
-        for enemy in self.enemies:
-            enemy.clear_actions()
-
-        # Set up new movement in the opposite direction
-        self._setup_enemy_grid_movement()
-
-    def _handle_enemy_boundary(self, sprite: ActionSprite, axis: str):
-        """Handle when an enemy hits the boundary."""
-        # This method is no longer used but kept for compatibility
-        pass
+        # Apply movement action to ALL enemies using GroupAction
+        dx = move_distance * self.enemy_move_direction
+        move_action = MoveBy((dx, 0), move_duration)
+        self.enemies.do(move_action)
 
     def make_shield(self, x_start):
         """Make a shield from a grid of solid color sprites."""
@@ -280,17 +269,16 @@ class InvadersView(arcade.View):
         if self.game_state == GAME_OVER:
             return
 
-        # Reset boundary handling flag each frame
-        self._boundary_handled_this_frame = False
-
-        # Update all sprite groups
+        # Update sprite groups
         self.enemies.update(delta_time)
         self.player_bullets.update(delta_time)
         self.enemy_bullets.update(delta_time)
         self.shields.update(delta_time)
 
-        # Check enemy boundaries for grid reversal
-        self._check_enemy_boundaries()
+        # Update boundary action for enemy bouncing
+        if self.boundary_action:
+            self.boundary_action.update(delta_time)
+
         self.allow_enemies_to_fire()
 
         # Handle all collisions declaratively
@@ -360,6 +348,7 @@ class InvadersGame(Game):
 
 def main():
     """Main function"""
+
     game = InvadersGame()
     arcade.run()
 

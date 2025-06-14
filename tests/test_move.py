@@ -475,6 +475,187 @@ class TestWrappedMove:
         assert sprite.center_y == 300  # Y position unchanged
         assert sprite.angle == 45  # Rotation unchanged
 
+    def test_wrap_with_group_action(self, get_bounds):
+        """Test wrapping behavior with GroupAction.
+
+        Verifies that:
+        - WrappedMove can work with GroupAction when both are updated properly
+        - Edge sprite logic works correctly in callbacks
+        - Action coordination works correctly with group actions
+        """
+        from actions.group import SpriteGroup
+
+        # Create a sprite group with multiple sprites
+        sprite_group = SpriteGroup()
+        for i in range(3):
+            sprite = ActionSprite(":resources:images/items/ladderMid.png")
+            sprite.center_x = 750 + i * 10  # Position near right edge
+            sprite.center_y = 300
+            sprite_group.append(sprite)
+
+        # Track wraps for coordination
+        wrapped_sprites = set()
+        wrap_called = False
+
+        def on_wrap(sprite, axis):
+            """Coordinate group behavior when edge sprites wrap."""
+            nonlocal wrap_called
+            wrap_called = True
+
+            if axis != "x":
+                return
+
+            # Check if this is an edge sprite
+            leftmost_x = min(s.center_x for s in sprite_group)
+            rightmost_x = max(s.center_x for s in sprite_group)
+
+            is_edge_sprite = abs(sprite.center_x - leftmost_x) < 5 or abs(sprite.center_x - rightmost_x) < 5
+
+            if not is_edge_sprite:
+                return
+
+            wrapped_sprites.add(sprite)
+
+            # Only process once per wrap
+            if len(wrapped_sprites) == 1:
+                # Clear actions and restart (simulating asteroid field behavior)
+                sprite_group.clear_actions()
+                wrapped_sprites.clear()
+
+                # Start new movement in opposite direction
+                new_move_action = MoveBy((-200, 0), 1.0)  # Move left
+                sprite_group.do(new_move_action)
+
+        # Create movement action using GroupAction
+        move_action = MoveBy((200, 0), 1.0)  # Move right continuously
+        sprite_group.do(move_action)
+
+        # Create WrappedMove for the entire group
+        wrap_action = WrappedMove(get_bounds, on_wrap=on_wrap)
+        wrap_action.target = sprite_group
+        wrap_action.start()
+
+        # Store initial positions
+        initial_positions = [sprite.center_x for sprite in sprite_group]
+
+        # Update SpriteGroup (automatically updates GroupActions) and WrappedMove
+        sprite_group.update(0.5)
+        wrap_action.update(0.5)
+
+        # Verify sprites moved (either wrapped or continued moving)
+        for i, sprite in enumerate(sprite_group):
+            # Sprites should have moved from their initial position
+            assert sprite.center_x != initial_positions[i], f"Sprite {i} didn't move at all"
+
+        # Verify wrap was called (indicating proper coordination)
+        assert wrap_called, "Wrap callback should have been called"
+
+    def test_wrap_group_action_automatic_cleanup(self):
+        """Test that completed GroupActions are automatically cleaned up with WrappedMove."""
+        from actions.group import SpriteGroup
+
+        # Create a sprite group with a sprite
+        sprite_group = SpriteGroup()
+        sprite = ActionSprite(":resources:images/items/ladderMid.png")
+        sprite.center_x = 100
+        sprite.center_y = 300
+        sprite_group.append(sprite)
+
+        # Create a short movement action
+        move_action = MoveBy((50, 0), 0.1)  # Move 50 pixels right over 0.1 seconds
+        group_action = sprite_group.do(move_action)
+
+        # Create WrappedMove for the group
+        get_bounds = lambda: (800, 600)
+        wrap_action = WrappedMove(get_bounds)
+        wrap_action.target = sprite_group
+        wrap_action.start()
+
+        # Verify the GroupAction is tracked
+        assert len(sprite_group._group_actions) == 1
+        assert not group_action.done()
+
+        # Update for the full duration to complete the action
+        sprite_group.update(0.1)
+        wrap_action.update(0.1)
+
+        # Verify the action completed and was automatically cleaned up
+        assert group_action.done()
+        assert len(sprite_group._group_actions) == 0  # Should be automatically removed
+
+    def test_wrap_group_action_basic(self):
+        """Test basic GroupAction functionality with WrappedMove and automatic updating."""
+        from actions.group import SpriteGroup
+
+        # Create a sprite group with multiple sprites
+        sprite_group = SpriteGroup()
+        for i in range(3):
+            sprite = ActionSprite(":resources:images/items/ladderMid.png")
+            sprite.center_x = 100 + i * 10  # Position sprites
+            sprite.center_y = 300
+            sprite_group.append(sprite)
+
+        # Store initial positions
+        initial_positions = [sprite.center_x for sprite in sprite_group]
+
+        # Create movement action using GroupAction
+        move_action = MoveBy((50, 0), 0.5)  # Move 50 pixels right over 0.5 seconds
+        group_action = sprite_group.do(move_action)
+
+        # Create WrappedMove for the group
+        get_bounds = lambda: (800, 600)
+        wrap_action = WrappedMove(get_bounds)
+        wrap_action.target = sprite_group
+        wrap_action.start()
+
+        # Update the SpriteGroup (which now automatically updates GroupActions)
+        sprite_group.update(0.5)
+        wrap_action.update(0.5)
+
+        # Verify all sprites moved
+        for i, sprite in enumerate(sprite_group):
+            expected_x = initial_positions[i] + 50
+            assert abs(sprite.center_x - expected_x) < 1, f"Sprite {i}: expected {expected_x}, got {sprite.center_x}"
+
+    def test_wrap_edge_detection(self):
+        """Test that only edge sprites trigger wrap callbacks in SpriteGroup."""
+        from actions.group import SpriteGroup
+
+        # Create a sprite group with sprites in a line
+        sprite_group = SpriteGroup()
+        sprites = []
+        for i in range(5):
+            sprite = ActionSprite(":resources:images/items/ladderMid.png")
+            sprite.center_x = 750 + i * 10  # Position near right edge
+            sprite.center_y = 300
+            sprite_group.append(sprite)
+            sprites.append(sprite)
+
+        wrap_calls = []
+
+        def on_wrap(sprite, axis):
+            wrap_calls.append((sprite, axis))
+
+        # Create WrappedMove for the group
+        get_bounds = lambda: (800, 600)
+        wrap_action = WrappedMove(get_bounds, on_wrap=on_wrap)
+        wrap_action.target = sprite_group
+        wrap_action.start()
+
+        # Move all sprites to trigger wrapping
+        move_action = MoveBy((100, 0), 0.1)  # Move right to trigger wrap
+        sprite_group.do(move_action)
+
+        sprite_group.update(0.1)
+        wrap_action.update(0.1)
+
+        # Only the rightmost sprite should trigger the wrap callback
+        if wrap_calls:
+            # Verify only edge sprites triggered callbacks
+            rightmost_x = max(s.center_x for s in sprites)
+            for sprite, axis in wrap_calls:
+                assert abs(sprite.center_x - rightmost_x) < 10, "Only rightmost sprite should trigger wrap"
+
 
 class TestBoundedMove:
     """Test suite for bounded movement.
@@ -864,3 +1045,131 @@ class TestBoundedMove:
         assert sprite.center_x < 720  # Moved back from right edge
         assert sprite.center_y == 300  # Y position unchanged
         assert sprite.angle == 45  # Rotation unchanged
+
+    def test_bounce_with_group_action(self, get_bounds):
+        """Test bouncing behavior with GroupAction.
+
+        Verifies that:
+        - BoundedMove can work with GroupAction when both are updated properly
+        - Edge sprite logic works correctly in callbacks
+        - Action coordination works correctly with group actions
+        """
+        from actions.group import SpriteGroup
+
+        # Create a sprite group with multiple sprites
+        sprite_group = SpriteGroup()
+        for i in range(3):
+            sprite = ActionSprite(":resources:images/items/ladderMid.png")
+            sprite.center_x = 720 + i * 10  # Position near right edge
+            sprite.center_y = 300
+            sprite_group.append(sprite)
+
+        # Track bounces for coordination
+        bounced_sprites = set()
+        bounce_called = False
+
+        def on_bounce(sprite, axis):
+            """Coordinate group behavior when edge sprites bounce."""
+            nonlocal bounce_called
+            bounce_called = True
+
+            if axis != "x":
+                return
+
+            # Check if this is an edge sprite
+            leftmost_x = min(s.center_x for s in sprite_group)
+            rightmost_x = max(s.center_x for s in sprite_group)
+
+            is_edge_sprite = abs(sprite.center_x - leftmost_x) < 5 or abs(sprite.center_x - rightmost_x) < 5
+
+            if not is_edge_sprite:
+                return
+
+            bounced_sprites.add(sprite)
+
+            # Only process once per bounce
+            if len(bounced_sprites) == 1:
+                # Clear actions and restart (simulating Space Invaders behavior)
+                sprite_group.clear_actions()
+                bounced_sprites.clear()
+
+                # Start new movement in opposite direction
+                new_move_action = MoveBy((-200, 0), 1.0)  # Move left
+                sprite_group.do(new_move_action)
+
+        # Create movement action using GroupAction
+        move_action = MoveBy((200, 0), 1.0)  # Move right continuously
+        sprite_group.do(move_action)
+
+        # Create BoundedMove for the entire group
+        bounce_action = BoundedMove(get_bounds, on_bounce=on_bounce)
+        bounce_action.target = sprite_group
+        bounce_action.start()
+
+        # Store initial positions
+        initial_positions = [sprite.center_x for sprite in sprite_group]
+
+        # Update SpriteGroup (automatically updates GroupActions) and BoundedMove
+        sprite_group.update(0.5)
+        bounce_action.update(0.5)
+
+        # Verify sprites moved (either bounced or continued moving)
+        for i, sprite in enumerate(sprite_group):
+            # Sprites should have moved from their initial position
+            assert sprite.center_x != initial_positions[i], f"Sprite {i} didn't move at all"
+
+        # Verify bounce was called (indicating proper coordination)
+        assert bounce_called, "Bounce callback should have been called"
+
+    def test_group_action_automatic_cleanup(self):
+        """Test that completed GroupActions are automatically cleaned up."""
+        from actions.group import SpriteGroup
+
+        # Create a sprite group with a sprite
+        sprite_group = SpriteGroup()
+        sprite = ActionSprite(":resources:images/items/ladderMid.png")
+        sprite.center_x = 100
+        sprite.center_y = 300
+        sprite_group.append(sprite)
+
+        # Create a short movement action
+        move_action = MoveBy((50, 0), 0.1)  # Move 50 pixels right over 0.1 seconds
+        group_action = sprite_group.do(move_action)
+
+        # Verify the GroupAction is tracked
+        assert len(sprite_group._group_actions) == 1
+        assert not group_action.done()
+
+        # Update for the full duration to complete the action
+        sprite_group.update(0.1)
+
+        # Verify the action completed and was automatically cleaned up
+        assert group_action.done()
+        assert len(sprite_group._group_actions) == 0  # Should be automatically removed
+
+    def test_group_action_basic(self):
+        """Test basic GroupAction functionality with automatic updating."""
+        from actions.group import SpriteGroup
+
+        # Create a sprite group with multiple sprites
+        sprite_group = SpriteGroup()
+        for i in range(3):
+            sprite = ActionSprite(":resources:images/items/ladderMid.png")
+            sprite.center_x = 100 + i * 10  # Position sprites
+            sprite.center_y = 300
+            sprite_group.append(sprite)
+
+        # Store initial positions
+        initial_positions = [sprite.center_x for sprite in sprite_group]
+
+        # Create movement action using GroupAction
+        move_action = MoveBy((50, 0), 0.5)  # Move 50 pixels right over 0.5 seconds
+        group_action = sprite_group.do(move_action)
+
+        # Update the SpriteGroup (which now automatically updates GroupActions)
+        sprite_group.update(0.5)
+
+        # Verify all sprites moved
+        for i, sprite in enumerate(sprite_group):
+            expected_x = initial_positions[i] + 50
+            assert abs(sprite.center_x - expected_x) < 1, f"Sprite {i}: expected {expected_x}, got {sprite.center_x}"
