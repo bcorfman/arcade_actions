@@ -56,7 +56,7 @@ class InvadersView(arcade.View):
         # Sprite management
         self.player_list = arcade.SpriteList()  # Regular arcade.SpriteList for player
         self.enemies = SpriteGroup()  # ActionSprite group for enemies
-        self.shields = SpriteGroup()  # ActionSprite group for shields
+        self.shields = arcade.SpriteList()
         self.player_bullets = SpriteGroup()  # ActionSprite group for player bullets
         self.enemy_bullets = SpriteGroup()  # ActionSprite group for enemy bullets
 
@@ -112,7 +112,6 @@ class InvadersView(arcade.View):
         for x in [step, step * 2, step * 3]:
             self.make_shield(x)
 
-        self.background_color = arcade.color.AMAZON
         self.setup_level_one()
         self.window.set_mouse_visible(False)
 
@@ -219,8 +218,8 @@ class InvadersView(arcade.View):
         y_start = 150
         for x in range(x_start, x_start + shield_width_count * shield_block_width, shield_block_width):
             for y in range(y_start, y_start + shield_height_count * shield_block_height, shield_block_height):
-                shield_sprite = ActionSprite(
-                    arcade.SpriteSolidColor(shield_block_width, shield_block_height, color=arcade.color.WHITE)
+                shield_sprite = arcade.SpriteSolidColor(
+                    shield_block_width, shield_block_height, color=arcade.color.WHITE
                 )
                 shield_sprite.center_x = x
                 shield_sprite.center_y = y
@@ -353,6 +352,7 @@ class InvadersGame(Game):
 
     def __init__(self):
         super().__init__(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
+        self.background_color = arcade.color.AMAZON
         self.game_view = InvadersView(self)
         self.show_view(self.game_view)
 
