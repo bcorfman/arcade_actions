@@ -24,6 +24,23 @@
       "reference": "references/arcade/"
     }
   },
+  "core_design_principles": {
+    "interface_design": {
+      "zero_tolerance_rule": "ZERO TOLERANCE for runtime type/attribute checking (hasattr, getattr, isinstance, EAFP-with-pass)",
+      "rationale": "Design interfaces so checking isn't needed. Unclear interfaces are the real problem, not the checking pattern.",
+      "required_approach": [
+        "Consistent base interfaces with default values",
+        "Clear protocols guaranteeing expected methods/attributes",
+        "Composition patterns eliminating optional attributes",
+        "Unified interfaces for similar objects (Action vs GroupAction)"
+      ]
+    },
+    "error_handling": {
+      "eafp_rule": "EAFP only for genuine decision points with real fallback logic, NEVER for error silencing",
+      "forbidden": "except AttributeError: pass - this is a code smell",
+      "acceptable": "except AttributeError: return default_value  # genuine fallback"
+    }
+  },
   "api_usage_patterns": {
     "sprite_types": {
       "ActionSprite": "REQUIRED for all sprites that use actions. Only ActionSprite supports the Actions system.",

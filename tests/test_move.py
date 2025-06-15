@@ -573,14 +573,14 @@ class TestWrappedMove:
 
         # Verify the GroupAction is tracked
         assert len(sprite_group._group_actions) == 1
-        assert not group_action.done()
+        assert not group_action.done
 
         # Update for the full duration to complete the action
         sprite_group.update(0.1)
         wrap_action.update(0.1)
 
         # Verify the action completed and was automatically cleaned up
-        assert group_action.done()
+        assert group_action.done
         assert len(sprite_group._group_actions) == 0  # Should be automatically removed
 
     def test_wrap_group_action_basic(self):
@@ -1138,13 +1138,13 @@ class TestBoundedMove:
 
         # Verify the GroupAction is tracked
         assert len(sprite_group._group_actions) == 1
-        assert not group_action.done()
+        assert not group_action.done
 
         # Update for the full duration to complete the action
         sprite_group.update(0.1)
 
         # Verify the action completed and was automatically cleaned up
-        assert group_action.done()
+        assert group_action.done
         assert len(sprite_group._group_actions) == 0  # Should be automatically removed
 
     def test_group_action_basic(self):

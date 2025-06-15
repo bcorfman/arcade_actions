@@ -203,94 +203,71 @@ We are delivering a **modern, extensible, production-ready Actions system** for 
 
 For detailed testing patterns, examples, and best practices, see `docs/testing.md`.
 
-# Test Patterns Guide
+## 🏗️ Code Quality Standards
 
-## Common Test Patterns
+### Core Design Principle: Zero Tolerance for Runtime Type Checking
 
-### 1. Action Initialization Tests
+**ZERO TOLERANCE for runtime type/attribute checking** - This includes:
+- `hasattr()` for type discrimination
+- `getattr()` with defaults for missing attributes
+- `isinstance()` for runtime type checking
+- EAFP with exception silencing (`except AttributeError: pass`)
+
+**The Real Problem**: Unclear interfaces, not the checking pattern.
+
+**The Solution**: Design interfaces so checking isn't needed through:
+1. **Consistent base interfaces** with default values
+2. **Clear protocols** guaranteeing expected methods/attributes  
+3. **Composition patterns** eliminating optional attributes
+4. **Unified interfaces** for similar objects (Action vs GroupAction)
+
+### Exception: Genuine Decision Points
+
+EAFP is acceptable ONLY for genuine decision points with real fallback logic:
+
 ```python
-def test_action_initialization(self):
-    """Test action initialization."""
-    # Test required parameters
-    action = ActionClass(required_param=value)
-    assert action.param == value
-    
-    # Test optional parameters
-    assert action.optional_param == default_value
-    
-    # Test parameter validation
-    with pytest.raises(ValueError):
-        ActionClass()  # Missing required param
+# ✅ Acceptable - genuine fallback logic
+try:
+    return expensive_operation()
+except ResourceNotAvailable:
+    return cached_result()
+
+# ❌ Forbidden - error silencing
+try:
+    obj.method()
+except AttributeError:
+    pass  # This is a code smell
 ```
 
-### 2. Action Lifecycle Tests
-```python
-def test_action_lifecycle(self, sprite):
-    """Test complete action lifecycle."""
-    action = ActionClass(params)
-    sprite.do(action)  # Use ActionSprite.do()
-    
-    # Start
-    assert initial_conditions
-    
-    # Update
-    sprite.update(0.5)  # Use ActionSprite.update()
-    assert intermediate_conditions
-    
-    # Complete
-    sprite.update(0.5)
-    assert action.done
-    assert final_conditions
-    
-    # Stop
-    action.stop()
-    assert cleanup_conditions
-```
+### Interface Design Requirements
 
-### 3. Property Update Tests
-```python
-def test_property_updates(self, sprite):
-    """Test property updates over time."""
-    # For ActionSprite Properties
-    action = CustomPropertyAction(params)
-    sprite.do(action)
-    # Verify direct property updates
-    sprite.update(0.5)
-    assert sprite.property == expected_value
+1. **Type Safety**
+   - Use type hints on all public interfaces
+   - Define protocols for duck-typed behavior
+   - Prefer composition over inheritance for complex behaviors
+   - Use Union types for multiple type support
 
-    # For Arcade Sprite Properties
-    action = MovementAction(params)
-    sprite.do(action)
-    # Verify velocity/force is set correctly
-    assert sprite.change_x == expected_velocity_x
-    # Let Arcade update position
-    sprite.update(0.5)
-    assert sprite.position == expected_position
-```
+2. **Consistency**
+   - All similar objects must have the same interface
+   - Required methods/attributes must be guaranteed by design
+   - Optional behavior must be handled through composition, not checking
 
-### 4. Edge Case Tests
-```python
-def test_edge_cases(self, sprite):
-    """Test edge cases."""
-    # Test zero duration
-    action = ActionClass(duration=0)
-    
-    # Test boundary conditions
-    action = ActionClass(param=boundary_value)
-    
-    # Test invalid inputs
-    with pytest.raises(ValueError):
-        ActionClass(param=invalid_value)
-```
+3. **Clarity**
+   - Interface contracts must be clear from type signatures
+   - No surprise missing attributes or methods
+   - Predictable behavior without runtime inspection
 
-## Test Fixtures
+### Legacy Code Migration
 
-See `testing.md` for common test fixtures and their usage.
+When refactoring existing code with excessive runtime checking:
+1. Identify the root cause (unclear interfaces)
+2. Design consistent interfaces for all involved types
+3. Use protocols to formalize duck-typed behavior
+4. Eliminate optional attributes through composition
+5. Replace checking with proper interface design
 
-## Test Categories
+### Examples in Codebase
 
-See `testing.md` for detailed test categories and patterns.
-
-## Best Practices
-
-See `testing.md` for comprehensive testing best practices.
+For concrete examples of these principles in action, see:
+- `actions/move.py` - BoundedMove class refactoring
+- `tests/test_bounce_fix.py` - Test cases for proper interface usage

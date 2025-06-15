@@ -12,7 +12,6 @@ import arcade
 from .base import Action
 from .composite import Sequence
 from .game_clock import GameClock, Scheduler
-from .interval import MoveBy, MoveTo
 
 
 class SpriteGroup(arcade.SpriteList):
@@ -21,6 +20,8 @@ class SpriteGroup(arcade.SpriteList):
     This class extends `arcade.SpriteList`, providing a simple interface for
     managing multiple sprites as a group and allowing actions to be applied
     to all sprites in the group simultaneously.
+
+    Implements GroupTarget protocol for consistent interface.
     """
 
     def __init__(self, sprites: list[arcade.Sprite] | None = None):
@@ -29,7 +30,7 @@ class SpriteGroup(arcade.SpriteList):
             for sprite in sprites:
                 self.append(sprite)
         self._collision_handlers: list[tuple[arcade.SpriteList | list[arcade.Sprite], Callable]] = []
-        self._group_actions: list[GroupAction] = []  # Track active GroupAction instances
+        self._group_actions: list[Action] = []  # Track active GroupAction instances - implements GroupTarget
 
     def update(self, delta_time: float = 1 / 60):
         """Update all sprites in the group and any active GroupActions.
@@ -37,16 +38,15 @@ class SpriteGroup(arcade.SpriteList):
         Args:
             delta_time: Time elapsed since last frame in seconds
         """
-        # Update individual sprites
+        # Update individual sprites - NO MORE hasattr CHECKING
         for sprite in self:
-            if hasattr(sprite, "update"):
-                sprite.update(delta_time)
+            sprite.update(delta_time)
 
         # Update active GroupActions and remove completed ones
         active_actions = []
         for group_action in self._group_actions:
             group_action.update(delta_time)
-            if not group_action.done():
+            if not group_action.done:  # Consistent interface - no more done() method
                 active_actions.append(group_action)
         self._group_actions = active_actions
 
@@ -58,14 +58,14 @@ class SpriteGroup(arcade.SpriteList):
         avg_y = sum(sprite.center_y for sprite in self) / len(self)
         return avg_x, avg_y
 
-    def do(self, action: Action) -> "GroupAction":
+    def do(self, action: Action) -> Action:
         """Apply an action to all sprites in the group.
 
         Args:
             action: The action to apply to all sprites
 
         Returns:
-            The GroupAction instance managing the action
+            The GroupAction instance managing the action - SAME INTERFACE as individual actions
         """
         group_action = GroupAction(self, action)
         group_action.start()
@@ -75,10 +75,9 @@ class SpriteGroup(arcade.SpriteList):
 
     def clear_actions(self):
         """Clear all actions from sprites in the group and stop any GroupActions."""
-        # Clear individual sprite actions
+        # Clear individual sprite actions - NO MORE hasattr CHECKING
         for sprite in self:
-            if hasattr(sprite, "clear_actions"):
-                sprite.clear_actions()
+            sprite.clear_actions()
 
         # Stop and clear all GroupActions
         for group_action in self._group_actions:
@@ -101,50 +100,51 @@ class SpriteGroup(arcade.SpriteList):
         return self
 
     def update_collisions(self):
-        """Check for collisions and trigger callbacks."""
-        for sprite in self:
-            for other_group, callback in self._collision_handlers:
-                # Convert regular lists to SpriteList for arcade compatibility
-                if isinstance(other_group, list) and not isinstance(other_group, arcade.SpriteList):
-                    # Create a temporary SpriteList
-                    temp_sprite_list = arcade.SpriteList()
-                    for s in other_group:
-                        temp_sprite_list.append(s)
-                    hits = arcade.check_for_collision_with_list(sprite, temp_sprite_list)
-                else:
-                    hits = arcade.check_for_collision_with_list(sprite, other_group)
-                if hits:
-                    callback(sprite, hits)
+        """Update collision detection for all registered handlers."""
+        for other_group, callback in self._collision_handlers:
+            for sprite in self:
+                hit_list = arcade.check_for_collision_with_list(sprite, other_group)
+                if hit_list:
+                    callback(sprite, hit_list)
 
-    def breakaway(self, breakaway_sprites: list[arcade.Sprite]) -> "SpriteGroup":
-        """Remove given sprites and return a new SpriteGroup.
-
-        Args:
-            breakaway_sprites: List of sprites to remove from this group
-
-        Returns:
-            A new SpriteGroup containing the removed sprites
-        """
+    def breakaway(self, breakaway_sprites: list) -> "SpriteGroup":
+        """Remove given sprites and create a new SpriteGroup."""
+        new_group = SpriteGroup()
         for sprite in breakaway_sprites:
             if sprite in self:
                 self.remove(sprite)
-        return SpriteGroup(breakaway_sprites)
+                new_group.append(sprite)
+        return new_group
 
 
-class GroupAction:
-    """A high-level controller for running a shared Action over a group of sprites."""
+class GroupAction(Action):
+    """A high-level controller for running a shared Action over a group of sprites.
+
+    This class implements the same interface as individual actions, making group and
+    individual actions indistinguishable. NO MORE RUNTIME CHECKING NEEDED.
+    """
 
     def __init__(self, group: arcade.SpriteList | list[arcade.Sprite], action: Action):
+        super().__init__()
         self.group = list(group)
         self.template = action
         self.actions: list[Action] = []  # Individual actions for each sprite
 
+        # Implement consistent interface - same as MovementAction, CompositeAction, etc.
+        self.delta: tuple[float, float] = (0.0, 0.0)
+        self.total_change: tuple[float, float] = (0.0, 0.0)
+        self.end_position: tuple[float, float] | None = None
+        self.current_action: Action | None = None
+        self.current_index: int = 0
+        self.other: Action | None = None
+
     def start(self):
         """Start the action on the group."""
+        super().start()
         # Create an action instance for each sprite
         self.actions = []
         for sprite in self.group:
-            # Instead of deepcopy, create a shallow copy and handle special cases
+            # Create a safe copy of the action
             action_copy = self._safe_copy_action(self.template)
             action_copy.target = sprite
             action_copy.start()
@@ -154,9 +154,9 @@ class GroupAction:
         """Create a safe copy of an action that avoids deepcopy issues with callbacks.
 
         This method creates a new instance of the same action type with the same
-        parameters, but handles composite actions like Sequence properly.
+        parameters, but handles composite actions properly.
         """
-        from .composite import Loop, Sequence, Spawn
+        from .composite import Loop, Spawn
         from .move import BoundedMove, WrappedMove
 
         # Handle composite actions specially
@@ -239,30 +239,42 @@ class GroupAction:
 
     def update(self, delta_time: float):
         """Update the group action."""
+        if self._paused:
+            return
+
+        # Update elapsed time
+        self._elapsed += delta_time
+
         if not self.actions:
             return
 
         # Update each sprite's action
-        all_done = True
         for action in self.actions:
             if not action.done:
                 action.update(delta_time)
-                all_done = False
+
+        # Check if all actions are now done (after updating)
+        all_done = all(action.done for action in self.actions)
+
+        # Set completion state and check for completion callback
+        if all_done:
+            self.done = True
+
+        # Check for completion callback (after setting done state)
+        self._check_complete()
 
     def stop(self):
         """Stop the current group action."""
         for action in self.actions:
             action.stop()
         self.actions = []
+        super().stop()
 
     def reset(self):
         """Reset and restart the group action."""
         self.stop()
+        super().reset()
         self.start()
-
-    def done(self) -> bool:
-        """Check if the group action is complete."""
-        return all(action.done for action in self.actions) if self.actions else True
 
     def replace(self, new_action: Action):
         """Replace the current group action with a new one (auto-started).
@@ -276,13 +288,42 @@ class GroupAction:
 
     def pause(self):
         """Pause all actions in the group."""
+        super().pause()
         for action in self.actions:
             action.pause()
 
     def resume(self):
         """Resume all actions in the group."""
+        super().resume()
         for action in self.actions:
             action.resume()
+
+    # Implement consistent interface methods for type-based dispatch
+    def get_movement_delta(self) -> tuple[float, float]:
+        """Get the movement delta for this action - consistent with MovementAction."""
+        return self.delta
+
+    def reverse_movement(self, axis: str) -> None:
+        """Reverse movement for the specified axis - consistent with MovementAction."""
+        if axis == "x":
+            self.delta = (-self.delta[0], self.delta[1])
+            self.total_change = (-self.total_change[0], self.total_change[1])
+        else:  # axis == "y"
+            self.delta = (self.delta[0], -self.delta[1])
+            self.total_change = (self.total_change[0], -self.total_change[1])
+
+        # Also reverse all individual actions
+        for action in self.actions:
+            if hasattr(action, "reverse_movement"):
+                action.reverse_movement(axis)
+
+    def get_movement_actions(self) -> list[Action]:
+        """Get all movement actions from this group - consistent with CompositeAction."""
+        return [action for action in self.actions if hasattr(action, "get_movement_delta")]
+
+    def get_wrapped_action(self) -> Action:
+        """Get the wrapped action - consistent with EasingAction."""
+        return self.template
 
     def __repr__(self) -> str:
         return f"GroupAction(group={len(self.group)} sprites, action={self.template})"
@@ -298,183 +339,88 @@ class Pattern:
         raise NotImplementedError("Subclasses must implement apply()")
 
 
-class DivePattern(Pattern):
-    """Pattern for diving attacks."""
+class LinePattern(Pattern):
+    """Pattern for arranging sprites in a line."""
 
-    def __init__(self, speed: float, angle: float):
-        super().__init__("dive")
-        self.speed = speed
-        self.angle = angle
+    def __init__(self, spacing: float = 50.0):
+        super().__init__("line")
+        self.spacing = spacing
 
-    def apply(self, attack_group: "AttackGroup", *args, **kwargs):
-        # Early return if no sprites to apply pattern to
-        if not attack_group.sprites:
-            return
+    def apply(self, attack_group: "AttackGroup", start_x: float = 0, start_y: float = 0):
+        """Apply line pattern to the attack group."""
+        for i, sprite in enumerate(attack_group.sprites):
+            sprite.center_x = start_x + i * self.spacing
+            sprite.center_y = start_y
 
-        rad_angle = math.radians(self.angle)
-        dx = self.speed * math.cos(rad_angle)
-        dy = self.speed * math.sin(rad_angle)
-        dive_action = MoveBy((dx, dy), 1.0)
-        attack_group.do(dive_action)
+
+class GridPattern(Pattern):
+    """Pattern for arranging sprites in a grid."""
+
+    def __init__(self, rows: int = 5, cols: int = 10, spacing_x: float = 60.0, spacing_y: float = 50.0):
+        super().__init__("grid")
+        self.rows = rows
+        self.cols = cols
+        self.spacing_x = spacing_x
+        self.spacing_y = spacing_y
+
+    def apply(self, attack_group: "AttackGroup", start_x: float = 100, start_y: float = 500):
+        """Apply grid pattern to the attack group."""
+        for i, sprite in enumerate(attack_group.sprites):
+            row = i // self.cols
+            col = i % self.cols
+            sprite.center_x = start_x + col * self.spacing_x
+            sprite.center_y = start_y - row * self.spacing_y
 
 
 class CirclePattern(Pattern):
-    """Pattern for circular movement around a center point."""
+    """Pattern for arranging sprites in a circle."""
 
-    def __init__(self, radius: float, speed: float, clockwise: bool = True):
+    def __init__(self, radius: float = 100.0):
         super().__init__("circle")
         self.radius = radius
-        self.speed = speed
-        self.clockwise = clockwise
-        self._current_angle = 0.0
 
-    def apply(self, attack_group: "AttackGroup", *args, **kwargs):
-        # Early return if no sprites to apply pattern to
-        if not attack_group.sprites:
+    def apply(self, attack_group: "AttackGroup", center_x: float = 400, center_y: float = 300):
+        """Apply circle pattern to the attack group."""
+        count = len(attack_group.sprites)
+        if count == 0:
             return
 
-        center = attack_group.sprites.center()
-
-        # Calculate the time needed for one complete circle
-        circumference = 2 * math.pi * self.radius
-        duration = circumference / self.speed
-
-        # Create a sequence of moves that approximate a circle
-        num_segments = 8  # Number of segments to approximate the circle
-        actions = []
-
-        for i in range(num_segments):
-            angle = (2 * math.pi * i / num_segments) * (1 if self.clockwise else -1)
-            x = center[0] + self.radius * math.cos(angle)
-            y = center[1] + self.radius * math.sin(angle)
-            move_action = MoveTo((x, y), duration / num_segments)
-            actions.append(move_action)
-
-        # Create a repeating sequence
-        circle_action = Sequence(*actions)
-        attack_group.do(circle_action)
+        angle_step = 2 * math.pi / count
+        for i, sprite in enumerate(attack_group.sprites):
+            angle = i * angle_step
+            sprite.center_x = center_x + math.cos(angle) * self.radius
+            sprite.center_y = center_y + math.sin(angle) * self.radius
 
 
-class ZigzagPattern(Pattern):
-    """Pattern for zigzag movement."""
+class VFormationPattern(Pattern):
+    """Pattern for arranging sprites in a V formation."""
 
-    def __init__(self, width: float, height: float, speed: float):
-        super().__init__("zigzag")
-        self.width = width
-        self.height = height
-        self.speed = speed
-
-    def apply(self, attack_group: "AttackGroup", *args, **kwargs):
-        # Early return if no sprites to apply pattern to
-        if not attack_group.sprites:
-            return
-
-        # Calculate the time needed for one complete zigzag
-        distance = math.sqrt(self.width**2 + self.height**2)
-        duration = distance / self.speed
-
-        # Create a sequence of moves that form a zigzag
-        actions = [
-            MoveBy((self.width, self.height), duration / 2),
-            MoveBy((-self.width, self.height), duration / 2),
-        ]
-
-        zigzag_action = Sequence(*actions)
-        attack_group.do(zigzag_action)
-
-
-class FormationPattern(Pattern):
-    """Pattern for maintaining a specific formation while moving."""
-
-    def __init__(self, formation_type: str, spacing: float = 50.0):
-        super().__init__("formation")
-        self.formation_type = formation_type
+    def __init__(self, angle: float = 45.0, spacing: float = 50.0):
+        super().__init__("v_formation")
+        self.angle = math.radians(angle)
         self.spacing = spacing
 
-    def apply(self, attack_group: "AttackGroup", *args, **kwargs):
+    def apply(self, attack_group: "AttackGroup", apex_x: float = 400, apex_y: float = 500):
+        """Apply V formation pattern to the attack group."""
         sprites = list(attack_group.sprites)
-        if not sprites:
+        count = len(sprites)
+        if count == 0:
             return
 
-        # Calculate formation positions based on type
-        positions = self._calculate_formation_positions(len(sprites), self.formation_type, self.spacing)
+        # Place the first sprite at the apex
+        sprites[0].center_x = apex_x
+        sprites[0].center_y = apex_y
 
-        # Create move actions for each sprite
-        actions = []
-        for sprite, pos in zip(sprites, positions, strict=False):
-            move_action = MoveTo(pos, 1.0)
-            actions.append(move_action)
+        # Place remaining sprites alternating on left and right sides
+        for i in range(1, count):
+            side = 1 if i % 2 == 1 else -1  # Alternate sides
+            distance = (i + 1) // 2 * self.spacing
 
-        # Apply the formation
-        formation_action = Sequence(*actions)
-        attack_group.do(formation_action)
+            offset_x = side * math.cos(self.angle) * distance
+            offset_y = -math.sin(self.angle) * distance
 
-    def _calculate_formation_positions(
-        self, num_sprites: int, formation_type: str, spacing: float
-    ) -> list[tuple[float, float]]:
-        """Calculate positions for different formation types."""
-        positions = []
-
-        if formation_type == "v":
-            # V formation
-            for i in range(num_sprites):
-                x = (i - num_sprites / 2) * spacing
-                y = -abs(x) * 0.5
-                positions.append((x, y))
-
-        elif formation_type == "line":
-            # Horizontal line
-            for i in range(num_sprites):
-                x = (i - num_sprites / 2) * spacing
-                positions.append((x, 0))
-
-        elif formation_type == "circle":
-            # Circular formation
-            for i in range(num_sprites):
-                angle = 2 * math.pi * i / num_sprites
-                x = spacing * math.cos(angle)
-                y = spacing * math.sin(angle)
-                positions.append((x, y))
-
-        elif formation_type == "diamond":
-            # Diamond formation
-            side = int(math.sqrt(num_sprites))
-            for i in range(side):
-                for j in range(side):
-                    x = (j - side / 2) * spacing
-                    y = (i - side / 2) * spacing
-                    positions.append((x, y))
-
-        return positions
-
-
-class WavePattern(Pattern):
-    """Pattern for wave-like movement."""
-
-    def __init__(self, amplitude: float, frequency: float, speed: float):
-        super().__init__("wave")
-        self.amplitude = amplitude
-        self.frequency = frequency
-        self.speed = speed
-
-    def apply(self, attack_group: "AttackGroup", *args, **kwargs):
-        # Early return if no sprites to apply pattern to
-        if not attack_group.sprites:
-            return
-
-        # Create a sequence of moves that form a wave
-        num_points = 8
-        actions = []
-
-        for i in range(num_points):
-            t = i / num_points
-            x = self.speed * t
-            y = self.amplitude * math.sin(2 * math.pi * self.frequency * t)
-            move_action = MoveBy((x, y), 1.0 / num_points)
-            actions.append(move_action)
-
-        wave_action = Sequence(*actions)
-        attack_group.do(wave_action)
+            sprites[i].center_x = apex_x + offset_x
+            sprites[i].center_y = apex_y + offset_y
 
 
 class AttackGroup:
@@ -491,7 +437,7 @@ class AttackGroup:
         self.sprites = sprite_group
         self.clock = clock
         self.scheduler = scheduler
-        self.actions: list[GroupAction] = []  # Attached GroupAction instances
+        self.actions: list[Action] = []  # Attached Action instances - CONSISTENT INTERFACE
         self.time_of_birth = clock.time
         self.is_destroyed = False
         self.name = name
@@ -529,8 +475,8 @@ class AttackGroup:
         if len(self.sprites) == 0:
             self.destroy()
 
-    def do(self, action: Action) -> GroupAction:
-        """Assign an action to all sprites in the group."""
+    def do(self, action: Action) -> Action:
+        """Assign an action to all sprites in the group - SAME INTERFACE as individual sprites."""
         group_action = self.sprites.do(action)
         self.actions.append(group_action)
         # Set initial pause state

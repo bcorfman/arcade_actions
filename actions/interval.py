@@ -7,11 +7,18 @@ import random
 
 from arcade import easing
 
+from actions.base import IntervalAction
+from actions.move import MovementAction
+
 from .base import IntervalAction
 
 
-class MoveTo(IntervalAction):
-    """Move the sprite to a specific position over time."""
+class MoveTo(MovementAction, IntervalAction):
+    """Move the sprite to a specific position over time.
+
+    This action moves a sprite to the specified end position over the given duration.
+    The movement is linear and frame-independent.
+    """
 
     def __init__(
         self,
@@ -24,42 +31,51 @@ class MoveTo(IntervalAction):
         if duration is None:
             raise ValueError("Must specify duration")
 
-        super().__init__(duration)
+        # Initialize both parent classes properly
+        MovementAction.__init__(self)
+        IntervalAction.__init__(self, duration)
+
         self.end_position = position
         self.use_physics = use_physics
         self.total_change = None  # Will be set in start()
         self.last_progress = 0.0  # Initialize here
+        self.start_position: tuple[float, float] | None = None
 
     def start(self) -> None:
         """Start the movement action.
 
         Calculate total change needed to reach target position.
         """
-        self.start_x = self.target.center_x
-        self.start_y = self.target.center_y
+        super().start()
+        self.start_position = self.target.position
         self.total_change = (
-            self.end_position[0] - self.target.center_x,
-            self.end_position[1] - self.target.center_y,
+            self.end_position[0] - self.target.position[0],
+            self.end_position[1] - self.target.position[1],
         )
+        self.delta = self.total_change
         self.last_progress = 0.0  # Reset on start
 
     def update(self, delta_time: float) -> None:
-        """Update the action's progress.
-
-        Calculate new position based on elapsed time ratio.
-        """
-        super().update(delta_time)
+        """Update the sprite's position based on elapsed time."""
+        # Update elapsed time first
         if not self._paused:
-            # Calculate progress ratio
-            progress = self._elapsed / self.duration
-            # Calculate movement for this frame based on progress change
-            dx = self.total_change[0] * (progress - self.last_progress)
-            dy = self.total_change[1] * (progress - self.last_progress)
-            # Apply movement relative to current position
-            self.target.center_x += dx
-            self.target.center_y += dy
-            # Store progress for next frame
-            self.last_progress = progress
+            self._elapsed += delta_time
+
+        # Calculate progress ratio
+        progress = min(self._elapsed / self.duration, 1.0)
+        # Calculate absolute position based on total progress
+        start_x, start_y = self.start_position
+        new_x = start_x + self.total_change[0] * progress
+        new_y = start_y + self.total_change[1] * progress
+        # Update sprite position
+        self.target.position = (new_x, new_y)
+
+        # Check for completion
+        if self._elapsed >= self.duration:
+            self.done = True
+
+        # Handle completion callbacks
+        self._check_complete()
 
     def stop(self) -> None:
         """Stop the movement action.
@@ -69,24 +85,27 @@ class MoveTo(IntervalAction):
         super().stop()
 
     def __reversed__(self) -> "MoveTo":
-        """Returns a reversed version of this action.
+        """Return a MoveTo action that moves to the original start position.
 
-        The reversed action will move from the end position back to the start position.
-        If the action hasn't started yet, it will create a MoveTo that goes from the
+        This creates a MoveTo action that will move the sprite from its
         current position to the negative of the target position.
         """
-        if self.total_change is None:
-            # If we haven't started yet, create a MoveTo that goes from current to negative
+        if self.start_position:
+            return MoveTo(self.start_position, self.duration, self.use_physics)
+        else:
+            # If we don't have a start position yet, return a move to the negative of the end position
             return MoveTo((-self.end_position[0], -self.end_position[1]), self.duration, self.use_physics)
-        # If we have started, create a MoveTo that goes from end to start
-        return MoveTo(self.end_position, self.duration, self.use_physics)
 
     def __repr__(self) -> str:
         return f"MoveTo(position={self.end_position}, duration={self.duration}, use_physics={self.use_physics})"
 
 
-class MoveBy(MoveTo):
-    """Move the sprite by a relative amount over time."""
+class MoveBy(MovementAction, IntervalAction):
+    """Move the sprite by a relative amount over time.
+
+    This action moves a sprite by the specified delta over the given duration.
+    The movement is linear and frame-independent.
+    """
 
     def __init__(
         self,
@@ -99,23 +118,47 @@ class MoveBy(MoveTo):
         if duration is None:
             raise ValueError("Must specify duration")
 
+        # Initialize both parent classes properly
+        MovementAction.__init__(self)
+        IntervalAction.__init__(self, duration)
+
         self.delta = delta
-        super().__init__(delta, duration, use_physics)
-        self.last_progress = 0.0  # Initialize here
+        self.use_physics = use_physics
+        self.total_change = delta
+        self.start_position: tuple[float, float] | None = None
 
     def start(self) -> None:
-        """Start the movement action.
+        """Start the move action."""
+        super().start()
+        self.start_position = self.target.position
 
-        Calculate the target position as current position plus delta.
-        """
-        self.end_position = (
-            self.target.center_x + self.delta[0],
-            self.target.center_y + self.delta[1],
-        )
-        self.total_change = self.delta
-        self.last_progress = 0.0  # Reset on start
+    def update(self, delta_time: float) -> None:
+        """Update the sprite's position."""
+        # Calculate progress BEFORE calling super() to avoid early return
+        if not self._paused:
+            self._elapsed += delta_time
+
+        # Calculate progress (0.0 to 1.0)
+        progress = min(self._elapsed / self.duration, 1.0)
+
+        # Calculate new position
+        start_x, start_y = self.start_position
+        delta_x, delta_y = self.delta
+        new_x = start_x + delta_x * progress
+        new_y = start_y + delta_y * progress
+
+        # Update sprite position
+        self.target.position = (new_x, new_y)
+
+        # Now check for completion
+        if self._elapsed >= self.duration:
+            self.done = True
+
+        # Handle completion callbacks
+        self._check_complete()
 
     def __reversed__(self) -> "MoveBy":
+        """Return a MoveBy action that moves in the opposite direction."""
         return MoveBy((-self.delta[0], -self.delta[1]), self.duration, self.use_physics)
 
     def __repr__(self) -> str:
