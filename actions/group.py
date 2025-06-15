@@ -102,8 +102,17 @@ class SpriteGroup(arcade.SpriteList):
     def update_collisions(self):
         """Update collision detection for all registered handlers."""
         for other_group, callback in self._collision_handlers:
+            # Handle regular Python lists by converting to SpriteList temporarily
+            if isinstance(other_group, list):
+                temp_sprite_list = arcade.SpriteList()
+                for sprite in other_group:
+                    temp_sprite_list.append(sprite)
+                collision_group = temp_sprite_list
+            else:
+                collision_group = other_group
+
             for sprite in self:
-                hit_list = arcade.check_for_collision_with_list(sprite, other_group)
+                hit_list = arcade.check_for_collision_with_list(sprite, collision_group)
                 if hit_list:
                     callback(sprite, hit_list)
 

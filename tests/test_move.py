@@ -651,10 +651,14 @@ class TestWrappedMove:
 
         # Only the rightmost sprite should trigger the wrap callback
         if wrap_calls:
-            # Verify only edge sprites triggered callbacks
-            rightmost_x = max(s.center_x for s in sprites)
-            for sprite, axis in wrap_calls:
-                assert abs(sprite.center_x - rightmost_x) < 10, "Only rightmost sprite should trigger wrap"
+            # Verify only one sprite triggered a callback (the rightmost edge sprite)
+            assert len(wrap_calls) == 1, f"Expected exactly 1 wrap callback, got {len(wrap_calls)}"
+            sprite, axis = wrap_calls[0]
+            assert axis == "x", f"Expected x-axis wrap, got {axis}"
+            # The sprite that wrapped should now be at the left side (negative x)
+            assert sprite.center_x < 0, f"Wrapped sprite should be at negative x position, got {sprite.center_x}"
+        else:
+            assert False, "Expected at least one wrap callback to be triggered"
 
 
 class TestBoundedMove:

@@ -191,8 +191,14 @@ class Sequence(CompositeAction, IntervalAction):
     """
 
     def __init__(self, *actions: Action):
+        # Allow empty sequences - they complete immediately
         if not actions:
-            raise ValueError("Sequence requires at least one action")
+            CompositeAction.__init__(self)
+            IntervalAction.__init__(self, 0.0)  # No duration for empty sequence
+            self.actions = []
+            self.current_action = None
+            self.current_index = 0
+            return
 
         # Calculate total duration
         total_duration = sum(getattr(action, "duration", 0) for action in actions)
@@ -212,10 +218,21 @@ class Sequence(CompositeAction, IntervalAction):
             self.current_action = self.actions[0]
             self.current_action.target = self.target
             self.current_action.start()
+        else:
+            # Empty sequence completes immediately
+            self.done = True
+            self._check_complete()
 
     def update(self, delta_time: float) -> None:
         """Update the current action and advance to next when done."""
         super().update(delta_time)
+
+        # Handle empty sequence
+        if not self.actions:
+            if not self.done:
+                self.done = True
+                self._check_complete()
+            return
 
         # Check if current action is already done (handles manual completion)
         if self.current_action and self.current_action.done:
@@ -280,8 +297,12 @@ class Spawn(CompositeAction, IntervalAction):
     """
 
     def __init__(self, *actions: Action):
+        # Allow empty spawn - they complete immediately
         if not actions:
-            raise ValueError("Spawn requires at least one action")
+            CompositeAction.__init__(self)
+            IntervalAction.__init__(self, 0.0)  # No duration for empty spawn
+            self.actions = []
+            return
 
         # Duration is the maximum duration of all actions
         max_duration = max(getattr(action, "duration", 0) for action in actions)
@@ -294,13 +315,25 @@ class Spawn(CompositeAction, IntervalAction):
     def start(self) -> None:
         """Start all actions simultaneously."""
         super().start()
-        for action in self.actions:
-            action.target = self.target
-            action.start()
+        if self.actions:
+            for action in self.actions:
+                action.target = self.target
+                action.start()
+        else:
+            # Empty spawn completes immediately
+            self.done = True
+            self._check_complete()
 
     def update(self, delta_time: float) -> None:
         """Update all actions and check for completion."""
         super().update(delta_time)
+
+        # Handle empty spawn
+        if not self.actions:
+            if not self.done:
+                self.done = True
+                self._check_complete()
+            return
 
         all_done = True
         for action in self.actions:
