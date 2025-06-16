@@ -18,7 +18,7 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 | `instant.py`          | Instantaneous actions (e.g., Hide, Show, Place, CallFunc) for sprite state changes |
 | `interval.py`         | Time-based actions (e.g., MoveBy, MoveTo, RotateBy, RotateTo, ScaleTo, FadeTo, JumpBy, JumpTo) and action modifiers (Easing) that use real delta-time physics and smooth interpolation |
 | `move.py`            | Complex movement actions (`Driver`, `WrappedMove`, `BoundedMove`) for arcade-style patterns |
-| `group.py`           | `GroupAction` and `SpriteGroup` to coordinate synchronized sprite groups (e.g., Galaga attack waves) |
+| `group.py`           | `GroupAction` and `SpriteGroup` to coordinate synchronized sprite groups with automatic management (e.g., Space Invaders formations, Galaga attack waves) |
 | `composite.py`       | Composite actions for combining multiple actions (Sequence, Spawn, Loop) with support for empty composites and immediate completion |
 | `game.py`            | Game state management and action scheduling integration |
 | `game_clock.py`      | Central game clock that manages time and pause state for the entire game, plus a scheduler for sequencing time-based and conditional events |
@@ -97,8 +97,10 @@ All property updates are managed through the `GameClock` system:
 - Game state management and action lifecycle
 - Unit and integration test coverage for actions and groups
 - Example demo game with:
-    - Player movement + shooting
-    - Enemy wave patterns using `BoundedMove` / `GroupAction`
+    - Player movement + shooting using `ActionSprite`
+    - Enemy formations using `SpriteGroup` with automatic `GroupAction` management
+    - Space Invaders-style movement with `BoundedMove` edge detection and callbacks
+    - Collision detection using `SpriteGroup.on_collision_with()` method chaining
     - Bullet cleanup and basic collision system
     - Composite action sequences for complex behaviors
     - Smooth acceleration/deceleration using action modifiers
@@ -180,8 +182,8 @@ We are delivering a **modern, extensible, production-ready Actions system** for 
      - Test pause state handling
      - Test boundary conditions
 
-3. **Test Categories**
-   See `testing.md` for detailed test categories and patterns.
+3. **Test Categories and Mock Usage**
+   See `testing.md` for detailed test categories, patterns, and when to use mocks vs real implementations.
 
 4. **Documentation Requirements**
    - Each test file must have a clear docstring explaining its purpose
@@ -199,96 +201,102 @@ We are delivering a **modern, extensible, production-ready Actions system** for 
    - Tests must be maintainable and readable
    - Tests must verify both immediate and time-based updates
 
-For detailed testing patterns, examples, and best practices, see `docs/testing.md`.
+## 📚 Related Documentation
 
-# Test Patterns Guide
+This PRD provides the architectural foundation. For implementation details, consult:
 
-## Common Test Patterns
+### Essential Implementation Guides
+- **[api_usage_guide.md](api_usage_guide.md)** - **Primary implementation reference**
+  - For all component usage patterns and implementation details
+  - The definitive guide for ActionSprite vs arcade.Sprite decisions
+  - Complete API examples and best practices
 
-### 1. Action Initialization Tests
-```python
-def test_action_initialization(self):
-    """Test action initialization."""
-    # Test required parameters
-    action = ActionClass(required_param=value)
-    assert action.param == value
-    
-    # Test optional parameters
-    assert action.optional_param == default_value
-    
-    # Test parameter validation
-    with pytest.raises(ValueError):
-        ActionClass()  # Missing required param
+### Testing Documentation
+- **[testing_index.md](testing_index.md)** - Central testing hub
+  - Navigation to all testing documentation
+  - Links to component-specific testing patterns
+  - Comprehensive testing guide and fixtures reference
+
+### Specialized Implementation Guides
+- **[boundary_event.md](boundary_event.md)** - BoundedMove callback patterns
+- **[game_loop_updates.md](game_loop_updates.md)** - Game integration patterns
+
+### Documentation Hierarchy
+```
+PRD.md (this file)           → Architecture & Requirements
+├── api_usage_guide.md       → Implementation Patterns (PRIMARY)
+├── testing_index.md         → Testing Hub
+│   ├── testing.md           → Core Testing Patterns
+│   └── testing_movement.md  → Movement Testing
+├── boundary_event.md        → Boundary Patterns
+└── game_loop_updates.md     → Game Integration
 ```
 
-### 2. Action Lifecycle Tests
+## 🏗️ Code Quality Standards
+
+### Core Design Principle: Zero Tolerance for Runtime Type Checking
+
+**ZERO TOLERANCE for runtime type/attribute checking** - This includes:
+- `hasattr()` for type discrimination
+- `getattr()` with defaults for missing attributes
+- `isinstance()` for runtime type checking
+- EAFP with exception silencing (`except AttributeError: pass`)
+
+**The Real Problem**: Unclear interfaces, not the checking pattern.
+
+**The Solution**: Design interfaces so checking isn't needed through:
+1. **Consistent base interfaces** with default values
+2. **Clear protocols** guaranteeing expected methods/attributes  
+3. **Composition patterns** eliminating optional attributes
+4. **Unified interfaces** for similar objects (Action vs GroupAction)
+
+### Exception: Genuine Decision Points
+
+EAFP is acceptable ONLY for genuine decision points with real fallback logic:
+
 ```python
-def test_action_lifecycle(self, sprite):
-    """Test complete action lifecycle."""
-    action = ActionClass(params)
-    sprite.do(action)  # Use ActionSprite.do()
-    
-    # Start
-    assert initial_conditions
-    
-    # Update
-    sprite.update(0.5)  # Use ActionSprite.update()
-    assert intermediate_conditions
-    
-    # Complete
-    sprite.update(0.5)
-    assert action.done
-    assert final_conditions
-    
-    # Stop
-    action.stop()
-    assert cleanup_conditions
+# ✅ Acceptable - genuine fallback logic
+try:
+    return expensive_operation()
+except ResourceNotAvailable:
+    return cached_result()
+
+# ❌ Forbidden - error silencing
+try:
+    obj.method()
+except AttributeError:
+    pass  # This is a code smell
 ```
 
-### 3. Property Update Tests
-```python
-def test_property_updates(self, sprite):
-    """Test property updates over time."""
-    # For ActionSprite Properties
-    action = CustomPropertyAction(params)
-    sprite.do(action)
-    # Verify direct property updates
-    sprite.update(0.5)
-    assert sprite.property == expected_value
+### Interface Design Requirements
 
-    # For Arcade Sprite Properties
-    action = MovementAction(params)
-    sprite.do(action)
-    # Verify velocity/force is set correctly
-    assert sprite.change_x == expected_velocity_x
-    # Let Arcade update position
-    sprite.update(0.5)
-    assert sprite.position == expected_position
-```
+1. **Type Safety**
+   - Use type hints on all public interfaces
+   - Define protocols for duck-typed behavior
+   - Prefer composition over inheritance for complex behaviors
+   - Use Union types for multiple type support
 
-### 4. Edge Case Tests
-```python
-def test_edge_cases(self, sprite):
-    """Test edge cases."""
-    # Test zero duration
-    action = ActionClass(duration=0)
-    
-    # Test boundary conditions
-    action = ActionClass(param=boundary_value)
-    
-    # Test invalid inputs
-    with pytest.raises(ValueError):
-        ActionClass(param=invalid_value)
-```
+2. **Consistency**
+   - All similar objects must have the same interface
+   - Required methods/attributes must be guaranteed by design
+   - Optional behavior must be handled through composition, not checking
 
-## Test Fixtures
+3. **Clarity**
+   - Interface contracts must be clear from type signatures
+   - No surprise missing attributes or methods
+   - Predictable behavior without runtime inspection
 
-See `testing.md` for common test fixtures and their usage.
+### Legacy Code Migration
 
-## Test Categories
+When refactoring existing code with excessive runtime checking:
+1. Identify the root cause (unclear interfaces)
+2. Design consistent interfaces for all involved types
+3. Use protocols to formalize duck-typed behavior
+4. Eliminate optional attributes through composition
+5. Replace checking with proper interface design
 
-See `testing.md` for detailed test categories and patterns.
+### Examples in Codebase
 
-## Best Practices
-
-See `testing.md` for comprehensive testing best practices.
+For concrete examples of these principles in action, see:
+- `actions/move.py` - BoundedMove class refactoring
+- `tests/test_bounce_fix.py` - Test cases for proper interface usage

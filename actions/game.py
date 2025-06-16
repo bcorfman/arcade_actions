@@ -1,14 +1,12 @@
 """
-Game class that manages the entire game state, including clock, scheduler, sprites, and input.
+Game class that manages the entire game state, including clock, scheduler, and input.
 """
 
 from collections.abc import Callable
 
 import arcade
 
-from .base import ActionSprite
 from .game_clock import GameClock, Scheduler
-from .group import AttackGroup, SpriteGroup
 
 
 class Game(arcade.Window):
@@ -16,10 +14,9 @@ class Game(arcade.Window):
 
     This class owns and coordinates:
     - Game clock and scheduler
-    - Player and enemy sprites
-    - Attack groups and patterns
     - Input handling
     - Pause/resume functionality
+    - View management
     """
 
     def __init__(
@@ -37,16 +34,6 @@ class Game(arcade.Window):
         self.clock = GameClock()
         self.scheduler = Scheduler(self.clock)
 
-        # Sprite management
-        self.player: ActionSprite | None = None
-        self.enemies: SpriteGroup = SpriteGroup()
-        self.bullets: SpriteGroup = SpriteGroup()
-        self.powerups: SpriteGroup = SpriteGroup()
-        self.effects: SpriteGroup = SpriteGroup()
-
-        # Attack groups
-        self.attack_groups: list[AttackGroup] = []
-
         # Input state
         self.keys_pressed: set[int] = set()
         self.mouse_position: tuple[float, float] = (0, 0)
@@ -57,6 +44,10 @@ class Game(arcade.Window):
         self.lives: int = 3
         self.level: int = 1
         self.game_over: bool = False
+
+        # View management
+        self._current_view: arcade.View | None = None
+        self._views: dict[str, arcade.View] = {}
 
         # Callbacks
         self.on_pause_callbacks: list[Callable[[], None]] = []
@@ -77,45 +68,30 @@ class Game(arcade.Window):
         self.clock.update(delta_time)
         self.scheduler.update()
 
-        # Update sprites
-        if self.player:
-            self.player.update(delta_time)
-        self.enemies.update(delta_time)
-        self.bullets.update(delta_time)
-        self.powerups.update(delta_time)
-        self.effects.update(delta_time)
+        # Update current view if it exists
+        if self._current_view:
+            self._current_view.on_update(delta_time)
 
-        # Update attack groups
-        for group in self.attack_groups[:]:  # Copy list since we might modify it
-            group.update(delta_time)
-            if group.is_destroyed:
-                self.attack_groups.remove(group)
-
-        # Update game logic
-        self._update_game_logic(delta_time)
-
-    def _update_game_logic(self, delta_time: float):
-        """Update game-specific logic. Override this in your game."""
-        pass
-
-    def draw(self):
+    def on_draw(self):
         """Draw all game elements."""
         self.clear()
 
-        # Draw sprites
-        self.enemies.draw()
-        self.bullets.draw()
-        self.powerups.draw()
-        if self.player:
-            self.player.draw()
-        self.effects.draw()
+        # Draw current view if it exists
+        if self._current_view:
+            self._current_view.on_draw()
+            return True
+        return False
 
-        # Draw UI
-        self._draw_ui()
+    def show_view(self, view: arcade.View):
+        """Show a view and add it to the view dictionary if it has a name."""
+        super().show_view(view)
+        self._current_view = view
+        if hasattr(view, "name") and view.name:
+            self._views[view.name] = view
 
-    def _draw_ui(self):
-        """Draw game UI elements. Override this in your game."""
-        pass
+    def get_view(self, name: str) -> arcade.View | None:
+        """Get a view by name."""
+        return self._views.get(name)
 
     def pause(self):
         """Pause the entire game."""
@@ -140,57 +116,33 @@ class Game(arcade.Window):
             else:
                 self.pause()
 
-        # Handle game-specific input
-        self._handle_key_press(key, modifiers)
-
-    def _handle_key_press(self, key: int, modifiers: int):
-        """Handle game-specific keyboard input. Override this in your game."""
-        pass
+        # Forward to current view
+        if self._current_view:
+            self._current_view.on_key_press(key, modifiers)
 
     def on_key_release(self, key: int, modifiers: int):
         """Handle keyboard release."""
         self.keys_pressed.discard(key)
-        self._handle_key_release(key, modifiers)
-
-    def _handle_key_release(self, key: int, modifiers: int):
-        """Handle game-specific keyboard release. Override this in your game."""
-        pass
+        if self._current_view:
+            self._current_view.on_key_release(key, modifiers)
 
     def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
         """Handle mouse movement."""
         self.mouse_position = (x, y)
-        self._handle_mouse_motion(x, y, dx, dy)
-
-    def _handle_mouse_motion(self, x: float, y: float, dx: float, dy: float):
-        """Handle game-specific mouse movement. Override this in your game."""
-        pass
+        if self._current_view:
+            self._current_view.on_mouse_motion(x, y, dx, dy)
 
     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
         """Handle mouse button press."""
         self.mouse_buttons.add(button)
-        self._handle_mouse_press(x, y, button, modifiers)
-
-    def _handle_mouse_press(self, x: float, y: float, button: int, modifiers: int):
-        """Handle game-specific mouse press. Override this in your game."""
-        pass
+        if self._current_view:
+            self._current_view.on_mouse_press(x, y, button, modifiers)
 
     def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
         """Handle mouse button release."""
         self.mouse_buttons.discard(button)
-        self._handle_mouse_release(x, y, button, modifiers)
-
-    def _handle_mouse_release(self, x: float, y: float, button: int, modifiers: int):
-        """Handle game-specific mouse release. Override this in your game."""
-        pass
-
-    def add_attack_group(self, group: AttackGroup):
-        """Add an attack group to the game."""
-        self.attack_groups.append(group)
-
-    def remove_attack_group(self, group: AttackGroup):
-        """Remove an attack group from the game."""
-        if group in self.attack_groups:
-            self.attack_groups.remove(group)
+        if self._current_view:
+            self._current_view.on_mouse_release(x, y, button, modifiers)
 
     def on_pause(self, callback: Callable[[], None]):
         """Register a callback for when the game is paused."""
@@ -225,18 +177,6 @@ class Game(arcade.Window):
         # Reset core systems
         self.clock.reset()
         self.scheduler = Scheduler(self.clock)  # Create fresh scheduler
-
-        # Clear all sprite groups
-        self.player = None
-        self.enemies = SpriteGroup()
-        self.bullets = SpriteGroup()
-        self.powerups = SpriteGroup()
-        self.effects = SpriteGroup()
-
-        # Clear attack groups
-        for group in self.attack_groups:
-            group.destroy()
-        self.attack_groups.clear()
 
         # Reset game state
         self.score = 0

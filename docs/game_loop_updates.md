@@ -61,17 +61,21 @@ class MyGame(arcade.Window):
         self.sprite.update(delta_time)  # Handles action updates internally
 ```
 
-## Group Actions with SpriteList
+## Group Actions with SpriteGroup
 
-`ActionSprite` works seamlessly with Arcade's `SpriteList` for efficient group updates. Here's a Space Invaders style example:
+`SpriteGroup` extends `arcade.SpriteList` and provides automatic GroupAction management for coordinated sprite behavior. Here's a Space Invaders style example:
 
 ```python
+from actions.group import SpriteGroup
+from actions.interval import MoveBy
+from actions.move import BoundedMove
+
 class Game(arcade.Window):
     def __init__(self):
         super().__init__(800, 600, "Space Invaders Style")
         
-        # Create sprite list for enemies
-        self.enemies = arcade.SpriteList()
+        # Create SpriteGroup for enemies (extends SpriteList)
+        self.enemies = SpriteGroup()
         
         # Create a grid of enemies
         for row in range(5):
@@ -81,26 +85,43 @@ class Game(arcade.Window):
                 enemy.center_y = 500 - row * 50
                 self.enemies.append(enemy)
         
-        # Create the marching movement pattern
+        # Set up coordinated movement pattern
         self.setup_enemy_movement()
 
     def setup_enemy_movement(self):
-        # Create a sideways march + drop pattern
-        march_right = MoveBy((100, 0), 2.0)
-        march_left = MoveBy((-100, 0), 2.0)
-        drop_down = MoveBy((0, -20), 0.5)
+        # Define movement boundaries
+        def get_bounds():
+            return (50, 0, 750, 600)  # left, bottom, right, top
         
-        # Combine into a repeating sequence
-        movement = march_right + drop_down + march_left + drop_down
-        repeated_movement = Repeat(movement)
+        # Callback for when edge enemies hit boundaries
+        def on_bounce(sprite, axis):
+            if axis == 'x':
+                # Move ALL enemies down using GroupAction (Space Invaders behavior)
+                move_down = MoveBy((0, -30), 0.1)  # Quick downward movement
+                self.enemies.do(move_down)
+                
+                # Clear current actions and start new movement
+                self.enemies.clear_actions()
+                self.start_horizontal_movement()
         
-        # Apply to all enemies
-        for enemy in self.enemies:
-            enemy.do(repeated_movement)
+        # Set up boundary detection for the entire group
+        self.boundary_action = BoundedMove(get_bounds, on_bounce=on_bounce)
+        self.boundary_action.target = self.enemies
+        self.boundary_action.start()
+        
+        # Start initial movement
+        self.start_horizontal_movement()
+    
+    def start_horizontal_movement(self):
+        # Move horizontally across screen
+        move_action = MoveBy((400, 0), 4.0)
+        self.enemies.do(move_action)  # Creates GroupAction automatically
 
     def update(self, delta_time: float):
-        # Update all sprites in the list
-        self.enemies.update(delta_time)  # This calls update() on each sprite
+        # Update SpriteGroup (automatically updates GroupActions)
+        self.enemies.update(delta_time)
+        # Update boundary detection
+        self.boundary_action.update(delta_time)
 
     def on_draw(self):
         self.clear()
@@ -109,10 +130,12 @@ class Game(arcade.Window):
 
 ## Key Points
 
-* `SpriteList` handles calling `update()` on each sprite efficiently
-* All enemies move in sync since they're started with the same action sequence
-* The `Repeat` action keeps them moving indefinitely
-* You get the benefit of the action system's timing and sequencing
+* `SpriteGroup` extends `SpriteList` with action management capabilities
+* `enemies.do(action)` creates a `GroupAction` that coordinates all sprites
+* `enemies.update()` automatically updates both sprites and GroupActions
+* Only edge sprites trigger boundary callbacks for efficient group coordination
+* `clear_actions()` stops all GroupActions and individual sprite actions
+* Perfect for Space Invaders, Galaga, and other formation-flying patterns
 
 ## Adding Variety
 

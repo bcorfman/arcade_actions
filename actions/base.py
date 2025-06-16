@@ -4,7 +4,7 @@ Actions are used to animate sprites and sprite lists over time.
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import arcade
 
@@ -12,6 +12,50 @@ from .game_clock import GameClock
 
 if TYPE_CHECKING:
     from .composite import Sequence, Spawn
+
+
+class PhysicsProperties:
+    """Standard physics properties for all sprites."""
+
+    def __init__(self):
+        self.acceleration: tuple[float, float] = (0.0, 0.0)
+        self.gravity: float = 0.0
+        self.speed: float = 0.0
+        self.max_forward_speed: float | None = None
+        self.max_reverse_speed: float | None = None
+
+
+class ActionTarget(Protocol):
+    """Protocol defining the interface all action targets must implement."""
+
+    # Position and movement
+    position: tuple[float, float]
+    center_x: float
+    center_y: float
+    change_x: float
+    change_y: float
+
+    # Rotation
+    angle: float
+    change_angle: float
+
+    # Physics properties (guaranteed to exist)
+    physics: PhysicsProperties
+
+    # Action management
+    _action: "Action | None"
+
+    def update(self, delta_time: float) -> None: ...
+
+
+@runtime_checkable
+class GroupTarget(Protocol):
+    """Protocol for group targets that can have group actions."""
+
+    _group_actions: list["Action"]
+
+    def __iter__(self): ...
+    def __len__(self) -> int: ...
 
 
 class Action(ABC):
@@ -34,7 +78,7 @@ class Action(ABC):
     """
 
     def __init__(self, clock: GameClock | None = None):
-        self.target: ActionSprite | arcade.SpriteList | None = None
+        self.target: ActionTarget | GroupTarget | None = None
         self._elapsed: float = 0.0
         self.done: bool = False  # Public completion state
         self._paused: bool = False
@@ -229,6 +273,13 @@ class ActionSprite(arcade.Sprite):
         self._action: Action | None = None
         self._is_paused: bool = False
         self._is_cleaning_up: bool = False
+
+        # Initialize physics properties - NO MORE RUNTIME CHECKING NEEDED
+        self.physics = PhysicsProperties()
+
+        # Ensure all required properties exist with defaults
+        if not hasattr(self, "change_angle"):
+            self.change_angle = 0.0
 
         # Subscribe to the clock's pause state
         if self._clock:

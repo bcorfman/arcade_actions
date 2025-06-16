@@ -120,6 +120,18 @@ def sprite_list():
         sprite.position = (0, 0)
         sprites.append(sprite)
     return sprites
+
+@pytest.fixture
+def sprite_group():
+    """Create a test SpriteGroup."""
+    from actions.group import SpriteGroup
+    sprites = SpriteGroup()
+    for i in range(3):
+        sprite = ActionSprite(":resources:images/items/star.png")
+        sprite.center_x = i * 100
+        sprite.center_y = 100
+        sprites.append(sprite)
+    return sprites
 ```
 
 ## When to Use Mocks
@@ -136,8 +148,9 @@ While we prefer using real implementations, there are cases where mocks are nece
        """Test movement with wrapped boundaries."""
        # Mock bounds function
        get_bounds = lambda: (800, 600)
-       action = WrappedMove(get_bounds=get_bounds)
-       sprite.do(action)
+       move_action = MoveBy((200, 0), 1.0)
+       wrap_action = WrappedMove(get_bounds)
+       sprite.do(move_action | wrap_action)
        # Test wrapping behavior
    ```
 
@@ -180,10 +193,11 @@ While we prefer using real implementations, there are cases where mocks are nece
    def test_boundary_conditions(self, sprite):
        """Test behavior at screen boundaries."""
        # Mock bounds function
-       get_bounds = lambda: (800, 600)
-       action = BoundedMove(get_bounds=get_bounds)
-       sprite.position = (800, 600)  # At boundary
-       sprite.do(action)
+       get_bounds = lambda: (0, 0, 800, 600)  # left, bottom, right, top
+       move_action = MoveBy((100, 0), 1.0)
+       bounce_action = BoundedMove(get_bounds)
+       sprite.position = (750, 300)  # Near boundary
+       sprite.do(move_action | bounce_action)
        # Test bouncing behavior
    ```
 
@@ -232,34 +246,183 @@ While we prefer using real implementations, there are cases where mocks are nece
    - Test error conditions
 
 For detailed testing patterns for specific action types, see:
-- `testing_movement.md` for movement actions
+- `testing_movement.md` for complex movement action testing (action controllers, advanced boundary conditions)
 - `testing_index.md` for a complete list of test files
 
 ## Test Categories
 
-### 1. Movement Actions
-- Test position updates
-- Test velocity calculations
-- Test boundary handling
-- Test physics integration
+### 1. Individual Action Tests
+```python
+def test_individual_action(self, sprite):
+    """Test action on a single sprite."""
+    move_action = MoveBy((100, 0), 1.0)
+    sprite.do(move_action)
+    
+    sprite.update(0.5)  # Half duration
+    assert sprite.center_x == 50
+    
+    sprite.update(0.5)  # Complete
+    assert sprite.center_x == 100
+    assert not sprite.is_busy()
+```
 
-### 2. Physics Actions
-- Test acceleration
-- Test gravity
-- Test collision response
-- Test force application
+### 2. Group Action Tests
+```python
+def test_group_action(self, sprite_group):
+    """Test GroupAction coordination."""
+    initial_positions = [s.center_x for s in sprite_group]
+    
+    move_action = MoveBy((50, 0), 1.0)
+    group_action = sprite_group.do(move_action)
+    
+    # Verify GroupAction created correctly
+    assert len(group_action.actions) == len(sprite_group)
+    assert len(sprite_group._group_actions) == 1
+    
+    sprite_group.update(1.0)
+    
+    # Verify all sprites moved
+    for i, sprite in enumerate(sprite_group):
+        assert sprite.center_x == initial_positions[i] + 50
+    
+    # Verify automatic cleanup
+    assert len(sprite_group._group_actions) == 0
+```
 
-### 3. Boundary Actions
-- Test wrapping behavior
-- Test bouncing behavior
-- Test boundary callbacks
-- Test sprite list handling
+### 3. Boundary Action Tests
+```python
+def test_boundary_with_group(self, sprite_group):
+    """Test BoundedMove with SpriteGroup."""
+    # Position sprites near boundary
+    for i, sprite in enumerate(sprite_group):
+        sprite.center_x = 720 + i * 10  # Near right edge
+    
+    bounce_called = False
+    def on_bounce(sprite, axis):
+        nonlocal bounce_called
+        bounce_called = True
+        # Coordinate group behavior
+        sprite_group.clear_actions()
+    
+    bounds = lambda: (0, 0, 800, 600)
+    bounce_action = BoundedMove(bounds, on_bounce=on_bounce)
+    bounce_action.target = sprite_group
+    bounce_action.start()
+    
+    move_action = MoveBy((200, 0), 1.0)
+    sprite_group.do(move_action)
+    
+    sprite_group.update(1.0)
+    bounce_action.update(1.0)
+    
+    assert bounce_called
+```
 
-### 4. Composite Actions
-- Test sequence execution
-- Test parallel execution
-- Test empty composites
-- Test immediate completion
+### 4. Collision Detection Tests
+```python
+def test_collision_detection(self):
+    """Test SpriteGroup collision detection."""
+    from actions.group import SpriteGroup
+    
+    bullets = SpriteGroup()
+    enemies = SpriteGroup()
+    
+    # Create overlapping sprites
+    bullet = ActionSprite(":resources:images/test.png")
+    bullet.center_x = 100
+    bullet.center_y = 100
+    bullets.append(bullet)
+    
+    enemy = ActionSprite(":resources:images/test.png")
+    enemy.center_x = 100
+    enemy.center_y = 100
+    enemies.append(enemy)
+    
+    collision_detected = False
+    def on_collision(bullet, hit_enemies):
+        nonlocal collision_detected
+        collision_detected = True
+    
+    bullets.on_collision_with(enemies, on_collision)
+    bullets.update_collisions()
+    
+    assert collision_detected
+```
+
+### 5. Composite Action Tests
+```python
+def test_composite_actions(self, sprite):
+    """Test sequence, parallel, and repeat actions using both APIs."""
+    from actions.composite import repeat, sequence, spawn, loop
+    
+    # Sequential actions - Helper function API
+    move1 = MoveBy((100, 0), 1.0)
+    move2 = MoveBy((0, 100), 1.0)
+    seq = sequence(move1, move2)
+    
+    sprite.do(seq)
+    sprite.update(1.0)  # First action
+    assert sprite.position == (100, 0)
+    
+    sprite.update(1.0)  # Second action
+    assert sprite.position == (100, 100)
+    
+    # Sequential actions - Operator overloading API (equivalent)
+    move3 = MoveBy((50, 0), 1.0)
+    move4 = MoveBy((0, 50), 1.0)
+    seq_op = move3 + move4
+    
+    sprite.position = (0, 0)
+    sprite.do(seq_op)
+    sprite.update(2.0)  # Both actions complete
+    assert sprite.position == (50, 50)
+    
+    # Parallel actions - Helper function API
+    move = MoveBy((50, 0), 1.0)
+    rotate = RotateBy(90, 1.0)
+    parallel = spawn(move, rotate)
+    
+    sprite.position = (0, 0)
+    sprite.angle = 0
+    sprite.do(parallel)
+    sprite.update(1.0)
+    
+    assert sprite.center_x == 50
+    assert sprite.angle == 90
+    
+    # Parallel actions - Operator overloading API (equivalent)
+    move_op = MoveBy((25, 0), 1.0)
+    rotate_op = RotateBy(45, 1.0)
+    parallel_op = move_op | rotate_op
+    
+    sprite.position = (0, 0)
+    sprite.angle = 0
+    sprite.do(parallel_op)
+    sprite.update(1.0)
+    
+    assert sprite.center_x == 25
+    assert sprite.angle == 45
+    
+    # Repeat actions - Helper function API
+    move_repeat = MoveBy((10, 0), 0.5)
+    repeat_action = repeat(move_repeat, 3)
+    
+    sprite.position = (0, 0)
+    sprite.do(repeat_action)
+    sprite.update(1.5)  # 3 iterations of 0.5 seconds each
+    
+    assert sprite.center_x == 30  # 10 pixels * 3 iterations
+    
+    # Repeat actions - Operator overloading API (loop equivalent)
+    move_mult = MoveBy((5, 0), 0.2)
+    mult_action = move_mult * 4
+    
+    sprite.position = (0, 0)
+    sprite.do(mult_action)
+    sprite.update(0.8)  # 4 iterations of 0.2 seconds each
+    
+    assert sprite.center_x == 20  # 5 pixels * 4 iterations
+```
 
 ## Mock Objects
 

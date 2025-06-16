@@ -7,16 +7,14 @@ import pytest
 from arcade.texture import Texture
 
 from actions.base import ActionSprite
-from actions.composite import Sequence
 from actions.game_clock import GameClock, Scheduler
 from actions.group import (
     AttackGroup,
     CirclePattern,
-    DivePattern,
-    FormationPattern,
+    GridPattern,
+    LinePattern,
     SpriteGroup,
-    WavePattern,
-    ZigzagPattern,
+    VFormationPattern,
 )
 from actions.interval import MoveBy
 
@@ -166,10 +164,10 @@ class TestGroupAction:
 
         group_action.update(0.5)
         assert all(a._elapsed > 0 for a in group_action.actions)
-        assert not group_action.done()
+        assert not group_action.done
 
         group_action.update(0.5)
-        assert group_action.done()
+        assert group_action.done
 
         group_action.stop()
         assert len(group_action.actions) == 0
@@ -299,242 +297,139 @@ class TestActionSprite:
 
 
 class TestPatterns:
-    """Test suite for Pattern classes."""
+    """Test suite for attack patterns."""
 
     @pytest.fixture
     def sprite_group(self):
         """Create a sprite group with test sprites."""
         group = SpriteGroup()
-        for i in range(3):
+        for i in range(5):
             sprite = ActionSprite(":resources:images/items/star.png")
-            sprite.center_x = i * 50
-            sprite.center_y = i * 30
+            sprite.center_x = 100 + i * 50
+            sprite.center_y = 300
             group.append(sprite)
         return group
 
     @pytest.fixture
     def attack_group(self, sprite_group):
-        """Create an attack group for testing patterns."""
+        """Create an attack group for testing."""
         clock = GameClock()
         scheduler = Scheduler(clock)
         return AttackGroup(sprite_group, clock, scheduler, name="test_group")
 
-    def test_dive_pattern_initialization(self):
-        """Test DivePattern initialization."""
-        pattern = DivePattern(speed=100.0, angle=45.0)
-        assert pattern.name == "dive"
-        assert pattern.speed == 100.0
-        assert pattern.angle == 45.0
+    def test_line_pattern_initialization(self):
+        """Test LinePattern initialization."""
+        pattern = LinePattern(spacing=75.0)
+        assert pattern.name == "line"
+        assert pattern.spacing == 75.0
 
-    def test_dive_pattern_apply(self, attack_group):
-        """Test DivePattern apply method."""
-        pattern = DivePattern(speed=100.0, angle=45.0)
-        initial_actions = len(attack_group.actions)
+    def test_line_pattern_apply(self, attack_group):
+        """Test LinePattern apply method."""
+        pattern = LinePattern(spacing=50.0)
+        pattern.apply(attack_group, start_x=100, start_y=200)
 
-        pattern.apply(attack_group)
+        # Check that sprites are positioned in a line
+        for i, sprite in enumerate(attack_group.sprites):
+            expected_x = 100 + i * 50.0
+            assert sprite.center_x == expected_x
+            assert sprite.center_y == 200
 
-        # Should create one group action
-        assert len(attack_group.actions) == initial_actions + 1
-        group_action = attack_group.actions[-1]
+    def test_grid_pattern_initialization(self):
+        """Test GridPattern initialization."""
+        pattern = GridPattern(rows=3, cols=4, spacing_x=60.0, spacing_y=40.0)
+        assert pattern.name == "grid"
+        assert pattern.rows == 3
+        assert pattern.cols == 4
+        assert pattern.spacing_x == 60.0
+        assert pattern.spacing_y == 40.0
 
-        # Should create MoveBy actions for each sprite
-        assert len(group_action.actions) == len(attack_group.sprites)
+    def test_grid_pattern_apply(self, attack_group):
+        """Test GridPattern apply method."""
+        pattern = GridPattern(rows=2, cols=3, spacing_x=60.0, spacing_y=50.0)
+        pattern.apply(attack_group, start_x=100, start_y=500)
 
-        # Verify the movement delta matches expected dive calculation
-        expected_dx = 100.0 * math.cos(math.radians(45.0))
-        expected_dy = 100.0 * math.sin(math.radians(45.0))
-
-        for action in group_action.actions:
-            assert isinstance(action, MoveBy)
-            assert abs(action.delta[0] - expected_dx) < 0.01
-            assert abs(action.delta[1] - expected_dy) < 0.01
-
-    def test_dive_pattern_different_angles(self, attack_group):
-        """Test DivePattern with different angles."""
-        # Test horizontal dive (0 degrees)
-        pattern = DivePattern(speed=100.0, angle=0.0)
-        pattern.apply(attack_group)
-
-        group_action = attack_group.actions[-1]
-        action = group_action.actions[0]
-        assert abs(action.delta[0] - 100.0) < 0.01
-        assert abs(action.delta[1] - 0.0) < 0.01
+        # Check that sprites are positioned in a grid
+        for i, sprite in enumerate(attack_group.sprites):
+            row = i // 3
+            col = i % 3
+            expected_x = 100 + col * 60.0
+            expected_y = 500 - row * 50.0
+            assert sprite.center_x == expected_x
+            assert sprite.center_y == expected_y
 
     def test_circle_pattern_initialization(self):
         """Test CirclePattern initialization."""
-        pattern = CirclePattern(radius=50.0, speed=100.0, clockwise=True)
+        pattern = CirclePattern(radius=120.0)
         assert pattern.name == "circle"
-        assert pattern.radius == 50.0
-        assert pattern.speed == 100.0
-        assert pattern.clockwise is True
-        assert pattern._current_angle == 0.0
+        assert pattern.radius == 120.0
 
     def test_circle_pattern_apply(self, attack_group):
         """Test CirclePattern apply method."""
-        pattern = CirclePattern(radius=50.0, speed=100.0, clockwise=True)
-        initial_actions = len(attack_group.actions)
+        pattern = CirclePattern(radius=100.0)
+        pattern.apply(attack_group, center_x=400, center_y=300)
 
-        pattern.apply(attack_group)
-
-        # Should create one group action
-        assert len(attack_group.actions) == initial_actions + 1
-        group_action = attack_group.actions[-1]
-
-        # Should create Sequence actions for each sprite
-        assert len(group_action.actions) == len(attack_group.sprites)
-
-        for action in group_action.actions:
-            assert isinstance(action, Sequence)
+        # Check that sprites are positioned in a circle
+        count = len(attack_group.sprites)
+        angle_step = 2 * math.pi / count
+        for i, sprite in enumerate(attack_group.sprites):
+            angle = i * angle_step
+            expected_x = 400 + math.cos(angle) * 100.0
+            expected_y = 300 + math.sin(angle) * 100.0
+            assert abs(sprite.center_x - expected_x) < 0.1
+            assert abs(sprite.center_y - expected_y) < 0.1
 
     def test_circle_pattern_empty_group(self):
         """Test CirclePattern with empty sprite group."""
         empty_group = SpriteGroup()
         clock = GameClock()
         scheduler = Scheduler(clock)
-        attack_group = AttackGroup(empty_group, clock, scheduler)
+        attack_group = AttackGroup(empty_group, clock, scheduler, name="empty_test")
 
-        pattern = CirclePattern(radius=50.0, speed=100.0)
-        pattern.apply(attack_group)
+        pattern = CirclePattern(radius=100.0)
+        # Should not raise an exception
+        pattern.apply(attack_group, center_x=400, center_y=300)
 
-        # Should not create any actions for empty group
-        assert len(attack_group.actions) == 0
-
-    def test_zigzag_pattern_initialization(self):
-        """Test ZigzagPattern initialization."""
-        pattern = ZigzagPattern(width=100.0, height=50.0, speed=200.0)
-        assert pattern.name == "zigzag"
-        assert pattern.width == 100.0
-        assert pattern.height == 50.0
-        assert pattern.speed == 200.0
-
-    def test_zigzag_pattern_apply(self, attack_group):
-        """Test ZigzagPattern apply method."""
-        pattern = ZigzagPattern(width=100.0, height=50.0, speed=200.0)
-        initial_actions = len(attack_group.actions)
-
-        pattern.apply(attack_group)
-
-        # Should create one group action
-        assert len(attack_group.actions) == initial_actions + 1
-        group_action = attack_group.actions[-1]
-
-        # Should create Sequence actions for each sprite
-        assert len(group_action.actions) == len(attack_group.sprites)
-
-        for action in group_action.actions:
-            assert isinstance(action, Sequence)
-
-    def test_formation_pattern_initialization(self):
-        """Test FormationPattern initialization."""
-        pattern = FormationPattern("v", spacing=75.0)
-        assert pattern.name == "formation"
-        assert pattern.formation_type == "v"
+    def test_v_formation_pattern_initialization(self):
+        """Test VFormationPattern initialization."""
+        pattern = VFormationPattern(angle=60.0, spacing=75.0)
+        assert pattern.name == "v_formation"
         assert pattern.spacing == 75.0
 
-    def test_formation_pattern_v_formation(self, attack_group):
-        """Test FormationPattern with V formation."""
-        pattern = FormationPattern("v", spacing=50.0)
-        pattern.apply(attack_group)
+    def test_v_formation_pattern_apply(self, attack_group):
+        """Test VFormationPattern apply method."""
+        pattern = VFormationPattern(angle=45.0, spacing=50.0)
+        pattern.apply(attack_group, apex_x=400, apex_y=500)
 
-        # Should create one group action
-        assert len(attack_group.actions) == 1
-        group_action = attack_group.actions[-1]
+        sprites = list(attack_group.sprites)
 
-        # Should create Sequence actions for each sprite
-        assert len(group_action.actions) == len(attack_group.sprites)
+        # First sprite should be at apex
+        assert sprites[0].center_x == 400
+        assert sprites[0].center_y == 500
 
-    def test_formation_pattern_line_formation(self, attack_group):
-        """Test FormationPattern with line formation."""
-        pattern = FormationPattern("line", spacing=60.0)
-        pattern.apply(attack_group)
+        # Check that remaining sprites are positioned correctly
+        for i in range(1, len(sprites)):
+            side = 1 if i % 2 == 1 else -1  # Alternate sides
+            distance = (i + 1) // 2 * 50.0
 
-        group_action = attack_group.actions[-1]
-        assert len(group_action.actions) == len(attack_group.sprites)
+            offset_x = side * math.cos(math.radians(45.0)) * distance
+            offset_y = -math.sin(math.radians(45.0)) * distance
 
-    def test_formation_pattern_circle_formation(self, attack_group):
-        """Test FormationPattern with circle formation."""
-        pattern = FormationPattern("circle", spacing=80.0)
-        pattern.apply(attack_group)
+            expected_x = 400 + offset_x
+            expected_y = 500 + offset_y
 
-        group_action = attack_group.actions[-1]
-        assert len(group_action.actions) == len(attack_group.sprites)
+            assert abs(sprites[i].center_x - expected_x) < 0.1
+            assert abs(sprites[i].center_y - expected_y) < 0.1
 
-    def test_formation_pattern_diamond_formation(self, attack_group):
-        """Test FormationPattern with diamond formation."""
-        pattern = FormationPattern("diamond", spacing=40.0)
-        pattern.apply(attack_group)
-
-        group_action = attack_group.actions[-1]
-        assert len(group_action.actions) == len(attack_group.sprites)
-
-    def test_formation_pattern_empty_group(self):
-        """Test FormationPattern with empty sprite group."""
+    def test_v_formation_pattern_empty_group(self):
+        """Test VFormationPattern with empty sprite group."""
         empty_group = SpriteGroup()
         clock = GameClock()
         scheduler = Scheduler(clock)
-        attack_group = AttackGroup(empty_group, clock, scheduler)
+        attack_group = AttackGroup(empty_group, clock, scheduler, name="empty_test")
 
-        pattern = FormationPattern("v")
-        pattern.apply(attack_group)
-
-        # Should not create any actions for empty group
-        assert len(attack_group.actions) == 0
-
-    def test_formation_calculate_positions_v(self):
-        """Test FormationPattern position calculation for V formation."""
-        pattern = FormationPattern("v", spacing=50.0)
-        positions = pattern._calculate_formation_positions(3, "v", 50.0)
-
-        assert len(positions) == 3
-        # Check that positions form a V shape
-        assert positions[0][1] <= positions[1][1]  # Y values decrease towards center
-        assert positions[2][1] <= positions[1][1]
-
-    def test_formation_calculate_positions_line(self):
-        """Test FormationPattern position calculation for line formation."""
-        pattern = FormationPattern("line", spacing=50.0)
-        positions = pattern._calculate_formation_positions(3, "line", 50.0)
-
-        assert len(positions) == 3
-        # All Y values should be 0 for horizontal line
-        for pos in positions:
-            assert pos[1] == 0
-
-    def test_formation_calculate_positions_circle(self):
-        """Test FormationPattern position calculation for circle formation."""
-        pattern = FormationPattern("circle", spacing=50.0)
-        positions = pattern._calculate_formation_positions(4, "circle", 50.0)
-
-        assert len(positions) == 4
-        # All positions should be at radius distance from origin
-        for pos in positions:
-            distance = math.sqrt(pos[0] ** 2 + pos[1] ** 2)
-            assert abs(distance - 50.0) < 0.01
-
-    def test_wave_pattern_initialization(self):
-        """Test WavePattern initialization."""
-        pattern = WavePattern(amplitude=30.0, frequency=2.0, speed=150.0)
-        assert pattern.name == "wave"
-        assert pattern.amplitude == 30.0
-        assert pattern.frequency == 2.0
-        assert pattern.speed == 150.0
-
-    def test_wave_pattern_apply(self, attack_group):
-        """Test WavePattern apply method."""
-        pattern = WavePattern(amplitude=30.0, frequency=2.0, speed=150.0)
-        initial_actions = len(attack_group.actions)
-
-        pattern.apply(attack_group)
-
-        # Should create one group action
-        assert len(attack_group.actions) == initial_actions + 1
-        group_action = attack_group.actions[-1]
-
-        # Should create Sequence actions for each sprite
-        assert len(group_action.actions) == len(attack_group.sprites)
-
-        for action in group_action.actions:
-            assert isinstance(action, Sequence)
+        pattern = VFormationPattern()
+        # Should not raise an exception
+        pattern.apply(attack_group, apex_x=400, apex_y=500)
 
 
 class TestAttackGroup:
