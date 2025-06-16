@@ -182,8 +182,8 @@ We are delivering a **modern, extensible, production-ready Actions system** for 
      - Test pause state handling
      - Test boundary conditions
 
-3. **Test Categories**
-   See `testing.md` for detailed test categories and patterns.
+3. **Test Categories and Mock Usage**
+   See `testing.md` for detailed test categories, patterns, and when to use mocks vs real implementations.
 
 4. **Documentation Requirements**
    - Each test file must have a clear docstring explaining its purpose
@@ -201,7 +201,36 @@ We are delivering a **modern, extensible, production-ready Actions system** for 
    - Tests must be maintainable and readable
    - Tests must verify both immediate and time-based updates
 
-For detailed testing patterns, examples, and best practices, see `docs/testing.md`.
+## 📚 Related Documentation
+
+This PRD provides the architectural foundation. For implementation details, consult:
+
+### Essential Implementation Guides
+- **[api_usage_guide.md](api_usage_guide.md)** - **Primary implementation reference**
+  - For all component usage patterns and implementation details
+  - The definitive guide for ActionSprite vs arcade.Sprite decisions
+  - Complete API examples and best practices
+
+### Testing Documentation
+- **[testing_index.md](testing_index.md)** - Central testing hub
+  - Navigation to all testing documentation
+  - Links to component-specific testing patterns
+  - Comprehensive testing guide and fixtures reference
+
+### Specialized Implementation Guides
+- **[boundary_event.md](boundary_event.md)** - BoundedMove callback patterns
+- **[game_loop_updates.md](game_loop_updates.md)** - Game integration patterns
+
+### Documentation Hierarchy
+```
+PRD.md (this file)           → Architecture & Requirements
+├── api_usage_guide.md       → Implementation Patterns (PRIMARY)
+├── testing_index.md         → Testing Hub
+│   ├── testing.md           → Core Testing Patterns
+│   └── testing_movement.md  → Movement Testing
+├── boundary_event.md        → Boundary Patterns
+└── game_loop_updates.md     → Game Integration
+```
 
 ## 🏗️ Code Quality Standards
 

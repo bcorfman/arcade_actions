@@ -2,57 +2,36 @@
 
 ## Overview
 
-This document serves as a comprehensive index for all testing-related documentation in the ArcadeActions framework, including API usage patterns and best practices.
+This document serves as a comprehensive index for all testing-related documentation in the ArcadeActions framework.
 
-## Core Documentation
+**For API usage and implementation patterns, see [api_usage_guide.md](api_usage_guide.md)**
 
-### 1. [api_usage_guide.md](api_usage_guide.md) - **START HERE**
-**The definitive guide for understanding when and how to use each component:**
-- ActionSprite vs arcade.Sprite usage patterns
-- SpriteGroup vs arcade.SpriteList decision matrix
-- GroupAction coordination and automatic management
-- BoundedMove + SpriteGroup integration for Space Invaders patterns
-- Collision detection with method chaining
-- Common mistakes to avoid
-- Performance considerations
-- Complete testing patterns for each component
+## Testing Documentation
 
-### 2. [testing.md](testing.md) - **Core Testing Patterns**
+### 1. [testing.md](testing.md) - **Core Testing Patterns**
 **Comprehensive testing guide covering:**
 - Individual action testing with ActionSprite
 - Group action testing with SpriteGroup and GroupAction
 - Boundary action testing with BoundedMove coordination
 - Collision detection testing with method chaining
-- Composite action testing (sequences, parallel, loops)
+- Composite action testing (sequences, parallel, loops, repeats)
 - Common test fixtures and dependency injection
 - Mock object usage and best practices
 
-### 3. [testing_movement.md](testing_movement.md) - **Movement Specialization**
-**Specialized testing for movement actions:**
-- Movement action testing patterns
-- Boundary condition testing
-- Physics integration testing
-- Performance testing for movement
+### 2. [testing_movement.md](testing_movement.md) - **Movement Action Specialization**
+**Specialized patterns for complex movement testing:**
+- Action controller combinations (`|` operator)
+- Advanced boundary condition testing
+- Callback testing with proper parameters
+- Performance testing for movement actions
 
-### 4. [boundary_event.md](boundary_event.md) - **Boundary Integration**
-**BoundedMove and WrappedMove callback patterns:**
-- Individual sprite boundary handling
-- SpriteGroup edge detection and coordination
-- Space Invaders-style movement patterns
-- Callback coordination for group behaviors
+*For basic movement testing patterns, see the main testing.md guide*
 
-### 5. [game_loop_updates.md](game_loop_updates.md) - **Game Integration**
-**Game loop patterns and SpriteGroup integration:**
-- SpriteGroup automatic GroupAction management
-- Boundary action coordination in game loops
-- Space Invaders implementation example
-
-### 6. [prd.md](prd.md) - **Requirements and Architecture**
-**High-level requirements and testing standards:**
-- Testing coverage requirements
-- Property update system documentation
-- ActionSprite vs arcade.Sprite separation
-- Architecture decisions and rationale
+## Reference Documentation
+- **[prd.md](prd.md)** - Testing requirements and architecture standards
+- **[api_usage_guide.md](api_usage_guide.md)** - Implementation patterns (consult for usage examples)
+- **[boundary_event.md](boundary_event.md)** - Implementation guide for boundary callbacks
+- **[game_loop_updates.md](game_loop_updates.md)** - Implementation guide for game integration
 
 ## Quick Reference: Testing Patterns by Component
 

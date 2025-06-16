@@ -246,7 +246,7 @@ While we prefer using real implementations, there are cases where mocks are nece
    - Test error conditions
 
 For detailed testing patterns for specific action types, see:
-- `testing_movement.md` for movement actions
+- `testing_movement.md` for complex movement action testing (action controllers, advanced boundary conditions)
 - `testing_index.md` for a complete list of test files
 
 ## Test Categories
@@ -352,23 +352,35 @@ def test_collision_detection(self):
 ### 5. Composite Action Tests
 ```python
 def test_composite_actions(self, sprite):
-    """Test sequence and parallel actions."""
-    # Sequential actions
+    """Test sequence, parallel, and repeat actions using both APIs."""
+    from actions.composite import repeat, sequence, spawn, loop
+    
+    # Sequential actions - Helper function API
     move1 = MoveBy((100, 0), 1.0)
     move2 = MoveBy((0, 100), 1.0)
-    sequence = move1 + move2
+    seq = sequence(move1, move2)
     
-    sprite.do(sequence)
+    sprite.do(seq)
     sprite.update(1.0)  # First action
     assert sprite.position == (100, 0)
     
     sprite.update(1.0)  # Second action
     assert sprite.position == (100, 100)
     
-    # Parallel actions
+    # Sequential actions - Operator overloading API (equivalent)
+    move3 = MoveBy((50, 0), 1.0)
+    move4 = MoveBy((0, 50), 1.0)
+    seq_op = move3 + move4
+    
+    sprite.position = (0, 0)
+    sprite.do(seq_op)
+    sprite.update(2.0)  # Both actions complete
+    assert sprite.position == (50, 50)
+    
+    # Parallel actions - Helper function API
     move = MoveBy((50, 0), 1.0)
     rotate = RotateBy(90, 1.0)
-    parallel = move | rotate
+    parallel = spawn(move, rotate)
     
     sprite.position = (0, 0)
     sprite.angle = 0
@@ -377,6 +389,39 @@ def test_composite_actions(self, sprite):
     
     assert sprite.center_x == 50
     assert sprite.angle == 90
+    
+    # Parallel actions - Operator overloading API (equivalent)
+    move_op = MoveBy((25, 0), 1.0)
+    rotate_op = RotateBy(45, 1.0)
+    parallel_op = move_op | rotate_op
+    
+    sprite.position = (0, 0)
+    sprite.angle = 0
+    sprite.do(parallel_op)
+    sprite.update(1.0)
+    
+    assert sprite.center_x == 25
+    assert sprite.angle == 45
+    
+    # Repeat actions - Helper function API
+    move_repeat = MoveBy((10, 0), 0.5)
+    repeat_action = repeat(move_repeat, 3)
+    
+    sprite.position = (0, 0)
+    sprite.do(repeat_action)
+    sprite.update(1.5)  # 3 iterations of 0.5 seconds each
+    
+    assert sprite.center_x == 30  # 10 pixels * 3 iterations
+    
+    # Repeat actions - Operator overloading API (loop equivalent)
+    move_mult = MoveBy((5, 0), 0.2)
+    mult_action = move_mult * 4
+    
+    sprite.position = (0, 0)
+    sprite.do(mult_action)
+    sprite.update(0.8)  # 4 iterations of 0.2 seconds each
+    
+    assert sprite.center_x == 20  # 5 pixels * 4 iterations
 ```
 
 ## Mock Objects

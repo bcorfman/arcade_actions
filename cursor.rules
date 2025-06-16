@@ -1,4 +1,18 @@
 {
+  "mandatory_consultation": {
+    "before_code_changes": {
+      "primary_requirements": "docs/prd.md - Architectural foundation, requirements, and code quality standards",
+      "implementation_guide": "docs/api_usage_guide.md - Primary implementation guide for all component usage",
+      "testing_hub": "docs/testing_index.md - Central hub for all testing-related documentation",
+      "rule": "ALWAYS consult these documents before making significant code changes or architectural decisions",
+      "workflow": [
+        "1. Check PRD.md for architectural constraints and quality standards",
+        "2. Review api_usage_guide.md for implementation patterns and component usage",
+        "3. Consult testing_index.md to find appropriate testing documentation",
+        "4. Follow testing_index.md links to specific testing guides (testing.md, etc.)"
+      ]
+    }
+  },
   "project_structure": {
     "source_code": {
       "path": "actions/",
@@ -66,7 +80,8 @@
       "individual_actions": "Use ActionSprite fixtures, test with sprite.do() and sprite.update()",
       "group_actions": "Use SpriteGroup fixtures, verify GroupAction creation and automatic cleanup",
       "boundary_actions": "Test edge detection, callback coordination, and spacing preservation",
-      "collision_detection": "Test SpriteGroup collision handlers and method chaining"
+      "collision_detection": "Test SpriteGroup collision handlers and method chaining",
+      "comprehensive_guide": "See docs/testing_index.md for complete testing patterns, fixtures, and mock usage guidelines"
     }
   }
 } 
