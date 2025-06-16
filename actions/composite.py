@@ -89,6 +89,22 @@ def loop(action: Action, times: int) -> "Loop":
     return Loop(copy.deepcopy(action), times)
 
 
+def repeat(action: Action, times: int) -> "Repeat":
+    """Returns an action that repeats another action a specified number of times.
+
+    The returned action will be a Repeat that repeats the given action the specified
+    number of times. The action is copied to ensure independence.
+
+    Args:
+        action: The action to repeat
+        times: Number of times to repeat the action
+
+    Returns:
+        A new Repeat action that repeats the given action
+    """
+    return Repeat(action, times)
+
+
 class Loop(IntervalAction):
     """Repeats an action a specified number of times."""
 

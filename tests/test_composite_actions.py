@@ -11,7 +11,7 @@ import arcade
 import pytest
 
 from actions.base import Action, IntervalAction
-from actions.composite import Loop, Sequence, Spawn, loop, sequence, spawn
+from actions.composite import Loop, Repeat, Sequence, Spawn, loop, repeat, sequence, spawn
 
 
 class MockAction(IntervalAction):
@@ -98,6 +98,15 @@ class TestHelperFunctions:
         assert lp.times == 3
         assert lp.action is not mock_action1
         assert lp.duration == 3.0  # 1.0 * 3
+
+    def test_repeat_helper(self, mock_action1):
+        """Test repeat helper function creates proper repeating action."""
+        rp = repeat(mock_action1, 3)
+
+        assert isinstance(rp, Repeat)
+        assert rp.times == 3
+        assert rp.action is mock_action1  # Repeat uses reference, not deepcopy
+        assert rp.duration == 3.0  # 1.0 * 3
 
 
 class TestSequence:
@@ -231,6 +240,151 @@ class TestLoop:
         callback.assert_called_once()
 
 
+class TestRepeat:
+    """Tests for Repeat composite action."""
+
+    def test_initialization(self, mock_action1):
+        """Test proper initialization of Repeat action."""
+        repeat_action = Repeat(mock_action1, 3)
+
+        assert repeat_action.action is mock_action1
+        assert repeat_action.times == 3
+        assert repeat_action.current_times == 0
+        assert repeat_action.duration == 3.0  # 1.0 * 3
+        assert not repeat_action.done
+
+    def test_execution(self, mock_action1, mock_sprite):
+        """Test repeat executes action specified number of times."""
+        repeat_action = Repeat(mock_action1, 3)
+        repeat_action.target = mock_sprite
+
+        # Start repeat
+        repeat_action.start()
+        assert repeat_action.action.start_called
+
+        # Complete first iteration
+        repeat_action.action.done = True
+        repeat_action.update(0.1)
+        assert repeat_action.current_times == 1
+        assert not repeat_action.done
+        assert repeat_action.action.reset_called
+
+        # Complete second iteration
+        repeat_action.action.done = True
+        repeat_action.update(0.1)
+        assert repeat_action.current_times == 2
+        assert not repeat_action.done
+
+        # Complete final iteration
+        repeat_action.action.done = True
+        repeat_action.update(0.1)
+        assert repeat_action.current_times == 3
+        assert repeat_action.done
+
+    def test_update_during_action(self, mock_action1, mock_sprite):
+        """Test update behavior while action is running."""
+        repeat_action = Repeat(mock_action1, 2)
+        repeat_action.target = mock_sprite
+
+        repeat_action.start()
+
+        # Update while action is running
+        repeat_action.update(0.5)
+        assert repeat_action.action.update_called
+        assert not repeat_action.done
+        assert repeat_action.current_times == 0
+
+    def test_stop(self, mock_action1, mock_sprite):
+        """Test stop method properly stops the contained action."""
+        repeat_action = Repeat(mock_action1, 3)
+        repeat_action.target = mock_sprite
+
+        repeat_action.start()
+        repeat_action.stop()
+
+        assert repeat_action.action.stop_called
+
+    def test_reset(self, mock_action1, mock_sprite):
+        """Test reset method properly resets state and contained action."""
+        repeat_action = Repeat(mock_action1, 3)
+        repeat_action.target = mock_sprite
+
+        # Progress through some iterations
+        repeat_action.start()
+        repeat_action.action.done = True
+        repeat_action.update(0.1)
+        assert repeat_action.current_times == 1
+
+        # Reset and verify state
+        repeat_action.reset()
+        assert repeat_action.current_times == 0
+        assert repeat_action.action.reset_called
+        assert not repeat_action.done
+
+    def test_single_iteration(self, mock_action1, mock_sprite):
+        """Test repeat with times=1 completes after single execution."""
+        repeat_action = Repeat(mock_action1, 1)
+        repeat_action.target = mock_sprite
+
+        repeat_action.start()
+        repeat_action.action.done = True
+        repeat_action.update(0.1)
+
+        assert repeat_action.current_times == 1
+        assert repeat_action.done
+
+    def test_target_assignment(self, mock_action1, mock_sprite):
+        """Test that target is properly assigned to contained action."""
+        repeat_action = Repeat(mock_action1, 2)
+        repeat_action.target = mock_sprite
+
+        repeat_action.start()
+        assert repeat_action.action.target is mock_sprite
+
+    def test_invalid_parameters(self):
+        """Test that invalid parameters raise appropriate errors."""
+        mock_action = MockAction(1.0)
+
+        # Test None action
+        with pytest.raises(ValueError, match="Must specify action"):
+            Repeat(None, 3)
+
+        # Test None times
+        with pytest.raises(ValueError, match="Must specify times"):
+            Repeat(mock_action, None)
+
+    def test_duration_calculation(self):
+        """Test duration is calculated correctly."""
+        action_2s = MockAction(2.0)
+        repeat_action = Repeat(action_2s, 4)
+
+        assert repeat_action.duration == 8.0  # 2.0 * 4
+
+    def test_repr(self, mock_action1):
+        """Test string representation."""
+        repeat_action = Repeat(mock_action1, 3)
+        repr_str = repr(repeat_action)
+
+        assert "Repeat" in repr_str
+        assert "times=3" in repr_str
+        assert str(mock_action1) in repr_str
+
+    def test_completion_callback(self, mock_action1, mock_sprite):
+        """Test repeat completion callback (if supported)."""
+        repeat_action = Repeat(mock_action1, 2)
+        repeat_action.target = mock_sprite
+
+        # Note: Repeat class doesn't have on_complete method like Loop,
+        # so we just test that it completes properly
+        repeat_action.start()
+        repeat_action.action.done = True
+        repeat_action.update(0.1)
+        repeat_action.action.done = True
+        repeat_action.update(0.1)
+
+        assert repeat_action.done
+
+
 class TestActionLifecycle:
     """Tests for action lifecycle management across all composite types."""
 
@@ -240,6 +394,7 @@ class TestActionLifecycle:
             (Sequence, lambda a1, a2: sequence(a1, a2)),
             (Spawn, lambda a1, a2: spawn(a1, a2)),
             (Loop, lambda a1, _: loop(a1, 2)),
+            (Repeat, lambda a1, _: repeat(a1, 2)),
         ],
     )
     def test_lifecycle(self, action_class, create_action, mock_action1, mock_action2, mock_sprite):
@@ -249,7 +404,7 @@ class TestActionLifecycle:
 
         # Test start
         action.start()
-        if isinstance(action, Loop):
+        if isinstance(action, (Loop, Repeat)):
             assert action.action.start_called
         elif isinstance(action, Sequence):
             # Sequence only starts the first action
@@ -261,7 +416,7 @@ class TestActionLifecycle:
 
         # Test update
         action.update(0.1)
-        if isinstance(action, Loop):
+        if isinstance(action, (Loop, Repeat)):
             assert action.action.update_called
         elif isinstance(action, Sequence):
             # Sequence only updates the current action
@@ -273,7 +428,7 @@ class TestActionLifecycle:
 
         # Test stop
         action.stop()
-        if isinstance(action, Loop):
+        if isinstance(action, (Loop, Repeat)):
             assert action.action.stop_called
         elif isinstance(action, Sequence):
             # Sequence only stops the current action
@@ -285,7 +440,7 @@ class TestActionLifecycle:
 
         # Test reset
         action.reset()
-        if isinstance(action, Loop):
+        if isinstance(action, (Loop, Repeat)):
             assert action.action.reset_called
             assert action.current_times == 0
         elif isinstance(action, Sequence):
