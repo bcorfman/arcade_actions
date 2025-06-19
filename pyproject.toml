@@ -1,11 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "ArcadeActions"
+name = "arcade-actions"
 version = "0.1.0"
 description = "A port of Cocos2D Actions for use with the Arcade 3.0 library"
 authors = [{name = "Brandon Corfman", email = "h9tbgnbbk@privaterelay.appleid.com"}]
 license = {file="LICENSE"}
 readme = "README.md"
 requires-python = ">= 3.10"
+keywords = ["arcade", "game", "animation", "actions", "sprites"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "arcade>=3.0.0.dev35",
     "ipython>=8.32.0",
@@ -13,11 +29,27 @@ dependencies = [
     "pyglet>=2.1.dev5",
 ]
 
+[project.urls]
+Homepage = "https://github.com/bcorfman/arcade_actions"
+Repository = "https://github.com/bcorfman/arcade_actions"
+Documentation = "https://github.com/bcorfman/arcade_actions/blob/main/docs/"
+Issues = "https://github.com/bcorfman/arcade_actions/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.3",
+    "pytest-cov>=5.0.0",
+    "pandas>=2.2.3",
+    "black>=24.0.0",
+    "ruff>=0.1.0",
+]
+
 [tool.uv]
 dev-dependencies = [
     "pytest>=8.3.3",
     "pytest-cov>=5.0.0",
     "pandas>=2.2.3",
+    "build>=1.2.2.post1",
 ]
 
 [tool.pytest.ini_options]
@@ -36,6 +68,9 @@ target-version = "py312"
 quote-style = "double"
 indent-style = "space"
 docstring-code-format = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["actions"]
 
 [tool.ruff.lint]
 select = [

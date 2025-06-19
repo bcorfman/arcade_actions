@@ -1,0 +1,27 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include setup_dev.py
+recursive-include docs *.md
+recursive-include examples *.py
+recursive-include actions *.py
+include pyproject.toml
+exclude *.pyc
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+exclude .coverage
+exclude .coveragerc
+exclude Makefile
+exclude *.log
+prune .git
+prune .pytest_cache
+prune .ruff_cache
+prune .venv
+prune __pycache__
+prune references
+prune res
+prune .benchmarks
+prune .cursor
+prune .github
+prune .qodo
+prune .vscode 
