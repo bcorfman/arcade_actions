@@ -124,8 +124,8 @@ class MoveTo(MovementAction, IntervalAction):
             )
 
     def extract_movement_direction(self, extractor) -> None:
-        """Extract movement direction - implements polymorphic interface."""
-        extractor.handle_movement_delta(self.delta)
+        """Polymorphic movement-direction extraction."""
+        extractor(self.delta)
 
     def __repr__(self) -> str:
         return f"MoveTo(position={self.end_position}, duration={self.duration})"
@@ -201,8 +201,8 @@ class MoveBy(MovementAction, IntervalAction):
             )
 
     def extract_movement_direction(self, extractor) -> None:
-        """Extract movement direction - implements polymorphic interface."""
-        extractor.handle_movement_delta(self.delta)
+        """Polymorphic movement-direction extraction."""
+        extractor(self.delta)
 
     def __repr__(self) -> str:
         return f"MoveBy(delta={self.delta}, duration={self.duration})"

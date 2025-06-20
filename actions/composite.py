@@ -120,11 +120,11 @@ class Loop(IntervalAction):
         if times < 1:
             raise ValueError("times must be at least 1")
 
-        # Calculate total duration based on action's duration
-        if hasattr(action, "duration"):
-            total_duration = action.duration * times
-        else:
-            total_duration = None
+        # Calculate total duration based on action's duration. If the wrapped action
+        # has a zero duration (instant action), we propagate `None` to indicate
+        # an indeterminate total duration consistent with previous behaviour and
+        # existing tests.
+        total_duration = action.duration * times if action.duration > 0 else None
 
         super().__init__(total_duration)
         self.action = action
@@ -216,8 +216,8 @@ class Sequence(CompositeAction, IntervalAction):
             self.current_index = 0
             return
 
-        # Calculate total duration
-        total_duration = sum(getattr(action, "duration", 0) for action in actions)
+        # Calculate total duration (all actions guarantee a duration attribute).
+        total_duration = sum(action.duration for action in actions)
 
         CompositeAction.__init__(self)
         IntervalAction.__init__(self, total_duration)

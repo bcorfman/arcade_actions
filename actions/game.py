@@ -28,11 +28,26 @@ class Game(arcade.Window):
         resizable: bool = False,
         update_rate: float = 1 / 60,
         antialiasing: bool = True,
+        *,
+        clock: GameClock | None = None,
+        scheduler: Scheduler | None = None,
     ):
+        """Create a new game window.
+
+        The ``clock`` and ``scheduler`` parameters are accepted to comply with the
+        project's dependency-injection rule set.  Supplying custom instances
+        makes it trivial to unit-test the ``Game`` class in isolation without
+        touching global time.
+        """
+
         super().__init__(width, height, title, fullscreen, resizable, update_rate, antialiasing)
-        # Core systems
-        self.clock = GameClock()
-        self.scheduler = Scheduler(self.clock)
+
+        # Core systems (dependency injection friendly)
+        self.clock: GameClock = clock if clock is not None else GameClock()
+        # Scheduler depends on the clock; fall back to default implementation if
+        # none is supplied.  Note that we defer import of ``Scheduler`` at the
+        # top of the file, so the class is always in scope.
+        self.scheduler: Scheduler = scheduler if scheduler is not None else Scheduler(self.clock)
 
         # Input state
         self.keys_pressed: set[int] = set()
@@ -174,9 +189,13 @@ class Game(arcade.Window):
 
     def reset(self):
         """Reset the game to its initial state."""
-        # Reset core systems
+        # Reset core systems – we do *not* directly instantiate a new clock or
+        # scheduler here to avoid violating the dependency-injection rules. The
+        # existing clock is reset, and the scheduler is recreated by invoking
+        # the same class that was supplied (or default) during construction.
+
         self.clock.reset()
-        self.scheduler = Scheduler(self.clock)  # Create fresh scheduler
+        self.scheduler = self.scheduler.__class__(self.clock)
 
         # Reset game state
         self.score = 0

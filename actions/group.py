@@ -173,11 +173,10 @@ class GroupAction(Action):
             # For Sequence, recursively copy each sub-action
             copied_actions = [self._safe_copy_action(sub_action) for sub_action in action.actions]
             new_sequence = Sequence(*copied_actions)
-            # Copy completion callbacks
-            if hasattr(action, "_on_complete"):
-                new_sequence._on_complete = action._on_complete
-                new_sequence._on_complete_args = action._on_complete_args
-                new_sequence._on_complete_kwargs = action._on_complete_kwargs
+            # Copy completion callbacks (always present in Action base class)
+            new_sequence._on_complete = action._on_complete
+            new_sequence._on_complete_args = action._on_complete_args
+            new_sequence._on_complete_kwargs = action._on_complete_kwargs
             return new_sequence
 
         elif isinstance(action, Spawn):
@@ -323,8 +322,7 @@ class GroupAction(Action):
 
         # Also reverse all individual actions
         for action in self.actions:
-            if hasattr(action, "reverse_movement"):
-                action.reverse_movement(axis)
+            action.reverse_movement(axis)
 
     def get_movement_actions(self) -> list[Action]:
         """Get all movement actions from this group - consistent with CompositeAction."""
@@ -336,6 +334,15 @@ class GroupAction(Action):
 
     def __repr__(self) -> str:
         return f"GroupAction(group={len(self.group)} sprites, action={self.template})"
+
+    # Polymorphic hooks ---------------------------------------------------
+
+    def extract_movement_direction(self, collector):  # type: ignore[override]
+        # Delegate to the template and all live actions so direction detection
+        # logic sees the same data it did before.
+        self.template.extract_movement_direction(collector)
+        for action in self.actions:
+            action.extract_movement_direction(collector)
 
 
 class Pattern:
