@@ -34,7 +34,6 @@ from .base import Action, ActionSprite, InstantAction, IntervalAction
 # Action types
 from .composite import Loop, Sequence, Spawn, loop, sequence, spawn
 from .game import Game
-from .game_clock import GameClock, Scheduler
 from .group import SpriteGroup
 from .instant import CallFunc, CallFuncS, Hide, Place, Show, ToggleVisibility
 from .interval import MoveBy, MoveTo, RotateBy, RotateTo, ScaleBy, ScaleTo
@@ -98,8 +97,6 @@ __all__ = [
     "Action",
     "ActionSprite",
     "Game",
-    "GameClock",
-    "Scheduler",
     "SpriteGroup",
     # Action base classes
     "InstantAction",

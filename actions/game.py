@@ -6,8 +6,6 @@ from collections.abc import Callable
 
 import arcade
 
-from .game_clock import GameClock, Scheduler
-
 
 class Game(arcade.Window):
     """Central game class that manages all game state and systems.
@@ -28,9 +26,6 @@ class Game(arcade.Window):
         resizable: bool = False,
         update_rate: float = 1 / 60,
         antialiasing: bool = True,
-        *,
-        clock: GameClock | None = None,
-        scheduler: Scheduler | None = None,
     ):
         """Create a new game window.
 
@@ -41,13 +36,6 @@ class Game(arcade.Window):
         """
 
         super().__init__(width, height, title, fullscreen, resizable, update_rate, antialiasing)
-
-        # Core systems (dependency injection friendly)
-        self.clock: GameClock = clock if clock is not None else GameClock()
-        # Scheduler depends on the clock; fall back to default implementation if
-        # none is supplied.  Note that we defer import of ``Scheduler`` at the
-        # top of the file, so the class is always in scope.
-        self.scheduler: Scheduler = scheduler if scheduler is not None else Scheduler(self.clock)
 
         # Input state
         self.keys_pressed: set[int] = set()
@@ -70,18 +58,16 @@ class Game(arcade.Window):
         self.on_game_over_callbacks: list[Callable[[], None]] = []
         self.on_level_complete_callbacks: list[Callable[[], None]] = []
 
+        self._paused: bool = False
+
     def setup(self):
         """Initialize the game state. Override this in your game."""
         pass
 
     def update(self, delta_time: float):
         """Update all game systems."""
-        if self.clock.paused:
+        if self._paused:
             return
-
-        # Update core systems
-        self.clock.update(delta_time)
-        self.scheduler.update()
 
         # Update current view if it exists
         if self._current_view:
@@ -110,13 +96,13 @@ class Game(arcade.Window):
 
     def pause(self):
         """Pause the entire game."""
-        self.clock.paused = True
+        self._paused = True
         for callback in self.on_pause_callbacks:
             callback()
 
     def resume(self):
         """Resume the game."""
-        self.clock.paused = False
+        self._paused = False
         for callback in self.on_resume_callbacks:
             callback()
 
@@ -126,7 +112,7 @@ class Game(arcade.Window):
 
         # Handle pause
         if key == arcade.key.P:
-            if self.clock.paused:
+            if self._paused:
                 self.resume()
             else:
                 self.pause()
@@ -189,13 +175,7 @@ class Game(arcade.Window):
 
     def reset(self):
         """Reset the game to its initial state."""
-        # Reset core systems – we do *not* directly instantiate a new clock or
-        # scheduler here to avoid violating the dependency-injection rules. The
-        # existing clock is reset, and the scheduler is recreated by invoking
-        # the same class that was supplied (or default) during construction.
-
-        self.clock.reset()
-        self.scheduler = self.scheduler.__class__(self.clock)
+        self._paused = False
 
         # Reset game state
         self.score = 0
@@ -214,5 +194,5 @@ class Game(arcade.Window):
     def __repr__(self) -> str:
         return (
             f"<Game level={self.level} score={self.score} lives={self.lives} "
-            f"paused={self.clock.paused} game_over={self.game_over}>"
+            f"paused={self._paused} game_over={self.game_over}>"
         )

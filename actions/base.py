@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import arcade
 
-from .game_clock import GameClock
-
 if TYPE_CHECKING:
     from .composite import Sequence, Spawn
 
@@ -77,7 +75,7 @@ class Action(ABC):
     will result in errors since the action requires a valid target sprite.
     """
 
-    def __init__(self, clock: GameClock | None = None):
+    def __init__(self):
         self.target: ActionTarget | GroupTarget | None = None
         self._elapsed: float = 0.0
         self.done: bool = False  # Public completion state
@@ -88,13 +86,6 @@ class Action(ABC):
         self._on_complete_args = ()
         self._on_complete_kwargs = {}
         self._on_complete_called = False
-        self._clock = clock
-        if clock:
-            clock.subscribe(self._on_pause_state_changed)
-
-    def _on_pause_state_changed(self, paused: bool) -> None:
-        """Handle pause state changes from the game clock."""
-        self._paused = paused
 
     def on_complete(self, func, *args, **kwargs):
         """Register a callback to be triggered when the action completes."""
@@ -142,15 +133,12 @@ class Action(ABC):
         """Called when the action ends.
 
         This base implementation handles:
-        - Clock unsubscription
         - Target cleanup
         - Completion callback triggering
 
         Override this method to add custom cleanup behavior, but be sure to call
         super().stop() to maintain the base functionality.
         """
-        if self._clock:
-            self._clock.unsubscribe(self._on_pause_state_changed)
         self.target = None
         self._check_complete()
 
@@ -288,8 +276,6 @@ class ActionSprite(arcade.Sprite):
     """
 
     def __init__(self, *args, **kwargs):
-        # Pop the clock if provided, otherwise create a default one
-        self._clock = kwargs.pop("clock", GameClock())
         super().__init__(*args, **kwargs)
 
         self._action: Action | None = None
@@ -308,20 +294,6 @@ class ActionSprite(arcade.Sprite):
         # avoiding runtime attribute checks elsewhere.
         self._scale_x: float = 1.0
         self._scale_y: float = 1.0
-
-        # Subscribe to the clock's pause state
-        if self._clock:
-            self._clock.subscribe(self._on_pause_state_changed)
-
-    def _on_pause_state_changed(self, paused: bool) -> None:
-        """Handle pause state changes from the game clock."""
-        self._is_paused = paused
-        # Pause/resume current action
-        if self._action:
-            if paused:
-                self._action.pause()
-            else:
-                self._action.resume()
 
     def do(self, action: Action) -> Action:
         """Start an action on this sprite.
@@ -388,9 +360,7 @@ class ActionSprite(arcade.Sprite):
         return self._action is not None and not self._action.done
 
     def cleanup(self):
-        """Explicitly unsubscribe from the game clock."""
-        if self._clock:
-            self._clock.unsubscribe(self._on_pause_state_changed)
+        pass
 
     def __del__(self):
         """Ensure cleanup is called when the sprite is garbage collected."""
