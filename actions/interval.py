@@ -24,7 +24,6 @@ class MoveTo(MovementAction, IntervalAction):
         self,
         position: tuple[float, float] = None,
         duration: float = None,
-        use_physics: bool = False,
     ):
         if position is None:
             raise ValueError("Must specify position")
@@ -36,7 +35,6 @@ class MoveTo(MovementAction, IntervalAction):
         IntervalAction.__init__(self, duration)
 
         self.end_position = position
-        self.use_physics = use_physics
         self.total_change = None  # Will be set in start()
         self.last_progress = 0.0  # Initialize here
         self.start_position: tuple[float, float] | None = None
@@ -84,6 +82,25 @@ class MoveTo(MovementAction, IntervalAction):
         """
         super().stop()
 
+    def reverse_movement(self, axis: str) -> None:
+        """Reverse movement for the specified axis."""
+        # Call parent to handle delta and total_change
+        super().reverse_movement(axis)
+
+        # Also update end_position to reflect the new direction
+        if self.start_position is not None:
+            if axis == "x":
+                # Calculate new end position by reflecting across current position
+                current_x = self.target.position[0]
+                distance_from_start = current_x - self.start_position[0]
+                new_end_x = current_x - distance_from_start
+                self.end_position = (new_end_x, self.end_position[1])
+            else:  # axis == "y"
+                current_y = self.target.position[1]
+                distance_from_start = current_y - self.start_position[1]
+                new_end_y = current_y - distance_from_start
+                self.end_position = (self.end_position[0], new_end_y)
+
     def __reversed__(self) -> "MoveTo":
         """Return a MoveTo action that moves to the original start position.
 
@@ -91,13 +108,27 @@ class MoveTo(MovementAction, IntervalAction):
         current position to the negative of the target position.
         """
         if self.start_position:
-            return MoveTo(self.start_position, self.duration, self.use_physics)
+            return MoveTo(self.start_position, self.duration)
         else:
             # If we don't have a start position yet, return a move to the negative of the end position
-            return MoveTo((-self.end_position[0], -self.end_position[1]), self.duration, self.use_physics)
+            return MoveTo((-self.end_position[0], -self.end_position[1]), self.duration)
+
+    def update_start_position(self, position_delta: tuple[float, float]) -> None:
+        """Update start position after wrapping."""
+        # Let AttributeError propagate if start_position doesn't exist - that's a real error
+        # Only update if start_position is not None (None means it will be set later)
+        if self.start_position is not None:
+            self.start_position = (
+                self.start_position[0] + position_delta[0],
+                self.start_position[1] + position_delta[1],
+            )
+
+    def extract_movement_direction(self, extractor) -> None:
+        """Extract movement direction - implements polymorphic interface."""
+        extractor.handle_movement_delta(self.delta)
 
     def __repr__(self) -> str:
-        return f"MoveTo(position={self.end_position}, duration={self.duration}, use_physics={self.use_physics})"
+        return f"MoveTo(position={self.end_position}, duration={self.duration})"
 
 
 class MoveBy(MovementAction, IntervalAction):
@@ -111,7 +142,6 @@ class MoveBy(MovementAction, IntervalAction):
         self,
         delta: tuple[float, float] = None,
         duration: float = None,
-        use_physics: bool = False,
     ):
         if delta is None:
             raise ValueError("Must specify delta")
@@ -123,7 +153,6 @@ class MoveBy(MovementAction, IntervalAction):
         IntervalAction.__init__(self, duration)
 
         self.delta = delta
-        self.use_physics = use_physics
         self.total_change = delta
         self.start_position: tuple[float, float] | None = None
 
@@ -141,9 +170,9 @@ class MoveBy(MovementAction, IntervalAction):
         # Calculate progress (0.0 to 1.0)
         progress = min(self._elapsed / self.duration, 1.0)
 
-        # Calculate new position
+        # Calculate new position using current total_change (which may have been reversed)
         start_x, start_y = self.start_position
-        delta_x, delta_y = self.delta
+        delta_x, delta_y = self.total_change  # Use total_change instead of original delta
         new_x = start_x + delta_x * progress
         new_y = start_y + delta_y * progress
 
@@ -159,16 +188,30 @@ class MoveBy(MovementAction, IntervalAction):
 
     def __reversed__(self) -> "MoveBy":
         """Return a MoveBy action that moves in the opposite direction."""
-        return MoveBy((-self.delta[0], -self.delta[1]), self.duration, self.use_physics)
+        return MoveBy((-self.delta[0], -self.delta[1]), self.duration)
+
+    def update_start_position(self, position_delta: tuple[float, float]) -> None:
+        """Update start position after wrapping."""
+        # Let AttributeError propagate if start_position doesn't exist - that's a real error
+        # Only update if start_position is not None (None means it will be set later)
+        if self.start_position is not None:
+            self.start_position = (
+                self.start_position[0] + position_delta[0],
+                self.start_position[1] + position_delta[1],
+            )
+
+    def extract_movement_direction(self, extractor) -> None:
+        """Extract movement direction - implements polymorphic interface."""
+        extractor.handle_movement_delta(self.delta)
 
     def __repr__(self) -> str:
-        return f"MoveBy(delta={self.delta}, duration={self.duration}, use_physics={self.use_physics})"
+        return f"MoveBy(delta={self.delta}, duration={self.duration})"
 
 
 class RotateTo(IntervalAction):
     """Rotate the sprite to a specific angle over time."""
 
-    def __init__(self, angle: float = None, duration: float = None, use_physics: bool = False):
+    def __init__(self, angle: float = None, duration: float = None):
         if angle is None:
             raise ValueError("Must specify angle")
         if duration is None:
@@ -176,7 +219,6 @@ class RotateTo(IntervalAction):
 
         super().__init__(duration)
         self.end_angle = angle % 360
-        self.use_physics = use_physics
         self.start_angle = None  # Will be set in start()
         self.total_change = None  # Will be set in start()
 
@@ -210,19 +252,19 @@ class RotateTo(IntervalAction):
         super().stop()
 
     def __repr__(self) -> str:
-        return f"RotateTo(angle={self.end_angle}, duration={self.duration}, use_physics={self.use_physics})"
+        return f"RotateTo(angle={self.end_angle}, duration={self.duration})"
 
 
 class RotateBy(RotateTo):
     """Rotate the sprite by a relative amount over time."""
 
-    def __init__(self, angle: float = None, duration: float = None, use_physics: bool = False):
+    def __init__(self, angle: float = None, duration: float = None):
         if angle is None:
             raise ValueError("Must specify angle")
         if duration is None:
             raise ValueError("Must specify duration")
 
-        super().__init__(angle, duration, use_physics)
+        super().__init__(angle, duration)
         self.angle = angle
 
     def start(self) -> None:
@@ -242,10 +284,10 @@ class RotateBy(RotateTo):
         super().stop()
 
     def __reversed__(self) -> "RotateBy":
-        return RotateBy(-self.angle, self.duration, self.use_physics)
+        return RotateBy(-self.angle, self.duration)
 
     def __repr__(self) -> str:
-        return f"RotateBy(angle={self.angle}, duration={self.duration}, use_physics={self.use_physics})"
+        return f"RotateBy(angle={self.angle}, duration={self.duration})"
 
 
 class ScaleTo(IntervalAction):
@@ -518,7 +560,6 @@ class Bezier(IntervalAction):
         self,
         control_points: list[tuple[float, float]],
         duration: float = None,
-        use_physics: bool = False,
     ):
         if not control_points or len(control_points) < 2:
             raise ValueError("Must specify at least 2 control points")
@@ -527,7 +568,6 @@ class Bezier(IntervalAction):
 
         super().__init__(duration)
         self.control_points = control_points
-        self.use_physics = use_physics
         self.last_point = None  # Will store last calculated point for relative movement
 
     def _bezier_point(self, t: float) -> tuple[float, float]:
@@ -580,7 +620,7 @@ class Bezier(IntervalAction):
         super().stop()
 
     def __repr__(self) -> str:
-        return f"Bezier(control_points={self.control_points}, duration={self.duration}, use_physics={self.use_physics})"
+        return f"Bezier(control_points={self.control_points}, duration={self.duration})"
 
 
 class Delay(IntervalAction):
@@ -695,8 +735,8 @@ class Easing(IntervalAction):
         return Easing(self.other.__reversed__(), ease_function=self.ease_function)
 
     def __repr__(self):
-        ease_name = getattr(self.ease_function, "__name__", repr(self.ease_function))
-        return f"<Easing(duration={self.duration}, ease_function={ease_name}, wrapped={repr(self.other)})>"
+        # Use simplified interface - avoid runtime attribute checking per design rules
+        return f"<Easing(duration={self.duration}, ease_function={self.ease_function}, wrapped={repr(self.other)})>"
 
 
 class JumpTo(IntervalAction):

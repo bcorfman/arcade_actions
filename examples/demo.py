@@ -1,9 +1,7 @@
 import math
-import sys
 
 import arcade
 from arcade import easing
-from loguru import logger
 
 from actions.base import ActionSprite
 from actions.interval import (
@@ -25,18 +23,6 @@ SCREEN_HEIGHT = 600
 SCREEN_TITLE = "Action System Demo"
 TEXT_MARGIN = 60  # Margin for text at the top of the screen
 SPRITE_IMAGE_PATH = ":resources:images/animated_characters/female_person/femalePerson_idle.png"
-
-# File handler for logging
-logger.add(
-    "demo.log",
-    backtrace=True,
-    diagnose=True,
-    format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}",
-    level="DEBUG",
-)
-
-# Console handler for logging
-logger.add(sys.stderr, format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}", level="WARNING")
 
 
 class DemoSprite(ActionSprite):

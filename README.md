@@ -81,10 +81,10 @@ uv sync --dev
 uv run pytest
 
 # Run the demo
-uv run python demo.py
+uv run python examples/demo.py
 
-# Run basic example
-uv run python examples/basic_usage.py
+# Run Actions version of Arcade's Slime Invaders example
+uv run python examples/invaders.py
 ```
 
 ## License
@@ -93,4 +93,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Credits
 
-This library was created by Brandon Corfman as a port of the Cocos2D Actions system. The port was developed using [Cursor IDE](https://www.cursor.com/) and [Claude 3.7 Sonnet](https://claude.ai).
+This library was created by Brandon Corfman as a port of the Cocos2D Actions system. The code was developed using [Cursor IDE](https://www.cursor.com/) and [Claude 4 Sonnet](https://claude.ai).

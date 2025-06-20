@@ -18,9 +18,11 @@ class ArcadeTimeProvider(TimeProvider):
 
     def get_time(self) -> float:
         """Get the current time from Arcade's global clock."""
-        if hasattr(arcade, "clock") and hasattr(arcade.clock, "GLOBAL_CLOCK"):
+        try:
             return arcade.clock.GLOBAL_CLOCK.time
-        return 0.0
+        except (AttributeError, TypeError):
+            # Arcade clock not available or not properly initialized
+            return 0.0
 
 
 class GameClock:
@@ -31,6 +33,8 @@ class GameClock:
     are notified and should update their state accordingly.
     """
 
+    _shared_instance: "GameClock | None" = None
+
     def __init__(self, time_provider: TimeProvider | None = None):
         self._time = 0.0
         self._paused = False
@@ -39,11 +43,21 @@ class GameClock:
         self._sync_with_arcade = False
         self._paused_time = 0.0  # Time when the clock was paused
 
+    @classmethod
+    def shared(cls) -> "GameClock":
+        """Get the shared game clock instance."""
+        if cls._shared_instance is None:
+            cls._shared_instance = cls()
+        return cls._shared_instance
+
     def enable_arcade_sync(self) -> None:
         """Enable synchronization with Arcade's global clock."""
         self._sync_with_arcade = True
-        if hasattr(arcade, "clock") and hasattr(arcade.clock, "GLOBAL_CLOCK"):
+        try:
             self._time = arcade.clock.GLOBAL_CLOCK.time
+        except (AttributeError, TypeError):
+            # Arcade clock not available, keep current time
+            pass
 
     def disable_arcade_sync(self) -> None:
         """Disable synchronization with Arcade's global clock."""
@@ -83,9 +97,14 @@ class GameClock:
         if not self._paused:
             self._time += delta_time
             # Only sync with Arcade's clock if enabled and in a real game context
-            if self._sync_with_arcade and hasattr(arcade, "clock") and hasattr(arcade.clock, "GLOBAL_CLOCK"):
-                if abs(self._time - arcade.clock.GLOBAL_CLOCK.time) > 0.001:
-                    self._time = arcade.clock.GLOBAL_CLOCK.time
+            if self._sync_with_arcade:
+                try:
+                    arcade_time = arcade.clock.GLOBAL_CLOCK.time
+                    if abs(self._time - arcade_time) > 0.001:
+                        self._time = arcade_time
+                except (AttributeError, TypeError):
+                    # Arcade clock not available, continue with our time
+                    pass
 
     @property
     def time(self) -> float:
