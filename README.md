@@ -1,6 +1,6 @@
 # ArcadeActions
 
-A Python library that ports the Cocos2D Actions system to Arcade 3.x, providing a powerful and intuitive way to animate sprites with time-based actions.
+A Python library that ports the Cocos2D Actions system to Arcade 3.x, providing a powerful and intuitive way to animate sprites.
 
 ## Features
 
