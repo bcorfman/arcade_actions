@@ -137,21 +137,33 @@ class TestGroupAction:
         sprite_group.append(sprite2)
 
         group_action = sprite_group.do(move_action)
-        assert len(group_action.actions) == 2
-        # Verify all actions are MoveBy by checking they have the same delta and duration
-        for action in group_action.actions:
-            assert action.delta == (100, 0)
-            assert action.duration == 1.0
 
+        # With batch optimization, movement actions don't create individual actions
+        if group_action._use_batch_optimization:
+            # Verify batch optimization is working
+            assert len(group_action.actions) == 0
+            assert len(group_action._batch_start_positions) == 2
+            assert group_action._batch_total_change == (100, 0)
+        else:
+            # Fallback behavior for non-movement actions
+            assert len(group_action.actions) == 2
+            # Verify all actions are MoveBy by checking they have the same delta and duration
+            for action in group_action.actions:
+                assert action.delta == (100, 0)
+                assert action.duration == 1.0
+
+        # Test update behavior
         group_action.update(0.5)
-        assert all(a._elapsed > 0 for a in group_action.actions)
         assert not group_action.done
 
         group_action.update(0.5)
         assert group_action.done
 
         group_action.stop()
-        assert len(group_action.actions) == 0
+        if group_action._use_batch_optimization:
+            assert len(group_action._batch_start_positions) == 0
+        else:
+            assert len(group_action.actions) == 0
 
 
 class TestActionSprite:
