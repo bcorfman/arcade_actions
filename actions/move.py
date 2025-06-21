@@ -6,9 +6,7 @@ import math
 from collections.abc import Callable
 from enum import Enum, auto
 
-import arcade
-
-from actions.base import Action, ActionSprite, GroupTarget
+from actions.base import Action, ActionSprite
 
 
 class MovementDirection(Enum):
@@ -59,14 +57,16 @@ class CompositeAction(Action):
         self.current_index: int = 0
 
     def get_movement_actions(self) -> list[MovementAction]:
-        """Get all movement actions from this composite."""
-        movement_actions = []
-        for action in self.actions:
-            if isinstance(action, MovementAction):
-                movement_actions.append(action)
-            elif isinstance(action, CompositeAction):
-                movement_actions.extend(action.get_movement_actions())
-        return movement_actions
+        """Return child actions that report a non-zero movement delta."""
+        collected: list[MovementAction] = []
+        for child in self.actions:
+            # Use capability methods instead of fragile runtime type checks.
+            if child.get_movement_delta() != (0.0, 0.0):
+                # Treat as movement-capable; cast for typing clarity.
+                collected.append(child)  # type: ignore[arg-type]
+            # Recurse into composites, relying on structural typing.
+            collected.extend(child.get_movement_actions())
+        return collected
 
     def reverse_movement(self, axis: str) -> None:
         if self.current_action:
@@ -79,6 +79,10 @@ class CompositeAction(Action):
             self.current_action.extract_movement_direction(collector)
         for child in self.actions:
             child.extract_movement_direction(collector)
+
+    def adjust_for_position_delta(self, position_delta: tuple[float, float]) -> None:
+        for child in self.actions:
+            child.adjust_for_position_delta(position_delta)
 
 
 class EasingAction(Action):
@@ -112,46 +116,49 @@ class _Move(Action):
         # No initialization needed, just call parent's start
         super().start()
 
+    def _iter_sprites(self):
+        """Yield all sprites controlled by this action (single or list)."""
+        try:
+            # If target is iterable (SpriteList or list), yield from it.
+            for sprite in self.target:  # type: ignore[not-an-iterable]
+                yield sprite
+        except TypeError:
+            # Not iterable – treat as single sprite.
+            yield self.target
+
     def update(self, delta_time: float) -> None:
         if self._paused:
             return
 
-        # Handle both individual sprites and sprite lists
-        if isinstance(self.target, (arcade.SpriteList, list)):
-            self._move_sprite_list(delta_time)
-        else:
-            self._move_single_sprite(delta_time)
+        for sprite in self._iter_sprites():
+            self._move_single_sprite_for(sprite, delta_time)
 
-    def _move_single_sprite(self, delta_time: float) -> None:
-        """Update a single sprite's position based on velocity and physics."""
-        target = self.target
+    def _move_single_sprite_for(self, sprite: ActionSprite, delta_time: float) -> None:
+        # Duplicate body of _move_single_sprite but parameterised
+        x, y = sprite.position
+        dx, dy = sprite.change_x, sprite.change_y
 
-        # Regular sprite - update position based on velocity
-        x, y = target.position
-        dx, dy = target.change_x, target.change_y
-
-        # Apply acceleration - NO MORE hasattr CHECKING
-        ax, ay = target.physics.acceleration
+        ax, ay = sprite.physics.acceleration
         dx += ax * delta_time
         dy += ay * delta_time
 
-        # Apply gravity - NO MORE hasattr CHECKING
-        dy += target.physics.gravity * delta_time
+        dy += sprite.physics.gravity * delta_time
 
-        # Update velocity
-        target.change_x = dx
-        target.change_y = dy
+        sprite.change_x = dx
+        sprite.change_y = dy
 
-        # Update position
-        target.position = (x + dx * delta_time, y + dy * delta_time)
+        sprite.position = (x + dx * delta_time, y + dy * delta_time)
 
-        # Update rotation - NO MORE hasattr CHECKING
-        target.angle += target.change_angle * delta_time
+        sprite.angle += sprite.change_angle * delta_time
 
+    # Keep old _move_single_sprite for backward compatibility but delegate
+    def _move_single_sprite(self, delta_time: float) -> None:
+        self._move_single_sprite_for(self.target, delta_time)  # type: ignore[arg-type]
+
+    # _move_sprite_list no longer needed, but retain for compat
     def _move_sprite_list(self, delta_time: float) -> None:
-        """Update all sprites in a sprite list."""
-        for sprite in self.target:
-            self._move_single_sprite(delta_time)
+        for sprite in self._iter_sprites():
+            self._move_single_sprite_for(sprite, delta_time)
 
 
 class GroupBehaviorAction(Action):
@@ -160,6 +167,14 @@ class GroupBehaviorAction(Action):
     Provides common functionality for determining which sprites are on the edges
     of a group formation, which is useful for both wrapping and bouncing behaviors.
     """
+
+    def _iter_target(self):
+        """Yield sprites from the *target* whether single sprite or collection."""
+        try:
+            for sprite in self.target:  # type: ignore[not-an-iterable]
+                yield sprite
+        except TypeError:
+            yield self.target
 
     def _is_edge_sprite(
         self, sprite: ActionSprite, edge: str, filter_wrapped: bool = False, bounds: tuple[float, float] = None
@@ -175,11 +190,8 @@ class GroupBehaviorAction(Action):
         Returns:
             True if the sprite is on the specified edge
         """
-        if not isinstance(self.target, GroupTarget):
-            return True  # Not a GroupTarget, treat as edge sprite
-
-        sprites = list(self.target)
-        if not sprites:
+        sprites = list(self._iter_target())
+        if len(sprites) <= 1:
             return True
 
         tolerance = 5  # Pixel tolerance for edge detection
@@ -188,16 +200,12 @@ class GroupBehaviorAction(Action):
         if filter_wrapped and bounds:
             width, height = bounds
             if edge == "left":
-                # Filter out sprites that have wrapped to the right side
                 sprites = [s for s in sprites if s.center_x < width]
             elif edge == "right":
-                # Filter out sprites that have wrapped to the left side
                 sprites = [s for s in sprites if s.center_x > 0]
             elif edge == "top":
-                # Filter out sprites that have wrapped to the bottom
                 sprites = [s for s in sprites if s.center_y > 0]
             elif edge == "bottom":
-                # Filter out sprites that have wrapped to the top
                 sprites = [s for s in sprites if s.center_y < height]
 
             if not sprites:
@@ -272,19 +280,8 @@ class WrappedMove(GroupBehaviorAction):
         if self._paused:
             return
 
-        if isinstance(self.target, (arcade.SpriteList, list)):
-            self._update_sprite_list()
-        else:
-            self._update_single_sprite()
-
-    def _update_sprite_list(self) -> None:
-        """Update all sprites in a sprite list."""
-        for sprite in self.target:
+        for sprite in self._iter_target():
             self._wrap_sprite(sprite)
-
-    def _update_single_sprite(self) -> None:
-        """Update a single sprite's position with wrapping."""
-        self._wrap_sprite(self.target)
 
     def _wrap_sprite(self, sprite: ActionSprite) -> None:
         """Wrap a sprite around screen boundaries.
@@ -306,8 +303,12 @@ class WrappedMove(GroupBehaviorAction):
         bbox_width = sprite.width
         bbox_height = sprite.height
 
-        # Check if we're working with a GroupTarget
-        is_group_target = isinstance(self.target, GroupTarget)
+        # Check if we're working with a group (SpriteGroup / SpriteList wrapper with shared actions)
+        try:
+            _ = self.target._group_actions  # type: ignore[attr-defined]
+            is_group_target = True
+        except AttributeError:
+            is_group_target = False
 
         # Horizontal wrapping
         if self.wrap_horizontal:
@@ -375,41 +376,13 @@ class WrappedMove(GroupBehaviorAction):
         self._update_movement_action_positions(sprite._action, position_delta)
 
     def _update_movement_action_positions(self, action: Action, position_delta: tuple[float, float]) -> None:
-        """Recursively update movement action positions after wrapping.
+        """Delegate to the polymorphic hook on *action*.
 
-        Args:
-            action: The action to update
-            position_delta: The position change from wrapping
+        Composite and group actions will propagate the adjustment to their
+        children automatically; movement actions override the hook to shift
+        cached positions.
         """
-        # Import here to avoid circular imports
-        from .composite import Sequence, Spawn
-        from .group import GroupAction
-        from .interval import MoveBy, MoveTo
-
-        if isinstance(action, (MoveBy, MoveTo)):
-            # Update the start_position to account for the wrap (attribute guaranteed)
-            if action.start_position:
-                action.start_position = (
-                    action.start_position[0] + position_delta[0],
-                    action.start_position[1] + position_delta[1],
-                )
-        elif isinstance(action, Spawn):
-            # Update all parallel actions
-            for sub_action in action.actions:
-                self._update_movement_action_positions(sub_action, position_delta)
-        elif isinstance(action, Sequence):
-            # Update current action and remaining actions
-            if action.current_action:
-                self._update_movement_action_positions(action.current_action, position_delta)
-            # Also update remaining actions in the sequence
-            for i in range(action.current_index + 1, len(action.actions)):
-                self._update_movement_action_positions(action.actions[i], position_delta)
-        elif isinstance(action, GroupAction):
-            # Update the template action
-            self._update_movement_action_positions(action.template, position_delta)
-            # Update all individual sprite actions
-            for sprite_action in action.actions:
-                self._update_movement_action_positions(sprite_action, position_delta)
+        action.adjust_for_position_delta(position_delta)
 
     def __repr__(self) -> str:
         return f"WrappedMove(wrap_horizontal={self.wrap_horizontal}, wrap_vertical={self.wrap_vertical})"
@@ -456,25 +429,34 @@ class BoundedMove(GroupBehaviorAction):
         self.bounce_horizontal = bounce_horizontal
         self.bounce_vertical = bounce_vertical
         self._on_bounce = on_bounce
+        self._is_group_target: bool = False
+        self._group_actions_ref: list[Action] | None = None
 
     def start(self) -> None:
         """Start the bounded movement action."""
         super().start()
         # Initialize previous position tracking for all target sprites
-        if isinstance(self.target, (arcade.SpriteList, list)):
-            for sprite in self.target:
-                sprite._prev_x = sprite.center_x
-                sprite._prev_y = sprite.center_y
-            # Track initial group size to detect removals/insertions
-            self._last_group_size = len(self.target)
-        else:
-            self.target._prev_x = self.target.center_x
-            self.target._prev_y = self.target.center_y
+        for sprite in self._iter_target():
+            sprite._prev_x = sprite.center_x
+            sprite._prev_y = sprite.center_y
+
+        # Track initial group size to detect removals/insertions
+        try:
+            self._last_group_size = len(self.target)  # type: ignore[arg-type]
+        except TypeError:
             self._last_group_size = 1
 
         # Track movement direction to determine which boundary to check
         self._horizontal_direction: MovementDirection | None = None
         self._vertical_direction: MovementDirection | None = None
+
+        # Detect if the target provides shared group actions once; avoids per-frame EAFP cost
+        try:
+            self._group_actions_ref = self.target._group_actions  # type: ignore[attr-defined]
+            self._is_group_target = True
+        except AttributeError:
+            self._group_actions_ref = None
+            self._is_group_target = False
 
     def update(self, delta_time: float) -> None:
         """Update sprite positions with boundary bouncing."""
@@ -484,123 +466,8 @@ class BoundedMove(GroupBehaviorAction):
         # Update movement direction based on current movement
         self._update_movement_direction()
 
-        if isinstance(self.target, (arcade.SpriteList, list)):
-            self._update_sprite_list()
-        else:
-            self._update_single_sprite()
-
-    def _update_sprite_list(self) -> None:
-        """Update all sprites in a sprite list."""
-        for sprite in self.target:
+        for sprite in self._iter_target():
             self._bounce_sprite(sprite)
-
-    def _update_single_sprite(self) -> None:
-        """Update a single sprite's position with boundary bouncing."""
-        self._bounce_sprite(self.target)
-
-    def _update_movement_direction(self) -> None:
-        """Update the tracked movement direction based on current sprite movement."""
-        representative_sprite = self._get_representative_sprite()
-        if representative_sprite is None:
-            return
-
-        # Reset cached direction if group composition changed (prevents immediate
-        # double-bounce when sprites are removed or added).
-        if isinstance(self.target, (arcade.SpriteList, list, GroupTarget)):
-            current_size = len(self.target)
-            if current_size != getattr(self, "_last_group_size", current_size):
-                self._horizontal_direction = None
-                self._vertical_direction = None
-                self._last_group_size = current_size
-
-        # Try to determine direction from sprite velocity first
-        self._set_direction_from_velocity(representative_sprite)
-
-        # If no velocity info, try to infer from active actions
-        if self._horizontal_direction is None or self._vertical_direction is None:
-            self._infer_direction_from_actions(representative_sprite)
-
-    def _get_representative_sprite(self) -> ActionSprite | None:
-        """Get a representative sprite for direction detection."""
-        if isinstance(self.target, (arcade.SpriteList, list)):
-            if not self.target:
-                return None
-            return next(iter(self.target))
-        else:
-            return self.target
-
-    def _set_direction_from_velocity(self, sprite: ActionSprite) -> None:
-        """Set movement direction based on sprite velocity."""
-        if isinstance(self.target, (arcade.SpriteList, list)):
-            # For sprite lists, check all sprites for movement
-            for list_sprite in self.target:
-                change_x = list_sprite.change_x
-                change_y = list_sprite.change_y
-
-                if self._horizontal_direction is None and change_x != 0:
-                    self._horizontal_direction = MovementDirection.RIGHT if change_x > 0 else MovementDirection.LEFT
-
-                if self._vertical_direction is None and change_y != 0:
-                    self._vertical_direction = MovementDirection.UP if change_y > 0 else MovementDirection.DOWN
-
-                # Stop once we have both directions
-                if self._horizontal_direction and self._vertical_direction:
-                    break
-        else:
-            # For single sprites, check the sprite velocity
-            change_x = sprite.change_x
-            change_y = sprite.change_y
-
-            if change_x != 0:
-                self._horizontal_direction = MovementDirection.RIGHT if change_x > 0 else MovementDirection.LEFT
-
-            if change_y != 0:
-                self._vertical_direction = MovementDirection.UP if change_y > 0 else MovementDirection.DOWN
-
-    def _infer_direction_from_actions(self, sprite: ActionSprite) -> None:
-        """Infer movement direction from active actions without isinstance checks."""
-
-        def collect(delta: tuple[float, float]):
-            if self._horizontal_direction is None and delta[0] != 0:
-                self._horizontal_direction = MovementDirection.RIGHT if delta[0] > 0 else MovementDirection.LEFT
-            if self._vertical_direction is None and delta[1] != 0:
-                self._vertical_direction = MovementDirection.UP if delta[1] > 0 else MovementDirection.DOWN
-
-        # GroupTarget handling
-        if isinstance(self.target, GroupTarget):
-            for g_action in self.target._group_actions:
-                g_action.extract_movement_direction(collect)
-                if self._horizontal_direction and self._vertical_direction:
-                    return
-
-        # SpriteList handling
-        if isinstance(self.target, (arcade.SpriteList, list)):
-            for list_sprite in self.target:
-                if list_sprite._action:
-                    list_sprite._action.extract_movement_direction(collect)
-                    if self._horizontal_direction and self._vertical_direction:
-                        return
-
-        # Single sprite handling
-        if sprite._action:
-            sprite._action.extract_movement_direction(collect)
-
-    def _reverse_sprite_velocity(self, sprite: ActionSprite, axis: str, direction: int) -> None:
-        """Reverse sprite velocity for bouncing.
-
-        Args:
-            sprite: The sprite to modify
-            axis: 'x' or 'y'
-            direction: 1 for positive, -1 for negative
-        """
-        if axis == "x":
-            current_velocity = sprite.change_x
-            if current_velocity != 0:
-                sprite.change_x = direction * abs(current_velocity)
-        else:  # axis == "y"
-            current_velocity = sprite.change_y
-            if current_velocity != 0:
-                sprite.change_y = direction * abs(current_velocity)
 
     def _bounce_sprite(self, sprite: ActionSprite) -> None:
         """Bounce a sprite if it has collided with any boundaries.
@@ -622,8 +489,8 @@ class BoundedMove(GroupBehaviorAction):
         min_y = hit_box.bottom
         max_y = hit_box.top
 
-        # Check if we're working with a GroupTarget
-        is_group_target = isinstance(self.target, GroupTarget)
+        # Check if we're working with a group (SpriteGroup / SpriteList wrapper with shared actions)
+        is_group_target = self._is_group_target
 
         # Check horizontal bouncing - only check boundary for current direction
         if self.bounce_horizontal and self._horizontal_direction:
@@ -707,16 +574,115 @@ class BoundedMove(GroupBehaviorAction):
 
     def _reverse_movement_actions(self, sprite: ActionSprite, axis: str) -> None:
         """Reverse movement actions for the specified axis using polymorphic calls."""
-
-        if isinstance(self.target, GroupTarget):
-            for g_action in self.target._group_actions:
+        group_actions = self._group_actions_ref
+        if group_actions is not None:
+            for g_action in group_actions:
                 g_action.reverse_movement(axis)
         else:
-            if sprite._action:
-                sprite._action.reverse_movement(axis)
+            try:
+                act = sprite._action  # type: ignore[attr-defined]
+            except AttributeError:
+                act = None
+            if act:
+                act.reverse_movement(axis)
 
     def __repr__(self) -> str:
         return f"BoundedMove(bounce_horizontal={self.bounce_horizontal}, bounce_vertical={self.bounce_vertical})"
+
+    # ------------------------------------------------------------------
+    # Direction detection helpers (no runtime type checks)
+    # ------------------------------------------------------------------
+
+    def _update_movement_direction(self) -> None:
+        representative_sprite = self._get_representative_sprite()
+        if representative_sprite is None:
+            return
+
+        # Reset cached direction if group size changed.
+        try:
+            current_size = len(self.target)  # type: ignore[arg-type]
+        except TypeError:
+            current_size = 1
+
+        previous_size = self._last_group_size  # Attribute guaranteed by start()
+        if current_size != previous_size:
+            self._horizontal_direction = None
+            self._vertical_direction = None
+            self._last_group_size = current_size
+
+        # Determine direction from sprite velocities
+        self._set_direction_from_velocity(representative_sprite)
+
+        # Fallback to active actions if still unknown
+        if self._horizontal_direction is None or self._vertical_direction is None:
+            self._infer_direction_from_actions(representative_sprite)
+
+    def _get_representative_sprite(self) -> ActionSprite | None:
+        try:
+            iterator = iter(self.target)  # type: ignore[not-an-iterable]
+            return next(iterator, None)
+        except TypeError:
+            return self.target
+
+    def _set_direction_from_velocity(self, sprite: ActionSprite) -> None:
+        # Iterate over all sprites to sample velocity info
+        for s in self._iter_target():
+            cx, cy = s.change_x, s.change_y
+            if self._horizontal_direction is None and cx != 0:
+                self._horizontal_direction = MovementDirection.RIGHT if cx > 0 else MovementDirection.LEFT
+            if self._vertical_direction is None and cy != 0:
+                self._vertical_direction = MovementDirection.UP if cy > 0 else MovementDirection.DOWN
+            if self._horizontal_direction and self._vertical_direction:
+                break
+
+        # Fallback to representative sprite if still unknown
+        if self._horizontal_direction is None and sprite.change_x != 0:
+            self._horizontal_direction = MovementDirection.RIGHT if sprite.change_x > 0 else MovementDirection.LEFT
+        if self._vertical_direction is None and sprite.change_y != 0:
+            self._vertical_direction = MovementDirection.UP if sprite.change_y > 0 else MovementDirection.DOWN
+
+    def _infer_direction_from_actions(self, sprite: ActionSprite) -> None:
+        def collect(delta: tuple[float, float]):
+            if self._horizontal_direction is None and delta[0] != 0:
+                self._horizontal_direction = MovementDirection.RIGHT if delta[0] > 0 else MovementDirection.LEFT
+            if self._vertical_direction is None and delta[1] != 0:
+                self._vertical_direction = MovementDirection.UP if delta[1] > 0 else MovementDirection.DOWN
+
+        # Check group-level actions if present
+        group_actions = self._group_actions_ref
+        if group_actions:
+            for g_action in group_actions:
+                g_action.extract_movement_direction(collect)
+                if self._horizontal_direction and self._vertical_direction:
+                    return
+
+        # Iterate sprites and their actions
+        for s in self._iter_target():
+            try:
+                act = s._action  # type: ignore[attr-defined]
+            except AttributeError:
+                act = None
+            if act:
+                act.extract_movement_direction(collect)
+                if self._horizontal_direction and self._vertical_direction:
+                    return
+
+    def _reverse_sprite_velocity(self, sprite: ActionSprite, axis: str, direction: int) -> None:
+        """Reverse sprite velocity for bouncing.
+
+        Args:
+            sprite: The sprite to modify
+            axis: 'x' or 'y'
+            direction: 1 for positive, -1 for negative
+        """
+        if axis == "x":
+            current_velocity = sprite.change_x
+            if current_velocity != 0:
+                sprite.change_x = direction * abs(current_velocity)
+        else:  # axis == "y"
+            current_velocity = sprite.change_y
+            if current_velocity != 0:
+                sprite.change_y = direction * abs(current_velocity)
 
 
 class Driver(Action):
@@ -731,23 +697,17 @@ class Driver(Action):
         if self._paused:
             return
 
-        if isinstance(self.target, (arcade.SpriteList, list)):
-            self._update_sprite_list(delta_time)
+        try:
+            iterator = iter(self.target)  # type: ignore[not-an-iterable]
+        except TypeError:
+            self._drive_sprite(self.target, delta_time)
         else:
-            self._update_single_sprite(delta_time)
-
-    def _update_sprite_list(self, delta_time: float) -> None:
-        """Update all sprites in a sprite list."""
-        for sprite in self.target:
-            self._drive_sprite(sprite, delta_time)
-
-    def _update_single_sprite(self, delta_time: float) -> None:
-        """Update a single sprite."""
-        self._drive_sprite(self.target, delta_time)
+            for sprite in iterator:
+                self._drive_sprite(sprite, delta_time)
 
     def _drive_sprite(self, sprite, delta_time: float) -> None:
         """Drive a single sprite based on its speed and direction."""
-        # Get current speed and acceleration - NO MORE getattr CHECKING
+        # Get current speed and acceleration
         speed = sprite.physics.speed
         acceleration = sprite.physics.acceleration[0]  # Use x component for forward acceleration
 
@@ -755,14 +715,14 @@ class Driver(Action):
         if acceleration:
             speed += acceleration * delta_time
 
-            # Apply speed limits - NO MORE getattr CHECKING
-            max_forward = sprite.physics.max_forward_speed
-            max_reverse = sprite.physics.max_reverse_speed
+        # Apply speed limits
+        max_forward = sprite.physics.max_forward_speed
+        max_reverse = sprite.physics.max_reverse_speed
 
-            if max_forward is not None:
-                speed = min(speed, max_forward)
-            if max_reverse is not None:
-                speed = max(speed, max_reverse)
+        if max_forward is not None:
+            speed = min(speed, max_forward)
+        if max_reverse is not None:
+            speed = max(speed, max_reverse)
 
         # Convert angle to radians
         angle_rad = math.radians(sprite.angle)

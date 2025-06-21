@@ -176,7 +176,7 @@ class Action(ABC):
         where action result performs as:
         repeat n times the changes that action would do
         """
-        if not isinstance(other, int):
+        if type(other) is not int:
             raise TypeError("Can only multiply actions by ints")
         if other <= 1:
             return self
@@ -224,6 +224,35 @@ class Action(ABC):
         implementations should call ``collector`` zero or more times with the
         deltas they control.
         """
+
+    # ------------------------------------------------------------------
+    # Capability defaults to avoid fragile hasattr/isinstance checks
+    # ------------------------------------------------------------------
+
+    def get_movement_delta(self) -> tuple[float, float]:  # noqa: D401 – simple helper
+        """Return this action's movement delta.
+
+        Base implementation returns ``(0.0, 0.0)`` so callers can rely on the
+        method existing without runtime inspection.
+        """
+        return 0.0, 0.0
+
+    def get_movement_actions(self) -> list["Action"]:  # noqa: D401 – simple helper
+        """Return any nested movement actions (empty by default)."""
+        return []
+
+    def get_wrapped_action(self) -> "Action":  # noqa: D401 – simple helper
+        """Return the wrapped action for decorator-style wrappers (self by default)."""
+        return self
+
+    def adjust_for_position_delta(self, position_delta: tuple[float, float]) -> None:  # noqa: D401
+        """Hook for actions to update internal positions when sprite wraps.
+
+        Default implementation is a no-op so callers can invoke unconditionally
+        without runtime type checks.
+        """
+        # Intentionally no behaviour in base class.
+        return
 
 
 class IntervalAction(Action):
@@ -282,7 +311,7 @@ class ActionSprite(arcade.Sprite):
         self._is_paused: bool = False
         self._is_cleaning_up: bool = False
 
-        # Initialize physics properties - NO MORE RUNTIME CHECKING NEEDED
+        # Initialize physics properties
         self.physics = PhysicsProperties()
 
         # Ensure change_angle exists with a default value (Arcade defines it, but we
@@ -395,7 +424,7 @@ class ActionSprite(arcade.Sprite):
         Accepts either a float/int for uniform scaling or a 2-tuple for
         independent x / y scaling.
         """
-        if isinstance(value, tuple):
+        if type(value) is tuple:
             self._scale_x, self._scale_y = float(value[0]), float(value[1])
         else:
             uniform = float(value)
