@@ -27,14 +27,7 @@ class Game(arcade.Window):
         update_rate: float = 1 / 60,
         antialiasing: bool = True,
     ):
-        """Create a new game window.
-
-        The ``clock`` and ``scheduler`` parameters are accepted to comply with the
-        project's dependency-injection rule set.  Supplying custom instances
-        makes it trivial to unit-test the ``Game`` class in isolation without
-        touching global time.
-        """
-
+        """Create a new game window."""
         super().__init__(width, height, title, fullscreen, resizable, update_rate, antialiasing)
 
         # Input state
