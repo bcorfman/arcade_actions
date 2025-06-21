@@ -329,6 +329,19 @@ class ActionSprite(arcade.Sprite):
         sprite.do(action1 | action2)
         # Run actions in sequence
         sprite.do(action1 + action2)
+
+    Scale Behavior:
+        ActionSprite provides enhanced scale handling that maintains compatibility
+        with Arcade's rendering pipeline:
+
+        - Supports both uniform scaling: sprite.scale = 2.0
+        - Supports non-uniform scaling: sprite.scale = (2.0, 1.5)
+        - Automatically syncs with Arcade's native scale for rendering compatibility
+        - Uses duck typing (no runtime type checking) for input handling
+        - Maintains separate _scale_x/_scale_y values internally
+        - Updates width/height attributes automatically
+
+        The scale property returns a _ScaleVector with .x/.y access for test compatibility.
     """
 
     def __init__(self, *args, **kwargs):
@@ -351,6 +364,9 @@ class ActionSprite(arcade.Sprite):
         # avoiding runtime attribute checks elsewhere.
         self._scale_x: float = 1.0
         self._scale_y: float = 1.0
+
+        # Ensure Arcade's scale stays in sync for rendering pipeline
+        self._sync_arcade_scale()
 
     @property
     def _action(self) -> Action | None:
@@ -457,6 +473,12 @@ class ActionSprite(arcade.Sprite):
     # Scale helpers
     # ------------------------------------------------------------------
 
+    def _sync_arcade_scale(self) -> None:
+        """Keep Arcade's native scale in sync for rendering compatibility."""
+        # Set Arcade's scale to match our scale values for rendering pipeline compatibility
+        # Arcade expects a tuple (scale_x, scale_y) or float for uniform scaling
+        arcade.Sprite.scale.fset(self, (self._scale_x, self._scale_y))
+
     class _ScaleVector(tuple):
         """Lightweight 2-tuple with `.x` / `.y` attribute access to satisfy tests."""
 
@@ -472,19 +494,23 @@ class ActionSprite(arcade.Sprite):
 
     @property
     def scale(self) -> "ActionSprite._ScaleVector":  # type: ignore[name-defined]
-        """Return the current scale as a 2-component vector with `.x` / `.y`."""
+        """Return scale as consistent 2-component vector."""
         return ActionSprite._ScaleVector((self._scale_x, self._scale_y))
 
     @scale.setter  # type: ignore[override]
-    def scale(self, value):  # type: ignore[override]
-        """Set uniform or non-uniform scale.
+    def scale(self, value) -> None:  # type: ignore[override]
+        """Set scale - accepts float for uniform or tuple for non-uniform.
 
-        Accepts either a float/int for uniform scaling or a 2-tuple for
-        independent x / y scaling.
+        Uses duck typing to determine input type - no runtime type checking.
+        Maintains sync with Arcade's native scale for rendering compatibility.
         """
-        if type(value) is tuple:
-            self._scale_x, self._scale_y = float(value[0]), float(value[1])
-        else:
+        # No isinstance checking - use duck typing
+        try:
+            # Try tuple unpacking first
+            x, y = value
+            self._scale_x, self._scale_y = float(x), float(y)
+        except (TypeError, ValueError):
+            # Single value - uniform scaling
             uniform = float(value)
             self._scale_x = self._scale_y = uniform
 
@@ -494,3 +520,6 @@ class ActionSprite(arcade.Sprite):
         if self.texture:
             self.width = self.texture.width * self._scale_x
             self.height = self.texture.height * self._scale_y
+
+        # Keep Arcade's scale in sync for rendering pipeline
+        self._sync_arcade_scale()
