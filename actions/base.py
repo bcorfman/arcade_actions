@@ -40,8 +40,9 @@ class ActionTarget(Protocol):
     # Physics properties (guaranteed to exist)
     physics: PhysicsProperties
 
-    # Action management
-    _action: "Action | None"
+    # Action management - can be either old-style single action or new-style slots
+    _action: "Action | None"  # Backward compatibility
+    _actions: dict[str, "Action | None"]  # New named slots system
 
     def update(self, delta_time: float) -> None: ...
 
@@ -310,12 +311,20 @@ class ActionSprite(arcade.Sprite):
     """A sprite that supports time-based Actions like MoveBy, RotateBy, etc.
 
     This class extends arcade.Sprite to add action management capabilities.
-    It allows sprites to have a single action applied to them and handles the
-    updating and cleanup of that action automatically.
+    It supports both single actions (for backward compatibility) and multiple
+    named action slots for complex orthogonal behaviors.
 
-    Note: This class is designed to manage only one action at a time. To achieve
-    multiple behaviors simultaneously, use composite actions like Spawn or Sequence.
-    For example:
+    Basic usage (single action):
+        sprite.do(action1)
+        sprite.do(action2)  # Replaces action1
+
+    Named slots usage (multiple concurrent actions):
+        sprite.do(movement_action, slot="movement")
+        sprite.do(damage_flash, slot="effects")
+        sprite.clear_action(slot="effects")  # Stop just the flash
+        sprite.clear_actions()  # Stop everything
+
+    For composite behaviors without slots, use Spawn or Sequence:
         # Run two actions in parallel
         sprite.do(action1 | action2)
         # Run actions in sequence
@@ -325,7 +334,8 @@ class ActionSprite(arcade.Sprite):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._action: Action | None = None
+        # Named action slots - "default" slot maintains backward compatibility
+        self._actions: dict[str, Action | None] = {"default": None}
         self._is_paused: bool = False
         self._is_cleaning_up: bool = False
 
@@ -342,69 +352,99 @@ class ActionSprite(arcade.Sprite):
         self._scale_x: float = 1.0
         self._scale_y: float = 1.0
 
-    def do(self, action: Action) -> Action:
+    @property
+    def _action(self) -> Action | None:
+        """Backward compatibility property for the default action slot."""
+        return self._actions["default"]
+
+    @_action.setter
+    def _action(self, value: Action | None) -> None:
+        """Backward compatibility setter for the default action slot."""
+        self._actions["default"] = value
+
+    def do(self, action: Action, slot: str = "default") -> Action:
         """Start an action on this sprite.
 
-        If another action is currently running, it will be stopped before
-        starting the new action.
+        If another action is currently running in the specified slot, it will be
+        stopped before starting the new action.
 
         Args:
             action: The action to start
+            slot: The named slot to assign the action to (default: "default")
 
         Returns:
             The started action instance
         """
-        # Stop any existing action
-        if self._action:
-            self._action.stop()
+        # Stop any existing action in this slot
+        if self._actions.get(slot):
+            self._actions[slot].stop()
 
         action.target = self
         action.start()
-        self._action = action
+        self._actions[slot] = action
         # Set initial pause state
         if self._is_paused:
             action.pause()
         return action
 
     def update(self, delta_time: float = 1 / 60):
-        """Update the current action.
+        """Update all active actions.
 
         Args:
             delta_time: Time elapsed since last frame in seconds
         """
-        if self._is_paused or not self._action:
+        if self._is_paused:
             return
 
-        self._action.update(delta_time)
-        if self._action.done:
-            self._action.stop()
-            self._action = None
+        # Update all active actions and collect completed ones
+        completed_slots = []
+        for slot, action in self._actions.items():
+            if action is not None:
+                action.update(delta_time)
+                if action.done:
+                    action.stop()
+                    completed_slots.append(slot)
+
+        # Clear completed actions
+        for slot in completed_slots:
+            self._actions[slot] = None
+
+    def clear_action(self, slot: str = "default") -> None:
+        """Stop and clear the action in the specified slot.
+
+        Args:
+            slot: The named slot to clear (default: "default")
+        """
+        if self._actions.get(slot):
+            self._actions[slot].stop()
+            self._actions[slot] = None
 
     def clear_actions(self):
-        """Cancel the current action if any."""
-        if self._action:
-            self._action.stop()
-            self._action = None
+        """Stop and clear all actions in all slots."""
+        for slot in list(self._actions.keys()):
+            self.clear_action(slot)
 
     def has_active_actions(self) -> bool:
-        """Return True if an action is currently running."""
-        return self._action is not None and not self._action.done
+        """Return True if any action is currently running."""
+        return any(action is not None and not action.done for action in self._actions.values())
 
     def pause(self):
-        """Pause the current action."""
+        """Pause all active actions."""
         self._is_paused = True
-        if self._action:
-            self._action.pause()
+        for action in self._actions.values():
+            if action:
+                action.pause()
 
     def resume(self):
-        """Resume the current action."""
+        """Resume all active actions."""
         self._is_paused = False
-        if self._action:
-            self._action.resume()
+        for action in self._actions.values():
+            if action:
+                action.resume()
 
     def is_busy(self) -> bool:
-        """Return True if an action is currently running and not done."""
-        return self._action is not None and not self._action.done
+        """Return True if any action is currently running and not done."""
+        return any(action is not None and not action.done for action in self._actions.values())
 
     def cleanup(self):
         pass
