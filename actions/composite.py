@@ -9,36 +9,20 @@ from .move import CompositeAction
 
 
 def _safe_copy_action(action: Action) -> Action:
-    """Create a safe copy of an action that avoids deepcopy issues with callbacks."""
-    # Import here to avoid circular imports
-    from .move import BoundedMove, WrappedMove
+    """Create a safe copy of an action without fragile type checks.
 
-    # Handle specific action types that might have callback issues
-    if isinstance(action, BoundedMove):
-        # Create a new BoundedMove with the same parameters but preserve callbacks by reference
-        new_action = BoundedMove(
-            action.get_bounds,
-            bounce_horizontal=action.bounce_horizontal,
-            bounce_vertical=action.bounce_vertical,
-            on_bounce=action._on_bounce,  # Preserve callback by reference
-        )
-        return new_action
-    elif isinstance(action, WrappedMove):
-        # Create a new WrappedMove with the same parameters but preserve callbacks by reference
-        new_action = WrappedMove(
-            action.get_bounds,
-            wrap_horizontal=action.wrap_horizontal,
-            wrap_vertical=action.wrap_vertical,
-            on_wrap=action._on_wrap,  # Preserve callback by reference
-        )
-        return new_action
-    else:
-        # For other actions, try shallow copy first, fall back to creating new instance
+    Strategy:
+    1. First attempt ``copy.copy`` – works for most actions.
+    2. If that fails, attempt to construct a *new* instance via ``type(action)(**action.__dict__)``.
+    3. As a last resort, fall back to ``copy.deepcopy``.
+    """
+    try:
+        return copy.copy(action)
+    except Exception:
         try:
-            return copy.copy(action)
-        except Exception:
-            # If copy fails, create a new instance with same parameters
             return type(action)(**action.__dict__)
+        except Exception:
+            return copy.deepcopy(action)
 
 
 def sequence(action_1: Action, action_2: Action) -> "Sequence":
@@ -115,8 +99,9 @@ class Loop(IntervalAction):
             action: The action to repeat
             times: Number of times to repeat the action
         """
-        if not isinstance(times, int):
-            raise TypeError("times must be an integer")
+        # Numeric validation (avoid fragile isinstance checks)
+        if type(times) is not int:
+            raise TypeError("times must be an integer")  # Ensures predictable behaviour
         if times < 1:
             raise ValueError("times must be at least 1")
 
@@ -321,7 +306,7 @@ class Spawn(CompositeAction, IntervalAction):
             return
 
         # Duration is the maximum duration of all actions
-        max_duration = max(getattr(action, "duration", 0) for action in actions)
+        max_duration = max(action.duration for action in actions)
 
         CompositeAction.__init__(self)
         IntervalAction.__init__(self, max_duration)

@@ -113,10 +113,13 @@ class MoveTo(MovementAction, IntervalAction):
             # If we don't have a start position yet, return a move to the negative of the end position
             return MoveTo((-self.end_position[0], -self.end_position[1]), self.duration)
 
-    def update_start_position(self, position_delta: tuple[float, float]) -> None:
-        """Update start position after wrapping."""
-        # Let AttributeError propagate if start_position doesn't exist - that's a real error
-        # Only update if start_position is not None (None means it will be set later)
+    # Backwards-compat: alias for old internal call sites (soon removed)
+    def update_start_position(self, position_delta: tuple[float, float]) -> None:  # noqa: D401
+        self.adjust_for_position_delta(position_delta)
+
+    # New protocol-style hook replacing runtime type checks
+    def adjust_for_position_delta(self, position_delta: tuple[float, float]) -> None:  # noqa: D401
+        """Shift cached start position when the sprite teleports (e.g., wrapping)."""
         if self.start_position is not None:
             self.start_position = (
                 self.start_position[0] + position_delta[0],
@@ -190,10 +193,12 @@ class MoveBy(MovementAction, IntervalAction):
         """Return a MoveBy action that moves in the opposite direction."""
         return MoveBy((-self.delta[0], -self.delta[1]), self.duration)
 
-    def update_start_position(self, position_delta: tuple[float, float]) -> None:
-        """Update start position after wrapping."""
-        # Let AttributeError propagate if start_position doesn't exist - that's a real error
-        # Only update if start_position is not None (None means it will be set later)
+    # Backwards-compat: alias for old internal call sites (soon removed)
+    def update_start_position(self, position_delta: tuple[float, float]) -> None:  # noqa: D401
+        self.adjust_for_position_delta(position_delta)
+
+    def adjust_for_position_delta(self, position_delta: tuple[float, float]) -> None:  # noqa: D401
+        """Shift cached start position when the sprite teleports (e.g., wrapping)."""
         if self.start_position is not None:
             self.start_position = (
                 self.start_position[0] + position_delta[0],

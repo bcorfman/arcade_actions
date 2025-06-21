@@ -38,6 +38,7 @@ from .group import SpriteGroup
 from .instant import CallFunc, CallFuncS, Hide, Place, Show, ToggleVisibility
 from .interval import MoveBy, MoveTo, RotateBy, RotateTo, ScaleBy, ScaleTo
 from .move import BoundedMove, Driver, WrappedMove
+from .protocols import CompositeLike, GroupLike, MovementLike  # re-export for external typing
 
 # Constants
 ARCADE_FPS = 60

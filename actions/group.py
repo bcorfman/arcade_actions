@@ -2,7 +2,6 @@
 Group actions and sprite groups for managing multiple sprites together.
 """
 
-import copy
 import math
 from collections.abc import Callable
 from typing import Optional
@@ -10,7 +9,6 @@ from typing import Optional
 import arcade
 
 from .base import Action
-from .composite import Sequence
 
 
 class SpriteGroup(arcade.SpriteList):
@@ -37,7 +35,7 @@ class SpriteGroup(arcade.SpriteList):
         Args:
             delta_time: Time elapsed since last frame in seconds
         """
-        # Update individual sprites - NO MORE hasattr CHECKING
+        # Update individual sprites
         for sprite in self:
             sprite.update(delta_time)
 
@@ -45,7 +43,7 @@ class SpriteGroup(arcade.SpriteList):
         active_actions = []
         for group_action in self._group_actions:
             group_action.update(delta_time)
-            if not group_action.done:  # Consistent interface - no more done() method
+            if not group_action.done:
                 active_actions.append(group_action)
         self._group_actions = active_actions
 
@@ -74,7 +72,7 @@ class SpriteGroup(arcade.SpriteList):
 
     def clear_actions(self):
         """Clear all actions from sprites in the group and stop any GroupActions."""
-        # Clear individual sprite actions - NO MORE hasattr CHECKING
+        # Clear individual sprite actions
         for sprite in self:
             sprite.clear_actions()
 
@@ -101,14 +99,12 @@ class SpriteGroup(arcade.SpriteList):
     def update_collisions(self):
         """Update collision detection for all registered handlers."""
         for other_group, callback in self._collision_handlers:
-            # Handle regular Python lists by converting to SpriteList temporarily
-            if isinstance(other_group, list):
-                temp_sprite_list = arcade.SpriteList()
-                for sprite in other_group:
-                    temp_sprite_list.append(sprite)
-                collision_group = temp_sprite_list
-            else:
-                collision_group = other_group
+            # Ensure we have an Arcade SpriteList for collision API.
+            temp_list = arcade.SpriteList()
+            for sprite in other_group:
+                temp_list.append(sprite)
+
+            collision_group = temp_list
 
             for sprite in self:
                 hit_list = arcade.check_for_collision_with_list(sprite, collision_group)
@@ -129,7 +125,7 @@ class GroupAction(Action):
     """A high-level controller for running a shared Action over a group of sprites.
 
     This class implements the same interface as individual actions, making group and
-    individual actions indistinguishable. NO MORE RUNTIME CHECKING NEEDED.
+    individual actions indistinguishable.
     """
 
     def __init__(self, group: arcade.SpriteList | list[arcade.Sprite], action: Action):
@@ -159,90 +155,10 @@ class GroupAction(Action):
             self.actions.append(action_copy)
 
     def _safe_copy_action(self, action: Action) -> Action:
-        """Create a safe copy of an action that avoids deepcopy issues with callbacks.
+        """Delegate to shared helper in ``actions.composite`` to avoid runtime checks."""
+        from .composite import _safe_copy_action  # Local import avoids cycles
 
-        This method creates a new instance of the same action type with the same
-        parameters, but handles composite actions properly.
-        """
-        from .composite import Loop, Spawn
-        from .move import BoundedMove, WrappedMove
-
-        # Handle composite actions specially
-        if isinstance(action, Sequence):
-            # For Sequence, recursively copy each sub-action
-            copied_actions = [self._safe_copy_action(sub_action) for sub_action in action.actions]
-            new_sequence = Sequence(*copied_actions)
-            # Copy completion callbacks (always present in Action base class)
-            new_sequence._on_complete = action._on_complete
-            new_sequence._on_complete_args = action._on_complete_args
-            new_sequence._on_complete_kwargs = action._on_complete_kwargs
-            return new_sequence
-
-        elif isinstance(action, Spawn):
-            # For Spawn, recursively copy each sub-action
-            copied_actions = [self._safe_copy_action(sub_action) for sub_action in action.actions]
-            new_spawn = Spawn(*copied_actions)
-            return new_spawn
-
-        elif isinstance(action, Loop):
-            # For Loop, copy the wrapped action
-            copied_action = self._safe_copy_action(action.action)
-            new_loop = Loop(copied_action, action.times)
-            return new_loop
-
-        elif isinstance(action, BoundedMove):
-            # Create a new BoundedMove with the same parameters but preserve callbacks by reference
-            new_action = BoundedMove(
-                action.get_bounds,
-                bounce_horizontal=action.bounce_horizontal,
-                bounce_vertical=action.bounce_vertical,
-                on_bounce=action._on_bounce,  # Preserve callback by reference
-            )
-            return new_action
-
-        elif isinstance(action, WrappedMove):
-            # Create a new WrappedMove with the same parameters but preserve callbacks by reference
-            new_action = WrappedMove(
-                action.get_bounds,
-                wrap_horizontal=action.wrap_horizontal,
-                wrap_vertical=action.wrap_vertical,
-                on_wrap=action._on_wrap,  # Preserve callback by reference
-            )
-            return new_action
-
-        else:
-            # For basic actions, try shallow copy first
-            try:
-                new_action = copy.copy(action)
-                # Reset target to None
-                new_action.target = None
-                return new_action
-            except Exception:
-                # If copy fails, try to create a new instance with same parameters
-                try:
-                    action_type = type(action)
-                    new_action = action_type()
-
-                    # Copy safe attributes
-                    for key, value in action.__dict__.items():
-                        if key.startswith("_") and ("callback" in key.lower() or "bounce" in key.lower()):
-                            # For callback functions, keep the reference (don't deep copy)
-                            setattr(new_action, key, value)
-                        elif not callable(value) and not key.startswith("target"):
-                            # Copy non-callable, non-target attributes
-                            try:
-                                setattr(new_action, key, copy.deepcopy(value))
-                            except (TypeError, ValueError):
-                                # If deepcopy fails, just use reference
-                                setattr(new_action, key, value)
-                        else:
-                            # For other attributes, use reference
-                            setattr(new_action, key, value)
-
-                    return new_action
-                except Exception:
-                    # Last resort: just return the original action (not ideal but works)
-                    return action
+        return _safe_copy_action(action)
 
     def update(self, delta_time: float):
         """Update the group action."""
@@ -325,7 +241,7 @@ class GroupAction(Action):
 
     def get_movement_actions(self) -> list[Action]:
         """Get all movement actions from this group - consistent with CompositeAction."""
-        return [action for action in self.actions if hasattr(action, "get_movement_delta")]
+        return [action for action in self.actions if action.get_movement_delta() != (0.0, 0.0)]
 
     def get_wrapped_action(self) -> Action:
         """Get the wrapped action - consistent with EasingAction."""
@@ -342,6 +258,11 @@ class GroupAction(Action):
         self.template.extract_movement_direction(collector)
         for action in self.actions:
             action.extract_movement_direction(collector)
+
+    def adjust_for_position_delta(self, position_delta: tuple[float, float]) -> None:  # noqa: D401
+        self.template.adjust_for_position_delta(position_delta)
+        for action in self.actions:
+            action.adjust_for_position_delta(position_delta)
 
 
 class Pattern:

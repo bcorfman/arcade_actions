@@ -51,15 +51,13 @@ class Game(arcade.Window):
         self.on_game_over_callbacks: list[Callable[[], None]] = []
         self.on_level_complete_callbacks: list[Callable[[], None]] = []
 
-        self._paused: bool = False
-
     def setup(self):
         """Initialize the game state. Override this in your game."""
         pass
 
     def update(self, delta_time: float):
         """Update all game systems."""
-        if self._paused:
+        if self.clock.paused:
             return
 
         # Update current view if it exists
@@ -80,8 +78,13 @@ class Game(arcade.Window):
         """Show a view and add it to the view dictionary if it has a name."""
         super().show_view(view)
         self._current_view = view
-        if hasattr(view, "name") and view.name:
-            self._views[view.name] = view
+        try:
+            name: str | None = view.name  # type: ignore[attr-defined]
+        except AttributeError:
+            name = None  # Fallback when view lacks a ``name`` attribute
+
+        if name:
+            self._views[name] = view
 
     def get_view(self, name: str) -> arcade.View | None:
         """Get a view by name."""
@@ -89,13 +92,13 @@ class Game(arcade.Window):
 
     def pause(self):
         """Pause the entire game."""
-        self._paused = True
+        self.clock.paused = True
         for callback in self.on_pause_callbacks:
             callback()
 
     def resume(self):
         """Resume the game."""
-        self._paused = False
+        self.clock.paused = False
         for callback in self.on_resume_callbacks:
             callback()
 
@@ -105,7 +108,7 @@ class Game(arcade.Window):
 
         # Handle pause
         if key == arcade.key.P:
-            if self._paused:
+            if self.clock.paused:
                 self.resume()
             else:
                 self.pause()
@@ -168,7 +171,7 @@ class Game(arcade.Window):
 
     def reset(self):
         """Reset the game to its initial state."""
-        self._paused = False
+        self.clock.paused = False
 
         # Reset game state
         self.score = 0
@@ -187,5 +190,5 @@ class Game(arcade.Window):
     def __repr__(self) -> str:
         return (
             f"<Game level={self.level} score={self.score} lives={self.lives} "
-            f"paused={self._paused} game_over={self.game_over}>"
+            f"paused={self.clock.paused} game_over={self.game_over}>"
         )

@@ -416,4 +416,33 @@ def test_wrapping_with_group(self):
 - **WrappedMove + SpriteGroup**: Perfect for asteroid field-style movement
 - **Collision detection**: Built into SpriteGroup with method chaining
 
-Follow these patterns and your ArcadeActions code will be clean, efficient, and maintainable! 
+Follow these patterns and your ArcadeActions code will be clean, efficient, and maintainable!
+
+## Runtime-checking-free patterns
+
+A common temptation is to write:
+
+```python
+# ❌ old – forbidden
+if isinstance(action, MovementAction):
+    dx, dy = action.delta
+```
+
+Now you **call the capability method directly**:
+
+```python
+# ✅ new – always available
+if action.get_movement_delta() != (0, 0):
+    dx, dy = action.get_movement_delta()
+```
+
+Key conventions:
+
+1. **Capability hooks on `Action`.**
+   – `get_movement_delta()` returns `(dx, dy)` or `(0, 0)`.
+   – `adjust_for_position_delta(delta)` lets decorators (e.g. `WrappedMove`) tell inner actions about teleports.
+2. **Iteration helpers.**  Instead of `isinstance(target, arcade.SpriteList)`, call `for sprite in self._iter_target():` in custom actions.
+3. **Group detection.**  Check for the structural attribute `_group_actions` instead of type-checking `SpriteGroup`.
+4. **Lint gate.**  `ruff` blocks any new `isinstance`, `hasattr`, or `getattr` usage during CI.
+
+Stick to these patterns and you'll remain compliant with the project's "zero tolerance" design rule. 
