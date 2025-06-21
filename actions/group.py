@@ -148,17 +148,11 @@ class GroupAction(Action):
         # Create an action instance for each sprite
         self.actions = []
         for sprite in self.group:
-            # Create a safe copy of the action
-            action_copy = self._safe_copy_action(self.template)
+            # Create a clone of the action
+            action_copy = self.template.clone()
             action_copy.target = sprite
             action_copy.start()
             self.actions.append(action_copy)
-
-    def _safe_copy_action(self, action: Action) -> Action:
-        """Delegate to shared helper in ``actions.composite`` to avoid runtime checks."""
-        from .composite import _safe_copy_action  # Local import avoids cycles
-
-        return _safe_copy_action(action)
 
     def update(self, delta_time: float):
         """Update the group action."""
@@ -246,6 +240,10 @@ class GroupAction(Action):
     def get_wrapped_action(self) -> Action:
         """Get the wrapped action - consistent with EasingAction."""
         return self.template
+
+    def clone(self) -> "GroupAction":
+        """Create a copy of this GroupAction."""
+        return GroupAction(self.group.copy(), self.template.clone())
 
     def __repr__(self) -> str:
         return f"GroupAction(group={len(self.group)} sprites, action={self.template})"

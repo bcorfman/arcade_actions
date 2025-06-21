@@ -205,6 +205,24 @@ class Action(ABC):
         """String representation for debugging."""
         return f"{self.__class__.__name__}()"
 
+    def clone(self) -> "Action":
+        """Create a copy of this action for independent use.
+
+        This method must be overridden by all Action subclasses to ensure
+        proper cloning behavior. The default implementation raises
+        NotImplementedError to catch missing implementations.
+
+        Returns:
+            A new Action instance with the same configuration as this one
+
+        Raises:
+            NotImplementedError: If the subclass doesn't override this method
+        """
+        raise NotImplementedError(
+            f"Action subclass {self.__class__.__name__} must override clone() method. "
+            f"This ensures proper action copying without fragile runtime type checks."
+        )
+
     # ------------------------------------------------------------------
     # Polymorphic movement hooks (implemented by movement-capable actions).
     # ------------------------------------------------------------------

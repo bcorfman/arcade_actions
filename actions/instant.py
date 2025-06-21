@@ -25,6 +25,10 @@ class Place(InstantAction):
     def stop(self) -> None:
         super().stop()
 
+    def clone(self) -> "Place":
+        """Create a copy of this Place action."""
+        return Place(self.position)
+
     def __repr__(self) -> str:
         return f"Place(position={self.position})"
 
@@ -40,6 +44,10 @@ class Hide(InstantAction):
 
     def __reversed__(self) -> "Show":
         return Show()
+
+    def clone(self) -> "Hide":
+        """Create a copy of this Hide action."""
+        return Hide()
 
     def __repr__(self) -> str:
         return "Hide()"
@@ -57,6 +65,10 @@ class Show(InstantAction):
     def __reversed__(self) -> "Hide":
         return Hide()
 
+    def clone(self) -> "Show":
+        """Create a copy of this Show action."""
+        return Show()
+
     def __repr__(self) -> str:
         return "Show()"
 
@@ -72,6 +84,10 @@ class ToggleVisibility(InstantAction):
 
     def __reversed__(self) -> "ToggleVisibility":
         return self
+
+    def clone(self) -> "ToggleVisibility":
+        """Create a copy of this ToggleVisibility action."""
+        return ToggleVisibility()
 
     def __repr__(self) -> str:
         return "ToggleVisibility()"
@@ -101,6 +117,10 @@ class CallFunc(InstantAction):
     def __reversed__(self) -> "CallFunc":
         return self
 
+    def clone(self) -> "CallFunc":
+        """Create a copy of this CallFunc action."""
+        return CallFunc(self.func, *self.args, **self.kwargs)
+
     def __repr__(self) -> str:
         return f"CallFunc(func={self.func.__name__})"
 
@@ -113,6 +133,10 @@ class CallFuncS(CallFunc):
 
     def stop(self) -> None:
         super().stop()
+
+    def clone(self) -> "CallFuncS":
+        """Create a copy of this CallFuncS action."""
+        return CallFuncS(self.func, *self.args, **self.kwargs)
 
     def __repr__(self) -> str:
         return f"CallFuncS(func={self.func.__name__})"

@@ -48,6 +48,11 @@ class MockAction(IntervalAction):
         self.done = False
         self._elapsed = 0.0
 
+    def clone(self):
+        """Create a copy of this MockAction."""
+        cloned = MockAction(self.duration)
+        return cloned
+
 
 @pytest.fixture
 def mock_action1():
@@ -509,6 +514,9 @@ class TestEdgeCases:
 
             def update(self, dt):
                 self.done = True
+
+            def clone(self):
+                return NoDurationAction()
 
         action = NoDurationAction()
         lp = Loop(action, 3)

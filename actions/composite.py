@@ -2,34 +2,15 @@
 Composite actions that combine other actions.
 """
 
-import copy
-
 from .base import Action, IntervalAction
 from .move import CompositeAction
-
-
-def _safe_copy_action(action: Action) -> Action:
-    """Create a safe copy of an action without fragile type checks.
-
-    Strategy:
-    1. First attempt ``copy.copy`` – works for most actions.
-    2. If that fails, attempt to construct a *new* instance via ``type(action)(**action.__dict__)``.
-    3. As a last resort, fall back to ``copy.deepcopy``.
-    """
-    try:
-        return copy.copy(action)
-    except Exception:
-        try:
-            return type(action)(**action.__dict__)
-        except Exception:
-            return copy.deepcopy(action)
 
 
 def sequence(action_1: Action, action_2: Action) -> "Sequence":
     """Returns an action that runs first action_1 and then action_2.
 
     The returned action will be a Sequence that performs action_1 followed by action_2.
-    Both actions are deepcopied to ensure independence.
+    Both actions are cloned to ensure independence.
 
     Args:
         action_1: The first action to execute
@@ -38,14 +19,14 @@ def sequence(action_1: Action, action_2: Action) -> "Sequence":
     Returns:
         A new Sequence action that runs action_1 followed by action_2
     """
-    return Sequence(copy.deepcopy(action_1), copy.deepcopy(action_2))
+    return Sequence(action_1.clone(), action_2.clone())
 
 
 def spawn(action_1: Action, action_2: Action) -> "Spawn":
     """Returns an action that runs action_1 and action_2 in parallel.
 
     The returned action will be a Spawn that performs both actions simultaneously.
-    Both actions are safely copied to ensure independence.
+    Both actions are cloned to ensure independence.
 
     Args:
         action_1: The first action to execute in parallel
@@ -54,14 +35,14 @@ def spawn(action_1: Action, action_2: Action) -> "Spawn":
     Returns:
         A new Spawn action that runs both actions simultaneously
     """
-    return Spawn(_safe_copy_action(action_1), _safe_copy_action(action_2))
+    return Spawn(action_1.clone(), action_2.clone())
 
 
 def loop(action: Action, times: int) -> "Loop":
     """Returns an action that repeats another action a specified number of times.
 
     The returned action will be a Loop that repeats the given action the specified
-    number of times. The action is deepcopied to ensure independence.
+    number of times. The action is cloned to ensure independence.
 
     Args:
         action: The action to repeat
@@ -70,7 +51,7 @@ def loop(action: Action, times: int) -> "Loop":
     Returns:
         A new Loop action that repeats the given action
     """
-    return Loop(copy.deepcopy(action), times)
+    return Loop(action.clone(), times)
 
 
 def repeat(action: Action, times: int) -> "Repeat":
@@ -180,6 +161,10 @@ class Loop(IntervalAction):
         self._on_complete_called = False
         super().reset()
 
+    def clone(self) -> "Loop":
+        """Create a copy of this Loop action."""
+        return Loop(self.action.clone(), self.times)
+
     def __repr__(self) -> str:
         return f"Loop(action={self.action}, times={self.times})"
 
@@ -286,6 +271,10 @@ class Sequence(CompositeAction, IntervalAction):
         self._on_complete_called = False
         super().reset()
 
+    def clone(self) -> "Sequence":
+        """Create a copy of this Sequence action."""
+        return Sequence(*(action.clone() for action in self.actions))
+
     def __repr__(self) -> str:
         return f"Sequence(actions={self.actions})"
 
@@ -356,6 +345,10 @@ class Spawn(CompositeAction, IntervalAction):
             action.reset()
         super().reset()
 
+    def clone(self) -> "Spawn":
+        """Create a copy of this Spawn action."""
+        return Spawn(*(action.clone() for action in self.actions))
+
     def __repr__(self) -> str:
         return f"Spawn(actions={self.actions})"
 
@@ -397,6 +390,10 @@ class Repeat(IntervalAction):
         self.current_times = 0
         self.action.reset()
         super().reset()
+
+    def clone(self) -> "Repeat":
+        """Create a copy of this Repeat action."""
+        return Repeat(self.action.clone(), self.times)
 
     def __repr__(self) -> str:
         return f"Repeat(action={self.action}, times={self.times})"
