@@ -429,6 +429,8 @@ class BoundedMove(GroupBehaviorAction):
         self.bounce_horizontal = bounce_horizontal
         self.bounce_vertical = bounce_vertical
         self._on_bounce = on_bounce
+        self._is_group_target: bool = False
+        self._group_actions_ref: list[Action] | None = None
 
     def start(self) -> None:
         """Start the bounded movement action."""
@@ -447,6 +449,14 @@ class BoundedMove(GroupBehaviorAction):
         # Track movement direction to determine which boundary to check
         self._horizontal_direction: MovementDirection | None = None
         self._vertical_direction: MovementDirection | None = None
+
+        # Detect if the target provides shared group actions once; avoids per-frame EAFP cost
+        try:
+            self._group_actions_ref = self.target._group_actions  # type: ignore[attr-defined]
+            self._is_group_target = True
+        except AttributeError:
+            self._group_actions_ref = None
+            self._is_group_target = False
 
     def update(self, delta_time: float) -> None:
         """Update sprite positions with boundary bouncing."""
@@ -480,11 +490,7 @@ class BoundedMove(GroupBehaviorAction):
         max_y = hit_box.top
 
         # Check if we're working with a group (SpriteGroup / SpriteList wrapper with shared actions)
-        try:
-            _ = self.target._group_actions  # type: ignore[attr-defined]
-            is_group_target = True
-        except AttributeError:
-            is_group_target = False
+        is_group_target = self._is_group_target
 
         # Check horizontal bouncing - only check boundary for current direction
         if self.bounce_horizontal and self._horizontal_direction:
@@ -568,11 +574,7 @@ class BoundedMove(GroupBehaviorAction):
 
     def _reverse_movement_actions(self, sprite: ActionSprite, axis: str) -> None:
         """Reverse movement actions for the specified axis using polymorphic calls."""
-        try:
-            group_actions = self.target._group_actions  # type: ignore[attr-defined]
-        except AttributeError:
-            group_actions = None
-
+        group_actions = self._group_actions_ref
         if group_actions is not None:
             for g_action in group_actions:
                 g_action.reverse_movement(axis)
@@ -647,11 +649,7 @@ class BoundedMove(GroupBehaviorAction):
                 self._vertical_direction = MovementDirection.UP if delta[1] > 0 else MovementDirection.DOWN
 
         # Check group-level actions if present
-        try:
-            group_actions = self.target._group_actions  # type: ignore[attr-defined]
-        except AttributeError:
-            group_actions = None
-
+        group_actions = self._group_actions_ref
         if group_actions:
             for g_action in group_actions:
                 g_action.extract_movement_direction(collect)
