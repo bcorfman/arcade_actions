@@ -43,6 +43,10 @@ class MovementAction(Action):
             self.delta = (self.delta[0], -self.delta[1])
             self.total_change = (self.total_change[0], -self.total_change[1])
 
+    def extract_movement_direction(self, collector):
+        """Report this action's movement delta to *collector*."""
+        collector(self.delta)
+
 
 class CompositeAction(Action):
     """Base class for composite actions with consistent interface."""
@@ -64,6 +68,18 @@ class CompositeAction(Action):
                 movement_actions.extend(action.get_movement_actions())
         return movement_actions
 
+    def reverse_movement(self, axis: str) -> None:
+        if self.current_action:
+            self.current_action.reverse_movement(axis)
+        for child in self.actions[self.current_index :]:
+            child.reverse_movement(axis)
+
+    def extract_movement_direction(self, collector):
+        if self.current_action:
+            self.current_action.extract_movement_direction(collector)
+        for child in self.actions:
+            child.extract_movement_direction(collector)
+
 
 class EasingAction(Action):
     """Base class for easing wrapper actions with consistent interface."""
@@ -76,6 +92,12 @@ class EasingAction(Action):
     def get_wrapped_action(self) -> Action:
         """Get the wrapped action."""
         return self.other
+
+    def reverse_movement(self, axis: str) -> None:
+        self.other.reverse_movement(axis)
+
+    def extract_movement_direction(self, collector):
+        self.other.extract_movement_direction(collector)
 
 
 class _Move(Action):
@@ -342,8 +364,8 @@ class WrappedMove(GroupBehaviorAction):
             old_position: The position before wrapping
             new_position: The position after wrapping
         """
-        # Get the sprite's current action
-        if not hasattr(sprite, "_action") or not sprite._action:
+        # Get the sprite's current action (ActionSprite guarantees _action attribute)
+        if sprite._action is None:
             return
 
         # Calculate the position delta from wrapping
@@ -365,8 +387,8 @@ class WrappedMove(GroupBehaviorAction):
         from .interval import MoveBy, MoveTo
 
         if isinstance(action, (MoveBy, MoveTo)):
-            # Update the start_position to account for the wrap
-            if hasattr(action, "start_position") and action.start_position:
+            # Update the start_position to account for the wrap (attribute guaranteed)
+            if action.start_position:
                 action.start_position = (
                     action.start_position[0] + position_delta[0],
                     action.start_position[1] + position_delta[1],
@@ -443,9 +465,12 @@ class BoundedMove(GroupBehaviorAction):
             for sprite in self.target:
                 sprite._prev_x = sprite.center_x
                 sprite._prev_y = sprite.center_y
+            # Track initial group size to detect removals/insertions
+            self._last_group_size = len(self.target)
         else:
             self.target._prev_x = self.target.center_x
             self.target._prev_y = self.target.center_y
+            self._last_group_size = 1
 
         # Track movement direction to determine which boundary to check
         self._horizontal_direction: MovementDirection | None = None
@@ -478,6 +503,15 @@ class BoundedMove(GroupBehaviorAction):
         representative_sprite = self._get_representative_sprite()
         if representative_sprite is None:
             return
+
+        # Reset cached direction if group composition changed (prevents immediate
+        # double-bounce when sprites are removed or added).
+        if isinstance(self.target, (arcade.SpriteList, list, GroupTarget)):
+            current_size = len(self.target)
+            if current_size != getattr(self, "_last_group_size", current_size):
+                self._horizontal_direction = None
+                self._vertical_direction = None
+                self._last_group_size = current_size
 
         # Try to determine direction from sprite velocity first
         self._set_direction_from_velocity(representative_sprite)
@@ -524,73 +558,32 @@ class BoundedMove(GroupBehaviorAction):
                 self._vertical_direction = MovementDirection.UP if change_y > 0 else MovementDirection.DOWN
 
     def _infer_direction_from_actions(self, sprite: ActionSprite) -> None:
-        """Infer movement direction from active actions on the sprite."""
-        # Check if we're working with a GroupTarget that has group actions
+        """Infer movement direction from active actions without isinstance checks."""
+
+        def collect(delta: tuple[float, float]):
+            if self._horizontal_direction is None and delta[0] != 0:
+                self._horizontal_direction = MovementDirection.RIGHT if delta[0] > 0 else MovementDirection.LEFT
+            if self._vertical_direction is None and delta[1] != 0:
+                self._vertical_direction = MovementDirection.UP if delta[1] > 0 else MovementDirection.DOWN
+
+        # GroupTarget handling
         if isinstance(self.target, GroupTarget):
-            self._extract_from_group_actions()
-        elif isinstance(self.target, (arcade.SpriteList, list)):
-            # For sprite lists, check all sprites for actions
+            for g_action in self.target._group_actions:
+                g_action.extract_movement_direction(collect)
+                if self._horizontal_direction and self._vertical_direction:
+                    return
+
+        # SpriteList handling
+        if isinstance(self.target, (arcade.SpriteList, list)):
             for list_sprite in self.target:
-                sprite_action = list_sprite._action
-                if sprite_action:
-                    self._extract_direction_from_action(sprite_action)
-                    # Stop once we have both directions
+                if list_sprite._action:
+                    list_sprite._action.extract_movement_direction(collect)
                     if self._horizontal_direction and self._vertical_direction:
-                        break
-        else:
-            # Check individual sprite actions
-            sprite_action = sprite._action
-            if sprite_action:
-                self._extract_direction_from_action(sprite_action)
+                        return
 
-    def _extract_from_group_actions(self) -> None:
-        """Extract direction from group actions."""
-        if isinstance(self.target, GroupTarget):
-            for group_action in self.target._group_actions:
-                # For GroupAction, look at the template action, not individual actions
-                if hasattr(group_action, "template"):
-                    self._extract_direction_from_action(group_action.template)
-                else:
-                    # For other action types in group actions
-                    self._extract_direction_from_action(group_action)
-
-    def _extract_direction_from_action(self, action: Action) -> None:
-        """Extract movement direction from a specific action using type-based dispatch."""
-        # Import here to avoid circular imports
-        from .group import GroupAction
-
-        if isinstance(action, MovementAction):
-            self._handle_movement_action(action)
-        elif isinstance(action, GroupAction):
-            # For GroupAction, examine the template action
-            self._extract_direction_from_action(action.template)
-        elif isinstance(action, CompositeAction):
-            self._handle_composite_action(action)
-        elif isinstance(action, EasingAction):
-            self._handle_easing_action(action)
-
-    def _handle_movement_action(self, action: MovementAction) -> None:
-        """Handle movement actions."""
-        delta = action.get_movement_delta()
-        if self._horizontal_direction is None and delta[0] != 0:
-            self._horizontal_direction = MovementDirection.RIGHT if delta[0] > 0 else MovementDirection.LEFT
-        if self._vertical_direction is None and delta[1] != 0:
-            self._vertical_direction = MovementDirection.UP if delta[1] > 0 else MovementDirection.DOWN
-
-    def _handle_composite_action(self, action: CompositeAction) -> None:
-        """Handle composite actions."""
-        if action.current_action:
-            self._extract_direction_from_action(action.current_action)
-
-        # Also check all actions in the composite
-        for child_action in action.actions:
-            self._extract_direction_from_action(child_action)
-
-    def _handle_easing_action(self, action: EasingAction) -> None:
-        """Handle easing wrapper actions."""
-        wrapped_action = action.get_wrapped_action()
-        if wrapped_action:
-            self._extract_direction_from_action(wrapped_action)
+        # Single sprite handling
+        if sprite._action:
+            sprite._action.extract_movement_direction(collect)
 
     def _reverse_sprite_velocity(self, sprite: ActionSprite, axis: str, direction: int) -> None:
         """Reverse sprite velocity for bouncing.
@@ -713,55 +706,14 @@ class BoundedMove(GroupBehaviorAction):
         sprite._prev_y = sprite.center_y
 
     def _reverse_movement_actions(self, sprite: ActionSprite, axis: str) -> None:
-        """Reverse movement actions for the specified axis.
+        """Reverse movement actions for the specified axis using polymorphic calls."""
 
-        Args:
-            sprite: The sprite whose actions to reverse
-            axis: 'x' for horizontal, 'y' for vertical
-        """
-        # Check if we're working with a GroupTarget that has group actions
         if isinstance(self.target, GroupTarget):
-            # Reverse all group actions for the entire group
-            for group_action in self.target._group_actions:
-                if isinstance(group_action, CompositeAction):
-                    for action in group_action.actions:
-                        self._reverse_action_movement(action, axis)
-                else:
-                    self._reverse_action_movement(group_action, axis)
+            for g_action in self.target._group_actions:
+                g_action.reverse_movement(axis)
         else:
-            # Find and reverse any actions that are currently running for individual sprite
-            sprite_action = sprite._action
-            if sprite_action:
-                self._reverse_action_movement(sprite_action, axis)
-
-    def _reverse_action_movement(self, action: Action, axis: str) -> None:
-        """Reverse movement for a specific action using type-based dispatch.
-
-        Args:
-            action: The action to reverse
-            axis: 'x' for horizontal, 'y' for vertical
-        """
-        if isinstance(action, MovementAction):
-            action.reverse_movement(axis)
-        elif isinstance(action, CompositeAction):
-            self._reverse_composite_action(action, axis)
-        elif isinstance(action, EasingAction):
-            self._reverse_easing_action(action, axis)
-
-    def _reverse_composite_action(self, action: CompositeAction, axis: str) -> None:
-        """Reverse composite actions."""
-        if action.current_action:
-            self._reverse_action_movement(action.current_action, axis)
-
-        # Also reverse any remaining actions in the composite
-        for child_action in action.actions[action.current_index :]:
-            self._reverse_action_movement(child_action, axis)
-
-    def _reverse_easing_action(self, action: EasingAction, axis: str) -> None:
-        """Reverse easing actions by recursing to their wrapped action."""
-        wrapped_action = action.get_wrapped_action()
-        if wrapped_action:
-            self._reverse_action_movement(wrapped_action, axis)
+            if sprite._action:
+                sprite._action.reverse_movement(axis)
 
     def __repr__(self) -> str:
         return f"BoundedMove(bounce_horizontal={self.bounce_horizontal}, bounce_vertical={self.bounce_vertical})"

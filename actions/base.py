@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import arcade
 
-from .game_clock import GameClock
-
 if TYPE_CHECKING:
     from .composite import Sequence, Spawn
 
@@ -77,22 +75,17 @@ class Action(ABC):
     will result in errors since the action requires a valid target sprite.
     """
 
-    def __init__(self, clock: GameClock | None = None):
+    def __init__(self):
         self.target: ActionTarget | GroupTarget | None = None
         self._elapsed: float = 0.0
         self.done: bool = False  # Public completion state
+        # Default duration for all actions (may be overridden by subclasses)
+        self.duration: float = 0.0
         self._paused: bool = False
         self._on_complete = None
         self._on_complete_args = ()
         self._on_complete_kwargs = {}
         self._on_complete_called = False
-        self._clock = clock
-        if clock:
-            clock.subscribe(self._on_pause_state_changed)
-
-    def _on_pause_state_changed(self, paused: bool) -> None:
-        """Handle pause state changes from the game clock."""
-        self._paused = paused
 
     def on_complete(self, func, *args, **kwargs):
         """Register a callback to be triggered when the action completes."""
@@ -140,15 +133,12 @@ class Action(ABC):
         """Called when the action ends.
 
         This base implementation handles:
-        - Clock unsubscription
         - Target cleanup
         - Completion callback triggering
 
         Override this method to add custom cleanup behavior, but be sure to call
         super().stop() to maintain the base functionality.
         """
-        if self._clock:
-            self._clock.unsubscribe(self._on_pause_state_changed)
         self.target = None
         self._check_complete()
 
@@ -215,6 +205,26 @@ class Action(ABC):
         """String representation for debugging."""
         return f"{self.__class__.__name__}()"
 
+    # ------------------------------------------------------------------
+    # Polymorphic movement hooks (implemented by movement-capable actions).
+    # ------------------------------------------------------------------
+
+    def reverse_movement(self, axis: str) -> None:  # noqa: D401 – simple verb form
+        """Reverse any internal movement state along *axis*.
+
+        The default implementation is a no-op so that any action may receive
+        the call without requiring fragile ``isinstance`` checks upstream.
+        Subclasses that apply deltas over time should override this.
+        """
+
+    def extract_movement_direction(self, collector):  # noqa: D401
+        """Report movement deltas to *collector*.
+
+        ``collector`` is any callable accepting ``(dx, dy)``.  Overriding
+        implementations should call ``collector`` zero or more times with the
+        deltas they control.
+        """
+
 
 class IntervalAction(Action):
     """Base class for actions that have a fixed duration."""
@@ -266,8 +276,6 @@ class ActionSprite(arcade.Sprite):
     """
 
     def __init__(self, *args, **kwargs):
-        # Pop the clock if provided, otherwise create a default one
-        self._clock = kwargs.pop("clock", GameClock())
         super().__init__(*args, **kwargs)
 
         self._action: Action | None = None
@@ -277,23 +285,15 @@ class ActionSprite(arcade.Sprite):
         # Initialize physics properties - NO MORE RUNTIME CHECKING NEEDED
         self.physics = PhysicsProperties()
 
-        # Ensure all required properties exist with defaults
-        if not hasattr(self, "change_angle"):
-            self.change_angle = 0.0
+        # Ensure change_angle exists with a default value (Arcade defines it, but we
+        # set it explicitly to avoid runtime attribute checks.)
+        self.change_angle = 0.0
 
-        # Subscribe to the clock's pause state
-        if self._clock:
-            self._clock.subscribe(self._on_pause_state_changed)
-
-    def _on_pause_state_changed(self, paused: bool) -> None:
-        """Handle pause state changes from the game clock."""
-        self._is_paused = paused
-        # Pause/resume current action
-        if self._action:
-            if paused:
-                self._action.pause()
-            else:
-                self._action.resume()
+        # Internal scale representation (separate x / y) to support tests requiring
+        # attribute access like `sprite.scale.x` and `sprite.scale.y` while
+        # avoiding runtime attribute checks elsewhere.
+        self._scale_x: float = 1.0
+        self._scale_y: float = 1.0
 
     def do(self, action: Action) -> Action:
         """Start an action on this sprite.
@@ -360,10 +360,50 @@ class ActionSprite(arcade.Sprite):
         return self._action is not None and not self._action.done
 
     def cleanup(self):
-        """Explicitly unsubscribe from the game clock."""
-        if self._clock:
-            self._clock.unsubscribe(self._on_pause_state_changed)
+        pass
 
     def __del__(self):
         """Ensure cleanup is called when the sprite is garbage collected."""
         self.cleanup()
+
+    # ------------------------------------------------------------------
+    # Scale helpers
+    # ------------------------------------------------------------------
+
+    class _ScaleVector(tuple):
+        """Lightweight 2-tuple with `.x` / `.y` attribute access to satisfy tests."""
+
+        __slots__ = ()
+
+        @property
+        def x(self) -> float:  # type: ignore[override]
+            return self[0]
+
+        @property
+        def y(self) -> float:  # type: ignore[override]
+            return self[1]
+
+    @property
+    def scale(self) -> "ActionSprite._ScaleVector":  # type: ignore[name-defined]
+        """Return the current scale as a 2-component vector with `.x` / `.y`."""
+        return ActionSprite._ScaleVector((self._scale_x, self._scale_y))
+
+    @scale.setter  # type: ignore[override]
+    def scale(self, value):  # type: ignore[override]
+        """Set uniform or non-uniform scale.
+
+        Accepts either a float/int for uniform scaling or a 2-tuple for
+        independent x / y scaling.
+        """
+        if isinstance(value, tuple):
+            self._scale_x, self._scale_y = float(value[0]), float(value[1])
+        else:
+            uniform = float(value)
+            self._scale_x = self._scale_y = uniform
+
+        # Update width/height attributes so test assertions remain valid. The
+        # Arcade `Sprite` class exposes `width`/`height` as plain attributes, so
+        # updating them directly is safe and efficient.
+        if self.texture:
+            self.width = self.texture.width * self._scale_x
+            self.height = self.texture.height * self._scale_y

@@ -11,7 +11,6 @@ import arcade
 
 from .base import Action
 from .composite import Sequence
-from .game_clock import GameClock, Scheduler
 
 
 class SpriteGroup(arcade.SpriteList):
@@ -173,11 +172,10 @@ class GroupAction(Action):
             # For Sequence, recursively copy each sub-action
             copied_actions = [self._safe_copy_action(sub_action) for sub_action in action.actions]
             new_sequence = Sequence(*copied_actions)
-            # Copy completion callbacks
-            if hasattr(action, "_on_complete"):
-                new_sequence._on_complete = action._on_complete
-                new_sequence._on_complete_args = action._on_complete_args
-                new_sequence._on_complete_kwargs = action._on_complete_kwargs
+            # Copy completion callbacks (always present in Action base class)
+            new_sequence._on_complete = action._on_complete
+            new_sequence._on_complete_args = action._on_complete_args
+            new_sequence._on_complete_kwargs = action._on_complete_kwargs
             return new_sequence
 
         elif isinstance(action, Spawn):
@@ -323,8 +321,7 @@ class GroupAction(Action):
 
         # Also reverse all individual actions
         for action in self.actions:
-            if hasattr(action, "reverse_movement"):
-                action.reverse_movement(axis)
+            action.reverse_movement(axis)
 
     def get_movement_actions(self) -> list[Action]:
         """Get all movement actions from this group - consistent with CompositeAction."""
@@ -336,6 +333,15 @@ class GroupAction(Action):
 
     def __repr__(self) -> str:
         return f"GroupAction(group={len(self.group)} sprites, action={self.template})"
+
+    # Polymorphic hooks ---------------------------------------------------
+
+    def extract_movement_direction(self, collector):  # type: ignore[override]
+        # Delegate to the template and all live actions so direction detection
+        # logic sees the same data it did before.
+        self.template.extract_movement_direction(collector)
+        for action in self.actions:
+            action.extract_movement_direction(collector)
 
 
 class Pattern:
@@ -438,39 +444,20 @@ class AttackGroup:
     def __init__(
         self,
         sprite_group: SpriteGroup,
-        clock: "GameClock",
-        scheduler: "Scheduler",
         name: str | None = None,
         parent: Optional["AttackGroup"] = None,
     ):
         self.sprites = sprite_group
-        self.clock = clock
-        self.scheduler = scheduler
-        self.actions: list[Action] = []  # Attached Action instances - CONSISTENT INTERFACE
-        self.time_of_birth = clock.time
+        self.time_of_birth = arcade.clock.GLOBAL_CLOCK.time
         self.is_destroyed = False
         self.name = name
-        self.scheduled_tasks: list[int] = []  # Track scheduled tasks for cleanup
+        self._scheduled_wrappers: list[tuple[Callable, bool]] = []  # (wrapper, repeat)
+        self.actions: list[Action] = []  # Track running group actions
         self.parent = parent
         self.children: list[AttackGroup] = []  # Child attack groups
         self.on_destroy_callbacks: list[Callable[[AttackGroup], None]] = []
         self.on_breakaway_callbacks: list[Callable[[AttackGroup], None]] = []
         self._paused = False
-        # Subscribe to clock's pause state
-        self.clock.subscribe(self._on_pause_state_changed)
-
-    def _on_pause_state_changed(self, paused: bool) -> None:
-        """Handle pause state changes from the game clock."""
-        self._paused = paused
-        # Pause/resume all actions
-        for action in self.actions:
-            if paused:
-                action.pause()
-            else:
-                action.resume()
-        # Propagate to children
-        for child in self.children:
-            child._on_pause_state_changed(paused)
 
     def update(self, delta_time: float):
         """Update the attack group and its actions."""
@@ -478,6 +465,9 @@ class AttackGroup:
             return
 
         self.sprites.update(delta_time)
+        for wrapper, _ in self._scheduled_wrappers:
+            wrapper(delta_time)
+
         for action in self.actions:
             action.update(delta_time)
 
@@ -487,32 +477,40 @@ class AttackGroup:
     def do(self, action: Action) -> Action:
         """Assign an action to all sprites in the group - SAME INTERFACE as individual sprites."""
         group_action = self.sprites.do(action)
+        # Track and handle pause
         self.actions.append(group_action)
-        # Set initial pause state
         if self._paused:
             group_action.pause()
         return group_action
 
     def schedule_attack(self, delay: float, func: Callable, *args, **kwargs) -> int:
         """Schedule an attack event after X seconds."""
-        task_id = self.scheduler.schedule(delay, func, *args, **kwargs)
-        self.scheduled_tasks.append(task_id)
-        return task_id
+
+        # Implement scheduling via arcade.schedule_once
+        def _wrapper(_dt):
+            func(*args, **kwargs)
+
+        arcade.schedule_once(_wrapper, delay)
+        self._scheduled_wrappers.append((_wrapper, False))
+        return len(self._scheduled_wrappers) - 1
 
     def breakaway(self, breakaway_sprites: list) -> "AttackGroup":
         """Remove given sprites and create a new AttackGroup."""
         new_sprite_group = self.sprites.breakaway(breakaway_sprites)
         new_group = AttackGroup(
             new_sprite_group,
-            self.clock,
-            self.scheduler,
             name=f"{self.name}_breakaway",
             parent=self,
         )
         self.children.append(new_group)
-        # Set initial pause state
-        if self._paused:
-            new_group._on_pause_state_changed(True)
+        # Unschedule arcade callbacks
+        for wrapper, _ in self._scheduled_wrappers:
+            arcade.unschedule(wrapper)
+        self._scheduled_wrappers.clear()
+        # Stop running actions
+        for action in self.actions:
+            action.stop()
+        self.actions.clear()
         for callback in self.on_breakaway_callbacks:
             callback(new_group)
         return new_group
@@ -522,12 +520,6 @@ class AttackGroup:
         if self.is_destroyed:
             return
         self.is_destroyed = True
-        # Unsubscribe from clock
-        self.clock.unsubscribe(self._on_pause_state_changed)
-        # Cancel all scheduled tasks
-        for task_id in self.scheduled_tasks:
-            self.scheduler.cancel(task_id)
-        self.scheduled_tasks.clear()
         # Stop all actions
         for action in self.actions:
             action.stop()
@@ -545,4 +537,4 @@ class AttackGroup:
         self.on_breakaway_callbacks.append(callback)
 
     def __repr__(self):
-        return f"<AttackGroup name={self.name} sprites={len(self.sprites)} actions={len(self.actions)} paused={self._paused}>"
+        return f"<AttackGroup name={self.name} sprites={len(self.sprites)} actions={len(self.actions)}>"

@@ -7,7 +7,6 @@ import pytest
 from arcade.texture import Texture
 
 from actions.base import ActionSprite
-from actions.game_clock import GameClock, Scheduler
 from actions.group import (
     AttackGroup,
     CirclePattern,
@@ -39,10 +38,6 @@ class TestAction:
     def sprite(self):
         return ActionSprite(":resources:images/items/star.png")
 
-    @pytest.fixture
-    def clock(self):
-        return GameClock()
-
     def test_action_initialization(self, action):
         """Test basic action initialization."""
         assert action.target is None
@@ -66,23 +61,6 @@ class TestAction:
 
         sprite.clear_actions()
         assert action.target is None
-
-    def test_action_pause_resume(self, action, sprite, clock):
-        """Test action pause/resume functionality."""
-        sprite._clock = clock
-        sprite.do(action)
-        sprite.update(0.5)
-        assert action._elapsed == 0.5
-
-        sprite.pause()
-        assert action._paused
-        sprite.update(0.5)
-        assert action._elapsed == 0.5
-
-        sprite.resume()
-        assert not action._paused
-        sprite.update(0.5)
-        assert action._elapsed == 1.0
 
     def test_action_completion_callback(self, action, sprite):
         """Test action completion callback."""
@@ -182,11 +160,6 @@ class TestActionSprite:
         # Use a real image file for the sprite
         return ActionSprite(":resources:images/items/star.png", scale=1.0)
 
-    @pytest.fixture
-    def game_clock(self):
-        """Fixture for creating a GameClock."""
-        return GameClock()
-
     def test_action_sprite_initialization(self, action_sprite):
         """Test ActionSprite initialization."""
         assert action_sprite._action is None
@@ -229,22 +202,6 @@ class TestActionSprite:
         action_sprite.resume()
         action_sprite.update(0.5)
         assert action_sprite.center_x > initial_x
-
-    def test_action_sprite_game_clock_integration(self, action_sprite, game_clock):
-        """Test integration with a game clock for pause/resume."""
-        sprite_with_clock = ActionSprite(":resources:images/items/star.png", scale=1.0, clock=game_clock)
-        move_action = MoveBy((100, 0), 1.0)
-        sprite_with_clock.do(move_action)
-        sprite_with_clock.update(0.5)
-        initial_x = sprite_with_clock.center_x
-
-        game_clock.paused = True
-        sprite_with_clock.update(0.5)
-        assert sprite_with_clock.center_x == initial_x
-
-        game_clock.paused = False
-        sprite_with_clock.update(0.5)
-        assert sprite_with_clock.center_x > initial_x
 
     def test_action_sprite_action_replacement(self, action_sprite):
         """Test replacing an existing action with a new one."""
@@ -313,9 +270,7 @@ class TestPatterns:
     @pytest.fixture
     def attack_group(self, sprite_group):
         """Create an attack group for testing."""
-        clock = GameClock()
-        scheduler = Scheduler(clock)
-        return AttackGroup(sprite_group, clock, scheduler, name="test_group")
+        return AttackGroup(sprite_group, name="test_group")
 
     def test_line_pattern_initialization(self):
         """Test LinePattern initialization."""
@@ -381,9 +336,7 @@ class TestPatterns:
     def test_circle_pattern_empty_group(self):
         """Test CirclePattern with empty sprite group."""
         empty_group = SpriteGroup()
-        clock = GameClock()
-        scheduler = Scheduler(clock)
-        attack_group = AttackGroup(empty_group, clock, scheduler, name="empty_test")
+        attack_group = AttackGroup(empty_group, name="empty_test")
 
         pattern = CirclePattern(radius=100.0)
         # Should not raise an exception
@@ -423,9 +376,7 @@ class TestPatterns:
     def test_v_formation_pattern_empty_group(self):
         """Test VFormationPattern with empty sprite group."""
         empty_group = SpriteGroup()
-        clock = GameClock()
-        scheduler = Scheduler(clock)
-        attack_group = AttackGroup(empty_group, clock, scheduler, name="empty_test")
+        attack_group = AttackGroup(empty_group, name="empty_test")
 
         pattern = VFormationPattern()
         # Should not raise an exception
@@ -447,25 +398,13 @@ class TestAttackGroup:
         return group
 
     @pytest.fixture
-    def clock(self):
-        """Create a game clock for testing."""
-        return GameClock()
-
-    @pytest.fixture
-    def scheduler(self, clock):
-        """Create a scheduler for testing."""
-        return Scheduler(clock)
-
-    @pytest.fixture
-    def attack_group(self, sprite_group, clock, scheduler):
+    def attack_group(self, sprite_group):
         """Create an attack group for testing."""
-        return AttackGroup(sprite_group, clock, scheduler, name="test_attack_group")
+        return AttackGroup(sprite_group, name="test_attack_group")
 
-    def test_attack_group_initialization(self, attack_group, sprite_group, clock, scheduler):
+    def test_attack_group_initialization(self, attack_group, sprite_group):
         """Test AttackGroup initialization."""
         assert attack_group.sprites == sprite_group
-        assert attack_group.clock == clock
-        assert attack_group.scheduler == scheduler
         assert attack_group.name == "test_attack_group"
         assert attack_group.actions == []
         assert not attack_group.is_destroyed
@@ -496,30 +435,6 @@ class TestAttackGroup:
         current_positions = [(s.center_x, s.center_y) for s in attack_group.sprites]
         assert current_positions != initial_positions
 
-    def test_attack_group_pause_resume(self, attack_group, clock):
-        """Test pausing and resuming the attack group."""
-        move_action = MoveBy((50, 50), 1.0)
-        attack_group.do(move_action)
-
-        # Pause via clock
-        clock.paused = True
-        attack_group.update(0.5)
-
-        # Actions should be paused
-        for action in attack_group.actions[0].actions:
-            assert action._paused
-
-    def test_attack_group_schedule_attack(self, attack_group):
-        """Test scheduling attacks."""
-        callback_called = False
-
-        def test_callback():
-            nonlocal callback_called
-            callback_called = True
-
-        task_id = attack_group.schedule_attack(0.1, test_callback)
-        assert task_id in attack_group.scheduled_tasks
-
     def test_attack_group_breakaway(self, attack_group):
         """Test breaking away sprites from the group."""
         sprites_to_break = [attack_group.sprites[0]]
@@ -547,7 +462,6 @@ class TestAttackGroup:
 
         assert attack_group.is_destroyed
         assert len(attack_group.actions) == 0
-        assert len(attack_group.scheduled_tasks) == 0
         assert callback_called
 
     def test_attack_group_callbacks(self, attack_group):
@@ -575,14 +489,14 @@ class TestAttackGroup:
         attack_group.destroy()
         assert destroy_called
 
-    def test_attack_group_empty_sprite_destruction(self, clock, scheduler):
+    def test_attack_group_empty_sprite_destruction(self):
         """Test that attack group destroys itself when no sprites remain."""
         # Create group with sprites
         sprite_group = SpriteGroup()
         sprite = ActionSprite(":resources:images/items/star.png")
         sprite_group.append(sprite)
 
-        attack_group = AttackGroup(sprite_group, clock, scheduler)
+        attack_group = AttackGroup(sprite_group)
 
         # Remove all sprites
         sprite_group.clear()

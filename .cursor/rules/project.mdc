@@ -1,0 +1,76 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Refer to these rules before proceeding with code generation.
+
+When working with the ArcadeActions project:
+* Always consult docs/prd.md for architectural constraints and quality standards
+* Review docs/api_usage_guide.md for implementation patterns and component usage
+* Check docs/testing_index.md to find appropriate testing documentation
+* Follow the workflow: PRD → API Guide → Testing Documentation → Implementation
+
+This rule defines the project structure and relationships:
+
+In the actions/ directory:
+* Contains the main ArcadeActions system implementation
+* Interfaces with Arcade 3.x functionality referenced in references/arcade/
+* All sprites using actions MUST inherit from ActionSprite, not arcade.Sprite
+
+In the references/arcade/ directory:
+* Reference implementation from Arcade 3.x for understanding system interfaces
+* Use only for understanding patterns, not for direct copying
+
+In the tests/ directory:
+* Unit and integration tests for the Actions system
+* Follow testing patterns documented in docs/testing_index.md
+
+Core design principles that must be followed:
+
+General rules:
+* Never use Dataclasses
+
+For interface design:
+* ZERO TOLERANCE for runtime type/attribute checking (hasattr, getattr, isinstance, EAFP-with-pass)
+* Design interfaces so checking isn't needed - unclear interfaces are the real problem
+* Use consistent base interfaces with default values
+* Define clear protocols guaranteeing expected methods/attributes
+* Apply composition patterns eliminating optional attributes
+* Create unified interfaces for similar objects (Action vs GroupAction)
+
+For error handling:
+* Use EAFP only for genuine decision points with real fallback logic
+* NEVER use EAFP for error silencing
+* FORBIDDEN: `except AttributeError: pass` - this is a code smell
+* ACCEPTABLE: `except AttributeError: return default_value` with genuine fallback
+
+API usage patterns to follow:
+
+For sprite management:
+* Use ActionSprite for all sprites that need actions - REQUIRED for Actions system compatibility
+* Use arcade.Sprite only for sprites that don't need action-based behavior
+* ActionSprite and arcade.Sprite are NOT interchangeable
+
+For group management:
+* Use SpriteGroup for coordinated group behavior - extends arcade.SpriteList with automatic GroupAction management
+* GroupAction is created automatically by SpriteGroup.do() - rarely create directly
+* Use arcade.SpriteList only for sprites that don't need coordinated actions
+
+For boundary interactions:
+* Apply BoundedMove to individual ActionSprite for simple bouncing behavior
+* Apply BoundedMove to SpriteGroup for coordinated group bouncing (Space Invaders pattern) - only edge sprites trigger callbacks
+* Use WrappedMove for individual sprites or groups for screen wrapping behavior
+
+Common implementation patterns:
+* Individual control: ActionSprite.do(action) for single sprite behaviors
+* Group coordination: SpriteGroup.do(action) for synchronized group movements
+* Collision detection: SpriteGroup.on_collision_with() for efficient group collisions
+* Boundary detection: BoundedMove + SpriteGroup for formation-style movement with edge detection
+
+Testing patterns to follow:
+* Individual actions: Use ActionSprite fixtures, test with sprite.do() and sprite.update()
+* Group actions: Use SpriteGroup fixtures, verify GroupAction creation and automatic cleanup
+* Boundary actions: Test edge detection, callback coordination, and spacing preservation
+* Collision detection: Test SpriteGroup collision handlers and method chaining
+* See docs/testing_index.md for complete testing patterns, fixtures, and mock usage guidelines

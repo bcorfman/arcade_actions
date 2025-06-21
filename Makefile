@@ -13,12 +13,7 @@ install:
 
 devinstall:
 	uv python pin $(PYTHON_VERSION)
-	uv add pytest --dev
 	uv sync --all-extras --dev
-
-tools:
-	uv tool install ruff --force
-	uv tool install ipython --force
 
 test:
 	uv run pytest
@@ -27,9 +22,9 @@ run:
 	uv run python demo.py
 
 lint:
-	uv tool run ruff check -q
+	uv run ruff check -q
 
 format:
-	uv tool run ruff format
+	uv run ruff format
 
 all: devinstall tools lint format test

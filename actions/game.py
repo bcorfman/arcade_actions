@@ -6,8 +6,6 @@ from collections.abc import Callable
 
 import arcade
 
-from .game_clock import GameClock, Scheduler
-
 
 class Game(arcade.Window):
     """Central game class that manages all game state and systems.
@@ -29,10 +27,8 @@ class Game(arcade.Window):
         update_rate: float = 1 / 60,
         antialiasing: bool = True,
     ):
+        """Create a new game window."""
         super().__init__(width, height, title, fullscreen, resizable, update_rate, antialiasing)
-        # Core systems
-        self.clock = GameClock()
-        self.scheduler = Scheduler(self.clock)
 
         # Input state
         self.keys_pressed: set[int] = set()
@@ -55,18 +51,16 @@ class Game(arcade.Window):
         self.on_game_over_callbacks: list[Callable[[], None]] = []
         self.on_level_complete_callbacks: list[Callable[[], None]] = []
 
+        self._paused: bool = False
+
     def setup(self):
         """Initialize the game state. Override this in your game."""
         pass
 
     def update(self, delta_time: float):
         """Update all game systems."""
-        if self.clock.paused:
+        if self._paused:
             return
-
-        # Update core systems
-        self.clock.update(delta_time)
-        self.scheduler.update()
 
         # Update current view if it exists
         if self._current_view:
@@ -95,13 +89,13 @@ class Game(arcade.Window):
 
     def pause(self):
         """Pause the entire game."""
-        self.clock.paused = True
+        self._paused = True
         for callback in self.on_pause_callbacks:
             callback()
 
     def resume(self):
         """Resume the game."""
-        self.clock.paused = False
+        self._paused = False
         for callback in self.on_resume_callbacks:
             callback()
 
@@ -111,7 +105,7 @@ class Game(arcade.Window):
 
         # Handle pause
         if key == arcade.key.P:
-            if self.clock.paused:
+            if self._paused:
                 self.resume()
             else:
                 self.pause()
@@ -174,9 +168,7 @@ class Game(arcade.Window):
 
     def reset(self):
         """Reset the game to its initial state."""
-        # Reset core systems
-        self.clock.reset()
-        self.scheduler = Scheduler(self.clock)  # Create fresh scheduler
+        self._paused = False
 
         # Reset game state
         self.score = 0
@@ -195,5 +187,5 @@ class Game(arcade.Window):
     def __repr__(self) -> str:
         return (
             f"<Game level={self.level} score={self.score} lives={self.lives} "
-            f"paused={self.clock.paused} game_over={self.game_over}>"
+            f"paused={self._paused} game_over={self.game_over}>"
         )
