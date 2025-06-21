@@ -10,6 +10,8 @@ A Python library that ports the Cocos2D Actions system to Arcade 3.x, providing 
 - **Boundary handling**: Built-in collision detection and boundary management
 - **Easy integration**: Works seamlessly with existing Arcade projects
 
+<img src="res/demo.gif" style="width: 500px">
+
 ## Installation
 
 Install from PyPI using uv (recommended):
