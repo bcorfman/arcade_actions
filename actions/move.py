@@ -160,6 +160,10 @@ class _Move(Action):
         for sprite in self._iter_sprites():
             self._move_single_sprite_for(sprite, delta_time)
 
+    def clone(self) -> "_Move":
+        """Create a copy of this _Move action."""
+        return _Move()
+
 
 class GroupBehaviorAction(Action):
     """Base class for actions that need to detect edge sprites in groups.
@@ -384,6 +388,15 @@ class WrappedMove(GroupBehaviorAction):
         """
         action.adjust_for_position_delta(position_delta)
 
+    def clone(self) -> "WrappedMove":
+        """Create a copy of this WrappedMove action."""
+        return WrappedMove(
+            self.get_bounds,
+            wrap_horizontal=self.wrap_horizontal,
+            wrap_vertical=self.wrap_vertical,
+            on_wrap=self._on_wrap,
+        )
+
     def __repr__(self) -> str:
         return f"WrappedMove(wrap_horizontal={self.wrap_horizontal}, wrap_vertical={self.wrap_vertical})"
 
@@ -586,6 +599,15 @@ class BoundedMove(GroupBehaviorAction):
             if act:
                 act.reverse_movement(axis)
 
+    def clone(self) -> "BoundedMove":
+        """Create a copy of this BoundedMove action."""
+        return BoundedMove(
+            self.get_bounds,
+            bounce_horizontal=self.bounce_horizontal,
+            bounce_vertical=self.bounce_vertical,
+            on_bounce=self._on_bounce,
+        )
+
     def __repr__(self) -> str:
         return f"BoundedMove(bounce_horizontal={self.bounce_horizontal}, bounce_vertical={self.bounce_vertical})"
 
@@ -737,6 +759,10 @@ class Driver(Action):
 
         # Store current speed
         sprite.physics.speed = speed
+
+    def clone(self) -> "Driver":
+        """Create a copy of this Driver action."""
+        return Driver()
 
     def __repr__(self) -> str:
         return "Driver()"

@@ -130,6 +130,10 @@ class MoveTo(MovementAction, IntervalAction):
         """Polymorphic movement-direction extraction."""
         extractor(self.delta)
 
+    def clone(self) -> "MoveTo":
+        """Create a copy of this MoveTo action."""
+        return MoveTo(self.end_position, self.duration)
+
     def __repr__(self) -> str:
         return f"MoveTo(position={self.end_position}, duration={self.duration})"
 
@@ -209,6 +213,10 @@ class MoveBy(MovementAction, IntervalAction):
         """Polymorphic movement-direction extraction."""
         extractor(self.delta)
 
+    def clone(self) -> "MoveBy":
+        """Create a copy of this MoveBy action."""
+        return MoveBy(self.delta, self.duration)
+
     def __repr__(self) -> str:
         return f"MoveBy(delta={self.delta}, duration={self.duration})"
 
@@ -256,6 +264,10 @@ class RotateTo(IntervalAction):
         """
         super().stop()
 
+    def clone(self) -> "RotateTo":
+        """Create a copy of this RotateTo action."""
+        return RotateTo(self.end_angle, self.duration)
+
     def __repr__(self) -> str:
         return f"RotateTo(angle={self.end_angle}, duration={self.duration})"
 
@@ -290,6 +302,10 @@ class RotateBy(RotateTo):
 
     def __reversed__(self) -> "RotateBy":
         return RotateBy(-self.angle, self.duration)
+
+    def clone(self) -> "RotateBy":
+        """Create a copy of this RotateBy action."""
+        return RotateBy(self.angle, self.duration)
 
     def __repr__(self) -> str:
         return f"RotateBy(angle={self.angle}, duration={self.duration})"
@@ -338,6 +354,10 @@ class ScaleTo(IntervalAction):
         """
         super().stop()
 
+    def clone(self) -> "ScaleTo":
+        """Create a copy of this ScaleTo action."""
+        return ScaleTo(self.end_scale, self.duration)
+
     def __repr__(self) -> str:
         return f"ScaleTo(scale={self.end_scale}, duration={self.duration})"
 
@@ -368,6 +388,10 @@ class ScaleBy(ScaleTo):
 
     def __reversed__(self) -> "ScaleBy":
         return ScaleBy(1.0 / self.scale, self.duration)
+
+    def clone(self) -> "ScaleBy":
+        """Create a copy of this ScaleBy action."""
+        return ScaleBy(self.scale, self.duration)
 
     def __repr__(self) -> str:
         return f"ScaleBy(scale={self.scale}, duration={self.duration})"
@@ -412,6 +436,10 @@ class FadeOut(IntervalAction):
     def __reversed__(self) -> "FadeIn":
         return FadeIn(self.duration)
 
+    def clone(self) -> "FadeOut":
+        """Create a copy of this FadeOut action."""
+        return FadeOut(self.duration)
+
     def __repr__(self) -> str:
         return f"FadeOut(duration={self.duration})"
 
@@ -454,6 +482,10 @@ class FadeIn(IntervalAction):
 
     def __reversed__(self) -> "FadeOut":
         return FadeOut(self.duration)
+
+    def clone(self) -> "FadeIn":
+        """Create a copy of this FadeIn action."""
+        return FadeIn(self.duration)
 
     def __repr__(self) -> str:
         return f"FadeIn(duration={self.duration})"
@@ -499,6 +531,10 @@ class FadeTo(IntervalAction):
         Leave the sprite at its current alpha without jumping to the end.
         """
         super().stop()
+
+    def clone(self) -> "FadeTo":
+        """Create a copy of this FadeTo action."""
+        return FadeTo(self.alpha, self.duration)
 
     def __repr__(self) -> str:
         return f"FadeTo(alpha={self.alpha}, duration={self.duration})"
@@ -549,6 +585,10 @@ class Blink(IntervalAction):
 
     def __reversed__(self) -> "Blink":
         return self
+
+    def clone(self) -> "Blink":
+        """Create a copy of this Blink action."""
+        return Blink(self.times, self.duration)
 
     def __repr__(self) -> str:
         return f"Blink(times={self.times}, duration={self.duration})"
@@ -624,6 +664,10 @@ class Bezier(IntervalAction):
         """
         super().stop()
 
+    def clone(self) -> "Bezier":
+        """Create a copy of this Bezier action."""
+        return Bezier(self.control_points.copy(), self.duration)
+
     def __repr__(self) -> str:
         return f"Bezier(control_points={self.control_points}, duration={self.duration})"
 
@@ -646,6 +690,10 @@ class Delay(IntervalAction):
     def update(self, delta_time: float) -> None:
         super().update(delta_time)
 
+    def clone(self) -> "Delay":
+        """Create a copy of this Delay action."""
+        return Delay(self.duration)
+
     def __repr__(self) -> str:
         return f"Delay(duration={self.duration})"
 
@@ -667,6 +715,10 @@ class RandomDelay(Delay):
         super().__init__(duration)
         self.min_duration = min_duration
         self.max_duration = max_duration
+
+    def clone(self) -> "RandomDelay":
+        """Create a copy of this RandomDelay action."""
+        return RandomDelay(self.min_duration, self.max_duration)
 
     def __repr__(self) -> str:
         return f"RandomDelay(min={self.min_duration}, max={self.max_duration})"
@@ -738,6 +790,10 @@ class Easing(IntervalAction):
 
     def __neg__(self):
         return Easing(self.other.__reversed__(), ease_function=self.ease_function)
+
+    def clone(self) -> "Easing":
+        """Create a copy of this Easing action."""
+        return Easing(self.other.clone(), self.ease_function)
 
     def __repr__(self):
         # Use simplified interface - avoid runtime attribute checking per design rules
@@ -827,6 +883,10 @@ class JumpTo(IntervalAction):
         # the sprite's position when the reversal happens. This is a placeholder.
         raise NotImplementedError("JumpTo cannot be reversed.")
 
+    def clone(self) -> "JumpTo":
+        """Create a copy of this JumpTo action."""
+        return JumpTo(self.end_position, self.height, self.jumps, self.duration)
+
     def __repr__(self) -> str:
         """String representation for debugging."""
         return (
@@ -877,6 +937,10 @@ class JumpBy(JumpTo):
     def __reversed__(self) -> "JumpBy":
         """Returns a reversed version of this action."""
         return JumpBy((-self.delta[0], -self.delta[1]), self.height, self.jumps, self.duration)
+
+    def clone(self) -> "JumpBy":
+        """Create a copy of this JumpBy action."""
+        return JumpBy(self.delta, self.height, self.jumps, self.duration)
 
     def __repr__(self) -> str:
         """String representation for debugging."""
