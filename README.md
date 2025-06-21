@@ -92,4 +92,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Credits
 
-This library was created by Brandon Corfman as a port of the Cocos2D Actions system. The code was developed using [Cursor IDE](https://www.cursor.com/) and [Claude 4 Sonnet](https://claude.ai).
+This library was developed using [Cursor IDE](https://www.cursor.com/) and [Claude 4 Sonnet](https://claude.ai) with me acting as Project Manager. 😎
