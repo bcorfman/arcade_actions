@@ -45,6 +45,18 @@ class MovementAction(Action):
         """Report this action's movement delta to *collector*."""
         collector(self.delta)
 
+    def clone(self) -> "MovementAction":
+        """Create a copy of this MovementAction."""
+        if self.__class__ is MovementAction:
+            cloned = MovementAction()
+            cloned.delta = self.delta
+            cloned.total_change = self.total_change
+            cloned.end_position = self.end_position
+            return cloned
+        else:
+            # Subclasses should implement their own cloning
+            raise NotImplementedError(f"Action subclass {self.__class__.__name__} must override clone() method.")
+
 
 class CompositeAction(Action):
     """Base class for composite actions with consistent interface."""
@@ -84,6 +96,18 @@ class CompositeAction(Action):
         for child in self.actions:
             child.adjust_for_position_delta(position_delta)
 
+    def clone(self) -> "CompositeAction":
+        """Create a copy of this CompositeAction."""
+        if self.__class__ is CompositeAction:
+            cloned = CompositeAction()
+            cloned.actions = [action.clone() for action in self.actions]
+            cloned.current_action = None
+            cloned.current_index = 0
+            return cloned
+        else:
+            # Subclasses should implement their own cloning
+            raise NotImplementedError(f"Action subclass {self.__class__.__name__} must override clone() method.")
+
 
 class EasingAction(Action):
     """Base class for easing wrapper actions with consistent interface."""
@@ -102,6 +126,14 @@ class EasingAction(Action):
 
     def extract_movement_direction(self, collector):
         self.other.extract_movement_direction(collector)
+
+    def clone(self) -> "EasingAction":
+        """Create a copy of this EasingAction."""
+        if self.__class__ is EasingAction:
+            return EasingAction(self.other.clone())
+        else:
+            # Subclasses should implement their own cloning
+            raise NotImplementedError(f"Action subclass {self.__class__.__name__} must override clone() method.")
 
 
 class _Move(Action):
@@ -229,6 +261,14 @@ class GroupBehaviorAction(Action):
             return abs(sprite.center_y - bottommost_y) < tolerance
 
         return False
+
+    def clone(self) -> "GroupBehaviorAction":
+        """Create a copy of this GroupBehaviorAction."""
+        if self.__class__ is GroupBehaviorAction:
+            return GroupBehaviorAction()
+        else:
+            # Subclasses should implement their own cloning
+            raise NotImplementedError(f"Action subclass {self.__class__.__name__} must override clone() method.")
 
 
 class WrappedMove(GroupBehaviorAction):
