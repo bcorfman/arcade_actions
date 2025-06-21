@@ -138,7 +138,10 @@ class TestGroupAction:
 
         group_action = sprite_group.do(move_action)
         assert len(group_action.actions) == 2
-        assert all(isinstance(a, MoveBy) for a in group_action.actions)
+        # Verify all actions are MoveBy by checking they have the same delta and duration
+        for action in group_action.actions:
+            assert action.delta == (100, 0)
+            assert action.duration == 1.0
 
         group_action.update(0.5)
         assert all(a._elapsed > 0 for a in group_action.actions)

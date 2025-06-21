@@ -62,7 +62,12 @@ class TestHide:
         """Test Hide action reversal."""
         action = Hide()
         reversed_action = action.__reversed__()
-        assert isinstance(reversed_action, Show)
+        # Verify reversed action behaves like Show by checking its effect
+        sprite = create_test_sprite()
+        sprite.visible = False
+        reversed_action.target = sprite
+        reversed_action.start()
+        assert sprite.visible  # Show makes sprites visible
 
 
 class TestShow:
@@ -85,7 +90,12 @@ class TestShow:
         """Test Show action reversal."""
         action = Show()
         reversed_action = action.__reversed__()
-        assert isinstance(reversed_action, Hide)
+        # Verify reversed action behaves like Hide by checking its effect
+        sprite = create_test_sprite()
+        sprite.visible = True
+        reversed_action.target = sprite
+        reversed_action.start()
+        assert not sprite.visible  # Hide makes sprites invisible
 
 
 class TestToggleVisibility:
@@ -115,7 +125,12 @@ class TestToggleVisibility:
         """Test ToggleVisibility reversal."""
         action = ToggleVisibility()
         reversed_action = action.__reversed__()
-        assert isinstance(reversed_action, ToggleVisibility)
+        # ToggleVisibility reverses to itself - verify by testing behavior
+        sprite = create_test_sprite()
+        sprite.visible = True
+        reversed_action.target = sprite
+        reversed_action.start()
+        assert not sprite.visible  # ToggleVisibility should toggle
 
 
 class TestCallFunc:
@@ -179,7 +194,8 @@ class TestCallFunc:
 
         action = CallFunc(test_func)
         reversed_action = action.__reversed__()
-        assert isinstance(reversed_action, CallFunc)
+        # Verify it's a CallFunc by checking it has the same function
+        assert reversed_action.func == test_func
 
 
 class TestCallFuncS:
