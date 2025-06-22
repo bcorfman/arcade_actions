@@ -11,7 +11,7 @@ Key Classes:
     Game: Base game class with built-in action support
 
 Action Types:
-    Movement: MoveBy, MoveTo, WrappedMove, BoundedMove
+    Movement: MoveBy, MoveTo, BoundaryAction with BounceBehavior/WrapBehavior
     Rotation: RotateBy, RotateTo
     Scaling: ScaleBy, ScaleTo
     Composite: Sequence, Spawn, Loop
@@ -37,7 +37,7 @@ from .game import Game
 from .group import SpriteGroup
 from .instant import CallFunc, CallFuncS, Hide, Place, Show, ToggleVisibility
 from .interval import MoveBy, MoveTo, RotateBy, RotateTo, ScaleBy, ScaleTo
-from .move import BoundedMove, Driver, WrappedMove
+from .move import BounceBehavior, BoundaryAction, BoundsInfo, WrapBehavior
 from .protocols import CompositeLike, GroupLike, MovementLike  # re-export for external typing
 
 # Constants
@@ -93,6 +93,61 @@ def seconds_to_fps(time_velocity: float, fps: float = ARCADE_FPS) -> float:
     return actions_to_arcade_velocity(time_velocity, fps)
 
 
+# Convenience functions for boundary behaviors
+def BoundedMove(get_bounds, bounce_horizontal=True, bounce_vertical=True, on_bounce=None, movement_action=None):
+    """Create a BoundaryAction with bounce behavior (replaces old BoundedMove).
+
+    Args:
+        get_bounds: Function returning (left, bottom, right, top) boundaries
+        bounce_horizontal: Whether to bounce on horizontal boundaries
+        bounce_vertical: Whether to bounce on vertical boundaries
+        on_bounce: Optional callback when bounce occurs
+        movement_action: Optional movement action to wrap
+
+    Returns:
+        BoundaryAction configured with BounceBehavior
+
+    Example:
+        # Standalone boundary action:
+        action = BoundedMove(lambda: (0, 0, 800, 600))
+        sprite.do(action)
+
+        # Wrapping a movement action:
+        move = MoveBy((100, 0), 1.0)
+        bounded_move = BoundedMove(lambda: (0, 0, 800, 600), movement_action=move)
+        sprite.do(bounded_move)
+    """
+    behavior = BounceBehavior(horizontal=bounce_horizontal, vertical=bounce_vertical, callback=on_bounce)
+    return BoundaryAction(get_bounds, behavior, movement_action)
+
+
+def WrappedMove(get_bounds, wrap_horizontal=True, wrap_vertical=True, on_wrap=None, movement_action=None):
+    """Create a BoundaryAction with wrap behavior (replaces old WrappedMove).
+
+    Args:
+        get_bounds: Function returning (width, height) screen dimensions
+        wrap_horizontal: Whether to wrap on horizontal boundaries
+        wrap_vertical: Whether to wrap on vertical boundaries
+        on_wrap: Optional callback when wrap occurs
+        movement_action: Optional movement action to wrap
+
+    Returns:
+        BoundaryAction configured with WrapBehavior
+
+    Example:
+        # Standalone boundary action:
+        action = WrappedMove(lambda: (800, 600))
+        sprite.do(action)
+
+        # Wrapping a movement action:
+        move = MoveBy((100, 0), 1.0)
+        wrapped_move = WrappedMove(lambda: (800, 600), movement_action=move)
+        sprite.do(wrapped_move)
+    """
+    behavior = WrapBehavior(horizontal=wrap_horizontal, vertical=wrap_vertical, callback=on_wrap)
+    return BoundaryAction(get_bounds, behavior, movement_action)
+
+
 __all__ = [
     # Core classes
     "Action",
@@ -123,10 +178,13 @@ __all__ = [
     "RotateTo",
     "ScaleBy",
     "ScaleTo",
-    # Movement actions
-    "BoundedMove",
-    "Driver",
-    "WrappedMove",
+    # Boundary actions
+    "BoundaryAction",
+    "BounceBehavior",
+    "WrapBehavior",
+    "BoundsInfo",
+    "BoundedMove",  # Convenience function
+    "WrappedMove",  # Convenience function
     # Constants and utilities
     "ARCADE_FPS",
     "arcade_to_actions_velocity",

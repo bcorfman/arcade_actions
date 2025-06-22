@@ -11,17 +11,6 @@ if TYPE_CHECKING:
     from .composite import Sequence, Spawn
 
 
-class PhysicsProperties:
-    """Standard physics properties for all sprites."""
-
-    def __init__(self):
-        self.acceleration: tuple[float, float] = (0.0, 0.0)
-        self.gravity: float = 0.0
-        self.speed: float = 0.0
-        self.max_forward_speed: float | None = None
-        self.max_reverse_speed: float | None = None
-
-
 class ActionTarget(Protocol):
     """Protocol defining the interface all action targets must implement."""
 
@@ -35,9 +24,6 @@ class ActionTarget(Protocol):
     # Rotation
     angle: float
     change_angle: float
-
-    # Physics properties (guaranteed to exist)
-    physics: PhysicsProperties
 
     # Action management - can be either old-style single action or new-style slots
     _action: "Action | None"  # Backward compatibility
@@ -380,9 +366,6 @@ class ActionSprite(arcade.Sprite):
         self._actions: dict[str, Action | None] = {"default": None}
         self._is_paused: bool = False
         self._is_cleaning_up: bool = False
-
-        # Initialize physics properties
-        self.physics = PhysicsProperties()
 
         # Ensure change_angle exists with a default value (Arcade defines it, but we
         # set it explicitly to avoid runtime attribute checks.)

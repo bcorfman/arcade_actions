@@ -132,7 +132,7 @@ class GroupAction(Action):
         super().__init__()
         self.group = list(group)
         self.template = action
-        self.actions: list[Action] = []  # Individual actions for each sprite
+        self._actions: list[Action] = []  # Individual actions for each sprite
 
         # Implement consistent interface - same as MovementAction, CompositeAction, etc.
         self.delta: tuple[float, float] = (0.0, 0.0)
@@ -146,6 +146,25 @@ class GroupAction(Action):
         self._use_batch_optimization = False
         self._batch_start_positions: list[tuple[float, float]] = []
         self._batch_total_change: tuple[float, float] = (0.0, 0.0)
+
+    @property
+    def actions(self) -> list[Action]:
+        """Get the list of individual actions.
+
+        When using batch optimization, this returns an empty list since individual
+        actions aren't created. Use sprite_count property to get the number of sprites.
+        """
+        return self._actions
+
+    @actions.setter
+    def actions(self, value: list[Action]) -> None:
+        """Set the list of individual actions."""
+        self._actions = value
+
+    @property
+    def sprite_count(self) -> int:
+        """Get the number of sprites in the group regardless of optimization mode."""
+        return len(self.group)
 
     def start(self):
         """Start the action on the group."""
@@ -179,7 +198,7 @@ class GroupAction(Action):
     def _setup_batch_optimization(self):
         """Set up batch optimization for movement actions."""
         self._use_batch_optimization = True
-        self.actions = []  # Don't create individual actions
+        self._actions = []  # Don't create individual actions
 
         # Store initial positions for all sprites
         self._batch_start_positions = [sprite.position for sprite in self.group]
@@ -204,13 +223,13 @@ class GroupAction(Action):
     def _setup_individual_actions(self):
         """Set up individual actions for each sprite (fallback for non-movement actions)."""
         self._use_batch_optimization = False
-        self.actions = []
+        self._actions = []
         for sprite in self.group:
             # Create a clone of the action
             action_copy = self.template.clone()
             action_copy.target = sprite
             action_copy.start()
-            self.actions.append(action_copy)
+            self._actions.append(action_copy)
 
     def update(self, delta_time: float):
         """Update the group action using batch optimization when possible."""
@@ -258,16 +277,16 @@ class GroupAction(Action):
 
     def _update_individual_actions(self, delta_time: float):
         """Update individual actions (fallback for non-movement actions)."""
-        if not self.actions:
+        if not self._actions:
             return
 
         # Update each sprite's action
-        for action in self.actions:
+        for action in self._actions:
             if not action.done:
                 action.update(delta_time)
 
         # Check if all actions are now done (after updating)
-        all_done = all(action.done for action in self.actions)
+        all_done = all(action.done for action in self._actions)
 
         # Set completion state and check for completion callback
         if all_done:
@@ -279,9 +298,9 @@ class GroupAction(Action):
     def stop(self):
         """Stop the current group action."""
         if not self._use_batch_optimization:
-            for action in self.actions:
+            for action in self._actions:
                 action.stop()
-        self.actions = []
+        self._actions = []
         self._batch_start_positions = []
         super().stop()
 
@@ -305,14 +324,14 @@ class GroupAction(Action):
         """Pause all actions in the group."""
         super().pause()
         if not self._use_batch_optimization:
-            for action in self.actions:
+            for action in self._actions:
                 action.pause()
 
     def resume(self):
         """Resume all actions in the group."""
         super().resume()
         if not self._use_batch_optimization:
-            for action in self.actions:
+            for action in self._actions:
                 action.resume()
 
     # Implement consistent interface methods for type-based dispatch
@@ -339,12 +358,12 @@ class GroupAction(Action):
 
         # Also reverse all individual actions if using individual mode
         if not self._use_batch_optimization:
-            for action in self.actions:
+            for action in self._actions:
                 action.reverse_movement(axis)
 
     def get_movement_actions(self) -> list[Action]:
         """Get all movement actions from this group - consistent with CompositeAction."""
-        return [action for action in self.actions if action.get_movement_delta() != (0.0, 0.0)]
+        return [action for action in self._actions if action.get_movement_delta() != (0.0, 0.0)]
 
     def get_wrapped_action(self) -> Action:
         """Get the wrapped action - consistent with EasingAction."""
@@ -364,7 +383,7 @@ class GroupAction(Action):
         # logic sees the same data it did before.
         self.template.extract_movement_direction(collector)
         if not self._use_batch_optimization:
-            for action in self.actions:
+            for action in self._actions:
                 action.extract_movement_direction(collector)
         else:
             # For batch optimization, report our own movement delta
@@ -373,7 +392,7 @@ class GroupAction(Action):
     def adjust_for_position_delta(self, position_delta: tuple[float, float]) -> None:  # noqa: D401
         self.template.adjust_for_position_delta(position_delta)
         if not self._use_batch_optimization:
-            for action in self.actions:
+            for action in self._actions:
                 action.adjust_for_position_delta(position_delta)
         else:
             # For batch optimization, adjust our cached start positions

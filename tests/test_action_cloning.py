@@ -286,15 +286,16 @@ class TestCloneIntegration:
         # Verify each group got independent copies
         assert group1_action.template is move_template
         assert group2_action.template is move_template
-        assert len(group1_action.actions) == 2
-        assert len(group2_action.actions) == 2
+        assert group1_action.sprite_count == 2
+        assert group2_action.sprite_count == 2
 
-        # Verify all individual sprite actions are independent
-        all_sprite_actions = group1_action.actions + group2_action.actions
-        for i, action1 in enumerate(all_sprite_actions):
-            for j, action2 in enumerate(all_sprite_actions):
-                if i != j:
-                    assert action1 is not action2, "Sprite actions should be independent"
+        # Verify all individual sprite actions are independent (only when not using batch optimization)
+        if not group1_action._use_batch_optimization:
+            all_sprite_actions = group1_action.actions + group2_action.actions
+            for i, action1 in enumerate(all_sprite_actions):
+                for j, action2 in enumerate(all_sprite_actions):
+                    if i != j:
+                        assert action1 is not action2, "Sprite actions should be independent"
 
     def test_complex_nested_action_hierarchies(self):
         """Test cloning works with deeply nested action hierarchies."""
