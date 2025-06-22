@@ -6,6 +6,8 @@ from collections.abc import Callable
 
 import arcade
 
+from .protocols import ArcadeCollisionDetector, CollisionDetector
+
 
 class Game(arcade.Window):
     """Central game class that manages all game state and systems.
@@ -192,3 +194,38 @@ class Game(arcade.Window):
             f"<Game level={self.level} score={self.score} lives={self.lives} "
             f"paused={self.clock.paused} game_over={self.game_over}>"
         )
+
+
+class GameConfig:
+    """Global configuration for ArcadeActions behavior."""
+
+    def __init__(self):
+        self._collision_detector: CollisionDetector = ArcadeCollisionDetector()
+
+    @property
+    def collision_detector(self) -> CollisionDetector:
+        """Get the current collision detector."""
+        return self._collision_detector
+
+    @collision_detector.setter
+    def collision_detector(self, detector: CollisionDetector):
+        """Set the collision detector for all future SpriteGroup instances."""
+        self._collision_detector = detector
+
+    def reset_to_defaults(self):
+        """Reset all configuration to default values."""
+        self._collision_detector = ArcadeCollisionDetector()
+
+
+# Global configuration instance
+config = GameConfig()
+
+
+def set_collision_detector(detector: CollisionDetector):
+    """Convenience function to set the global collision detector."""
+    config.collision_detector = detector
+
+
+def get_collision_detector() -> CollisionDetector:
+    """Convenience function to get the current collision detector."""
+    return config.collision_detector

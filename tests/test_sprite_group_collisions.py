@@ -8,6 +8,7 @@ import pytest
 
 from actions.base import ActionSprite
 from actions.group import SpriteGroup
+from actions.protocols import ArcadeCollisionDetector, BoundingBoxCollisionDetector, MockCollisionDetector
 
 
 class TestSpriteGroupCollisions:
@@ -261,3 +262,187 @@ class TestSpriteGroupCollisions:
         assert len(bullets) == 0
         assert len(enemies) == 0
         assert len(shields) == 1  # Shield untouched
+
+
+class TestCollisionDetectorInjection:
+    """Test suite for collision detector dependency injection."""
+
+    def test_default_collision_detector_is_arcade(self):
+        """Test that SpriteGroup uses ArcadeCollisionDetector by default."""
+        sprites_group = SpriteGroup()
+        # The default detector should be ArcadeCollisionDetector
+        assert isinstance(sprites_group._collision_detector, ArcadeCollisionDetector)
+
+    def test_mock_collision_detector_injection(self):
+        """Test injecting MockCollisionDetector for controlled testing."""
+        # Setup - inject mock collision detector
+        mock_detector = MockCollisionDetector()
+        bullets = SpriteGroup(collision_detector=mock_detector)
+        enemies = SpriteGroup()
+
+        # Create test sprites
+        bullet = ActionSprite(":resources:images/items/star.png", center_x=100, center_y=100)
+        enemy = ActionSprite(":resources:images/items/star.png", center_x=200, center_y=200)
+        bullets.append(bullet)
+        enemies.append(enemy)
+
+        # Pre-configure collision result
+        mock_detector.set_collision_result(bullet, tuple(enemies), [enemy])
+
+        # Setup collision handler
+        collisions_detected = []
+
+        def on_collision(bullet, hit_enemies):
+            collisions_detected.append((bullet, hit_enemies))
+
+        bullets.on_collision_with(enemies, on_collision)
+        bullets.update_collisions()
+
+        # Verify mock was used - should detect collision even though sprites are far apart
+        assert len(collisions_detected) == 1
+        assert collisions_detected[0][0] is bullet
+        assert enemy in collisions_detected[0][1]
+
+    def test_mock_collision_detector_no_result_configured(self):
+        """Test MockCollisionDetector returns no collisions when no results configured."""
+        mock_detector = MockCollisionDetector()
+        bullets = SpriteGroup(collision_detector=mock_detector)
+        enemies = SpriteGroup()
+
+        # Create overlapping sprites (would normally collide)
+        bullet = ActionSprite(":resources:images/items/star.png", center_x=100, center_y=100)
+        enemy = ActionSprite(":resources:images/items/star.png", center_x=100, center_y=100)
+        bullets.append(bullet)
+        enemies.append(enemy)
+
+        # Don't configure any collision results
+
+        # Setup collision handler
+        collisions_detected = []
+
+        def on_collision(bullet, hit_enemies):
+            collisions_detected.append((bullet, hit_enemies))
+
+        bullets.on_collision_with(enemies, on_collision)
+        bullets.update_collisions()
+
+        # Should detect no collisions since mock has no configured results
+        assert len(collisions_detected) == 0
+
+    def test_bounding_box_collision_detector_injection(self):
+        """Test injecting BoundingBoxCollisionDetector for OpenGL-free testing."""
+        # Setup - inject bounding box collision detector
+        bbox_detector = BoundingBoxCollisionDetector()
+        bullets = SpriteGroup(collision_detector=bbox_detector)
+        enemies = SpriteGroup()
+
+        # Create overlapping sprites
+        bullet = ActionSprite(":resources:images/items/star.png", center_x=100, center_y=100)
+        enemy = ActionSprite(":resources:images/items/star.png", center_x=100, center_y=100)
+        bullets.append(bullet)
+        enemies.append(enemy)
+
+        # Setup collision handler
+        collisions_detected = []
+
+        def on_collision(bullet, hit_enemies):
+            collisions_detected.append((bullet, hit_enemies))
+
+        bullets.on_collision_with(enemies, on_collision)
+        bullets.update_collisions()
+
+        # Should detect collision since sprites overlap
+        assert len(collisions_detected) == 1
+        assert collisions_detected[0][0] is bullet
+        assert enemy in collisions_detected[0][1]
+
+    def test_bounding_box_collision_detector_no_overlap(self):
+        """Test BoundingBoxCollisionDetector doesn't detect non-overlapping sprites."""
+        bbox_detector = BoundingBoxCollisionDetector()
+        bullets = SpriteGroup(collision_detector=bbox_detector)
+        enemies = SpriteGroup()
+
+        # Create non-overlapping sprites (sprites are 128x128, so 300 pixels apart ensures no overlap)
+        bullet = ActionSprite(":resources:images/items/star.png", center_x=100, center_y=100)
+        enemy = ActionSprite(":resources:images/items/star.png", center_x=400, center_y=400)
+        bullets.append(bullet)
+        enemies.append(enemy)
+
+        # Setup collision handler
+        collisions_detected = []
+
+        def on_collision(bullet, hit_enemies):
+            collisions_detected.append((bullet, hit_enemies))
+
+        bullets.on_collision_with(enemies, on_collision)
+        bullets.update_collisions()
+
+        # Should detect no collisions since sprites don't overlap
+        assert len(collisions_detected) == 0
+
+    def test_different_collision_detectors_per_group(self):
+        """Test that different SpriteGroups can use different collision detectors."""
+        # Create groups with different collision detectors
+        mock_detector = MockCollisionDetector()
+        bbox_detector = BoundingBoxCollisionDetector()
+
+        bullets_mock = SpriteGroup(collision_detector=mock_detector)
+        bullets_bbox = SpriteGroup(collision_detector=bbox_detector)
+        enemies = SpriteGroup()
+
+        # Create test sprites
+        bullet1 = ActionSprite(":resources:images/items/star.png", center_x=100, center_y=100)
+        bullet2 = ActionSprite(":resources:images/items/star.png", center_x=100, center_y=100)
+        enemy = ActionSprite(":resources:images/items/star.png", center_x=100, center_y=100)
+
+        bullets_mock.append(bullet1)
+        bullets_bbox.append(bullet2)
+        enemies.append(enemy)
+
+        # Configure mock to return no collisions
+        mock_detector.set_collision_result(bullet1, tuple(enemies), [])
+
+        # Setup collision handlers
+        mock_collisions = []
+        bbox_collisions = []
+
+        def on_mock_collision(bullet, hit_enemies):
+            mock_collisions.append((bullet, hit_enemies))
+
+        def on_bbox_collision(bullet, hit_enemies):
+            bbox_collisions.append((bullet, hit_enemies))
+
+        bullets_mock.on_collision_with(enemies, on_mock_collision)
+        bullets_bbox.on_collision_with(enemies, on_bbox_collision)
+
+        # Update collisions
+        bullets_mock.update_collisions()
+        bullets_bbox.update_collisions()
+
+        # Mock should detect no collisions (configured to return empty list)
+        assert len(mock_collisions) == 0
+
+        # BoundingBox should detect collision (sprites overlap)
+        assert len(bbox_collisions) == 1
+        assert bbox_collisions[0][0] is bullet2
+        assert enemy in bbox_collisions[0][1]
+
+    def test_collision_detector_protocol_compliance(self):
+        """Test that all collision detectors follow the protocol interface."""
+        detectors = [ArcadeCollisionDetector(), MockCollisionDetector(), BoundingBoxCollisionDetector()]
+
+        # Create test sprites
+        sprite = ActionSprite(":resources:images/items/star.png", center_x=100, center_y=100)
+        target_group = [ActionSprite(":resources:images/items/star.png", center_x=200, center_y=200)]
+
+        for detector in detectors:
+            # Each detector should have check_collision method
+            assert hasattr(detector, "check_collision")
+
+            # Method should be callable and return a list
+            result = detector.check_collision(sprite, target_group)
+            assert isinstance(result, list)
+
+            # All items in result should be sprites
+            for hit_sprite in result:
+                assert hasattr(hit_sprite, "center_x")  # Basic sprite check
