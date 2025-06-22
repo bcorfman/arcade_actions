@@ -24,7 +24,7 @@ class TestWrappedMove:
     - Wrapping behavior at each boundary
     - Corner cases
     - Wrap callbacks
-    - Sprite list handling
+    - SpriteGroup handling
     - Physics integration
     """
 
@@ -36,8 +36,8 @@ class TestWrappedMove:
         return sprite
 
     @pytest.fixture
-    def sprite_list(self):
-        """Create a list of test sprites for group behavior testing."""
+    def sprite_group(self):
+        """Create a SpriteGroup with test sprites for group behavior testing."""
         from actions.group import SpriteGroup
 
         sprites = SpriteGroup()
@@ -214,16 +214,16 @@ class TestWrappedMove:
         assert wrap_events[0][0] == sprite
         assert wrap_events[0][1] == "x"
 
-    def test_sprite_list_wrapping(self, sprite_list, get_bounds):
-        """Test wrapping behavior with sprite lists.
+    def test_sprite_group_wrapping(self, sprite_group, get_bounds):
+        """Test wrapping behavior with SpriteGroup.
 
         Verifies that:
-        - All sprites in the list are processed
+        - All sprites in the group are processed
         - Each sprite wraps independently
         - Group behavior is maintained
         """
         # Position sprites across screen
-        for i, sprite in enumerate(sprite_list):
+        for i, sprite in enumerate(sprite_group):
             sprite.center_x = 700 + i * 30  # Spread across right edge
             sprite.center_y = 300
 
@@ -231,14 +231,14 @@ class TestWrappedMove:
         move_action = MoveBy((200, 0), 0.2)
         wrapped_move = WrappedMove(get_bounds, movement_action=move_action)
 
-        # Apply the wrapped action to sprite list
-        sprite_list.do(wrapped_move)
+        # Apply the wrapped action to sprite group
+        sprite_group.do(wrapped_move)
 
         # Update for full duration using SpriteGroup
-        sprite_list.update(0.2)
+        sprite_group.update(0.2)
 
         # Verify all sprites wrapped
-        for sprite in sprite_list:
+        for sprite in sprite_group:
             assert sprite.center_x < 0  # All wrapped to left edge
 
     def test_wrap_with_acceleration(self, sprite, get_bounds):
@@ -527,7 +527,7 @@ class TestBoundedMove:
     - Bouncing behavior at each boundary
     - Corner cases
     - Bounce callbacks
-    - Sprite list handling
+    - SpriteGroup handling
     - Physics integration
     """
 
@@ -539,8 +539,8 @@ class TestBoundedMove:
         return sprite
 
     @pytest.fixture
-    def sprite_list(self):
-        """Create a list of test sprites for group behavior testing."""
+    def sprite_group(self):
+        """Create a SpriteGroup with test sprites for group behavior testing."""
         from actions.group import SpriteGroup
 
         sprites = SpriteGroup()
@@ -717,15 +717,15 @@ class TestBoundedMove:
         assert bounce_events[0][0] == sprite
         assert bounce_events[0][1] == "x"
 
-    def test_sprite_list_bouncing(self, sprite_list, get_bounds):
-        """Test bouncing behavior with sprite lists.
+    def test_sprite_group_bouncing(self, sprite_group, get_bounds):
+        """Test bouncing behavior with SpriteGroup.
 
         Verifies that:
-        - All sprites in the list are processed
+        - All sprites in the group are processed
         - Each sprite bounces independently
         """
         # Position sprites across screen
-        for i, sprite in enumerate(sprite_list):
+        for i, sprite in enumerate(sprite_group):
             sprite.center_x = 700 + i * 30  # Spread across right edge
             sprite.center_y = 300
 
@@ -733,14 +733,14 @@ class TestBoundedMove:
         move_action = MoveBy((200, 0), 0.2)
         bounded_move = BoundedMove(get_bounds, movement_action=move_action)
 
-        # Apply the wrapped action to sprite list
-        sprite_list.do(bounded_move)
+        # Apply the wrapped action to sprite group
+        sprite_group.do(bounded_move)
 
         # Update for full duration using SpriteGroup
-        sprite_list.update(0.2)
+        sprite_group.update(0.2)
 
         # Verify all sprites bounced (stayed within bounds)
-        for sprite in sprite_list:
+        for sprite in sprite_group:
             assert sprite.center_x < 800  # Within right boundary
 
     def test_disable_horizontal_bouncing(self, sprite, get_bounds):
