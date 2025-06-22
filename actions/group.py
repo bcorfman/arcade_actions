@@ -9,6 +9,7 @@ from typing import Optional
 import arcade
 
 from .base import Action
+from .protocols import ArcadeCollisionDetector, CollisionDetector
 
 
 class SpriteGroup(arcade.SpriteList):
@@ -21,13 +22,14 @@ class SpriteGroup(arcade.SpriteList):
     Implements GroupTarget protocol for consistent interface.
     """
 
-    def __init__(self, sprites: list[arcade.Sprite] | None = None):
+    def __init__(self, sprites: list[arcade.Sprite] | None = None, collision_detector: CollisionDetector | None = None):
         super().__init__()
         if sprites:
             for sprite in sprites:
                 self.append(sprite)
         self._collision_handlers: list[tuple[arcade.SpriteList | list[arcade.Sprite], Callable]] = []
         self._group_actions: list[Action] = []  # Track active GroupAction instances - implements GroupTarget
+        self._collision_detector = collision_detector or ArcadeCollisionDetector()
 
     def update(self, delta_time: float = 1 / 60):
         """Update all sprites in the group and any active GroupActions.
@@ -99,15 +101,8 @@ class SpriteGroup(arcade.SpriteList):
     def update_collisions(self):
         """Update collision detection for all registered handlers."""
         for other_group, callback in self._collision_handlers:
-            # Ensure we have an Arcade SpriteList for collision API.
-            temp_list = arcade.SpriteList()
-            for sprite in other_group:
-                temp_list.append(sprite)
-
-            collision_group = temp_list
-
             for sprite in self:
-                hit_list = arcade.check_for_collision_with_list(sprite, collision_group)
+                hit_list = self._collision_detector.check_collision(sprite, other_group)
                 if hit_list:
                     callback(sprite, hit_list)
 
@@ -124,8 +119,22 @@ class SpriteGroup(arcade.SpriteList):
 class GroupAction(Action):
     """A high-level controller for running a shared Action over a group of sprites.
 
-    This class implements the same interface as individual actions, making group and
-    individual actions indistinguishable.
+    This class is automatically created by SpriteGroup.do() and implements the same
+    interface as individual actions, making group and individual actions indistinguishable.
+
+    Users rarely need to create GroupAction instances directly - they are automatically
+    managed by SpriteGroup.do() and cleaned up when actions complete.
+
+    Key features:
+    - Batch optimization for movement actions (significant performance improvement)
+    - Consistent interface with individual actions (same methods, same behavior)
+    - Automatic cleanup when actions complete
+    - Pause/resume support for coordinated group behavior
+
+    Example:
+        enemies = SpriteGroup([sprite1, sprite2, sprite3])
+        group_action = enemies.do(MoveBy((100, 0), 2.0))  # Returns GroupAction
+        # group_action automatically coordinates movement across all sprites
     """
 
     def __init__(self, group: arcade.SpriteList | list[arcade.Sprite], action: Action):
@@ -401,7 +410,7 @@ class GroupAction(Action):
             ]
 
 
-class Pattern:
+class _Pattern:
     """Base class for attack patterns."""
 
     def __init__(self, name: str):
@@ -411,8 +420,20 @@ class Pattern:
         raise NotImplementedError("Subclasses must implement apply()")
 
 
-class LinePattern(Pattern):
-    """Pattern for arranging sprites in a line."""
+class LinePattern(_Pattern):
+    """Pattern for arranging sprites in a horizontal line.
+
+    Positions sprites in a straight line with configurable spacing between them.
+    Useful for creating horizontal formations, bullet patterns, or UI elements.
+
+    Args:
+        spacing: Distance between sprite centers in pixels (default: 50.0)
+
+    Example:
+        pattern = LinePattern(spacing=80.0)
+        pattern.apply(attack_group, start_x=100, start_y=300)
+        # Sprites positioned at (100,300), (180,300), (260,300), etc.
+    """
 
     def __init__(self, spacing: float = 50.0):
         super().__init__("line")
@@ -425,8 +446,23 @@ class LinePattern(Pattern):
             sprite.center_y = start_y
 
 
-class GridPattern(Pattern):
-    """Pattern for arranging sprites in a grid."""
+class GridPattern(_Pattern):
+    """Pattern for arranging sprites in a rectangular grid formation.
+
+    Creates rows and columns of sprites with configurable spacing.
+    Perfect for Space Invaders-style enemy formations or organized layouts.
+
+    Args:
+        rows: Number of rows in the grid (default: 5)
+        cols: Number of columns in the grid (default: 10)
+        spacing_x: Horizontal spacing between sprites in pixels (default: 60.0)
+        spacing_y: Vertical spacing between sprites in pixels (default: 50.0)
+
+    Example:
+        pattern = GridPattern(rows=3, cols=5, spacing_x=80, spacing_y=60)
+        pattern.apply(attack_group, start_x=200, start_y=400)
+        # Creates 3x5 grid starting at (200,400)
+    """
 
     def __init__(self, rows: int = 5, cols: int = 10, spacing_x: float = 60.0, spacing_y: float = 50.0):
         super().__init__("grid")
@@ -444,8 +480,20 @@ class GridPattern(Pattern):
             sprite.center_y = start_y - row * self.spacing_y
 
 
-class CirclePattern(Pattern):
-    """Pattern for arranging sprites in a circle."""
+class CirclePattern(_Pattern):
+    """Pattern for arranging sprites in a circular formation.
+
+    Distributes sprites evenly around a circle with configurable radius.
+    Great for radial bullet patterns or defensive formations.
+
+    Args:
+        radius: Radius of the circle in pixels (default: 100.0)
+
+    Example:
+        pattern = CirclePattern(radius=150.0)
+        pattern.apply(attack_group, center_x=400, center_y=300)
+        # Sprites arranged in circle around (400,300) with radius 150
+    """
 
     def __init__(self, radius: float = 100.0):
         super().__init__("circle")
@@ -464,8 +512,22 @@ class CirclePattern(Pattern):
             sprite.center_y = center_y + math.sin(angle) * self.radius
 
 
-class VFormationPattern(Pattern):
-    """Pattern for arranging sprites in a V formation."""
+class VFormationPattern(_Pattern):
+    """Pattern for arranging sprites in a V or wedge formation.
+
+    Creates a V-shaped formation with one sprite at the apex and others
+    arranged alternately on left and right sides. Useful for flying formations
+    or arrow-like attack patterns.
+
+    Args:
+        angle: Angle of the V formation in degrees (default: 45.0)
+        spacing: Distance between sprites in the formation (default: 50.0)
+
+    Example:
+        pattern = VFormationPattern(angle=30.0, spacing=60.0)
+        pattern.apply(attack_group, apex_x=400, apex_y=500)
+        # Creates V formation with apex at (400,500)
+    """
 
     def __init__(self, angle: float = 45.0, spacing: float = 50.0):
         super().__init__("v_formation")
@@ -496,7 +558,40 @@ class VFormationPattern(Pattern):
 
 
 class AttackGroup:
-    """A high-level controller for managing groups of sprites with attack patterns."""
+    """A high-level controller for managing groups of sprites with attack patterns.
+
+    AttackGroup provides a game-oriented wrapper around SpriteGroup with additional
+    features for managing sprite lifecycles, attack patterns, scheduling, and hierarchical
+    group relationships. It's designed for complex game scenarios like enemy formations,
+    bullet patterns, and coordinated attacks.
+
+    Key features:
+    - Automatic lifecycle management (birth time, destruction)
+    - Attack pattern application (LinePattern, GridPattern, etc.)
+    - Event scheduling for delayed actions
+    - Hierarchical relationships (parent/child groups)
+    - Breakaway mechanics for dynamic group splitting
+    - Pause/resume support
+
+    Args:
+        sprite_group: The SpriteGroup to manage
+        name: Optional name for debugging and identification
+        parent: Optional parent AttackGroup for hierarchical management
+
+    Example:
+        enemies = SpriteGroup([enemy1, enemy2, enemy3])
+        formation = AttackGroup(enemies, name="enemy_wave_1")
+
+        # Apply formation pattern
+        pattern = GridPattern(rows=2, cols=3)
+        pattern.apply(formation, start_x=200, start_y=400)
+
+        # Schedule coordinated movement
+        formation.schedule_attack(2.0, formation.do, MoveBy((100, -50), 1.5))
+
+        # Update in game loop
+        formation.update(delta_time)
+    """
 
     def __init__(
         self,

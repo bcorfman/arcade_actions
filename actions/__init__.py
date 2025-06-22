@@ -34,11 +34,19 @@ from .base import Action, ActionSprite, InstantAction, IntervalAction
 # Action types
 from .composite import Loop, Sequence, Spawn, loop, sequence, spawn
 from .game import Game
-from .group import SpriteGroup
+from .group import AttackGroup, CirclePattern, GridPattern, GroupAction, LinePattern, SpriteGroup, VFormationPattern
 from .instant import CallFunc, CallFuncS, Hide, Place, Show, ToggleVisibility
 from .interval import MoveBy, MoveTo, RotateBy, RotateTo, ScaleBy, ScaleTo
 from .move import BounceBehavior, BoundaryAction, BoundsInfo, WrapBehavior
-from .protocols import CompositeLike, GroupLike, MovementLike  # re-export for external typing
+from .protocols import (  # re-export for external typing
+    ArcadeCollisionDetector,
+    BoundingBoxCollisionDetector,
+    CollisionDetector,
+    CompositeLike,
+    GroupLike,
+    MockCollisionDetector,
+    MovementLike,
+)
 
 # Constants
 ARCADE_FPS = 60
@@ -154,6 +162,14 @@ __all__ = [
     "ActionSprite",
     "Game",
     "SpriteGroup",
+    # Group management
+    "GroupAction",
+    "AttackGroup",
+    # Formation patterns
+    "LinePattern",
+    "GridPattern",
+    "CirclePattern",
+    "VFormationPattern",
     # Action base classes
     "InstantAction",
     "IntervalAction",
@@ -185,6 +201,11 @@ __all__ = [
     "BoundsInfo",
     "BoundedMove",  # Convenience function
     "WrappedMove",  # Convenience function
+    # Collision detection
+    "CollisionDetector",
+    "ArcadeCollisionDetector",
+    "MockCollisionDetector",
+    "BoundingBoxCollisionDetector",
     # Constants and utilities
     "ARCADE_FPS",
     "arcade_to_actions_velocity",

@@ -124,6 +124,61 @@ def test_collision_detection(self):
     bullets.update_collisions()
     
     assert collision_detected
+
+def test_collision_detection_with_mock_detector(self):
+    """Test collision detection using MockCollisionDetector for full control."""
+    from actions.protocols import MockCollisionDetector
+    
+    # Inject mock collision detector
+    mock_detector = MockCollisionDetector()
+    bullets = SpriteGroup(collision_detector=mock_detector)
+    enemies = SpriteGroup()
+    
+    # Create test sprites
+    bullet = ActionSprite(":resources:images/test.png", center_x=100, center_y=100)
+    enemy = ActionSprite(":resources:images/test.png", center_x=200, center_y=200)
+    bullets.append(bullet)
+    enemies.append(enemy)
+    
+    # Pre-configure collision result
+    mock_detector.set_collision_result(bullet, tuple(enemies), [enemy])
+    
+    collision_detected = False
+    def on_collision(bullet, hit_enemies):
+        nonlocal collision_detected
+        collision_detected = True
+    
+    bullets.on_collision_with(enemies, on_collision)
+    bullets.update_collisions()
+    
+    # Should detect collision even though sprites are far apart
+    assert collision_detected
+
+def test_collision_detection_without_opengl(self):
+    """Test collision detection using BoundingBoxCollisionDetector (no OpenGL needed)."""
+    from actions.protocols import BoundingBoxCollisionDetector
+    
+    # Inject bounding box collision detector
+    bbox_detector = BoundingBoxCollisionDetector()
+    bullets = SpriteGroup(collision_detector=bbox_detector)
+    enemies = SpriteGroup()
+    
+    # Create overlapping sprites
+    bullet = ActionSprite(":resources:images/test.png", center_x=100, center_y=100)
+    enemy = ActionSprite(":resources:images/test.png", center_x=100, center_y=100)
+    bullets.append(bullet)
+    enemies.append(enemy)
+    
+    collision_detected = False
+    def on_collision(bullet, hit_enemies):
+        nonlocal collision_detected
+        collision_detected = True
+    
+    bullets.on_collision_with(enemies, on_collision)
+    bullets.update_collisions()
+    
+    # Should detect collision since sprites overlap
+    assert collision_detected
 ```
 
 ## API Decision Matrix
