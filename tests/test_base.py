@@ -434,7 +434,7 @@ class TestAttackGroup:
 
         assert len(attack_group.actions) == 1
         assert attack_group.actions[0] == group_action
-        assert len(group_action.actions) == len(attack_group.sprites)
+        assert group_action.sprite_count == len(attack_group.sprites)
 
     def test_attack_group_update(self, attack_group):
         """Test updating the attack group."""
