@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arcade-actions"
-version = "0.1.0"
+version = "0.1.1"
 description = "A port of Cocos2D Actions for use with the Arcade 3.0 library"
 authors = [{name = "Brandon Corfman", email = "h9tbgnbbk@privaterelay.appleid.com"}]
 license = {file="LICENSE"}
