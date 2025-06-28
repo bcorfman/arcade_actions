@@ -19,7 +19,7 @@ test:
 	uv run pytest
 
 run: 
-	uv run python examples/invaders.py
+	uv run python demo.py
 
 lint:
 	uv run ruff check -q

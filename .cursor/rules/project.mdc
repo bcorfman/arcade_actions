@@ -16,7 +16,7 @@ This rule defines the project structure and relationships:
 In the actions/ directory:
 * Contains the main ArcadeActions system implementation
 * Interfaces with Arcade 3.x functionality referenced in references/arcade/
-* Works directly with arcade.Sprite and arcade.SpriteList - no custom sprite classes needed
+* All sprites using actions MUST inherit from ActionSprite, not arcade.Sprite
 
 In the references/arcade/ directory:
 * Reference implementation from Arcade 3.x for understanding system interfaces
@@ -30,7 +30,6 @@ Core design principles that must be followed:
 
 General rules:
 * Never use Dataclasses
-* AVOID state flags (booleans like self.respawning, self.is_active); use action states and completion callbacks instead.
 
 For interface design:
 * ZERO TOLERANCE for runtime type/attribute checking (hasattr, getattr, isinstance, EAFP-with-pass)
@@ -38,7 +37,7 @@ For interface design:
 * Use consistent base interfaces with default values
 * Define clear protocols guaranteeing expected methods/attributes
 * Apply composition patterns eliminating optional attributes
-* Create unified interfaces for similar objects
+* Create unified interfaces for similar objects (Action vs GroupAction)
 
 For error handling:
 * Use EAFP only for genuine decision points with real fallback logic
@@ -49,39 +48,29 @@ For error handling:
 API usage patterns to follow:
 
 For sprite management:
-* Use arcade.Sprite for all sprites - actions work directly with standard Arcade sprites
-* Use arcade.SpriteList for groups of sprites that need coordinated actions
-* No custom sprite classes needed - actions apply to targets via action.apply(sprite/sprite_list)
+* Use ActionSprite for all sprites that need actions - REQUIRED for Actions system compatibility
+* Use arcade.Sprite only for sprites that don't need action-based behavior
+* ActionSprite and arcade.Sprite are NOT interchangeable
 
 For group management:
-* Use arcade.SpriteList for basic sprite collections
-* Use AttackGroup for high-level game management with lifecycle, formations, and complex behaviors
-* Actions are applied directly to sprites or sprite lists using action.apply(target, tag="name")
+* Use SpriteGroup for coordinated group behavior - extends arcade.SpriteList with automatic GroupAction management
+* GroupAction is created automatically by SpriteGroup.do() - rarely create directly
+* Use arcade.SpriteList only for sprites that don't need coordinated actions
 
 For boundary interactions:
-* Apply BoundedMove to individual sprites for simple bouncing behavior
-* Apply BoundedMove to sprite lists for coordinated group bouncing (Space Invaders pattern)
+* Apply BoundedMove to individual ActionSprite for simple bouncing behavior
+* Apply BoundedMove to SpriteGroup for coordinated group bouncing (Space Invaders pattern) - only edge sprites trigger callbacks
 * Use WrappedMove for individual sprites or groups for screen wrapping behavior
 
-CRITICAL: Boundary System Design Principles (DO NOT OVER-ENGINEER):
-* Keep boundary detection SIMPLE - track position changes between frames, not complex state management
-* Actions move sprites by changing positions directly (NOT change_x/change_y velocities)
-* Only check boundaries in the current movement direction (left-moving group only checks left boundary)
-* Edge sprite detection: only sprites on the leading edge (leftmost when moving left, rightmost when moving right, etc.)
-* Simple callback management: one callback per axis per frame maximum
-* NO complex frame tracking, multiple collision handling, or elaborate state machines
-* Direction detection: compare current position to previous position with small threshold (0.1 pixels)
-* If boundary system becomes complex, you're over-engineering - return to these simple principles
-
 Common implementation patterns:
-* Individual control: action.apply(sprite, tag="movement") for single sprite behaviors
-* Group coordination: action.apply(sprite_list, tag="formation") for synchronized group movements
-* High-level management: AttackGroup for formations, lifecycle, and complex game behaviors
-* Boundary detection: BoundedMove applied to sprites or sprite lists for collision handling
+* Individual control: ActionSprite.do(action) for single sprite behaviors
+* Group coordination: SpriteGroup.do(action) for synchronized group movements
+* Collision detection: SpriteGroup.on_collision_with() for efficient group collisions
+* Boundary detection: BoundedMove + SpriteGroup for formation-style movement with edge detection
 
 Testing patterns to follow:
-* Individual actions: Use arcade.Sprite fixtures, test with action.apply() and Action.update_all()
-* Group actions: Use arcade.SpriteList fixtures, verify actions applied to all sprites in list
-* AttackGroup tests: Test formations, lifecycle management, and breakaway behaviors
-* Boundary actions: Test edge detection, callback coordination, and movement reversal
+* Individual actions: Use ActionSprite fixtures, test with sprite.do() and sprite.update()
+* Group actions: Use SpriteGroup fixtures, verify GroupAction creation and automatic cleanup
+* Boundary actions: Test edge detection, callback coordination, and spacing preservation
+* Collision detection: Test SpriteGroup collision handlers and method chaining
 * See docs/testing_index.md for complete testing patterns, fixtures, and mock usage guidelines
