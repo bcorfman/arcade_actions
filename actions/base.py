@@ -71,6 +71,7 @@ class Action:
         self.tag = tag
         self._is_active = False
         self.done = False
+        self._paused = False
 
         # Common condition logic
         self.condition_func = condition_func
@@ -127,7 +128,7 @@ class Action:
 
     def update(self, delta_time: float) -> None:
         """Called each frame. Handles condition checking and delegates to update_effect."""
-        if not self._is_active or self._condition_met:
+        if not self._is_active or self._condition_met or self._paused:
             return
 
         # Let subclass update its effect
@@ -201,23 +202,28 @@ class Action:
     @classmethod
     def _stop_classmethod(cls, target: arcade.Sprite | arcade.SpriteList | None = None, tag: str | None = None) -> None:
         """Stop actions globally with optional filtering."""
-        # Validate mutually exclusive parameters
-        if target is not None and tag is not None:
-            raise ValueError("target and tag parameters are mutually exclusive")
-
         if target is None and tag is None:
             # Stop all actions globally
             for action in cls._active_actions[:]:  # Copy to avoid modification during iteration
                 cls._stop_instance(action)
+        elif target is not None and tag is not None:
+            # Stop actions with specific tag on specific target
+            if target in cls._target_tags and tag in cls._target_tags[target]:
+                for action in cls._target_tags[target][tag][:]:  # Copy to avoid modification during iteration
+                    cls._stop_instance(action)
         elif target is not None:
             # Stop all actions on target
             if target in cls._target_tags:
-                for actions_list in cls._target_tags[target].values():
+                # Create a copy of the tags dict to avoid modification during iteration
+                tags_copy = dict(cls._target_tags[target])
+                for actions_list in tags_copy.values():
                     for action in actions_list[:]:  # Copy to avoid modification during iteration
                         cls._stop_instance(action)
         elif tag is not None:
             # Stop all actions with this tag globally
-            for sprite_tags in cls._target_tags.values():
+            # Create a copy of the target tags to avoid modification during iteration
+            target_tags_copy = dict(cls._target_tags)
+            for sprite_tags in target_tags_copy.values():
                 if tag in sprite_tags:
                     for action in sprite_tags[tag][:]:  # Copy to avoid modification during iteration
                         cls._stop_instance(action)
@@ -225,7 +231,8 @@ class Action:
     @classmethod
     def update_all(cls, delta_time: float) -> None:
         """Update all active actions. Call this in your game loop."""
-        for action in cls._active_actions:
+        # Create a copy to avoid modifying list during iteration
+        for action in cls._active_actions[:]:
             if action._is_active and not action.done:
                 action.update(delta_time)
             if action.done:
@@ -319,15 +326,28 @@ class Action:
 
     def clone(self) -> "Action":
         """Create a copy of this action. Must be overridden by subclasses."""
-        raise NotImplementedError("Subclasses must implement clone()")
+        # For the base Action class, create a new instance with the same parameters
+        cloned = Action(
+            condition_func=self.condition_func,
+            on_condition_met=self.on_condition_met,
+            check_interval=self.check_interval,
+            tag=self.tag,
+        )
+        return cloned
 
     # Support for composite actions using existing operators
     def __add__(self, other: "Action") -> "Sequence":
         """Sequence operator - concatenates actions."""
+        # Use lazy import to avoid circular imports
+        from actions.composite import Sequence
+
         return Sequence(self, other)
 
     def __or__(self, other: "Action") -> "Spawn":
         """Spawn operator - runs actions in parallel."""
+        # Use lazy import to avoid circular imports
+        from actions.composite import Spawn
+
         return Spawn(self, other)
 
     def for_each_sprite(self, func: Callable[[arcade.Sprite], None]) -> None:
@@ -337,7 +357,7 @@ class Action:
             for sprite in self.target:
                 func(sprite)
         except TypeError:
-            # Single sprite
+            # Single sprite - target is not iterable
             func(self.target)
 
     @property
@@ -350,31 +370,134 @@ class Action:
         """Get the data returned by the condition function (if any)."""
         return self._condition_data
 
+    def pause(self) -> None:
+        """Pause the action."""
+        self._paused = True
+
+    def resume(self) -> None:
+        """Resume the action."""
+        self._paused = False
+
 
 class CompositeAction(Action):
-    """Base class for composite actions with consistent interface."""
+    """Base class for composite actions that contain other actions."""
 
     def __init__(self):
-        # Don't call super().__init__() here since this will be used in multiple inheritance
-        # The concrete classes will handle calling the appropriate parent constructors
-        self.actions: list[Action] = []
-        self.current_action: Action | None = None
-        self.current_index: int = 0
+        # Call parent constructor with no condition - composite actions manage their own completion
+        super().__init__()
+        self._on_complete_called = False
+
+    def _check_complete(self) -> None:
+        """Check if this composite action should call completion callbacks."""
+        if self.done and not self._on_complete_called:
+            self._on_complete_called = True
 
     def reverse_movement(self, axis: str) -> None:
-        if self.current_action:
-            self.current_action.reverse_movement(axis)
-        for child in self.actions[self.current_index :]:
-            child.reverse_movement(axis)
+        """Reverse movement along specified axis for contained actions."""
+        pass
+
+    def reset(self) -> None:
+        """Reset the composite action to its initial state."""
+        self.done = False
+        self._is_active = False
+        self._on_complete_called = False
 
     def clone(self) -> "CompositeAction":
         """Create a copy of this CompositeAction."""
-        if self.__class__ is CompositeAction:
-            cloned = CompositeAction()
-            cloned.actions = [action.clone() for action in self.actions]
-            cloned.current_action = None
-            cloned.current_index = 0
-            return cloned
-        else:
-            # Subclasses should implement their own cloning
-            raise NotImplementedError(f"Action subclass {self.__class__.__name__} must override clone() method.")
+        raise NotImplementedError("Subclasses must implement clone method")
+
+
+class GroupAction(Action):
+    """A special action that manages applying actions to groups of sprites."""
+
+    def __init__(self, group: "SpriteGroup", base_action: Action):
+        super().__init__()
+        self.group = group
+        self.base_action = base_action
+        self.individual_actions: list[Action] = []
+
+    def start(self) -> None:
+        """Start the action on all sprites in the group."""
+        super().start()
+        # Apply the base action to each sprite in the group
+        for sprite in self.group:
+            individual_action = self.base_action.clone()
+            individual_action.target = sprite
+            individual_action.start()
+            self.individual_actions.append(individual_action)
+
+    def update_effect(self, delta_time: float) -> None:
+        """Update all individual actions."""
+        all_done = True
+        for action in self.individual_actions:
+            if not action.done:
+                action.update(delta_time)
+                all_done = False
+
+        if all_done:
+            self.done = True
+
+    def stop(self) -> None:
+        """Stop all individual actions."""
+        for action in self.individual_actions:
+            action.stop()
+        super().stop()
+
+    def pause(self) -> None:
+        """Pause all individual actions."""
+        super().pause()
+        for action in self.individual_actions:
+            action.pause()
+
+    def resume(self) -> None:
+        """Resume all individual actions."""
+        super().resume()
+        for action in self.individual_actions:
+            action.resume()
+
+    def clone(self) -> "GroupAction":
+        """Create a copy of this GroupAction."""
+        return GroupAction(self.group, self.base_action.clone())
+
+
+class SpriteGroup(arcade.SpriteList):
+    """Extended SpriteList with action support and group management.
+
+    Provides a unified interface for managing groups of sprites with actions,
+    including coordinated movement and lifecycle management.
+    """
+
+    def __init__(self, sprite_list: arcade.SpriteList | None = None):
+        super().__init__()
+        if sprite_list:
+            self.extend(sprite_list)
+
+    def do(self, action: Action) -> GroupAction:
+        """Apply an action to all sprites in the group.
+
+        Args:
+            action: The action to apply to each sprite
+
+        Returns:
+            A GroupAction that manages the individual actions
+        """
+        group_action = GroupAction(self, action)
+        group_action.target = self
+        group_action.start()
+        return group_action
+
+    def breakaway(self, sprites_to_remove: list[arcade.Sprite]) -> "SpriteGroup":
+        """Remove specified sprites and return them as a new SpriteGroup.
+
+        Args:
+            sprites_to_remove: List of sprites to remove from this group
+
+        Returns:
+            A new SpriteGroup containing the removed sprites
+        """
+        new_group = SpriteGroup()
+        for sprite in sprites_to_remove:
+            if sprite in self:
+                self.remove(sprite)
+                new_group.append(sprite)
+        return new_group

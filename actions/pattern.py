@@ -1,3 +1,7 @@
+"""
+Attack patterns and group management.
+"""
+
 import math
 from collections.abc import Callable
 from typing import Optional
@@ -155,127 +159,254 @@ class VFormationPattern(_Pattern):
 
 
 class AttackGroup:
-    """A high-level controller for managing groups of sprites with attack patterns.
+    """A high-level controller for managing groups of sprites using conditional actions.
 
-    AttackGroup provides a game-oriented wrapper around SpriteGroup with additional
-    features for managing sprite lifecycles, attack patterns, scheduling, and hierarchical
-    group relationships. It's designed for complex game scenarios like enemy formations,
-    bullet patterns, and coordinated attacks.
+    AttackGroup provides a game-oriented wrapper around SpriteList that leverages
+    the conditional action system for lifecycle management, scheduling, and coordinated
+    behavior. It accepts any Actions directly rather than wrapping them.
 
     Key features:
-    - Automatic lifecycle management (birth time, destruction)
-    - Attack pattern application (LinePattern, GridPattern, etc.)
-    - Event scheduling for delayed actions
-    - Hierarchical relationships (parent/child groups)
-    - Breakaway mechanics for dynamic group splitting
-    - Pause/resume support
+    - Conditional lifecycle management (auto-destroy when empty)
+    - Action-based scheduling using any conditional actions
+    - Hierarchical relationships with conditional breakaways
+    - Formation patterns with any actions
+    - Leverages global Action system - just applies actions to groups
 
     Args:
-        sprite_group: The SpriteGroup to manage
+        sprite_list: The SpriteList to manage
         name: Optional name for debugging and identification
         parent: Optional parent AttackGroup for hierarchical management
+        auto_destroy_when_empty: Whether to auto-destroy when no sprites remain
 
     Example:
-        enemies = SpriteGroup([enemy1, enemy2, enemy3])
+        enemies = arcade.SpriteList([enemy1, enemy2, enemy3])
         formation = AttackGroup(enemies, name="enemy_wave_1")
 
         # Apply formation pattern
         pattern = GridPattern(rows=2, cols=3)
         pattern.apply(formation, start_x=200, start_y=400)
 
-        # Schedule coordinated movement
-        formation.schedule_attack(2.0, formation.do, MoveBy((100, -50), 1.5))
+        # Create your own conditional actions and apply them directly
+        from actions.conditional import DelayUntil, MoveUntil, FadeUntil, duration_condition
 
-        # Update in game loop
-        formation.update(delta_time)
+        # Wait 2 seconds, then move formation down at 50 pixels/sec for 1.5 seconds
+        delay_action = DelayUntil(duration_condition(2.0))
+        move_action = MoveUntil((0, -50), duration_condition(1.5))
+        formation.schedule_sequence(delay_action, move_action, tag="movement")
+
+        # Fade out while moving - create your own actions
+        fade_action = FadeUntil(-50.0, lambda: any(s.alpha <= 100 for s in enemies))
+        formation.schedule_spawn(move_action, fade_action, tag="fade_and_move")
+
+        # Auto-lifecycle management happens via conditional actions
+        # No manual update() needed - actions handle everything
+
+        # Clean design: you create Actions, AttackGroup applies them to groups
     """
 
     def __init__(
         self,
-        sprite_group: "SpriteGroup",
+        sprite_list: arcade.SpriteList,
         name: str | None = None,
         parent: Optional["AttackGroup"] = None,
+        auto_destroy_when_empty: bool = True,
     ):
-        self.sprites = sprite_group
-        self.time_of_birth = arcade.clock.GLOBAL_CLOCK.time
-        self.is_destroyed = False
+        self.sprites = sprite_list
         self.name = name
-        self._scheduled_wrappers: list[tuple[Callable, bool]] = []  # (wrapper, repeat)
-        self.actions: list[Action] = []  # Track running group actions
         self.parent = parent
-        self.children: list[AttackGroup] = []  # Child attack groups
+        self.children: list[AttackGroup] = []
+        self.is_destroyed = False
+
+        # Callbacks for lifecycle events
         self.on_destroy_callbacks: list[Callable[[AttackGroup], None]] = []
         self.on_breakaway_callbacks: list[Callable[[AttackGroup], None]] = []
-        self._paused = False
 
-    def update(self, delta_time: float):
-        """Update the attack group and its actions."""
-        if self._paused:
-            return
+        # Set up conditional lifecycle management if requested
+        if auto_destroy_when_empty:
+            self._setup_auto_destroy()
 
-        self.sprites.update(delta_time)
-        for wrapper, _ in self._scheduled_wrappers:
-            wrapper(delta_time)
+    def _setup_auto_destroy(self):
+        """Set up conditional action to auto-destroy when empty."""
+        from actions.conditional import DelayUntil
 
-        for action in self.actions:
-            action.update(delta_time)
+        def empty_condition():
+            return len(self.sprites) == 0
 
-        if len(self.sprites) == 0:
+        def on_empty():
             self.destroy()
 
-    def do(self, action: Action) -> Action:
-        """Assign an action to all sprites in the group - SAME INTERFACE as individual sprites."""
-        group_action = self.sprites.do(action)
-        # Track and handle pause
-        self.actions.append(group_action)
-        if self._paused:
-            group_action.pause()
-        return group_action
+        # Create a conditional action that checks for empty state
+        auto_destroy_action = DelayUntil(empty_condition, on_empty, check_interval=0.1)
+        auto_destroy_action.apply(self.sprites, tag=f"auto_destroy_{id(self)}")
 
-    def schedule_attack(self, delay: float, func: Callable, *args, **kwargs) -> int:
-        """Schedule an attack event after X seconds."""
+    def apply_action(self, action: Action, tag: str = "group_action") -> Action:
+        """Apply any action to all sprites in the group.
 
-        # Implement scheduling via arcade.schedule_once
-        def _wrapper(_dt):
-            func(*args, **kwargs)
+        Args:
+            action: Any Action to apply to the group's sprites
+            tag: Tag for the action (default: "group_action")
 
-        arcade.schedule_once(_wrapper, delay)
-        self._scheduled_wrappers.append((_wrapper, False))
-        return len(self._scheduled_wrappers) - 1
+        Returns:
+            The applied action
+        """
+        return action.apply(self.sprites, tag=tag)
+
+    def schedule_action(self, delay_seconds: float, action: Action, tag: str = "scheduled") -> Action:
+        """Schedule any action to run after a delay.
+
+        Args:
+            delay_seconds: Delay in seconds before action starts
+            action: Any Action to run after the delay
+            tag: Tag for the scheduled action
+
+        Returns:
+            The sequence action (delay + main action)
+        """
+        from actions.composite import Sequence
+        from actions.conditional import DelayUntil, duration_condition
+
+        delay_action = DelayUntil(duration_condition(delay_seconds))
+        sequence = Sequence(delay_action, action)
+        return sequence.apply(self.sprites, tag=tag)
+
+    def schedule_sequence(self, *actions: Action, tag: str = "sequence") -> Action:
+        """Schedule a sequence of any actions.
+
+        Args:
+            *actions: Any Actions to run in sequence
+            tag: Tag for the sequence
+
+        Returns:
+            The sequence action
+        """
+        from actions.composite import Sequence
+
+        sequence = Sequence(*actions)
+        return sequence.apply(self.sprites, tag=tag)
+
+    def schedule_spawn(self, *actions: Action, tag: str = "spawn") -> Action:
+        """Schedule multiple actions to run in parallel.
+
+        Args:
+            *actions: Any Actions to run in parallel
+            tag: Tag for the spawn
+
+        Returns:
+            The spawn action
+        """
+        from actions.composite import Spawn
+
+        spawn = Spawn(*actions)
+        return spawn.apply(self.sprites, tag=tag)
+
+    def setup_conditional_breakaway(
+        self, breakaway_condition: Callable, sprites_to_break: list, tag: str = "breakaway"
+    ) -> Action:
+        """Set up conditional breakaway using actions.
+
+        Args:
+            breakaway_condition: Function returning True when breakaway should happen
+            sprites_to_break: List of sprites that should break away
+            tag: Tag for the breakaway action
+
+        Returns:
+            The breakaway monitoring action
+        """
+        from actions.conditional import DelayUntil
+
+        def on_breakaway():
+            self.breakaway(sprites_to_break)
+
+        breakaway_action = DelayUntil(breakaway_condition, on_breakaway, check_interval=0.1)
+        return breakaway_action.apply(self.sprites, tag=tag)
 
     def breakaway(self, breakaway_sprites: list) -> "AttackGroup":
-        """Remove given sprites and create a new AttackGroup."""
-        new_sprite_group = self.sprites.breakaway(breakaway_sprites)
+        """Remove given sprites and create a new AttackGroup.
+
+        Args:
+            breakaway_sprites: List of sprites to remove from this group
+
+        Returns:
+            New AttackGroup containing the broken away sprites
+        """
+        # Create new sprite list for breakaway sprites
+        new_sprite_list = arcade.SpriteList()
+
+        # Move sprites to new list
+        for sprite in breakaway_sprites:
+            if sprite in self.sprites:
+                self.sprites.remove(sprite)
+                new_sprite_list.append(sprite)
+
+        # Create new attack group
         new_group = AttackGroup(
-            new_sprite_group,
-            name=f"{self.name}_breakaway",
+            new_sprite_list,
+            name=f"{self.name}_breakaway" if self.name else "breakaway",
             parent=self,
+            auto_destroy_when_empty=True,
         )
         self.children.append(new_group)
-        # Unschedule arcade callbacks
-        for wrapper, _ in self._scheduled_wrappers:
-            arcade.unschedule(wrapper)
-        self._scheduled_wrappers.clear()
-        # Stop running actions
-        for action in self.actions:
-            action.stop()
-        self.actions.clear()
+
+        # Stop all actions on the sprites that broke away
+        for sprite in breakaway_sprites:
+            Action.stop(sprite)
+
+        # Notify callbacks
         for callback in self.on_breakaway_callbacks:
             callback(new_group)
+
         return new_group
 
+    def stop_all_actions(self, tag: str | None = None):
+        """Stop all actions on the group's sprites.
+
+        Args:
+            tag: If provided, only stop actions with this tag
+        """
+        if tag:
+            Action.stop(self.sprites, tag=tag)
+        else:
+            Action.stop(self.sprites)
+
+    def pause_all_actions(self, tag: str | None = None):
+        """Pause all actions on the group's sprites.
+
+        This requires manually tracking and pausing actions since there's
+        no global pause system yet.
+        """
+        # Get all actions for this sprite list and pause them
+        actions = Action.get_tag_actions(tag) if tag else Action._active_actions
+        for action in actions:
+            if action.target == self.sprites:
+                action.pause()
+
+    def resume_all_actions(self, tag: str | None = None):
+        """Resume all actions on the group's sprites."""
+        # Get all actions for this sprite list and resume them
+        actions = Action.get_tag_actions(tag) if tag else Action._active_actions
+        for action in actions:
+            if action.target == self.sprites:
+                action.resume()
+
     def destroy(self):
-        """Clean up resources."""
+        """Destroy the attack group using conditional actions for cleanup."""
         if self.is_destroyed:
             return
+
         self.is_destroyed = True
-        # Stop all actions
-        for action in self.actions:
-            action.stop()
-        self.actions.clear()
+
+        # Stop all actions on our sprites
+        self.stop_all_actions()
+
+        # Clear the sprite list
+        self.sprites.clear()
+
         # Notify callbacks
         for callback in self.on_destroy_callbacks:
             callback(self)
+
+        # Clean up references
+        self.children.clear()
 
     def on_destroy(self, callback: Callable[["AttackGroup"], None]):
         """Register a callback for when the group is destroyed."""
@@ -285,5 +416,136 @@ class AttackGroup:
         """Register a callback for when sprites break away."""
         self.on_breakaway_callbacks.append(callback)
 
+    def get_active_actions(self, tag: str | None = None) -> list[Action]:
+        """Get all active actions on this group's sprites.
+
+        Args:
+            tag: If provided, only return actions with this tag
+
+        Returns:
+            List of active actions
+        """
+        if tag:
+            return Action.get_tag_actions(tag, self.sprites)
+        else:
+            return [action for action in Action._active_actions if action.target == self.sprites]
+
+    @property
+    def sprite_count(self) -> int:
+        """Get the number of sprites in the group."""
+        return len(self.sprites)
+
+    @property
+    def is_empty(self) -> bool:
+        """Check if the group has no sprites."""
+        return len(self.sprites) == 0
+
     def __repr__(self):
-        return f"<AttackGroup name={self.name} sprites={len(self.sprites)} actions={len(self.actions)}>"
+        active_action_count = len(self.get_active_actions())
+        return f"<AttackGroup name={self.name} sprites={len(self.sprites)} active_actions={active_action_count}>"
+
+
+def create_enemy_formation_demo() -> AttackGroup:
+    """Create a complete demonstration of AttackGroup using conditional actions.
+
+    This shows how to build complex behaviors using only conditional actions
+    and AttackGroup's simplified API.
+
+    Returns:
+        Configured AttackGroup ready for action
+    """
+    import arcade
+
+    from actions.conditional import DelayUntil, FadeUntil, MoveUntil, duration_condition
+
+    # Create enemy sprites
+    enemies = arcade.SpriteList()
+    for i in range(12):
+        enemy = arcade.Sprite(":resources:images/enemies/bee.png", scale=0.5)
+        enemy.center_x = 100 + (i % 4) * 80
+        enemy.center_y = 500 + (i // 4) * 60
+        enemies.append(enemy)
+
+    # Create attack group with conditional lifecycle
+    formation = AttackGroup(enemies, name="enemy_wave_1", auto_destroy_when_empty=True)
+
+    # Example 1: Wait 2 seconds, then move formation down
+    delay_action = DelayUntil(duration_condition(2.0))
+    move_action = MoveUntil((0, -50), duration_condition(3.0))  # velocity (x, y) in pixels/sec
+    formation.schedule_sequence(delay_action, move_action, tag="initial_descent")
+
+    # Example 2: Set up conditional breakaway when formation reaches bottom
+    def reached_bottom():
+        return any(sprite.center_y < 100 for sprite in enemies)
+
+    bottom_sprites = [sprite for sprite in enemies if sprite.center_y < 200]
+    formation.setup_conditional_breakaway(reached_bottom, bottom_sprites, tag="bottom_breakaway")
+
+    # Example 3: Fade and move in parallel after initial movement
+    fade_action = FadeUntil(-30.0, lambda: enemies[0].alpha <= 100)  # Fade until first sprite is nearly transparent
+    move_action2 = MoveUntil((-25, -25), duration_condition(2.0))  # Diagonal retreat
+
+    # Run fade and movement in parallel after initial sequence
+    formation.schedule_spawn(fade_action, move_action2, tag="fade_and_move")
+
+    # Example 4: Conditional movement based on sprite count
+    def few_sprites_left():
+        return len(enemies) <= 3
+
+    # When only a few sprites left, they move faster
+    fast_retreat = MoveUntil((100, -100), duration_condition(1.0))
+    formation.schedule_action(5.0, fast_retreat, tag="desperate_retreat")
+
+    # Example 5: Register lifecycle callbacks
+    def on_formation_destroyed(group):
+        print(f"Formation {group.name} was destroyed!")
+
+    def on_sprites_break_away(new_group):
+        print(f"Sprites broke away into {new_group.name}")
+        # Apply different actions to breakaway group
+        panic_action = MoveUntil((200, -200), duration_condition(0.5))
+        new_group.apply_action(panic_action, tag="panic")
+
+    formation.on_destroy(on_formation_destroyed)
+    formation.on_breakaway(on_sprites_break_away)
+
+    return formation
+
+
+# Helper functions for common condition patterns
+def time_elapsed_condition(seconds: float) -> Callable:
+    """Create a condition that becomes true after specified seconds.
+
+    Args:
+        seconds: Time in seconds
+
+    Returns:
+        Condition function
+    """
+    import time
+
+    start_time = time.time()
+    return lambda: time.time() - start_time >= seconds
+
+
+def sprite_count_condition(sprite_list: arcade.SpriteList, target_count: int, comparison: str = "<=") -> Callable:
+    """Create a condition based on sprite count.
+
+    Args:
+        sprite_list: The sprite list to monitor
+        target_count: The target count to compare against
+        comparison: Comparison operator ("<=", ">=", "==", "<", ">")
+
+    Returns:
+        Condition function
+    """
+    comparisons = {
+        "<=": lambda x, y: x <= y,
+        ">=": lambda x, y: x >= y,
+        "==": lambda x, y: x == y,
+        "<": lambda x, y: x < y,
+        ">": lambda x, y: x > y,
+    }
+
+    compare_func = comparisons.get(comparison, comparisons["<="])
+    return lambda: compare_func(len(sprite_list), target_count)

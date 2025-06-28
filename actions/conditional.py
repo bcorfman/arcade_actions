@@ -287,7 +287,7 @@ class ScaleUntil(Action):
         check_interval: float = 0.0,
     ):
         super().__init__(condition_func, on_condition_met, check_interval)
-        # Normalize to tuple
+        # Normalize scale_velocity to always be a tuple
         if isinstance(scale_velocity, (int, float)):
             self.scale_velocity = (scale_velocity, scale_velocity)
         else:
@@ -309,10 +309,18 @@ class ScaleUntil(Action):
         scale_delta_y = sy * delta_time
 
         def apply_scale(sprite):
+            # Get current scale (which is a tuple in arcade)
+            current_scale = sprite.scale
+            if isinstance(current_scale, tuple):
+                current_scale_x, current_scale_y = current_scale
+            else:
+                # Handle case where scale might be a single value
+                current_scale_x = current_scale_y = current_scale
+
             # Apply scale velocity (avoiding negative scales)
-            new_scale_x = max(0.01, sprite.scale + scale_delta_x)
-            new_scale_y = max(0.01, sprite.scale + scale_delta_y)
-            sprite.scale = min(new_scale_x, new_scale_y)  # Uniform scaling for simplicity
+            new_scale_x = max(0.01, current_scale_x + scale_delta_x)
+            new_scale_y = max(0.01, current_scale_y + scale_delta_y)
+            sprite.scale = (new_scale_x, new_scale_y)
 
         self.for_each_sprite(apply_scale)
 

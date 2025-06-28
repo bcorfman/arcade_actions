@@ -83,7 +83,17 @@ class Sequence(CompositeAction):
                 self._check_complete()
             return
 
-        # Check if current action is already done (handles manual completion)
+        # Start current action if needed
+        if self.current_action is None and self.current_index < len(self.actions):
+            self.current_action = self.actions[self.current_index]
+            self.current_action.target = self.target
+            self.current_action.start()
+
+        # Update current action if it exists and isn't done
+        if self.current_action and not self.current_action.done:
+            self.current_action.update(delta_time)
+
+        # Check if current action completed after update
         if self.current_action and self.current_action.done:
             self.current_action.stop()
             self.current_index += 1
@@ -98,27 +108,6 @@ class Sequence(CompositeAction):
                 self.current_action = None
                 self.done = True
                 self._check_complete()
-                return
-
-        # Update current action if it's not done
-        if self.current_action and not self.current_action.done:
-            self.current_action.update(delta_time)
-
-            # Check if current action is done after update
-            if self.current_action.done:
-                self.current_action.stop()
-                self.current_index += 1
-
-                # Start next action if available
-                if self.current_index < len(self.actions):
-                    self.current_action = self.actions[self.current_index]
-                    self.current_action.target = self.target
-                    self.current_action.start()
-                else:
-                    # All actions complete
-                    self.current_action = None
-                    self.done = True
-                    self._check_complete()
 
     def stop(self) -> None:
         if self.current_action:
@@ -183,11 +172,17 @@ class Spawn(CompositeAction):
                 self._check_complete()
             return
 
-        all_done = True
+        # Update all actions first
         for action in self.actions:
             if not action.done:
                 action.update(delta_time)
+
+        # Then check if all are done
+        all_done = True
+        for action in self.actions:
+            if not action.done:
                 all_done = False
+                break
 
         if all_done:
             self.done = True
