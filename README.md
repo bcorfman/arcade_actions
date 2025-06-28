@@ -176,7 +176,20 @@ complex_action.apply(sprite, tag="complex")
 
 # Formation positioning
 from actions.pattern import arrange_grid
-arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
+
+# Create a new grid of enemies with sprite_factory
+def enemy_factory():
+    return arcade.Sprite(":resources:images/enemy.png")
+
+enemies = arrange_grid(
+    rows=3,
+    cols=5,
+    start_x=100,
+    start_y=400,
+    spacing_x=60,
+    spacing_y=40,
+    sprite_factory=enemy_factory,  # Creates fresh sprites for each position
+)
 
 # Global update handles everything
 Action.update_all(delta_time)
@@ -222,17 +235,28 @@ def test_group_coordination():
 def test_formation_management():
     from actions.pattern import arrange_grid
     
-    enemies = arcade.SpriteList([enemy1, enemy2, enemy3])
+    # Create a grid of enemies with sprite_factory
+    def enemy_factory():
+        return arcade.Sprite(":resources:images/enemy.png")
     
-    # Test formation positioning
-    arrange_grid(enemies, rows=2, cols=2, start_x=100, start_y=400)
+    enemies = arrange_grid(
+        rows=2,
+        cols=2,
+        start_x=100,
+        start_y=400,
+        spacing_x=60,
+        spacing_y=40,
+        sprite_factory=enemy_factory,
+    )
     
     # Test group actions
     pattern = sequence(delay, move, fade)
     pattern.apply(enemies, tag="test")
     
     # Test group state
-    assert len(enemies) == 3
+    assert len(enemies) == 4  # 2x2 grid
+    assert enemies[0].center_x == 100  # First sprite at start_x
+    assert enemies[0].center_y == 400  # First sprite at start_y
 ```
 
 ## 📖 Documentation Structure
@@ -262,4 +286,4 @@ action.apply(sprite, tag="movement")
 # Group management  
 enemies = arcade.SpriteList()  # Use standard arcade.SpriteList
 action = MoveUntil((50, 0), duration(2.0))
-action.apply(enemies, tag="formation") 
+action.apply(enemies, tag="formation")
