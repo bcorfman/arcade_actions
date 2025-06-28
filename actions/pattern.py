@@ -75,7 +75,7 @@ def arrange_grid(
         row = i // cols
         col = i % cols
         sprite.center_x = start_x + col * spacing_x
-        sprite.center_y = start_y - row * spacing_y
+        sprite.center_y = start_y + row * spacing_y
 
     return sprites
 
@@ -89,7 +89,18 @@ def arrange_circle(
     radius: float = 100.0,
     sprite_factory: Callable[[], arcade.Sprite] | None = None,
 ) -> arcade.SpriteList:
-    """Create or arrange sprites in a circular formation."""
+    """Create or arrange sprites in a circular formation.
+
+    Sprites are arranged starting from the top (π/2) and moving clockwise.
+    This ensures that increasing Y values move sprites upward, consistent
+    with the coordinate system used in other arrangement functions.
+
+    With 4 sprites, they will be placed at:
+    - First sprite: top (π/2)
+    - Second sprite: right (0)
+    - Third sprite: bottom (-π/2)
+    - Fourth sprite: left (π)
+    """
 
     if sprites is None:
         if count is None or count <= 0:
@@ -105,7 +116,9 @@ def arrange_circle(
 
     angle_step = 2 * math.pi / count
     for i, sprite in enumerate(sprites):
-        angle = i * angle_step
+        # Start at π/2 (top) and go clockwise (negative angle)
+        # Subtract π/2 to start at the top instead of the right
+        angle = math.pi / 2 - i * angle_step
         sprite.center_x = center_x + math.cos(angle) * radius
         sprite.center_y = center_y + math.sin(angle) * radius
 
@@ -122,7 +135,11 @@ def arrange_v_formation(
     spacing: float = 50.0,
     sprite_factory: Callable[[], arcade.Sprite] | None = None,
 ) -> arcade.SpriteList:
-    """Create or arrange sprites in a V or wedge formation."""
+    """Create or arrange sprites in a V or wedge formation.
+
+    The formation grows upward from the apex, with sprites placed in alternating
+    left-right pattern at the specified angle.
+    """
 
     if sprites is None:
         if count is None or count <= 0:
@@ -147,7 +164,7 @@ def arrange_v_formation(
         distance = (i + 1) // 2 * spacing
 
         offset_x = side * math.cos(angle_rad) * distance
-        offset_y = -math.sin(angle_rad) * distance
+        offset_y = math.sin(angle_rad) * distance
 
         sprites[i].center_x = apex_x + offset_x
         sprites[i].center_y = apex_y + offset_y

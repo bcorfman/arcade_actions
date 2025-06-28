@@ -1,5 +1,7 @@
 """Test suite for pattern.py - Formation arrangement functions."""
 
+import math
+
 import arcade
 
 from actions.base import Action
@@ -93,11 +95,11 @@ class TestArrangeGridFunctions:
 
         # Row 1
         assert sprite_list[3].center_x == 200  # Col 0
-        assert sprite_list[3].center_y == 340  # Y decreased by spacing_y
+        assert sprite_list[3].center_y == 460  # Y increased by spacing_y
         assert sprite_list[4].center_x == 280  # Col 1
-        assert sprite_list[4].center_y == 340
+        assert sprite_list[4].center_y == 460
         assert sprite_list[5].center_x == 360  # Col 2
-        assert sprite_list[5].center_y == 340
+        assert sprite_list[5].center_y == 460
 
     def test_arrange_grid_default_position(self):
         """Test grid arrangement with default position."""
@@ -147,7 +149,7 @@ class TestArrangeGridFunctions:
         assert grid[cols - 1].center_y == 50
         # First sprite of second row
         assert grid[cols].center_x == 10
-        assert grid[cols].center_y == 50 - 30
+        assert grid[cols].center_y == 50 + 30  # Y increased by spacing_y
 
 
 class TestArrangeCircleFunctions:
@@ -161,10 +163,9 @@ class TestArrangeCircleFunctions:
 
         # Check that sprites are positioned around the circle
         # With 4 sprites, they should be at 90-degree intervals
-        import math
-
+        # Starting at π/2 (top) and going clockwise
         for i, sprite in enumerate(sprite_list):
-            angle = i * 2 * math.pi / 4
+            angle = math.pi / 2 - i * 2 * math.pi / 4
             expected_x = 400 + math.cos(angle) * 100
             expected_y = 300 + math.sin(angle) * 100
 
@@ -185,10 +186,9 @@ class TestArrangeCircleFunctions:
         arrange_circle(sprite_list)
 
         # Check default center position is used
-        import math
-
+        # Starting at π/2 (top) and going clockwise
         for i, sprite in enumerate(sprite_list):
-            angle = i * 2 * math.pi / 2
+            angle = math.pi / 2 - i * 2 * math.pi / 2
             expected_x = 400 + math.cos(angle) * 100
             expected_y = 300 + math.sin(angle) * 100
 
@@ -210,13 +210,11 @@ class TestArrangeVFormationFunctions:
         assert sprite_list[0].center_y == 500
 
         # Check that other sprites are arranged alternately
-        import math
-
         angle_rad = math.radians(45.0)
 
         # Second sprite (i=1, side=1, distance=50)
         expected_x = 400 + 1 * math.cos(angle_rad) * 50
-        expected_y = 500 - math.sin(angle_rad) * 50
+        expected_y = 500 + math.sin(angle_rad) * 50  # Changed to add sine for upward movement
         assert abs(sprite_list[1].center_x - expected_x) < 0.1
         assert abs(sprite_list[1].center_y - expected_y) < 0.1
 
@@ -248,13 +246,11 @@ class TestArrangeVFormationFunctions:
         assert sprite_list[0].center_y == 300
 
         # Other sprites should be arranged according to 30-degree angle
-        import math
-
         angle_rad = math.radians(30.0)
 
         # Check second sprite positioning
         expected_x = 200 + 1 * math.cos(angle_rad) * 40
-        expected_y = 300 - math.sin(angle_rad) * 40
+        expected_y = 300 + math.sin(angle_rad) * 40  # Changed to add sine for upward movement
         assert abs(sprite_list[1].center_x - expected_x) < 0.1
         assert abs(sprite_list[1].center_y - expected_y) < 0.1
 
@@ -388,3 +384,110 @@ class TestFormationIntegration:
 
         assert len(seq_actions) == 1
         assert len(par_actions) == 1
+
+
+class TestCoordinateConsistency:
+    """Test suite specifically for verifying coordinate system consistency."""
+
+    def test_vertical_movement_consistency(self):
+        """Test that all arrangement functions handle vertical movement consistently.
+
+        Increasing Y values should always move sprites upward in all functions.
+        """
+        # Create test sprites
+        sprites = create_test_sprite_list(4)
+        base_y = 300
+
+        # Test arrange_line
+        arrange_line(sprites, start_x=100, start_y=base_y, spacing=50)
+        for sprite in sprites:
+            assert sprite.center_y == base_y
+
+        arrange_line(sprites, start_x=100, start_y=base_y + 100, spacing=50)
+        for sprite in sprites:
+            assert sprite.center_y == base_y + 100, "arrange_line should move sprites up with higher y"
+
+        # Test arrange_grid (2x2 grid)
+        sprites = create_test_sprite_list(4)
+        arrange_grid(sprites, rows=2, cols=2, start_x=100, start_y=base_y, spacing_x=50, spacing_y=50)
+        assert sprites[0].center_y == base_y, "First row should be at base_y"
+        assert sprites[2].center_y == base_y + 50, "Second row should be above first row"
+
+        # Test arrange_circle
+        sprites = create_test_sprite_list(4)
+        radius = 100
+        arrange_circle(sprites, center_x=200, center_y=base_y, radius=radius)
+
+        # Find top and bottom sprites by y-coordinate
+        top_sprite = max(sprites, key=lambda s: s.center_y)
+        bottom_sprite = min(sprites, key=lambda s: s.center_y)
+
+        assert top_sprite.center_y > base_y, "Circle top point should be above center"
+        assert bottom_sprite.center_y < base_y, "Circle bottom point should be below center"
+
+    def test_grid_row_progression(self):
+        """Test that grid rows progress upward consistently."""
+        rows, cols = 3, 2
+        sprites = create_test_sprite_list(rows * cols)
+        start_y = 300
+        spacing_y = 50
+
+        arrange_grid(sprites, rows=rows, cols=cols, start_x=100, start_y=start_y, spacing_x=50, spacing_y=spacing_y)
+
+        # Check each row is higher than the previous
+        for row in range(rows):
+            row_sprites = sprites[row * cols : (row + 1) * cols]
+            expected_y = start_y + row * spacing_y
+            for sprite in row_sprites:
+                assert sprite.center_y == expected_y, f"Row {row} should be at y={expected_y}"
+
+    def test_v_formation_angle_consistency(self):
+        """Test that V-formation angles move sprites upward consistently."""
+        sprites = create_test_sprite_list(5)
+        apex_y = 300
+        spacing = 50
+
+        # Test with different angles
+        for angle in [30, 45, 60]:
+            arrange_v_formation(sprites, apex_x=200, apex_y=apex_y, angle=angle, spacing=spacing)
+
+            # Apex should be at base
+            assert sprites[0].center_y == apex_y, "Apex should be at specified y-coordinate"
+
+            # All other sprites should be above apex
+            for sprite in sprites[1:]:
+                assert sprite.center_y > apex_y, f"Wing sprites should be above apex for angle {angle}"
+                # Verify the height increase is proportional to sine of angle
+                expected_min_height = spacing * math.sin(math.radians(angle))
+                actual_height = sprite.center_y - apex_y
+                assert actual_height >= expected_min_height * 0.99, f"Height increase incorrect for angle {angle}"
+
+    def test_circle_quadrant_consistency(self):
+        """Test that circle arrangement maintains consistent quadrant positions."""
+        sprites = create_test_sprite_list(4)
+        center_y = 300
+        radius = 100
+
+        arrange_circle(sprites, center_x=200, center_y=center_y, radius=radius)
+
+        # With 4 sprites, they should be at:
+        # - First sprite: top (π/2)
+        # - Second sprite: right (0)
+        # - Third sprite: bottom (-π/2)
+        # - Fourth sprite: left (π)
+        top_sprite = sprites[0]
+        right_sprite = sprites[1]
+        bottom_sprite = sprites[2]
+        left_sprite = sprites[3]
+
+        # Verify vertical positions
+        assert top_sprite.center_y > center_y, "Top sprite should be above center"
+        assert bottom_sprite.center_y < center_y, "Bottom sprite should be below center"
+
+        # Verify horizontal positions
+        assert right_sprite.center_x > 200, "Right sprite should be right of center"
+        assert left_sprite.center_x < 200, "Left sprite should be left of center"
+
+        # Verify quadrant positions
+        assert right_sprite.center_y == center_y, "Right sprite should be at center_y"
+        assert left_sprite.center_y == center_y, "Left sprite should be at center_y"

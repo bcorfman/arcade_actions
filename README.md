@@ -55,7 +55,7 @@ from actions.composite import sequence, parallel
 # Sequential actions run one after another
 seq = sequence(delay, move, fade)
 
-# Parallel actions run together
+# Parallel actions run independently
 par = parallel(move, rotate, scale)
 
 # Nested combinations are fully supported

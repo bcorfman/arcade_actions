@@ -36,6 +36,11 @@ GAME_OVER = 1
 PLAY_GAME = 0
 
 
+def _make_shield_block() -> arcade.Sprite:
+    """Factory that creates a single shield block sprite."""
+    return arcade.SpriteSolidColor(10, 20, color=arcade.color.WHITE)
+
+
 class GameView(arcade.View):
     """Demonstrates efficient collision handling with enhanced MoveUntil."""
 
@@ -133,7 +138,7 @@ class GameView(arcade.View):
             rows=rows,
             cols=cols,
             start_x=380,
-            start_y=470,
+            start_y=250,  # Adjusted to account for inverted y-coordinate in arrange_grid
             spacing_x=80,
             spacing_y=60,
             sprite_factory=lambda: arcade.Sprite(self.texture_enemy_right, scale=SPRITE_SCALING_ENEMY),
@@ -181,18 +186,18 @@ class GameView(arcade.View):
 
     def make_shield(self, x_start):
         """Create shield blocks"""
-        shield_block_width, shield_block_height = 10, 20
-        shield_width_count, shield_height_count = 20, 5
-        y_start = 150
+        # Build shield by creating a small grid of white blocks
+        shield_grid = arrange_grid(
+            rows=5,
+            cols=20,
+            start_x=x_start,
+            start_y=150,
+            spacing_x=10,
+            spacing_y=20,
+            sprite_factory=_make_shield_block,
+        )
 
-        for x in range(x_start, x_start + shield_width_count * shield_block_width, shield_block_width):
-            for y in range(y_start, y_start + shield_height_count * shield_block_height, shield_block_height):
-                shield_sprite = arcade.SpriteSolidColor(
-                    shield_block_width, shield_block_height, color=arcade.color.WHITE
-                )
-                shield_sprite.center_x = x
-                shield_sprite.center_y = y
-                self.shield_list.append(shield_sprite)
+        self.shield_list.extend(shield_grid)
 
     def on_mouse_press(self, x, y, button, modifiers):
         """Fire player bullet with efficient collision detection"""
