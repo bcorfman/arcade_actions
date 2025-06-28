@@ -4,9 +4,9 @@
 
 ## ✅ Project Overview
 
-The goal is to create a robust, conditional **Actions system for the Arcade 3.x Python library**, inspired by Cocos2D's action system but reimagined to fit Arcade's API.
+The goal is to create a robust, **conditional Actions system for the Arcade 3.x Python library**, inspired by Cocos2D's action system but reimagined to fit Arcade's API.
 
-This system enables complex sprite behaviors (movement, rotation, scaling, fading, grouping, scheduling) in games like Space Invaders, Galaga, and Asteroids — all using high-level declarative actions.
+This system enables complex sprite behaviors (movement, rotation, scaling, fading, scheduling) in games like Space Invaders, Galaga, and Asteroids — all using high-level declarative **condition-based actions** that work directly with Arcade's native sprites.
 
 ---
 
@@ -14,63 +14,53 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 
 | Module / Feature      | Why It's Included                                                    |
 |------------------------|---------------------------------------------------------------------|
-| `base.py`             | Core `Action` class hierarchy |
-| `composite.py`        | Composite actions for combining multiple actions (Sequence, Spawn) |
-| `conditional.py`      | Composite actions for combining multiple actions (Sequence, Spawn) |
-| `group.py`            | `GroupAction` and `SpriteGroup` to coordinate synchronized sprite groups with automatic management (e.g., Space Invaders formations, Galaga attack waves) |
-| `move.py`             | Complex movement actions (`WrappedMove`, `BoundedMove`) for arcade-style patterns |
-| Delta-Time Compliance | All actions consume `delta_time` for frame-independent accuracy |
+| `base.py`             | Core `Action` class with global action management and operator overloads |
+| `conditional.py`      | Condition-based actions (MoveUntil, RotateUntil, etc.) |
+| `composite.py`        | Composite actions for combining multiple actions (sequential, parallel) |
+| `move.py`             | Boundary actions (`WrappedMove`, `BoundedMove`) for arcade-style patterns |
+| `pattern.py`          | `AttackGroup` for high-level game management and formation patterns |
+| Global Action Management | Automatic action tracking, updates, and lifecycle management |
 | Test Suite            | Pytest-based unit and integration tests to validate core and edge behavior |
-| Demo Game             | Example Space Invaders prototype showcasing actions on player, enemies, bullets |
+| Operator Composition  | `+` for sequential, `|` for parallel, enabling clean declarative syntax |
 
 ## 🔄 Property Update System
 
-The Actions library handles two distinct property update systems:
+The Actions library uses **direct property updates** with Arcade's native sprite system:
 
-### 1. ActionSprite Properties
-Properties managed by the Actions system through `ActionSprite`:
-- Position (direct updates in `update()`)
-- Angle (direct updates in `update()`)
-- Scale (direct updates in `update()`)
-- Alpha (direct updates in `update()`)
-- Custom properties
+### Direct Property Updates
+All actions work by directly modifying sprite properties:
+- **Position** - Updated via `center_x`, `center_y` 
+- **Angle** - Updated via `angle` property
+- **Scale** - Updated via `scale` property (supports both float and tuple)
+- **Alpha** - Updated via `alpha` property
 
-These properties are updated by:
-1. Actions calculate changes in `start()`
-2. Actions apply changes directly in `update()` using:
-   - Elapsed time tracking
-   - Rate-based interpolation
-   - Proper pause state handling
-3. Actions ensure clean completion in `stop()`
+Actions calculate velocity-based changes and apply them directly:
+1. Actions calculate position/angle/scale/alpha changes based on velocity and delta_time
+2. Actions apply changes directly to sprite properties
+3. Actions check conditions each frame to determine completion
+4. Global `Action.update_all()` handles all active actions automatically
 
-Note: `ActionSprite` is designed to manage only one action at a time. To achieve multiple behaviors simultaneously, use composite actions:
-- `Spawn` (|) for parallel actions
-- `Sequence` (+) for sequential actions
-- `Repeat` (*) for repeating actions
-- `Loop` for finite repetitions
+### Condition-Based Paradigm
+Unlike duration-based actions, ArcadeActions uses **condition-based actions**:
+- **MoveUntil** - Move until condition is met
+- **RotateUntil** - Rotate until condition is met
+- **FadeUntil** - Fade until condition is met
+- **DelayUntil** - Wait until condition is met
 
-This design choice simplifies the action management system and makes the behavior more predictable. When a new action is started, any existing action is automatically stopped.
-
-### 2. Arcade Sprite Properties
-Properties managed by Arcade's standard sprite system:
-- Position (via `change_x`, `change_y`)
-- Angle (via `change_angle`)
-
-These properties are updated by:
-1. Arcade's sprite update system
-2. Velocity-based movement
+This enables more flexible, game-state-driven behaviors.
 
 ---
 
 ## 🔍 In-Scope Items
 
 - High-level declarative action API over Arcade 3.x
-- Core actions: MoveUntil/MoveWhile, RotateUntil/RotateWhile, ScaleUntil/ScaleWhile, FadeUntil/FadeWhile, 
-- Group actions
-- Composite actions and Patterns for complex behavior sequences
-- Game state management and action lifecycle
-- Unit and integration test coverage for actions and groups
-- Example demo game with:
+- Core conditional actions: MoveUntil, RotateUntil, ScaleUntil, FadeUntil
+- Composite actions (sequential, parallel) with operator overloads
+- Boundary actions for arcade-style movement patterns
+- AttackGroup for high-level game and formation management
+- Global action management system
+- Unit and integration test coverage for actions and patterns
+- Example patterns for common game behaviors
 
 ---
 
@@ -80,7 +70,8 @@ These properties are updated by:
 - Advanced pathfinding or AI (A*)
 - Visual editor or GUI tools for creating action sequences
 - Multiplayer or networking features
-- Arcade's platformer physics, tilemaps, or other unrelated features
+- Custom sprite classes (works with standard arcade.Sprite)
+- Manual action tracking systems (uses global management)
 
 ---
 
@@ -90,9 +81,8 @@ These properties are updated by:
 |-----------------|--------------------------------------------------|
 | Core Language   | Python 3.13+                                     |
 | Game Engine     | Arcade 3.x                                       |
-| Actions Framework | Custom-built `ArcadeActions` library, loosely Cocos2D-inspired |
+| Actions Framework | Custom-built `ArcadeActions` library, condition-based paradigm |
 | Testing        | Pytest                                            |
-| Demo Game      | Slime Invaders example from Arcade, rebuilt with Actions |
 | Dependencies   | Minimal; self-contained aside from Arcade |
 | Version Control | Git (recommended)                               |
 | Build System   | Makefile for common development tasks            |
@@ -105,37 +95,41 @@ These properties are updated by:
 This system:
 
 ✅ Makes Arcade more high-level and expressive for animation and behavior  
-✅ Supports **group behaviors** critical for arcade shooters  
-✅ Enables rapid prototyping of sophisticated gameplay without low-level math
-✅ Offers **composite actions** for complex behavior sequences with robust edge case handling
-✅ Integrates with Arcade's game state management
+✅ Supports **condition-based behaviors** critical for responsive game logic
+✅ Enables rapid prototyping of sophisticated gameplay without low-level frame management
+✅ Offers **operator-based composition** for clean, declarative behavior sequences
+✅ Works seamlessly with Arcade's native sprite system
+✅ Provides **global action management** eliminating manual tracking overhead
 
 ---
 
 ## 🌟 Summary
 
-We are delivering a **modern and extensible Actions system** for Arcade that empowers indie devs to build complex 2D games faster and with cleaner and more maintainable code, along with a robust testing framework.
+We are delivering a **modern condition-based Actions system** for Arcade that empowers indie devs to build complex 2D games faster with cleaner, more maintainable code through declarative action composition.
 
 ## 🧪 Testing Requirements
 
 ### Test Coverage Requirements
 
 1. **Core Action Testing**
-   - All action types must have comprehensive test coverage
+   - All conditional action types must have comprehensive test coverage
    - Edge cases must be explicitly tested
    - Boundary conditions must be tested for movement actions
    - Composite actions must be tested for all combinations
-   - Action modifiers must be tested with different types of actions
+   - Global action management must be tested
 
 2. **Property Update Testing**
-   - **Arcade Sprite Properties**
-     - Test velocity/force calculations in `start()`
-     - Verify Arcade's update system applies changes correctly
-     - Test pause state handling
-     - Test boundary conditions
+   - Test direct property updates for position, angle, scale, alpha
+   - Verify condition evaluation and action completion
+   - Test pause/resume functionality
+   - Test global action lifecycle management
 
-3. **Test Categories and Mock Usage**
-   See `testing.md` for detailed test categories, patterns, and when to use mocks vs real implementations.
+3. **Test Categories and Patterns**
+   - Individual action tests using direct `action.apply()` calls
+   - Group action tests applying actions to `arcade.SpriteList`
+   - Composite action tests using operator overloads
+   - AttackGroup tests for high-level game management
+   - Boundary action tests for arcade-style patterns
 
 4. **Documentation Requirements**
    - Each test file must have a clear docstring explaining its purpose
@@ -143,15 +137,13 @@ We are delivering a **modern and extensible Actions system** for Arcade that emp
    - Each test method must explain what aspect is being tested
    - Complex test setups must be documented with comments
    - Test fixtures must be documented with their purpose
-   - Property update type must be clearly documented
 
 5. **Quality Requirements**
    - Tests must be deterministic and repeatable
    - Tests must be independent of each other
-   - Tests must clean up after themselves
+   - Tests must clean up after themselves using global action management
    - Tests must be fast and efficient
    - Tests must be maintainable and readable
-   - Tests must verify both immediate and time-based updates
 
 ## 📚 Related Documentation
 
@@ -159,29 +151,20 @@ This PRD provides the architectural foundation. For implementation details, cons
 
 ### Essential Implementation Guides
 - **[api_usage_guide.md](api_usage_guide.md)** - **Primary implementation reference**
-  - For all component usage patterns and implementation details
-  - The definitive guide for ActionSprite vs arcade.Sprite decisions
-  - Complete API examples and best practices
-
-### Testing Documentation
-- **[testing_index.md](testing_index.md)** - Central testing hub
-  - Navigation to all testing documentation
-  - Links to component-specific testing patterns
-  - Comprehensive testing guide and fixtures reference
+  - Complete API usage patterns and implementation details
+  - Comprehensive examples of conditional actions and composition
+  - AttackGroup usage patterns and best practices
 
 ### Specialized Implementation Guides
-- **[boundary_event.md](boundary_event.md)** - BoundedMove callback patterns
-- **[game_loop_updates.md](game_loop_updates.md)** - Game integration patterns
+- **[boundary_event.md](boundary_event.md)** - BoundedMove and WrappedMove callback patterns
 
 ### Documentation Hierarchy
 ```
 PRD.md (this file)           → Architecture & Requirements
 ├── api_usage_guide.md       → Implementation Patterns (PRIMARY)
-├── testing_index.md         → Testing Hub
-│   ├── testing.md           → Core Testing Patterns
-│   └── testing_movement.md  → Movement Testing
+├── testing_guide.md         → Testing Patterns & Best Practices
 ├── boundary_event.md        → Boundary Patterns
-└── game_loop_updates.md     → Game Integration
+└── README.md                → Quick Start Guide
 ```
 
 ## 🏗️ Code Quality Standards
@@ -197,57 +180,63 @@ PRD.md (this file)           → Architecture & Requirements
 **The Real Problem**: Unclear interfaces, not the checking pattern.
 
 **The Solution**: Design interfaces so checking isn't needed through:
-1. **Consistent base interfaces** with default values
-2. **Clear protocols** where needed, guaranteeing expected methods/attributes  
+1. **Consistent base interfaces** with well-defined contracts
+2. **Clear protocols** guaranteeing expected methods/attributes exist
 3. **Composition patterns** eliminating optional attributes
-4. **Unified interfaces** for similar objects 
+4. **Unified interfaces** for similar objects (Action base class)
 
-### Exception: Genuine Decision Points
+### Implementation Standards
 
-EAFP is acceptable ONLY for genuine decision points with real fallback logic:
+1. **Global Action Management**: All actions must use the global `Action.update_all()` system
+2. **Condition-Based Design**: Actions must be condition-based, not duration-based
+3. **Native Sprite Compatibility**: Must work with standard `arcade.Sprite` and `arcade.SpriteList`
+4. **Operator Composition**: Support `+` for sequential and `|` for parallel operations
+5. **Tag-Based Organization**: Support tagged action management for complex behaviors
+6. **Clean API Design**: Minimize wrapper methods and prefer direct action application
 
+### Key Architectural Decisions
+
+1. **No Custom Sprite Classes**: Works directly with `arcade.Sprite` - no ActionSprite needed
+2. **Global Management**: Central `Action` class manages all active actions automatically  
+3. **Condition-Based**: Actions run until conditions are met, enabling state-driven behavior
+4. **Operator Overloads**: Mathematical operators create composite actions cleanly
+5. **AttackGroup Pattern**: High-level game management without replacing core Arcade classes
+
+---
+
+## 🎯 Core Implementation Patterns
+
+### Pattern 1: Direct Action Application
 ```python
-# ✅ Acceptable - genuine fallback logic
-try:
-    return expensive_operation()
-except ResourceNotAvailable:
-    return cached_result()
+# Works with any arcade.Sprite or arcade.SpriteList
+sprite = arcade.Sprite("image.png")
+enemies = arcade.SpriteList()
 
-# ❌ Forbidden - error silencing
-try:
-    obj.method()
-except AttributeError:
-    pass  # This is a code smell
+action = MoveUntil((100, 0), lambda: sprite.center_x > 700)
+action.apply(sprite, tag="movement")
+action.apply(enemies, tag="formation")
 ```
 
-### Interface Design Requirements
+### Pattern 2: Operator Composition
+```python
+# Clean declarative syntax
+sequence = delay + move + fade
+parallel = move | rotate | scale
+complex = delay + (move | fade) + final_action
+```
 
-1. **Type Safety**
-   - Use type hints on all public interfaces
-   - Define protocols for duck-typed behavior
-   - Prefer composition over inheritance for complex behaviors
-   - Use Union types for multiple type support
+### Pattern 3: Global Management
+```python
+# Single update handles all actions
+def on_update(self, delta_time):
+    Action.update_all(delta_time)
+```
 
-2. **Consistency**
-   - All similar objects must have the same interface
-   - Required methods/attributes must be guaranteed by design
-   - Optional behavior must be handled through composition, not checking
+### Pattern 4: AttackGroup for Game Logic
+```python
+formation = AttackGroup(enemies, auto_destroy_when_empty=True)
+formation.apply(pattern, tag="attack")
+formation.schedule(3.0, retreat, tag="retreat")
+```
 
-3. **Clarity**
-   - Interface contracts must be clear from type signatures
-   - No surprise missing attributes or methods
-   - Predictable behavior without runtime inspection
-
-### Legacy Code Migration
-
-When refactoring existing code with excessive runtime checking:
-1. Identify the root cause (unclear interfaces)
-2. Design consistent interfaces for all involved types
-3. Use protocols to formalize duck-typed behavior
-4. Eliminate optional attributes through composition
-5. Replace checking with proper interface design
-
-### Examples in Codebase
-
-For concrete examples of these principles in action, see:
-- `actions/move.py` - BoundedMove and WrappedMove class refactoring
+This architecture provides a clean, powerful, and maintainable action system that enhances Arcade without replacing its core functionality.

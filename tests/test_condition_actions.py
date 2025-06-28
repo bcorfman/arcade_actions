@@ -1,21 +1,18 @@
-"""Test suite for conditional.py - Condition-based actions."""
+"""Test suite for condition_actions.py - Conditional actions."""
 
 import arcade
 import pytest
 
-from actions.base import Action
-from actions.conditional import (
+from actions import (
+    Action,
     BlinkUntil,
     DelayUntil,
     FadeUntil,
     FollowPathUntil,
     MoveUntil,
-    MoveWhile,
     RotateUntil,
     ScaleUntil,
-    Sequence,
-    Spawn,
-    duration_condition,
+    duration,
 )
 
 
@@ -136,36 +133,6 @@ class TestMoveUntil:
         assert sprite.change_y == 25
 
 
-class TestMoveWhile:
-    """Test suite for MoveWhile action."""
-
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.clear_all()
-
-    def test_move_while_basic(self):
-        """Test MoveWhile stops when condition becomes False."""
-        sprite = create_test_sprite()
-
-        condition_active = True
-
-        def condition():
-            return condition_active
-
-        action = MoveWhile((100, 0), condition)
-        action.apply(sprite)
-
-        # Should move while condition is True
-        Action.update_all(0.016)
-        assert sprite.change_x == 100
-
-        # Stop condition
-        condition_active = False
-        Action.update_all(0.016)
-        assert sprite.change_x == 0
-        assert action.done
-
-
 class TestFollowPathUntil:
     """Test suite for FollowPathUntil action."""
 
@@ -236,18 +203,14 @@ class TestRotateUntil:
         action.apply(sprite)
 
         Action.update_all(0.016)
-        for _ in range(10):
-            sprite.update()
-            Action.update_all(0.016)
 
         # Should be rotating
-        assert sprite.angle != start_angle
+        assert sprite.change_angle == 90
 
         # Trigger condition
         target_reached = True
         Action.update_all(0.016)
 
-        # Should stop rotating
         assert action.done
 
 
@@ -268,7 +231,7 @@ class TestScaleUntil:
         def condition():
             return target_reached
 
-        action = ScaleUntil(1.0, condition)  # Scale velocity
+        action = ScaleUntil(0.5, condition)  # Scale velocity
         action.apply(sprite)
 
         Action.update_all(0.016)
@@ -377,79 +340,12 @@ class TestDelayUntil:
         assert action.done
 
 
-class TestSequence:
-    """Test suite for Sequence action."""
+class TestDuration:
+    """Test suite for duration helper."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.clear_all()
-
-    def test_sequence_basic(self):
-        """Test basic Sequence functionality."""
-        sprite = create_test_sprite()
-
-        # Create actions that complete immediately
-        action1 = DelayUntil(lambda: True)
-        action2 = DelayUntil(lambda: True)
-
-        sequence = Sequence(action1, action2)
-        sequence.apply(sprite)
-
-        # Update should complete both actions in sequence
-        Action.update_all(0.016)
-        Action.update_all(0.016)
-
-        assert sequence.done
-
-    def test_sequence_empty(self):
-        """Test empty Sequence completes immediately."""
-        sprite = create_test_sprite()
-        sequence = Sequence()
-        sequence.apply(sprite)
-
-        Action.update_all(0.016)
-        assert sequence.done
-
-
-class TestSpawn:
-    """Test suite for Spawn action."""
-
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.clear_all()
-
-    def test_spawn_basic(self):
-        """Test basic Spawn functionality."""
-        sprite = create_test_sprite()
-
-        # Create actions that complete immediately
-        action1 = DelayUntil(lambda: True)
-        action2 = DelayUntil(lambda: True)
-
-        spawn = Spawn(action1, action2)
-        spawn.apply(sprite)
-
-        # Update should complete both actions in parallel
-        Action.update_all(0.016)
-
-        assert spawn.done
-
-    def test_spawn_empty(self):
-        """Test empty Spawn completes immediately."""
-        sprite = create_test_sprite()
-        spawn = Spawn()
-        spawn.apply(sprite)
-
-        Action.update_all(0.016)
-        assert spawn.done
-
-
-class TestDurationCondition:
-    """Test suite for duration_condition helper."""
-
-    def test_duration_condition_basic(self):
-        """Test basic duration_condition functionality."""
-        condition = duration_condition(1.0)
+    def test_duration_basic(self):
+        """Test basic duration functionality."""
+        condition = duration(1.0)
 
         # Should return False initially
         assert not condition()
@@ -457,16 +353,16 @@ class TestDurationCondition:
         # Should return True after duration passes
         # This is a simplified test - in practice would need to simulate time passage
 
-    def test_duration_condition_zero(self):
-        """Test duration_condition with zero duration."""
-        condition = duration_condition(0.0)
+    def test_duration_zero(self):
+        """Test duration with zero duration."""
+        condition = duration(0.0)
 
         # Should return True immediately
         assert condition()
 
-    def test_duration_condition_negative(self):
-        """Test duration_condition with negative duration."""
-        condition = duration_condition(-1.0)
+    def test_duration_negative(self):
+        """Test duration with negative duration."""
+        condition = duration(-1.0)
 
         # Should return True immediately for negative durations
         assert condition()

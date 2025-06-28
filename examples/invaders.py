@@ -18,7 +18,7 @@ SPRITE_SCALING_LASER = 1.0
 
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
-WINDOW_TITLE = "Efficient Slime Invaders - Enhanced MoveUntil"
+WINDOW_TITLE = "Slime Invaders"
 
 BULLET_SPEED = 5
 ENEMY_SPEED = 2

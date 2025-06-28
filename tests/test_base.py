@@ -43,9 +43,6 @@ class TestAction:
         assert action.tag == "test"
         assert action._is_active
         assert action in Action._active_actions
-        assert sprite in Action._target_tags
-        assert "test" in Action._target_tags[sprite]
-        assert action in Action._target_tags[sprite]["test"]
 
     def test_action_global_update(self):
         """Test global action update system."""
@@ -117,7 +114,7 @@ class TestAction:
         action1.apply(sprite, tag="movement")
         action2.apply(sprite, tag="effects")
 
-        Action.stop(sprite, tag="movement")
+        Action.stop_by_tag(sprite, "movement")
 
         assert not action1._is_active
         assert action2._is_active
@@ -131,7 +128,7 @@ class TestAction:
         action1.apply(sprite, tag="movement")
         action2.apply(sprite, tag="effects")
 
-        Action.stop(sprite)
+        Action.stop_all_for_target(sprite)
 
         assert not action1._is_active
         assert not action2._is_active
@@ -151,7 +148,6 @@ class TestAction:
         Action.clear_all()
 
         assert len(Action._active_actions) == 0
-        assert len(Action._target_tags) == 0
 
     def test_action_get_active_count(self):
         """Test getting the count of active actions."""
@@ -166,8 +162,8 @@ class TestAction:
 
         assert Action.get_active_count() == 2
 
-    def test_action_get_tag_actions(self):
-        """Test getting actions by tag."""
+    def test_action_get_actions_for_target(self):
+        """Test getting actions for target by tag."""
         sprite = create_test_sprite()
         action1 = Action(condition_func=lambda: False)
         action2 = Action(condition_func=lambda: False)
@@ -175,25 +171,28 @@ class TestAction:
         action1.apply(sprite, tag="movement")
         action2.apply(sprite, tag="effects")
 
-        movement_actions = Action.get_tag_actions("movement", sprite)
+        movement_actions = Action.get_actions_for_target(sprite, "movement")
         assert len(movement_actions) == 1
         assert action1 in movement_actions
 
-        effects_actions = Action.get_tag_actions("effects", sprite)
+        effects_actions = Action.get_actions_for_target(sprite, "effects")
         assert len(effects_actions) == 1
         assert action2 in effects_actions
 
-    def test_action_has_tag(self):
-        """Test checking if a tag exists."""
+    def test_action_check_tag_exists(self):
+        """Test checking if actions with a tag exist for a target."""
         sprite = create_test_sprite()
         action = Action(condition_func=lambda: False)
 
-        assert not Action.has_tag("movement", sprite)
+        # No actions yet
+        assert len(Action.get_actions_for_target(sprite, "movement")) == 0
 
         action.apply(sprite, tag="movement")
 
-        assert Action.has_tag("movement", sprite)
-        assert not Action.has_tag("effects", sprite)
+        # Action with movement tag exists
+        assert len(Action.get_actions_for_target(sprite, "movement")) == 1
+        # No actions with effects tag
+        assert len(Action.get_actions_for_target(sprite, "effects")) == 0
 
     def test_action_clone(self):
         """Test action cloning."""
@@ -210,21 +209,6 @@ class TestAction:
         assert cloned.on_condition_met == on_condition_met
         assert cloned.check_interval == 0.5
         assert cloned.tag == "test"
-
-    def test_action_operator_overloads(self):
-        """Test action operator overloads for composition."""
-        from actions.composite import Sequence, Spawn
-
-        action1 = Action(condition_func=lambda: False)
-        action2 = Action(condition_func=lambda: False)
-
-        # Test __add__ creates Sequence
-        sequence = action1 + action2
-        assert isinstance(sequence, Sequence)
-
-        # Test __or__ creates Spawn
-        spawn = action1 | action2
-        assert isinstance(spawn, Spawn)
 
     def test_action_for_each_sprite(self):
         """Test for_each_sprite helper method."""

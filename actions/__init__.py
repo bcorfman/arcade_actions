@@ -1,88 +1,67 @@
 """
-Arcade Actions API - condition-based animation system.
+ArcadeActions - A declarative action system for Arcade games.
 
-This package provides an action system that works with Arcade's native sprite system.
-Actions use condition-based calculations to abstract away repetitive code that often
-needs to be written for each sprite.
-
-Action Types:
-    Movement: MoveUntil, MoveWhile, BoundedMove, WrappedMove
-    Rotation: RotateUntil, RotateWhile
-    Scaling: ScaleUntil, ScaleWhile
-    Visual: FadeUntil, FadeWhile, BlinkUntil, BlinkWhile
-    Timing: DelayUntil
-    Composite: Sequence, Spawn
-
+Actions available:
+- Movement: MoveUntil (now with built-in boundary checking)
+- Rotation: RotateUntil
+- Scaling: ScaleUntil
+- Visual: FadeUntil, BlinkUntil
+- Path: FollowPathUntil
+- Timing: DelayUntil, duration, time_elapsed
+- Composition: sequence() and parallel() functions for combining actions
+- Formation: arrange_line, arrange_grid, arrange_circle, arrange_v_formation functions
+- Condition helpers: sprite_count, time_elapsed
 """
 
 # Core classes
-from .base import Action, GroupAction, SpriteGroup
-from .composite import Sequence, Spawn, sequence, spawn
+from .base import Action
 
-# Action types
+# Composition functions
+from .composite import parallel, sequence
+
+# Conditional actions
 from .conditional import (
     BlinkUntil,
-    BlinkWhile,
     DelayUntil,
     FadeUntil,
-    FadeWhile,
     FollowPathUntil,
-    FollowPathWhile,
     MoveUntil,
-    MoveWhile,
     RotateUntil,
-    RotateWhile,
     ScaleUntil,
-    ScaleWhile,
-    duration_condition,
+    duration,
 )
-from .move import BoundedMove, WrappedMove
+
+# Formation arrangement functions
 from .pattern import (
-    AttackGroup,
-    CirclePattern,
-    GridPattern,
-    LinePattern,
-    VFormationPattern,
-    sprite_count_condition,
-    time_elapsed_condition,
+    arrange_circle,
+    arrange_grid,
+    arrange_line,
+    arrange_v_formation,
+    sprite_count,
+    time_elapsed,
 )
 
 __all__ = [
     # Core classes
     "Action",
-    "SpriteGroup",
-    "GroupAction",
-    # Group management
-    "AttackGroup",
-    # Formation patterns
-    "LinePattern",
-    "GridPattern",
-    "CirclePattern",
-    "VFormationPattern",
     # Conditional actions
     "MoveUntil",
-    "MoveWhile",
     "RotateUntil",
-    "RotateWhile",
     "ScaleUntil",
-    "ScaleWhile",
     "FadeUntil",
-    "FadeWhile",
     "BlinkUntil",
-    "BlinkWhile",
     "DelayUntil",
     "FollowPathUntil",
-    "FollowPathWhile",
-    "duration_condition",
-    # Composite actions
-    "Sequence",
-    "Spawn",
+    "duration",
+    # Composition functions
     "sequence",
-    "spawn",
-    # Boundary actions
-    "BoundedMove",
-    "WrappedMove",
-    # Pattern management and helpers
-    "time_elapsed_condition",
-    "sprite_count_condition",
+    "parallel",
+    # Formation arrangement functions
+    "arrange_line",
+    "arrange_grid",
+    "arrange_circle",
+    "arrange_v_formation",
+    # Condition helpers
+    "time_elapsed",
+    "sprite_count",
 ]

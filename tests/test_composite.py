@@ -3,7 +3,7 @@
 import arcade
 
 from actions.base import Action
-from actions.composite import Sequence, Spawn, sequence, spawn
+from actions.composite import parallel, sequence
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -44,25 +44,25 @@ class MockAction(Action):
         return MockAction(self.duration, self.name)
 
 
-class TestSequence:
-    """Test suite for Sequence composite action."""
+class TestSequenceFunction:
+    """Test suite for sequence() function."""
 
     def teardown_method(self):
         """Clean up after each test."""
         Action.clear_all()
 
     def test_sequence_empty_initialization(self):
-        """Test empty Sequence initialization."""
-        seq = Sequence()
+        """Test empty sequence initialization."""
+        seq = sequence()
         assert len(seq.actions) == 0
         assert seq.current_action is None
         assert seq.current_index == 0
 
     def test_sequence_with_actions_initialization(self):
-        """Test Sequence initialization with actions."""
+        """Test sequence initialization with actions."""
         action1 = MockAction(name="action1")
         action2 = MockAction(name="action2")
-        seq = Sequence(action1, action2)
+        seq = sequence(action1, action2)
 
         assert len(seq.actions) == 2
         assert seq.actions[0] == action1
@@ -71,20 +71,20 @@ class TestSequence:
         assert seq.current_index == 0
 
     def test_sequence_empty_completes_immediately(self):
-        """Test that empty Sequence completes immediately."""
+        """Test that empty sequence completes immediately."""
         sprite = create_test_sprite()
-        seq = Sequence()
+        seq = sequence()
         seq.target = sprite
         seq.start()
 
         assert seq.done
 
     def test_sequence_starts_first_action(self):
-        """Test that Sequence starts the first action."""
+        """Test that sequence starts the first action."""
         sprite = create_test_sprite()
         action1 = MockAction(name="action1")
         action2 = MockAction(name="action2")
-        seq = Sequence(action1, action2)
+        seq = sequence(action1, action2)
 
         seq.target = sprite
         seq.start()
@@ -95,11 +95,11 @@ class TestSequence:
         assert not action2.started
 
     def test_sequence_advances_to_next_action(self):
-        """Test that Sequence advances to next action when current completes."""
+        """Test that sequence advances to next action when current completes."""
         sprite = create_test_sprite()
         action1 = MockAction(duration=0.05, name="action1")
         action2 = MockAction(duration=0.05, name="action2")
-        seq = Sequence(action1, action2)
+        seq = sequence(action1, action2)
 
         seq.target = sprite
         seq.start()
@@ -113,11 +113,11 @@ class TestSequence:
         assert action2.started
 
     def test_sequence_completes_when_all_actions_done(self):
-        """Test that Sequence completes when all actions are done."""
+        """Test that sequence completes when all actions are done."""
         sprite = create_test_sprite()
         action1 = MockAction(duration=0.05, name="action1")
         action2 = MockAction(duration=0.05, name="action2")
-        seq = Sequence(action1, action2)
+        seq = sequence(action1, action2)
 
         seq.target = sprite
         seq.start()
@@ -132,11 +132,11 @@ class TestSequence:
         assert seq.current_action is None
 
     def test_sequence_stop_stops_current_action(self):
-        """Test that stopping Sequence stops the current action."""
+        """Test that stopping sequence stops the current action."""
         sprite = create_test_sprite()
         action1 = MockAction(name="action1")
         action2 = MockAction(name="action2")
-        seq = Sequence(action1, action2)
+        seq = sequence(action1, action2)
 
         seq.target = sprite
         seq.start()
@@ -145,10 +145,10 @@ class TestSequence:
         assert action1.stopped
 
     def test_sequence_clone(self):
-        """Test Sequence cloning."""
+        """Test sequence cloning."""
         action1 = MockAction(name="action1")
         action2 = MockAction(name="action2")
-        seq = Sequence(action1, action2)
+        seq = sequence(action1, action2)
 
         cloned = seq.clone()
 
@@ -160,129 +160,98 @@ class TestSequence:
         assert cloned.actions[1].name == "action2"
 
 
-class TestSpawn:
-    """Test suite for Spawn composite action."""
+class TestParallelFunction:
+    """Test suite for parallel() function."""
 
     def teardown_method(self):
         """Clean up after each test."""
         Action.clear_all()
 
-    def test_spawn_empty_initialization(self):
-        """Test empty Spawn initialization."""
-        spawn_action = Spawn()
-        assert len(spawn_action.actions) == 0
+    def test_parallel_empty_initialization(self):
+        """Test empty parallel initialization."""
+        par = parallel()
+        assert len(par.actions) == 0
 
-    def test_spawn_with_actions_initialization(self):
-        """Test Spawn initialization with actions."""
+    def test_parallel_with_actions_initialization(self):
+        """Test parallel initialization with actions."""
         action1 = MockAction(name="action1")
         action2 = MockAction(name="action2")
-        spawn_action = Spawn(action1, action2)
+        par = parallel(action1, action2)
 
-        assert len(spawn_action.actions) == 2
-        assert spawn_action.actions[0] == action1
-        assert spawn_action.actions[1] == action2
+        assert len(par.actions) == 2
+        assert par.actions[0] == action1
+        assert par.actions[1] == action2
 
-    def test_spawn_empty_completes_immediately(self):
-        """Test that empty Spawn completes immediately."""
+    def test_parallel_empty_completes_immediately(self):
+        """Test that empty parallel completes immediately."""
         sprite = create_test_sprite()
-        spawn_action = Spawn()
-        spawn_action.target = sprite
-        spawn_action.start()
+        par = parallel()
+        par.target = sprite
+        par.start()
 
-        assert spawn_action.done
+        assert par.done
 
-    def test_spawn_starts_all_actions(self):
-        """Test that Spawn starts all actions simultaneously."""
+    def test_parallel_starts_all_actions(self):
+        """Test that parallel starts all actions simultaneously."""
         sprite = create_test_sprite()
         action1 = MockAction(name="action1")
         action2 = MockAction(name="action2")
-        spawn_action = Spawn(action1, action2)
+        par = parallel(action1, action2)
 
-        spawn_action.target = sprite
-        spawn_action.start()
+        par.target = sprite
+        par.start()
 
         assert action1.started
         assert action2.started
 
-    def test_spawn_completes_when_all_actions_done(self):
-        """Test that Spawn completes when all actions are done."""
+    def test_parallel_completes_when_all_actions_done(self):
+        """Test that parallel completes when all actions are done."""
         sprite = create_test_sprite()
         action1 = MockAction(duration=0.05, name="action1")
-        action2 = MockAction(duration=0.03, name="action2")
-        spawn_action = Spawn(action1, action2)
+        action2 = MockAction(duration=0.1, name="action2")  # Longer duration
+        par = parallel(action1, action2)
 
-        spawn_action.target = sprite
-        spawn_action.start()
+        par.target = sprite
+        par.start()
 
-        # Update until both actions complete
-        spawn_action.update(0.06)
-
+        # Update until first action completes
+        par.update(0.06)
         assert action1.done
-        assert action2.done
-        assert spawn_action.done
+        assert not par.done  # Parallel not done until all actions done
 
-    def test_spawn_stops_all_actions(self):
-        """Test that stopping Spawn stops all actions."""
+        # Update until second action completes
+        par.update(0.05)
+        assert action2.done
+        assert par.done
+
+    def test_parallel_stops_all_actions(self):
+        """Test that stopping parallel stops all actions."""
         sprite = create_test_sprite()
         action1 = MockAction(name="action1")
         action2 = MockAction(name="action2")
-        spawn_action = Spawn(action1, action2)
+        par = parallel(action1, action2)
 
-        spawn_action.target = sprite
-        spawn_action.start()
-        spawn_action.stop()
+        par.target = sprite
+        par.start()
+        par.stop()
 
         assert action1.stopped
         assert action2.stopped
 
-    def test_spawn_clone(self):
-        """Test Spawn cloning."""
+    def test_parallel_clone(self):
+        """Test parallel cloning."""
         action1 = MockAction(name="action1")
         action2 = MockAction(name="action2")
-        spawn_action = Spawn(action1, action2)
+        par = parallel(action1, action2)
 
-        cloned = spawn_action.clone()
+        cloned = par.clone()
 
-        assert cloned is not spawn_action
+        assert cloned is not par
         assert len(cloned.actions) == 2
         assert cloned.actions[0] is not action1
         assert cloned.actions[1] is not action2
         assert cloned.actions[0].name == "action1"
         assert cloned.actions[1].name == "action2"
-
-
-class TestCompositeHelperFunctions:
-    """Test suite for composite helper functions."""
-
-    def test_sequence_helper_function(self):
-        """Test sequence helper function."""
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
-
-        seq = sequence(action1, action2)
-
-        assert isinstance(seq, Sequence)
-        assert len(seq.actions) == 2
-        # Actions should be cloned
-        assert seq.actions[0] is not action1
-        assert seq.actions[1] is not action2
-        assert seq.actions[0].name == "action1"
-        assert seq.actions[1].name == "action2"
-
-    def test_spawn_helper_function(self):
-        """Test spawn helper function."""
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
-
-        spawn_action = spawn(action1, action2)
-
-        assert isinstance(spawn_action, Spawn)
-        assert len(spawn_action.actions) == 2
-        # Actions should be cloned
-        assert spawn_action.actions[0] is not action1
-        assert spawn_action.actions[1] is not action2
-        assert spawn_action.actions[0].name == "action1"
-        assert spawn_action.actions[1].name == "action2"
 
 
 class TestNestedComposites:
@@ -292,50 +261,58 @@ class TestNestedComposites:
         """Clean up after each test."""
         Action.clear_all()
 
-    def test_sequence_of_spawns(self):
-        """Test Sequence containing Spawn actions."""
+    def test_sequence_of_parallels(self):
+        """Test sequence containing parallel actions."""
         sprite = create_test_sprite()
+        action1 = MockAction(duration=0.05, name="action1")
+        action2 = MockAction(duration=0.05, name="action2")
+        action3 = MockAction(duration=0.05, name="action3")
+        action4 = MockAction(duration=0.05, name="action4")
 
-        # Create two spawn actions
-        spawn1 = Spawn(MockAction(0.02, "s1a1"), MockAction(0.02, "s1a2"))
-        spawn2 = Spawn(MockAction(0.02, "s2a1"), MockAction(0.02, "s2a2"))
+        par1 = parallel(action1, action2)
+        par2 = parallel(action3, action4)
+        seq = sequence(par1, par2)
 
-        seq = Sequence(spawn1, spawn2)
         seq.target = sprite
         seq.start()
 
-        # First spawn should start
-        assert seq.current_action == spawn1
+        # First parallel should start
+        assert action1.started
+        assert action2.started
+        assert not action3.started
+        assert not action4.started
 
-        # Update to complete first spawn
-        seq.update(0.03)
+        # Update until first parallel completes
+        seq.update(0.06)
 
-        # Second spawn should start
-        assert seq.current_action == spawn2
+        # Second parallel should start
+        assert action3.started
+        assert action4.started
 
-        # Update to complete second spawn
-        seq.update(0.03)
-
-        assert seq.done
-
-    def test_spawn_of_sequences(self):
-        """Test Spawn containing Sequence actions."""
+    def test_parallel_of_sequences(self):
+        """Test parallel containing sequence actions."""
         sprite = create_test_sprite()
+        action1 = MockAction(duration=0.05, name="action1")
+        action2 = MockAction(duration=0.05, name="action2")
+        action3 = MockAction(duration=0.05, name="action3")
+        action4 = MockAction(duration=0.05, name="action4")
 
-        # Create two sequence actions
-        seq1 = Sequence(MockAction(0.02, "seq1a1"), MockAction(0.02, "seq1a2"))
-        seq2 = Sequence(MockAction(0.02, "seq2a1"), MockAction(0.02, "seq2a2"))
+        seq1 = sequence(action1, action2)
+        seq2 = sequence(action3, action4)
+        par = parallel(seq1, seq2)
 
-        spawn_action = Spawn(seq1, seq2)
-        spawn_action.target = sprite
-        spawn_action.start()
+        par.target = sprite
+        par.start()
 
-        # Both sequences should start
-        assert seq1.current_action is not None
-        assert seq2.current_action is not None
+        # Both sequences should start (first actions of each)
+        assert action1.started
+        assert not action2.started
+        assert action3.started
+        assert not action4.started
 
-        # Update multiple times to complete both sequences (more realistic)
-        for _ in range(3):  # 3 updates of 0.02 each = 0.06 total, enough for both sequences
-            spawn_action.update(0.02)
+        # Update until first actions complete
+        par.update(0.06)
 
-        assert spawn_action.done
+        # Second actions should start
+        assert action2.started
+        assert action4.started

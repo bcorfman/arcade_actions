@@ -5,39 +5,7 @@ Composite actions that combine other actions.
 from .base import Action, CompositeAction
 
 
-def sequence(action_1: Action, action_2: Action) -> "Sequence":
-    """Returns an action that runs first action_1 and then action_2.
-
-    The returned action will be a Sequence that performs action_1 followed by action_2.
-    Both actions are cloned to ensure independence.
-
-    Args:
-        action_1: The first action to execute
-        action_2: The second action to execute
-
-    Returns:
-        A new Sequence action that runs action_1 followed by action_2
-    """
-    return Sequence(action_1.clone(), action_2.clone())
-
-
-def spawn(action_1: Action, action_2: Action) -> "Spawn":
-    """Returns an action that runs action_1 and action_2 in parallel.
-
-    The returned action will be a Spawn that performs both actions simultaneously.
-    Both actions are cloned to ensure independence.
-
-    Args:
-        action_1: The first action to execute in parallel
-        action_2: The second action to execute in parallel
-
-    Returns:
-        A new Spawn action that runs both actions simultaneously
-    """
-    return Spawn(action_1.clone(), action_2.clone())
-
-
-class Sequence(CompositeAction):
+class _Sequence(CompositeAction):
     """Run a sequence of actions one after another.
 
     This action runs each sub-action in order, waiting for each to complete
@@ -123,15 +91,15 @@ class Sequence(CompositeAction):
         self._on_complete_called = False
         super().reset()
 
-    def clone(self) -> "Sequence":
-        """Create a copy of this Sequence action."""
-        return Sequence(*(action.clone() for action in self.actions))
+    def clone(self) -> "_Sequence":
+        """Create a copy of this _Sequence action."""
+        return _Sequence(*(action.clone() for action in self.actions))
 
     def __repr__(self) -> str:
-        return f"Sequence(actions={self.actions})"
+        return f"_Sequence(actions={self.actions})"
 
 
-class Spawn(CompositeAction):
+class _Parallel(CompositeAction):
     """Run multiple actions simultaneously.
 
     This action starts all sub-actions at the same time and completes when
@@ -139,7 +107,7 @@ class Spawn(CompositeAction):
     """
 
     def __init__(self, *actions: Action):
-        # Allow empty spawn - they complete immediately
+        # Allow empty parallel - they complete immediately
         if not actions:
             CompositeAction.__init__(self)
             self.actions = []
@@ -157,7 +125,7 @@ class Spawn(CompositeAction):
                 action.target = self.target
                 action.start()
         else:
-            # Empty spawn completes immediately
+            # Empty parallel completes immediately
             self.done = True
             self._check_complete()
 
@@ -165,7 +133,7 @@ class Spawn(CompositeAction):
         """Update all actions and check for completion."""
         super().update(delta_time)
 
-        # Handle empty spawn
+        # Handle empty parallel
         if not self.actions:
             if not self.done:
                 self.done = True
@@ -198,9 +166,49 @@ class Spawn(CompositeAction):
             action.reset()
         super().reset()
 
-    def clone(self) -> "Spawn":
-        """Create a copy of this Spawn action."""
-        return Spawn(*(action.clone() for action in self.actions))
+    def clone(self) -> "_Parallel":
+        """Create a copy of this _Parallel action."""
+        return _Parallel(*(action.clone() for action in self.actions))
 
     def __repr__(self) -> str:
-        return f"Spawn(actions={self.actions})"
+        return f"_Parallel(actions={self.actions})"
+
+
+def sequence(*actions: Action) -> _Sequence:
+    """Create a sequence that runs actions one after another.
+
+    Args:
+        *actions: Actions to run in sequence
+
+    Returns:
+        Sequence action that runs each action in order
+
+    Example:
+        seq = sequence(
+            MoveUntil((100, 0), time_elapsed(2.0)),
+            RotateUntil(90, time_elapsed(1.0)),
+            FadeUntil(-50, time_elapsed(1.5))
+        )
+        seq.apply(sprite, tag="complex_movement")
+    """
+    return _Sequence(*actions)
+
+
+def parallel(*actions: Action) -> _Parallel:
+    """Create a parallel composition that runs actions simultaneously.
+
+    Args:
+        *actions: Actions to run in parallel
+
+    Returns:
+        Parallel action that runs all actions at the same time
+
+    Example:
+        par = parallel(
+            MoveUntil((50, 25), time_elapsed(3.0)),
+            FadeUntil(-30, time_elapsed(2.0)),
+            RotateUntil(180, time_elapsed(3.0))
+        )
+        par.apply(sprite, tag="multi_effect")
+    """
+    return _Parallel(*actions)

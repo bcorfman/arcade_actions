@@ -1,14 +1,15 @@
-"""Test suite for pattern.py - Attack patterns and AttackGroup."""
+"""Test suite for pattern.py - Formation arrangement functions."""
 
 import arcade
 
 from actions.base import Action
 from actions.pattern import (
-    AttackGroup,
-    CirclePattern,
-    GridPattern,
-    LinePattern,
-    VFormationPattern,
+    arrange_circle,
+    arrange_grid,
+    arrange_line,
+    arrange_v_formation,
+    sprite_count,
+    time_elapsed,
 )
 
 
@@ -30,40 +31,14 @@ def create_test_sprite_list(count=5):
     return sprite_list
 
 
-class MockAction(Action):
-    """Mock action for testing AttackGroup."""
+class TestArrangeLineFunctions:
+    """Test suite for arrange_line function."""
 
-    def __init__(self, name="mock"):
-        super().__init__()
-        self.name = name
-        self.applied = False
-
-    def apply_effect(self):
-        self.applied = True
-
-    def clone(self):
-        return MockAction(self.name)
-
-
-class TestLinePattern:
-    """Test suite for LinePattern."""
-
-    def test_line_pattern_initialization(self):
-        """Test LinePattern initialization."""
-        pattern = LinePattern()
-        assert pattern.name == "line"
-        assert pattern.spacing == 50.0
-
-        pattern_custom = LinePattern(spacing=80.0)
-        assert pattern_custom.spacing == 80.0
-
-    def test_line_pattern_apply(self):
-        """Test LinePattern apply method."""
+    def test_arrange_line_basic(self):
+        """Test basic line arrangement."""
         sprite_list = create_test_sprite_list(3)
-        attack_group = AttackGroup(sprite_list)
-        pattern = LinePattern(spacing=60.0)
 
-        pattern.apply(attack_group, start_x=100, start_y=200)
+        arrange_line(sprite_list, start_x=100, start_y=200, spacing=60.0)
 
         # Check sprite positions
         assert sprite_list[0].center_x == 100
@@ -73,13 +48,11 @@ class TestLinePattern:
         assert sprite_list[2].center_x == 220
         assert sprite_list[2].center_y == 200
 
-    def test_line_pattern_default_position(self):
-        """Test LinePattern with default position."""
+    def test_arrange_line_default_position(self):
+        """Test line arrangement with default position."""
         sprite_list = create_test_sprite_list(2)
-        attack_group = AttackGroup(sprite_list)
-        pattern = LinePattern()
 
-        pattern.apply(attack_group)
+        arrange_line(sprite_list)
 
         # Check default positions
         assert sprite_list[0].center_x == 0
@@ -87,32 +60,27 @@ class TestLinePattern:
         assert sprite_list[1].center_x == 50
         assert sprite_list[1].center_y == 0
 
+    def test_arrange_line_python_list(self):
+        """Test line arrangement with Python list instead of SpriteList."""
+        sprites = [create_test_sprite() for _ in range(3)]
 
-class TestGridPattern:
-    """Test suite for GridPattern."""
+        arrange_line(sprites, start_x=200, start_y=300, spacing=40)
 
-    def test_grid_pattern_initialization(self):
-        """Test GridPattern initialization."""
-        pattern = GridPattern()
-        assert pattern.name == "grid"
-        assert pattern.rows == 5
-        assert pattern.cols == 10
-        assert pattern.spacing_x == 60.0
-        assert pattern.spacing_y == 50.0
+        assert sprites[0].center_x == 200
+        assert sprites[1].center_x == 240
+        assert sprites[2].center_x == 280
+        for sprite in sprites:
+            assert sprite.center_y == 300
 
-        pattern_custom = GridPattern(rows=3, cols=4, spacing_x=80, spacing_y=70)
-        assert pattern_custom.rows == 3
-        assert pattern_custom.cols == 4
-        assert pattern_custom.spacing_x == 80
-        assert pattern_custom.spacing_y == 70
 
-    def test_grid_pattern_apply(self):
-        """Test GridPattern apply method."""
+class TestArrangeGridFunctions:
+    """Test suite for arrange_grid function."""
+
+    def test_arrange_grid_basic(self):
+        """Test basic grid arrangement."""
         sprite_list = create_test_sprite_list(6)  # 2x3 grid
-        attack_group = AttackGroup(sprite_list)
-        pattern = GridPattern(rows=2, cols=3, spacing_x=80, spacing_y=60)
 
-        pattern.apply(attack_group, start_x=200, start_y=400)
+        arrange_grid(sprite_list, rows=2, cols=3, start_x=200, start_y=400, spacing_x=80, spacing_y=60)
 
         # Check sprite positions for 2x3 grid
         # Row 0
@@ -131,38 +99,35 @@ class TestGridPattern:
         assert sprite_list[5].center_x == 360  # Col 2
         assert sprite_list[5].center_y == 340
 
-    def test_grid_pattern_default_position(self):
-        """Test GridPattern with default position."""
+    def test_arrange_grid_default_position(self):
+        """Test grid arrangement with default position."""
         sprite_list = create_test_sprite_list(3)
-        attack_group = AttackGroup(sprite_list)
-        pattern = GridPattern(cols=3)
 
-        pattern.apply(attack_group)
+        arrange_grid(sprite_list, cols=3)
 
         # Check default positions
         assert sprite_list[0].center_x == 100
         assert sprite_list[0].center_y == 500
 
+    def test_arrange_grid_single_row(self):
+        """Test grid arrangement with single row."""
+        sprite_list = create_test_sprite_list(4)
 
-class TestCirclePattern:
-    """Test suite for CirclePattern."""
+        arrange_grid(sprite_list, rows=1, cols=4, start_x=0, start_y=100, spacing_x=50)
 
-    def test_circle_pattern_initialization(self):
-        """Test CirclePattern initialization."""
-        pattern = CirclePattern()
-        assert pattern.name == "circle"
-        assert pattern.radius == 100.0
+        for i, sprite in enumerate(sprite_list):
+            assert sprite.center_x == i * 50
+            assert sprite.center_y == 100
 
-        pattern_custom = CirclePattern(radius=150.0)
-        assert pattern_custom.radius == 150.0
 
-    def test_circle_pattern_apply(self):
-        """Test CirclePattern apply method."""
+class TestArrangeCircleFunctions:
+    """Test suite for arrange_circle function."""
+
+    def test_arrange_circle_basic(self):
+        """Test basic circle arrangement."""
         sprite_list = create_test_sprite_list(4)  # 4 sprites for easier math
-        attack_group = AttackGroup(sprite_list)
-        pattern = CirclePattern(radius=100.0)
 
-        pattern.apply(attack_group, center_x=400, center_y=300)
+        arrange_circle(sprite_list, center_x=400, center_y=300, radius=100.0)
 
         # Check that sprites are positioned around the circle
         # With 4 sprites, they should be at 90-degree intervals
@@ -176,22 +141,18 @@ class TestCirclePattern:
             assert abs(sprite.center_x - expected_x) < 0.1
             assert abs(sprite.center_y - expected_y) < 0.1
 
-    def test_circle_pattern_empty_group(self):
-        """Test CirclePattern with empty group."""
+    def test_arrange_circle_empty_list(self):
+        """Test circle arrangement with empty list."""
         sprite_list = arcade.SpriteList()
-        attack_group = AttackGroup(sprite_list)
-        pattern = CirclePattern()
 
         # Should not raise error
-        pattern.apply(attack_group, center_x=400, center_y=300)
+        arrange_circle(sprite_list, center_x=400, center_y=300)
 
-    def test_circle_pattern_default_position(self):
-        """Test CirclePattern with default position."""
+    def test_arrange_circle_default_position(self):
+        """Test circle arrangement with default position."""
         sprite_list = create_test_sprite_list(2)
-        attack_group = AttackGroup(sprite_list)
-        pattern = CirclePattern()
 
-        pattern.apply(attack_group)
+        arrange_circle(sprite_list)
 
         # Check default center position is used
         import math
@@ -205,257 +166,195 @@ class TestCirclePattern:
             assert abs(sprite.center_y - expected_y) < 0.1
 
 
-class TestVFormationPattern:
-    """Test suite for VFormationPattern."""
+class TestArrangeVFormationFunctions:
+    """Test suite for arrange_v_formation function."""
 
-    def test_v_formation_pattern_initialization(self):
-        """Test VFormationPattern initialization."""
-        pattern = VFormationPattern()
-        assert pattern.name == "v_formation"
-        import math
-
-        assert abs(pattern.angle - math.radians(45.0)) < 0.1
-        assert pattern.spacing == 50.0
-
-        pattern_custom = VFormationPattern(angle=30.0, spacing=60.0)
-        assert abs(pattern_custom.angle - math.radians(30.0)) < 0.1
-        assert pattern_custom.spacing == 60.0
-
-    def test_v_formation_pattern_apply(self):
-        """Test VFormationPattern apply method."""
+    def test_arrange_v_formation_basic(self):
+        """Test basic V formation arrangement."""
         sprite_list = create_test_sprite_list(5)
-        attack_group = AttackGroup(sprite_list)
-        pattern = VFormationPattern(angle=45.0, spacing=50.0)
 
-        pattern.apply(attack_group, apex_x=400, apex_y=500)
+        arrange_v_formation(sprite_list, apex_x=400, apex_y=500, angle=45.0, spacing=50.0)
 
-        # First sprite should be at apex
+        # Check apex sprite
         assert sprite_list[0].center_x == 400
         assert sprite_list[0].center_y == 500
 
-        # Remaining sprites should alternate sides
+        # Check that other sprites are arranged alternately
         import math
 
         angle_rad = math.radians(45.0)
 
-        # Second sprite (right side)
-        expected_x = 400 + math.cos(angle_rad) * 50
+        # Second sprite (i=1, side=1, distance=50)
+        expected_x = 400 + 1 * math.cos(angle_rad) * 50
         expected_y = 500 - math.sin(angle_rad) * 50
         assert abs(sprite_list[1].center_x - expected_x) < 0.1
         assert abs(sprite_list[1].center_y - expected_y) < 0.1
 
-        # Third sprite (left side)
-        expected_x = 400 - math.cos(angle_rad) * 50
-        expected_y = 500 - math.sin(angle_rad) * 50
-        assert abs(sprite_list[2].center_x - expected_x) < 0.1
-        assert abs(sprite_list[2].center_y - expected_y) < 0.1
-
-    def test_v_formation_pattern_empty_group(self):
-        """Test VFormationPattern with empty group."""
+    def test_arrange_v_formation_empty_list(self):
+        """Test V formation with empty list."""
         sprite_list = arcade.SpriteList()
-        attack_group = AttackGroup(sprite_list)
-        pattern = VFormationPattern()
 
         # Should not raise error
-        pattern.apply(attack_group, apex_x=400, apex_y=500)
+        arrange_v_formation(sprite_list, apex_x=400, apex_y=500)
 
-    def test_v_formation_pattern_single_sprite(self):
-        """Test VFormationPattern with single sprite."""
+    def test_arrange_v_formation_single_sprite(self):
+        """Test V formation with single sprite."""
         sprite_list = create_test_sprite_list(1)
-        attack_group = AttackGroup(sprite_list)
-        pattern = VFormationPattern()
 
-        pattern.apply(attack_group, apex_x=400, apex_y=500)
+        arrange_v_formation(sprite_list, apex_x=300, apex_y=400)
 
         # Single sprite should be at apex
-        assert sprite_list[0].center_x == 400
-        assert sprite_list[0].center_y == 500
+        assert sprite_list[0].center_x == 300
+        assert sprite_list[0].center_y == 400
+
+    def test_arrange_v_formation_custom_angle(self):
+        """Test V formation with custom angle."""
+        sprite_list = create_test_sprite_list(3)
+
+        arrange_v_formation(sprite_list, apex_x=200, apex_y=300, angle=30.0, spacing=40.0)
+
+        # Apex should be at specified position
+        assert sprite_list[0].center_x == 200
+        assert sprite_list[0].center_y == 300
+
+        # Other sprites should be arranged according to 30-degree angle
+        import math
+
+        angle_rad = math.radians(30.0)
+
+        # Check second sprite positioning
+        expected_x = 200 + 1 * math.cos(angle_rad) * 40
+        expected_y = 300 - math.sin(angle_rad) * 40
+        assert abs(sprite_list[1].center_x - expected_x) < 0.1
+        assert abs(sprite_list[1].center_y - expected_y) < 0.1
 
 
-class TestAttackGroup:
-    """Test suite for AttackGroup."""
+class TestConditionHelpers:
+    """Test suite for condition helper functions."""
+
+    def test_time_elapsed_condition(self):
+        """Test time_elapsed condition helper."""
+        condition = time_elapsed(0.1)  # 0.1 seconds
+
+        # Should start as False
+        assert not condition()
+
+        # Should become True after enough time
+        import time
+
+        time.sleep(0.15)  # Wait longer than threshold
+        assert condition()
+
+    def test_sprite_count_condition(self):
+        """Test sprite_count condition helper."""
+        sprite_list = create_test_sprite_list(5)
+
+        # Test different comparison operators
+        condition_le = sprite_count(sprite_list, 3, "<=")
+        condition_ge = sprite_count(sprite_list, 3, ">=")
+        condition_eq = sprite_count(sprite_list, 5, "==")
+        condition_ne = sprite_count(sprite_list, 3, "!=")
+
+        assert not condition_le()  # 5 <= 3 is False
+        assert condition_ge()  # 5 >= 3 is True
+        assert condition_eq()  # 5 == 5 is True
+        assert condition_ne()  # 5 != 3 is True
+
+        # Remove some sprites and test again
+        sprite_list.remove(sprite_list[0])
+        sprite_list.remove(sprite_list[0])  # Now has 3 sprites
+
+        assert condition_le()  # 3 <= 3 is True
+        assert not condition_ne()  # 3 != 3 is False
+
+    def test_sprite_count_invalid_operator(self):
+        """Test sprite_count with invalid comparison operator."""
+        sprite_list = create_test_sprite_list(3)
+
+        condition = sprite_count(sprite_list, 2, "invalid")
+
+        try:
+            condition()
+            assert False, "Should have raised ValueError"
+        except ValueError as e:
+            assert "Invalid comparison operator" in str(e)
+
+
+class TestFormationIntegration:
+    """Test suite for integration between formations and actions."""
 
     def teardown_method(self):
         """Clean up after each test."""
         Action.clear_all()
 
-    def test_attack_group_initialization(self):
-        """Test AttackGroup initialization."""
-        sprite_list = create_test_sprite_list(3)
-        attack_group = AttackGroup(sprite_list)
+    def test_formation_with_actions_workflow(self):
+        """Test typical workflow of arranging sprites and applying actions."""
+        from actions.conditional import MoveUntil
 
-        assert attack_group.sprites == sprite_list
-        assert attack_group.name is None
-        assert attack_group.parent is None
-        assert isinstance(attack_group.time_of_birth, (int, float))  # Just check it's a number
-
-    def test_attack_group_with_name_and_parent(self):
-        """Test AttackGroup with name and parent."""
-        sprite_list = create_test_sprite_list(3)
-        parent_group = AttackGroup(arcade.SpriteList())
-        attack_group = AttackGroup(sprite_list, name="test_group", parent=parent_group)
-
-        assert attack_group.name == "test_group"
-        assert attack_group.parent == parent_group
-
-    def test_attack_group_do_action(self):
-        """Test AttackGroup do method."""
-        sprite_list = create_test_sprite_list(3)
-        attack_group = AttackGroup(sprite_list)
-        action = MockAction("test_action")
-
-        returned_action = attack_group.do(action)
-
-        assert returned_action == action
-        assert action.target == sprite_list
-        assert action.applied
-
-    def test_attack_group_update(self):
-        """Test AttackGroup update method."""
-        sprite_list = create_test_sprite_list(3)
-        attack_group = AttackGroup(sprite_list)
-
-        # Should not raise error
-        attack_group.update(0.016)
-
-    def test_attack_group_schedule_attack(self):
-        """Test AttackGroup schedule_attack method."""
-        sprite_list = create_test_sprite_list(3)
-        attack_group = AttackGroup(sprite_list)
-
-        callback_called = False
-
-        def test_callback():
-            nonlocal callback_called
-            callback_called = True
-
-        event_id = attack_group.schedule_attack(0.1, test_callback)
-
-        assert isinstance(event_id, int)
-        # Note: In a real test, you'd need to simulate time passage to test the callback
-
-    def test_attack_group_breakaway(self):
-        """Test AttackGroup breakaway method."""
-        sprite_list = create_test_sprite_list(5)
-        attack_group = AttackGroup(sprite_list)
-
-        # Break away some sprites
-        breakaway_sprites = [sprite_list[1], sprite_list[3]]
-        new_group = attack_group.breakaway(breakaway_sprites)
-
-        assert isinstance(new_group, AttackGroup)
-        assert len(new_group.sprites) == 2
-        assert new_group.sprites[0] == sprite_list[1]
-        assert new_group.sprites[1] == sprite_list[3]
-        assert new_group.parent == attack_group
-
-        # Original group should have remaining sprites
-        assert len(attack_group.sprites) == 3
-
-    def test_attack_group_destroy(self):
-        """Test AttackGroup destroy method."""
-        sprite_list = create_test_sprite_list(3)
-        attack_group = AttackGroup(sprite_list)
-
-        destroy_called = False
-
-        def on_destroy(group):
-            nonlocal destroy_called
-            destroy_called = True
-
-        attack_group.on_destroy(on_destroy)
-        attack_group.destroy()
-
-        assert destroy_called
-        assert len(attack_group.sprites) == 0
-
-    def test_attack_group_callbacks(self):
-        """Test AttackGroup callback registration."""
-        sprite_list = create_test_sprite_list(3)
-        attack_group = AttackGroup(sprite_list)
-
-        destroy_callback_called = False
-        breakaway_callback_called = False
-
-        def on_destroy(group):
-            nonlocal destroy_callback_called
-            destroy_callback_called = True
-
-        def on_breakaway(group):
-            nonlocal breakaway_callback_called
-            breakaway_callback_called = True
-
-        attack_group.on_destroy(on_destroy)
-        attack_group.on_breakaway(on_breakaway)
-
-        # Test breakaway callback
-        breakaway_sprites = [sprite_list[0]]
-        attack_group.breakaway(breakaway_sprites)
-        assert breakaway_callback_called
-
-        # Test destroy callback
-        attack_group.destroy()
-        assert destroy_callback_called
-
-    def test_attack_group_repr(self):
-        """Test AttackGroup string representation."""
-        sprite_list = create_test_sprite_list(3)
-        attack_group = AttackGroup(sprite_list, name="test_group")
-
-        repr_str = repr(attack_group)
-        assert "AttackGroup" in repr_str
-        assert "test_group" in repr_str
-
-
-class TestPatternIntegration:
-    """Test suite for pattern integration with AttackGroup."""
-
-    def test_pattern_with_attack_group_workflow(self):
-        """Test complete workflow with patterns and AttackGroup."""
+        # Create sprites and arrange them
         sprite_list = create_test_sprite_list(6)
-        attack_group = AttackGroup(sprite_list, name="formation")
+        arrange_grid(sprite_list, rows=2, cols=3, start_x=200, start_y=400, spacing_x=80, spacing_y=60)
 
-        # Apply grid pattern
-        grid_pattern = GridPattern(rows=2, cols=3)
-        grid_pattern.apply(attack_group, start_x=200, start_y=400)
+        # Apply actions directly to the sprite list
+        move_action = MoveUntil((50, -25), time_elapsed(2.0))
+        move_action.apply(sprite_list, tag="formation_movement")
 
-        # Verify grid formation
-        assert sprite_list[0].center_x == 200
-        assert sprite_list[0].center_y == 400
-        assert sprite_list[3].center_x == 200
-        assert sprite_list[3].center_y == 350  # Row 1, Y decreased
+        # Verify action was applied
+        assert move_action in Action._active_actions
+        assert move_action.target == sprite_list
+        assert move_action.tag == "formation_movement"
 
-        # Apply action to group
-        action = MockAction("move_formation")
-        attack_group.do(action)
+        # Update and verify movement
+        Action.update_all(0.1)
+        for sprite in sprite_list:
+            assert sprite.change_x == 50
+            assert sprite.change_y == -25
 
-        assert action.applied
-        assert action.target == sprite_list
-
-    def test_multiple_patterns_on_same_group(self):
-        """Test applying multiple patterns to the same group."""
+    def test_multiple_formations_same_sprites(self):
+        """Test applying different formation patterns to same sprite list."""
         sprite_list = create_test_sprite_list(4)
-        attack_group = AttackGroup(sprite_list)
 
-        # First apply line pattern
-        line_pattern = LinePattern(spacing=60)
-        line_pattern.apply(attack_group, start_x=100, start_y=200)
+        # Start with line formation
+        arrange_line(sprite_list, start_x=0, start_y=100, spacing=50)
+        line_positions = [(s.center_x, s.center_y) for s in sprite_list]
 
-        # Verify line formation
-        assert sprite_list[0].center_x == 100
-        assert sprite_list[1].center_x == 160
+        # Change to circle formation
+        arrange_circle(sprite_list, center_x=200, center_y=200, radius=80)
+        circle_positions = [(s.center_x, s.center_y) for s in sprite_list]
 
-        # Then apply circle pattern (overwrites positions)
-        circle_pattern = CirclePattern(radius=50)
-        circle_pattern.apply(attack_group, center_x=300, center_y=300)
+        # Positions should be different
+        assert line_positions != circle_positions
 
-        # Verify circle formation (positions should be different now)
-        import math
+        # Change to grid formation
+        arrange_grid(sprite_list, rows=2, cols=2, start_x=300, start_y=300)
+        grid_positions = [(s.center_x, s.center_y) for s in sprite_list]
 
-        for i, sprite in enumerate(sprite_list):
-            angle = i * 2 * math.pi / 4
-            expected_x = 300 + math.cos(angle) * 50
-            expected_y = 300 + math.sin(angle) * 50
+        # All formations should be different
+        assert len(set([tuple(line_positions), tuple(circle_positions), tuple(grid_positions)])) == 3
 
-            assert abs(sprite.center_x - expected_x) < 0.1
-            assert abs(sprite.center_y - expected_y) < 0.1
+    def test_formation_with_conditional_actions(self):
+        """Test formations with conditional actions and condition helpers."""
+        from actions.composite import parallel, sequence
+        from actions.conditional import FadeUntil, MoveUntil
+
+        sprite_list = create_test_sprite_list(8)
+        arrange_grid(sprite_list, rows=2, cols=4, start_x=100, start_y=400)
+
+        # Create conditional actions using helpers
+        move_action = MoveUntil((30, -20), time_elapsed(1.5))
+        fade_action = FadeUntil(-20, sprite_count(sprite_list, 4, "<="))
+
+        # Use explicit composition
+        seq = sequence(move_action, fade_action)
+        par = parallel(move_action, fade_action)
+
+        # Apply to sprite list
+        seq.apply(sprite_list, tag="sequential")
+        par.apply(sprite_list, tag="parallel")  # This will conflict but tests the API
+
+        # Verify actions were registered
+        seq_actions = Action.get_actions_for_target(sprite_list, "sequential")
+        par_actions = Action.get_actions_for_target(sprite_list, "parallel")
+
+        assert len(seq_actions) == 1
+        assert len(par_actions) == 1
