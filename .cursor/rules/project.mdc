@@ -30,6 +30,7 @@ Core design principles that must be followed:
 
 General rules:
 * Never use Dataclasses
+* AVOID state flags (booleans like self.respawning, self.is_active); use action states and completion callbacks instead.
 
 For interface design:
 * ZERO TOLERANCE for runtime type/attribute checking (hasattr, getattr, isinstance, EAFP-with-pass)
@@ -61,6 +62,16 @@ For boundary interactions:
 * Apply BoundedMove to individual ActionSprite for simple bouncing behavior
 * Apply BoundedMove to SpriteGroup for coordinated group bouncing (Space Invaders pattern) - only edge sprites trigger callbacks
 * Use WrappedMove for individual sprites or groups for screen wrapping behavior
+
+CRITICAL: Boundary System Design Principles (DO NOT OVER-ENGINEER):
+* Keep boundary detection SIMPLE - track position changes between frames, not complex state management
+* Actions move sprites by changing positions directly (NOT change_x/change_y velocities)
+* Only check boundaries in the current movement direction (left-moving group only checks left boundary)
+* Edge sprite detection: only sprites on the leading edge (leftmost when moving left, rightmost when moving right, etc.)
+* Simple callback management: one callback per axis per frame maximum
+* NO complex frame tracking, multiple collision handling, or elaborate state machines
+* Direction detection: compare current position to previous position with small threshold (0.1 pixels)
+* If boundary system becomes complex, you're over-engineering - return to these simple principles
 
 Common implementation patterns:
 * Individual control: ActionSprite.do(action) for single sprite behaviors

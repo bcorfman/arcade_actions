@@ -1,0 +1,611 @@
+import math
+from collections.abc import Callable
+from typing import Any
+
+from actions.base import Action
+
+
+class MoveUntil(Action):
+    """Move sprites using Arcade's velocity system until a condition is satisfied.
+
+    The action maintains both the original target velocity and a current velocity
+    that can be modified by easing wrappers for smooth acceleration effects.
+
+    Args:
+        velocity: (dx, dy) velocity vector to apply to sprites
+        condition_func: Function that returns truthy value when movement should stop, or None/False to continue
+        on_condition_met: Optional callback called when condition is satisfied. Receives condition data if provided.
+        check_interval: How often to check condition (in seconds, default: 0.0 for every frame)
+    """
+
+    def __init__(
+        self,
+        velocity: tuple[float, float],
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        super().__init__(condition_func, on_condition_met, check_interval)
+        self.velocity = velocity
+        self.current_velocity = velocity  # Enable future easing wrapper compatibility
+
+    def apply_effect(self) -> None:
+        """Apply velocity to all sprites."""
+        dx, dy = self.current_velocity
+
+        def set_velocity(sprite):
+            sprite.change_x = dx
+            sprite.change_y = dy
+
+        self.for_each_sprite(set_velocity)
+
+    def set_current_velocity(self, velocity: tuple[float, float]) -> None:
+        """Allow external code to modify current velocity (for easing wrapper compatibility).
+
+        This enables easing wrappers to gradually modify the velocity over time,
+        such as for startup acceleration from zero to target velocity.
+
+        Args:
+            velocity: New (dx, dy) velocity tuple to apply
+        """
+        self.current_velocity = velocity
+        if not self.done:
+            self.apply_effect()  # Immediately apply new velocity to sprites
+
+    def remove_effect(self) -> None:
+        """Stop movement by clearing velocity on all sprites."""
+
+        def clear_velocity(sprite):
+            sprite.change_x = 0
+            sprite.change_y = 0
+
+        self.for_each_sprite(clear_velocity)
+
+    def clone(self) -> "MoveUntil":
+        """Create a copy of this MoveUntil action."""
+        return MoveUntil(self.velocity, self.condition_func, self.on_condition_met, self.check_interval)
+
+
+class MoveWhile(MoveUntil):
+    """Move sprites while a condition remains True."""
+
+    def __init__(
+        self,
+        velocity: tuple[float, float],
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        # Invert the condition by wrapping it
+        def inverted_condition():
+            result = condition_func()
+            return None if result else True
+
+        super().__init__(velocity, inverted_condition, on_condition_met, check_interval)
+
+
+class FollowPathUntil(Action):
+    """Follow a Bezier curve path at constant velocity until a condition is satisfied.
+
+    Unlike duration-based Bezier actions, this maintains constant speed along the curve
+    and can be interrupted by any condition (collision, position, time, etc.).
+
+    Args:
+        control_points: List of (x, y) points defining the Bezier curve
+        velocity: Speed in pixels per second along the curve
+        condition_func: Function that returns truthy value when path following should stop
+        on_condition_met: Optional callback called when condition is satisfied
+        check_interval: How often to check condition (in seconds)
+    """
+
+    def __init__(
+        self,
+        control_points: list[tuple[float, float]],
+        velocity: float,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        super().__init__(condition_func, on_condition_met, check_interval)
+        if len(control_points) < 2:
+            raise ValueError("Must specify at least 2 control points")
+
+        self.control_points = control_points
+        self.velocity = velocity
+
+        # Path traversal state
+        self._curve_progress = 0.0  # 0.0 to 1.0 along the curve
+        self._curve_length = 0.0
+        self._last_position = None
+
+    def _bezier_point(self, t: float) -> tuple[float, float]:
+        """Calculate point on Bezier curve at parameter t (0-1)."""
+        n = len(self.control_points) - 1
+        x = y = 0
+        for i, point in enumerate(self.control_points):
+            # Binomial coefficient * (1-t)^(n-i) * t^i
+            coef = math.comb(n, i) * (1 - t) ** (n - i) * t**i
+            x += point[0] * coef
+            y += point[1] * coef
+        return (x, y)
+
+    def _calculate_curve_length(self, samples: int = 100) -> float:
+        """Approximate curve length by sampling points."""
+        length = 0.0
+        prev_point = self._bezier_point(0.0)
+
+        for i in range(1, samples + 1):
+            t = i / samples
+            current_point = self._bezier_point(t)
+            dx = current_point[0] - prev_point[0]
+            dy = current_point[1] - prev_point[1]
+            length += math.sqrt(dx * dx + dy * dy)
+            prev_point = current_point
+
+        return length
+
+    def apply_effect(self) -> None:
+        """Initialize path following."""
+        # Calculate curve length for constant velocity
+        self._curve_length = self._calculate_curve_length()
+        self._curve_progress = 0.0
+
+        # Set initial position
+        start_point = self._bezier_point(0.0)
+        self._last_position = start_point
+
+    def update_effect(self, delta_time: float) -> None:
+        """Update path following with constant velocity."""
+        if self._curve_length <= 0:
+            return
+
+        # Calculate how far to move along curve based on velocity
+        distance_per_frame = self.velocity * delta_time
+        progress_delta = distance_per_frame / self._curve_length
+        self._curve_progress = min(1.0, self._curve_progress + progress_delta)
+
+        # Calculate new position on curve
+        current_point = self._bezier_point(self._curve_progress)
+
+        # Apply relative movement to sprite(s)
+        if self._last_position:
+            dx = current_point[0] - self._last_position[0]
+            dy = current_point[1] - self._last_position[1]
+
+            def apply_movement(sprite):
+                sprite.center_x += dx
+                sprite.center_y += dy
+
+            self.for_each_sprite(apply_movement)
+
+        self._last_position = current_point
+
+        # Check if we've reached the end of the path
+        if self._curve_progress >= 1.0:
+            # Path completed - trigger condition
+            self._condition_met = True
+            self.done = True
+
+    def clone(self) -> "FollowPathUntil":
+        """Create a copy of this FollowPathUntil action."""
+        return FollowPathUntil(
+            self.control_points.copy(), self.velocity, self.condition_func, self.on_condition_met, self.check_interval
+        )
+
+
+class FollowPathWhile(FollowPathUntil):
+    """Follow a Bezier curve path while a condition remains True."""
+
+    def __init__(
+        self,
+        control_points: list[tuple[float, float]],
+        velocity: float,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        def inverted_condition():
+            result = condition_func()
+            return None if result else True
+
+        super().__init__(control_points, velocity, inverted_condition, on_condition_met, check_interval)
+
+
+class RotateUntil(Action):
+    """Rotate sprites until a condition is satisfied.
+
+    Args:
+        angular_velocity: Degrees per second to rotate
+        condition_func: Function that returns truthy value when rotation should stop
+        on_condition_met: Optional callback called when condition is satisfied
+        check_interval: How often to check condition (in seconds)
+    """
+
+    def __init__(
+        self,
+        angular_velocity: float,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        super().__init__(condition_func, on_condition_met, check_interval)
+        self.angular_velocity = angular_velocity
+
+    def apply_effect(self) -> None:
+        """Apply angular velocity to all sprites."""
+
+        def set_angular_velocity(sprite):
+            sprite.change_angle = self.angular_velocity
+
+        self.for_each_sprite(set_angular_velocity)
+
+    def remove_effect(self) -> None:
+        """Stop rotation by clearing angular velocity on all sprites."""
+
+        def clear_angular_velocity(sprite):
+            sprite.change_angle = 0
+
+        self.for_each_sprite(clear_angular_velocity)
+
+    def clone(self) -> "RotateUntil":
+        """Create a copy of this RotateUntil action."""
+        return RotateUntil(self.angular_velocity, self.condition_func, self.on_condition_met, self.check_interval)
+
+
+class RotateWhile(RotateUntil):
+    """Rotate sprites while a condition remains True."""
+
+    def __init__(
+        self,
+        angular_velocity: float,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        def inverted_condition():
+            result = condition_func()
+            return None if result else True
+
+        super().__init__(angular_velocity, inverted_condition, on_condition_met, check_interval)
+
+
+class ScaleUntil(Action):
+    """Scale sprites until a condition is satisfied.
+
+    Args:
+        scale_velocity: Scale change per second (float for uniform, tuple for x/y)
+        condition_func: Function that returns truthy value when scaling should stop
+        on_condition_met: Optional callback called when condition is satisfied
+        check_interval: How often to check condition (in seconds)
+    """
+
+    def __init__(
+        self,
+        scale_velocity: tuple[float, float] | float,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        super().__init__(condition_func, on_condition_met, check_interval)
+        # Normalize to tuple
+        if isinstance(scale_velocity, (int, float)):
+            self.scale_velocity = (scale_velocity, scale_velocity)
+        else:
+            self.scale_velocity = scale_velocity
+        self._original_scales = {}
+
+    def apply_effect(self) -> None:
+        """Start scaling - store original scales for velocity calculation."""
+
+        def store_original_scale(sprite):
+            self._original_scales[id(sprite)] = (sprite.scale, sprite.scale)
+
+        self.for_each_sprite(store_original_scale)
+
+    def update_effect(self, delta_time: float) -> None:
+        """Apply scaling based on velocity."""
+        sx, sy = self.scale_velocity
+        scale_delta_x = sx * delta_time
+        scale_delta_y = sy * delta_time
+
+        def apply_scale(sprite):
+            # Apply scale velocity (avoiding negative scales)
+            new_scale_x = max(0.01, sprite.scale + scale_delta_x)
+            new_scale_y = max(0.01, sprite.scale + scale_delta_y)
+            sprite.scale = min(new_scale_x, new_scale_y)  # Uniform scaling for simplicity
+
+        self.for_each_sprite(apply_scale)
+
+    def clone(self) -> "ScaleUntil":
+        """Create a copy of this ScaleUntil action."""
+        return ScaleUntil(self.scale_velocity, self.condition_func, self.on_condition_met, self.check_interval)
+
+
+class ScaleWhile(ScaleUntil):
+    """Scale sprites while a condition remains True."""
+
+    def __init__(
+        self,
+        scale_velocity: tuple[float, float] | float,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        def inverted_condition():
+            result = condition_func()
+            return None if result else True
+
+        super().__init__(scale_velocity, inverted_condition, on_condition_met, check_interval)
+
+
+class FadeUntil(Action):
+    """Fade sprites until a condition is satisfied.
+
+    Args:
+        fade_velocity: Alpha change per second (negative for fade out, positive for fade in)
+        condition_func: Function that returns truthy value when fading should stop
+        on_condition_met: Optional callback called when condition is satisfied
+        check_interval: How often to check condition (in seconds)
+    """
+
+    def __init__(
+        self,
+        fade_velocity: float,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        super().__init__(condition_func, on_condition_met, check_interval)
+        self.fade_velocity = fade_velocity
+
+    def update_effect(self, delta_time: float) -> None:
+        """Apply fading based on velocity."""
+        alpha_delta = self.fade_velocity * delta_time
+
+        def apply_fade(sprite):
+            new_alpha = sprite.alpha + alpha_delta
+            sprite.alpha = max(0, min(255, new_alpha))  # Clamp to valid range
+
+        self.for_each_sprite(apply_fade)
+
+    def clone(self) -> "FadeUntil":
+        """Create a copy of this FadeUntil action."""
+        return FadeUntil(self.fade_velocity, self.condition_func, self.on_condition_met, self.check_interval)
+
+
+class FadeWhile(FadeUntil):
+    """Fade sprites while a condition remains True."""
+
+    def __init__(
+        self,
+        fade_velocity: float,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        def inverted_condition():
+            result = condition_func()
+            return None if result else True
+
+        super().__init__(fade_velocity, inverted_condition, on_condition_met, check_interval)
+
+
+class BlinkUntil(Action):
+    """Blink sprites (toggle visibility) until a condition is satisfied.
+
+    Args:
+        blink_rate: Blinks per second
+        condition_func: Function that returns truthy value when blinking should stop
+        on_condition_met: Optional callback called when condition is satisfied
+        check_interval: How often to check condition (in seconds)
+    """
+
+    def __init__(
+        self,
+        blink_rate: float,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        super().__init__(condition_func, on_condition_met, check_interval)
+        self.blink_rate = blink_rate
+        self._blink_time = 0.0
+        self._original_visibility = {}
+
+    def apply_effect(self) -> None:
+        """Store original visibility for all sprites."""
+
+        def store_visibility(sprite):
+            self._original_visibility[id(sprite)] = sprite.visible
+
+        self.for_each_sprite(store_visibility)
+
+    def update_effect(self, delta_time: float) -> None:
+        """Apply blinking effect."""
+        self._blink_time += delta_time
+        blink_interval = 1.0 / (self.blink_rate * 2)  # Divide by 2 for on/off cycle
+        current_blink_cycle = int(self._blink_time / blink_interval) % 2
+
+        def apply_blink(sprite):
+            original_visible = self._original_visibility.get(id(sprite), True)
+            sprite.visible = original_visible if current_blink_cycle == 0 else not original_visible
+
+        self.for_each_sprite(apply_blink)
+
+    def remove_effect(self) -> None:
+        """Restore original visibility for all sprites."""
+
+        def restore_visibility(sprite):
+            original_visible = self._original_visibility.get(id(sprite), True)
+            sprite.visible = original_visible
+
+        self.for_each_sprite(restore_visibility)
+
+    def clone(self) -> "BlinkUntil":
+        """Create a copy of this BlinkUntil action."""
+        return BlinkUntil(self.blink_rate, self.condition_func, self.on_condition_met, self.check_interval)
+
+
+class BlinkWhile(BlinkUntil):
+    """Blink sprites while a condition remains True."""
+
+    def __init__(
+        self,
+        blink_rate: float,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        def inverted_condition():
+            result = condition_func()
+            return None if result else True
+
+        super().__init__(blink_rate, inverted_condition, on_condition_met, check_interval)
+
+
+class DelayUntil(Action):
+    """Wait/delay until a condition is satisfied.
+
+    This action does nothing but wait for the condition to be met.
+    Useful in sequences to create conditional pauses.
+
+    Args:
+        condition_func: Function that returns truthy value when delay should end
+        on_condition_met: Optional callback called when condition is satisfied
+        check_interval: How often to check condition (in seconds)
+    """
+
+    def __init__(
+        self,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+    ):
+        super().__init__(condition_func, on_condition_met, check_interval)
+
+    def clone(self) -> "DelayUntil":
+        """Create a copy of this DelayUntil action."""
+        return DelayUntil(self.condition_func, self.on_condition_met, self.check_interval)
+
+
+# Composite Actions
+
+
+class Sequence(Action):
+    """Execute actions in sequence, moving to next when each condition is met."""
+
+    def __init__(self, *actions: Action, on_complete: Callable[[], None] | None = None):
+        super().__init__()
+        self.actions = list(actions)
+        self.current_index = 0
+        self.on_complete = on_complete
+
+    def start(self) -> None:
+        """Start the sequence with the first action."""
+        super().start()
+        if self.actions:
+            self._start_current_action()
+
+    def _start_current_action(self):
+        """Start the current action in the sequence."""
+        if self.current_index < len(self.actions):
+            current_action = self.actions[self.current_index]
+            current_action.target = self.target
+            current_action.start()
+
+    def update_effect(self, delta_time: float) -> None:
+        """Update the current action and advance when done."""
+        if self.current_index >= len(self.actions):
+            self.done = True
+            if self.on_complete:
+                self.on_complete()
+            return
+
+        current_action = self.actions[self.current_index]
+        current_action.update(delta_time)
+
+        if current_action.done:
+            self.current_index += 1
+            if self.current_index >= len(self.actions):
+                self.done = True
+                if self.on_complete:
+                    self.on_complete()
+            else:
+                self._start_current_action()
+
+    def clone(self) -> "Sequence":
+        """Create a copy of this Sequence action."""
+        return Sequence(*[action.clone() for action in self.actions], on_complete=self.on_complete)
+
+
+class Spawn(Action):
+    """Execute multiple actions simultaneously until all are complete."""
+
+    def __init__(self, *actions: Action, on_complete: Callable[[], None] | None = None):
+        super().__init__()
+        self.actions = list(actions)
+        self.on_complete = on_complete
+
+    def start(self) -> None:
+        """Start all actions simultaneously."""
+        super().start()
+        for action in self.actions:
+            action.target = self.target
+            action.start()
+
+    def update_effect(self, delta_time: float) -> None:
+        """Update all actions and check for completion."""
+        for action in self.actions:
+            if not action.done:
+                action.update(delta_time)
+
+        # Check if all actions are done
+        if all(action.done for action in self.actions):
+            self.done = True
+            if self.on_complete:
+                self.on_complete()
+
+    def clone(self) -> "Spawn":
+        """Create a copy of this Spawn action."""
+        return Spawn(*[action.clone() for action in self.actions], on_complete=self.on_complete)
+
+
+# Convenience functions
+def sequence(*actions: Action) -> Sequence:
+    """Create a sequence of actions."""
+    return Sequence(*actions)
+
+
+def spawn(*actions: Action) -> Spawn:
+    """Create a spawn of actions."""
+    return Spawn(*actions)
+
+
+# Common condition functions
+def duration_condition(duration: float):
+    """Create a condition function that returns True after a specified duration.
+
+    Usage:
+        # Move for 2 seconds
+        MoveUntil((100, 0), duration_condition(2.0))
+
+        # Blink for 3 seconds
+        BlinkUntil(2.0, duration_condition(3.0))
+
+        # Delay for 1 second
+        DelayUntil(duration_condition(1.0))
+
+        # Follow path for 5 seconds
+        FollowPathUntil(points, 150, duration_condition(5.0))
+    """
+    start_time = None
+
+    def condition():
+        nonlocal start_time
+        import time
+
+        if start_time is None:
+            start_time = time.time()
+        return time.time() - start_time >= duration
+
+    return condition

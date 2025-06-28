@@ -1,84 +1,86 @@
 """
-Slime Invaders refactored with the Actions API.
+Efficient Slime Invaders - Demonstrating enhanced MoveUntil with data passing
 
-This example shows how to:
-
-* Use the `Game` class as a base for a full game.
-* Use `SpriteGroup` to manage collections of sprites.
-* Use `BoundedMove` with a callback to create classic invader movement.
-* Demonstrate compatibility between `ActionSprite`s and `arcade.Sprite`s.
-* Support both direct game implementation and view-based architecture.
+This version shows how to avoid duplicate collision detection calls by using
+the enhanced MoveUntil that can pass collision data from condition to callback.
 """
 
 import random
 
 import arcade
 
-from actions.base import ActionSprite
-from actions.game import Game
-from actions.group import SpriteGroup
-from actions.interval import MoveBy
-from actions.move import BoundedMove
+from actions.base import Action
+from actions.conditional import MoveUntil
 
 SPRITE_SCALING_PLAYER = 0.75
-SPRITE_SCALING_enemy = 0.75
+SPRITE_SCALING_ENEMY = 0.75
 SPRITE_SCALING_LASER = 1.0
 
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
-WINDOW_TITLE = "Slime Invaders (Actions)"
+WINDOW_TITLE = "Efficient Slime Invaders - Enhanced MoveUntil"
 
-# Convert time-based velocities (pixels/second) to frame-based velocities (pixels/frame)
-BULLET_SPEED = 250
-ENEMY_SPEED = 200
-
+BULLET_SPEED = 5
+ENEMY_SPEED = 2
 MAX_PLAYER_BULLETS = 3
 
+# Enemy movement margins
 ENEMY_VERTICAL_MARGIN = 15
 RIGHT_ENEMY_BORDER = WINDOW_WIDTH - ENEMY_VERTICAL_MARGIN
 LEFT_ENEMY_BORDER = ENEMY_VERTICAL_MARGIN
-
 ENEMY_MOVE_DOWN_AMOUNT = 30
 
+# Game state
 GAME_OVER = 1
 PLAY_GAME = 0
 
 
-class InvadersView(arcade.View):
-    """View class for the main game screen."""
+class GameView(arcade.View):
+    """Demonstrates efficient collision handling with enhanced MoveUntil."""
 
-    def __init__(self, game: "InvadersGame"):
+    def __init__(self):
         super().__init__()
-        self.game = game
 
-        # Game state
+        # Sprite lists
+        self.player_list = arcade.SpriteList()
+        self.enemy_list = arcade.SpriteList()
+        self.player_bullet_list = arcade.SpriteList()
+        self.enemy_bullet_list = arcade.SpriteList()
+        self.shield_list = arcade.SpriteList()
+
         self.game_state = PLAY_GAME
 
-        # Sprite management
-        self.player_list = arcade.SpriteList()  # Regular arcade.SpriteList for player
-        self.enemies = SpriteGroup()  # ActionSprite group for enemies
-        self.shields = arcade.SpriteList()
-        self.player_bullets = SpriteGroup()  # ActionSprite group for player bullets
-        self.enemy_bullets = SpriteGroup()  # ActionSprite group for enemy bullets
-
-        # Enemy movement state
-        self.enemy_move_direction = 1  # 1 for right, -1 for left
-        self.enemy_move_speed = ENEMY_SPEED
-        self.boundary_action = None  # Will hold the BoundedMove action
-
-        # Load sounds and textures
-        self.gun_sound = arcade.load_sound(":resources:sounds/hurt5.wav")
-        self.hit_sound = arcade.load_sound(":resources:sounds/hit5.wav")
-        self.texture_enemy_left = arcade.load_texture(
-            ":resources:images/enemies/slimeBlue.png",
+        # Set up player
+        self.player_sprite = arcade.Sprite(
+            ":resources:images/animated_characters/female_person/femalePerson_idle.png",
+            scale=SPRITE_SCALING_PLAYER,
         )
-        self.texture_enemy_right = self.texture_enemy_left.flip_left_right()
-        self.texture_blue_laser = arcade.load_texture(
-            ":resources:images/space_shooter/laserBlue01.png",
-        ).rotate_270()
+        self.player_list.append(self.player_sprite)
 
-        # UI
-        self.score_text = arcade.Text("Score: 0", 10, 20, arcade.color.WHITE, 14)
+        self.score = 0
+        self.enemy_move_action = None
+        self.enemy_direction = -1
+
+        # Load textures
+        self.texture_enemy_left = arcade.load_texture(":resources:images/enemies/slimeBlue.png")
+        self.texture_enemy_right = self.texture_enemy_left.flip_left_right()
+        self.texture_blue_laser = arcade.load_texture(":resources:images/space_shooter/laserBlue01.png").rotate_270()
+
+        # Sounds
+        self.hit_sound = arcade.load_sound(":resources:sounds/hit5.wav")
+
+        self.background_color = arcade.color.AMAZON
+        self.window.set_mouse_visible(False)
+
+        # Create text objects for better performance
+        self.score_text = arcade.Text(
+            "Score: 0",
+            x=10,
+            y=20,
+            color=arcade.color.WHITE,
+            font_size=14,
+        )
+
         self.game_over_text = arcade.Text(
             "GAME OVER",
             x=WINDOW_WIDTH / 2,
@@ -88,135 +90,96 @@ class InvadersView(arcade.View):
             anchor_x="center",
         )
 
-        self.setup()
-
-    def setup(self):
-        """Reset the game so it can be played again."""
-        self.game_state = PLAY_GAME
-        self.game.score = 0
-
-        # Clear sprite groups
-        self.enemies.clear()
-        self.shields.clear()
-        self.player_bullets.clear()
-        self.enemy_bullets.clear()
-        self.player_list.clear()
-
-        # Set up player (regular arcade.Sprite)
-        self.player_sprite = arcade.Sprite(
-            ":resources:images/animated_characters/female_person/femalePerson_idle.png",
-            scale=SPRITE_SCALING_PLAYER,
-            center_x=WINDOW_WIDTH // 2,
-            center_y=70,
+        self.restart_text = arcade.Text(
+            "Press R to Restart",
+            x=WINDOW_WIDTH / 2,
+            y=WINDOW_HEIGHT / 2 - 60,
+            color=arcade.color.WHITE,
+            font_size=20,
+            anchor_x="center",
         )
-        self.player_list.append(self.player_sprite)
 
-        # Make shields
-        step = WINDOW_WIDTH // 4 - 50
+    def reset(self):
+        """Reset game state"""
+        self.game_state = PLAY_GAME
+
+        # Clear everything
+        Action.clear_all()
+        for sprite_list in [self.enemy_list, self.player_bullet_list, self.enemy_bullet_list, self.shield_list]:
+            sprite_list.clear()
+
+        # Reset state
+        self.enemy_direction = -1
+        self.score = 0
+        self.score_text.text = "Score: 0"
+
+        # Position player
+        self.player_sprite.center_x = 50
+        self.player_sprite.center_y = 70
+
+        # Create shields
+        step = self.width // 4 - 50
         for x in [step, step * 2, step * 3]:
             self.make_shield(x)
 
         self.setup_level_one()
-        self.window.set_mouse_visible(False)
-
-        # Setup collision handlers
-        self._setup_collision_handlers()
 
     def setup_level_one(self):
-        # Create rows and columns of enemies
-        x_count = 7
-        x_start = 380
-        x_spacing = 80
-        y_count = 5
-        y_start = 470
-        y_spacing = 60
-
-        # Reset enemy movement state
-        self.enemy_move_direction = 1  # 1 for right, -1 for left
-        self.enemy_move_speed = ENEMY_SPEED
+        """Create enemy formation"""
+        x_count, x_start, x_spacing = 7, 380, 80
+        y_count, y_start, y_spacing = 5, 470, 60
 
         for x in range(x_start, x_spacing * x_count + x_start, x_spacing):
             for y in range(y_start, y_spacing * y_count + y_start, y_spacing):
-                enemy = ActionSprite(self.texture_enemy_right, scale=SPRITE_SCALING_enemy, center_x=x, center_y=y)
-                self.enemies.append(enemy)
+                enemy = arcade.Sprite(self.texture_enemy_right, scale=SPRITE_SCALING_ENEMY, center_x=x, center_y=y)
+                self.enemy_list.append(enemy)
 
-        # Set up the enemy movement system with BoundedMove
-        self._setup_enemy_bounded_movement()
+        self.start_enemy_movement()
 
-    def _setup_enemy_bounded_movement(self):
-        """Set up BoundedMove action for the entire enemy group, using callback for Space Invaders behavior."""
-        if not self.enemies:
+    def start_enemy_movement(self):
+        """Start efficient enemy movement"""
+        if len(self.enemy_list) == 0:
             return
 
-        # Create the bounds function that returns the movement boundaries
-        def get_enemy_bounds():
-            return (LEFT_ENEMY_BORDER, 0, RIGHT_ENEMY_BORDER, WINDOW_HEIGHT)
+        def enemies_hit_boundary():
+            if self.enemy_direction > 0:
+                rightmost_enemy = max(self.enemy_list, key=lambda e: e.right)
+                return rightmost_enemy.right >= RIGHT_ENEMY_BORDER
+            else:
+                leftmost_enemy = min(self.enemy_list, key=lambda e: e.left)
+                return leftmost_enemy.left <= LEFT_ENEMY_BORDER
 
-        # Create the bounce callback that handles boundary hits
-        def on_enemy_bounce(sprite, axis):
-            """Handle when edge enemies hit boundaries - coordinate entire grid behavior."""
-            if axis != "x" or not self.enemies:  # Only handle horizontal bounces
-                return
+        def on_boundary_hit():
+            self.reverse_enemy_direction()
 
-            # BoundedMove now automatically handles edge detection, so any callback means an edge sprite bounced
-            # Clear all current actions first to prevent accumulation
-            self.enemies.clear_actions()
+        velocity = (ENEMY_SPEED * self.enemy_direction, 0)
+        self.enemy_move_action = MoveUntil(velocity, enemies_hit_boundary, on_boundary_hit)
+        self.enemy_move_action.apply(self.enemy_list)
 
-            # Move ALL enemies down using GroupAction (Space Invaders grid behavior)
-            move_down_action = MoveBy((0, -ENEMY_MOVE_DOWN_AMOUNT), 0.1)  # Quick downward movement
+    def reverse_enemy_direction(self):
+        """Reverse enemy direction efficiently"""
+        if self.enemy_move_action:
+            self.enemy_move_action.stop()
 
-            # Reverse direction and update textures for ALL enemies
-            self.enemy_move_direction *= -1
-            for enemy in self.enemies:
-                enemy.texture = self.texture_enemy_left if self.enemy_move_direction > 0 else self.texture_enemy_right
+        # Move down and reverse
+        for enemy in self.enemy_list:
+            enemy.center_y -= ENEMY_MOVE_DOWN_AMOUNT
 
-            # Chain the actions: move down THEN start horizontal movement
-            # Use a sequence to ensure move down completes before horizontal movement starts
-            from actions.composite import Sequence
+        self.enemy_direction *= -1
 
-            # Calculate horizontal movement parameters
-            move_distance = abs(RIGHT_ENEMY_BORDER - LEFT_ENEMY_BORDER)
-            move_duration = move_distance / self.enemy_move_speed
-            dx = move_distance * self.enemy_move_direction
-            horizontal_move_action = MoveBy((dx, 0), move_duration)
+        # Update textures efficiently
+        new_texture = self.texture_enemy_left if self.enemy_direction > 0 else self.texture_enemy_right
+        for enemy in self.enemy_list:
+            enemy.texture = new_texture
 
-            # Create sequence: move down, then move horizontally
-            sequence_action = Sequence(move_down_action, horizontal_move_action)
-            self.enemies.do(sequence_action)
-
-        # Create BoundedMove action for the entire enemy group
-        self.boundary_action = BoundedMove(
-            get_enemy_bounds, bounce_horizontal=True, bounce_vertical=False, on_bounce=on_enemy_bounce
-        )
-
-        # Apply boundary action to the entire enemy group
-        self.boundary_action.target = self.enemies
-        self.boundary_action.start()
-
-        # Set up initial movement for ALL sprites
-        self._start_enemy_grid_movement()
-
-    def _start_enemy_grid_movement(self):
-        """Start continuous movement for ALL enemies."""
-        if not self.enemies:
-            return
-
-        # Calculate movement parameters
-        move_distance = abs(RIGHT_ENEMY_BORDER - LEFT_ENEMY_BORDER)
-        move_duration = move_distance / self.enemy_move_speed
-
-        # Apply movement action to ALL enemies using GroupAction
-        dx = move_distance * self.enemy_move_direction
-        move_action = MoveBy((dx, 0), move_duration)
-        self.enemies.do(move_action)
+        self.start_enemy_movement()
 
     def make_shield(self, x_start):
-        """Make a shield from a grid of solid color sprites."""
-        shield_block_width = 10
-        shield_block_height = 20
-        shield_width_count = 20
-        shield_height_count = 5
+        """Create shield blocks"""
+        shield_block_width, shield_block_height = 10, 20
+        shield_width_count, shield_height_count = 20, 5
         y_start = 150
+
         for x in range(x_start, x_start + shield_width_count * shield_block_width, shield_block_width):
             for y in range(y_start, y_start + shield_height_count * shield_block_height, shield_block_height):
                 shield_sprite = arcade.SpriteSolidColor(
@@ -224,144 +187,151 @@ class InvadersView(arcade.View):
                 )
                 shield_sprite.center_x = x
                 shield_sprite.center_y = y
-                self.shields.append(shield_sprite)
+                self.shield_list.append(shield_sprite)
 
-    def _setup_collision_handlers(self):
-        """Configure collision detection for all sprite groups."""
-        # Player bullets collision handlers
-        self.player_bullets.on_collision_with(self.shields, self._handle_bullet_shield_collision).on_collision_with(
-            self.enemies, self._handle_bullet_enemy_collision
-        )
+    def on_mouse_press(self, x, y, button, modifiers):
+        """Fire player bullet with efficient collision detection"""
+        if self.game_state == GAME_OVER or len(self.player_bullet_list) >= MAX_PLAYER_BULLETS:
+            return
 
-        # Enemy bullets collision handlers
-        self.enemy_bullets.on_collision_with(self.shields, self._handle_bullet_shield_collision).on_collision_with(
-            [self.player_sprite], self._handle_enemy_bullet_player_collision
-        )
+        # Create bullet
+        bullet = arcade.Sprite(self.texture_blue_laser, scale=SPRITE_SCALING_LASER)
+        bullet.center_x = self.player_sprite.center_x
+        bullet.bottom = self.player_sprite.top
+        self.player_bullet_list.append(bullet)
 
-    def _handle_bullet_shield_collision(self, bullet, shields):
-        """Handle collision between any bullet and shields."""
-        bullet.remove_from_sprite_lists()
-        for shield in shields:
-            shield.remove_from_sprite_lists()
+        # EFFICIENT: Single collision check that returns data
+        def bullet_collision_check():
+            enemy_hits = arcade.check_for_collision_with_list(bullet, self.enemy_list)
+            shield_hits = arcade.check_for_collision_with_list(bullet, self.shield_list)
+            off_screen = bullet.bottom > WINDOW_HEIGHT
 
-    def _handle_bullet_enemy_collision(self, bullet, enemies):
-        """Handle collision between player bullet and enemies."""
-        bullet.remove_from_sprite_lists()
-        for enemy in enemies:
-            enemy.remove_from_sprite_lists()
-            self.game.score += 1
-            arcade.play_sound(self.hit_sound)
+            if enemy_hits or shield_hits or off_screen:
+                return {"enemy_hits": enemy_hits, "shield_hits": shield_hits, "off_screen": off_screen}
+            return None  # Continue moving
 
-    def _handle_enemy_bullet_player_collision(self, bullet, targets):
-        """Handle collision between enemy bullet and player."""
-        self.game_state = GAME_OVER
-        bullet.remove_from_sprite_lists()
+        def handle_bullet_collision(collision_data):
+            bullet.remove_from_sprite_lists()
+
+            # Handle enemy hits
+            for enemy in collision_data["enemy_hits"]:
+                enemy.remove_from_sprite_lists()
+                self.score += 1
+                self.score_text.text = f"Score: {self.score}"
+                arcade.play_sound(self.hit_sound)
+
+            # Handle shield hits
+            for shield in collision_data["shield_hits"]:
+                shield.remove_from_sprite_lists()
+
+            # Check if level complete
+            if len(self.enemy_list) == 0:
+                self.reset()
+
+        bullet_action = MoveUntil((0, BULLET_SPEED), bullet_collision_check, handle_bullet_collision)
+        bullet_action.apply(bullet)
+
+    def allow_enemies_to_fire(self):
+        """Enemy firing with efficient collision detection"""
+        x_spawn = []
+        for enemy in self.enemy_list:
+            chance = 4 + len(self.enemy_list) * 4
+
+            if random.randrange(chance) == 0 and enemy.center_x not in x_spawn:
+                bullet = arcade.Sprite(
+                    ":resources:images/space_shooter/laserRed01.png",
+                    scale=SPRITE_SCALING_LASER,
+                )
+                bullet.angle = 180
+                bullet.center_x = enemy.center_x
+                bullet.top = enemy.bottom
+                self.enemy_bullet_list.append(bullet)
+
+                # EFFICIENT: Single collision check for enemy bullets
+                def enemy_bullet_collision_check(bullet_ref=bullet):
+                    player_hits = arcade.check_for_collision_with_list(bullet_ref, self.player_list)
+                    shield_hits = arcade.check_for_collision_with_list(bullet_ref, self.shield_list)
+                    off_screen = bullet_ref.top < 0
+
+                    if player_hits or shield_hits or off_screen:
+                        return {"player_hits": player_hits, "shield_hits": shield_hits, "off_screen": off_screen}
+                    return None  # Continue moving
+
+                def handle_enemy_bullet_collision(collision_data, bullet_ref=bullet):
+                    bullet_ref.remove_from_sprite_lists()
+
+                    if collision_data["player_hits"]:
+                        self.game_state = GAME_OVER
+
+                    for shield in collision_data["shield_hits"]:
+                        shield.remove_from_sprite_lists()
+
+                bullet_action = MoveUntil(
+                    (0, -BULLET_SPEED), enemy_bullet_collision_check, handle_enemy_bullet_collision
+                )
+                bullet_action.apply(bullet)
+
+            x_spawn.append(enemy.center_x)
+
+    def on_update(self, delta_time):
+        """Game update loop"""
+        if self.game_state == GAME_OVER:
+            return
+
+        # Update all actions globally - no more manual list management!
+        Action.update_all(delta_time)
+
+        # Update all sprite lists so sprites move based on their velocity
+        self.enemy_list.update()
+        self.player_bullet_list.update()
+        self.enemy_bullet_list.update()
+
+        self.allow_enemies_to_fire()
+
+        # Check if enemies reached bottom
+        if any(enemy.bottom < 100 for enemy in self.enemy_list):
+            self.game_state = GAME_OVER
+
+        # Next level if no enemies
+        if len(self.enemy_list) == 0:
+            self.reset()
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        """Move player with mouse"""
+        if self.game_state != GAME_OVER:
+            self.player_sprite.center_x = x
+
+    def on_key_press(self, key, modifiers):
+        if key == arcade.key.ESCAPE:
+            self.window.close()
+        elif key == arcade.key.R and self.game_state == GAME_OVER:
+            self.reset()
 
     def on_draw(self):
-        """Render the screen."""
+        """Render the game"""
         self.clear()
 
-        # Draw all sprite groups
-        self.enemies.draw()
-        self.player_bullets.draw()
-        self.enemy_bullets.draw()
-        self.shields.draw(pixelated=True)
+        # Draw all sprites
+        self.enemy_list.draw()
+        self.player_bullet_list.draw()
+        self.enemy_bullet_list.draw()
+        self.shield_list.draw(pixelated=True)
         self.player_list.draw()
 
-        # Draw UI elements
-        self.score_text.text = f"Score: {self.game.score}"
+        # Draw UI
         self.score_text.draw()
 
         if self.game_state == GAME_OVER:
             self.game_over_text.draw()
-            self.window.set_mouse_visible(True)
-
-    def on_update(self, delta_time: float):
-        """Movement and game logic."""
-        if self.game_state == GAME_OVER:
-            return
-
-        # Update sprite groups
-        self.enemies.update(delta_time)
-        self.player_bullets.update(delta_time)
-        self.enemy_bullets.update(delta_time)
-        self.shields.update(delta_time)
-
-        # Update boundary action for enemy bouncing
-        if self.boundary_action:
-            self.boundary_action.update(delta_time)
-
-        self.allow_enemies_to_fire()
-
-        # Handle all collisions declaratively
-        self.player_bullets.update_collisions()
-        self.enemy_bullets.update_collisions()
-
-        # Clean up off-screen bullets
-        self._cleanup_offscreen_bullets()
-
-        if len(self.enemies) == 0:
-            self.setup_level_one()
-
-    def _cleanup_offscreen_bullets(self):
-        """Remove bullets that have left the screen."""
-        for bullet in list(self.player_bullets):
-            if bullet.bottom > WINDOW_HEIGHT:
-                bullet.remove_from_sprite_lists()
-
-        for bullet in list(self.enemy_bullets):
-            if bullet.top < 0:
-                bullet.remove_from_sprite_lists()
-
-    def on_mouse_motion(self, x, y, dx, dy):
-        """Move the player sprite with the mouse."""
-        if self.game_state == PLAY_GAME and self.player_sprite:
-            self.player_sprite.center_x = x
-
-    def on_mouse_press(self, x, y, button, modifiers):
-        """Fire a bullet when the mouse is clicked."""
-        if len(self.player_bullets) < MAX_PLAYER_BULLETS:
-            arcade.play_sound(self.gun_sound)
-            bullet = ActionSprite(self.texture_blue_laser, scale=SPRITE_SCALING_LASER)
-            bullet.center_x = self.player_sprite.center_x
-            bullet.bottom = self.player_sprite.top
-            # Use MoveBy action for continuous upward movement
-            bullet.do(MoveBy((0, WINDOW_HEIGHT), duration=WINDOW_HEIGHT / BULLET_SPEED))
-            self.player_bullets.append(bullet)
-
-    def allow_enemies_to_fire(self):
-        """Randomly select enemies to fire."""
-        x_spawn = []
-        for enemy in self.enemies.sprite_list:
-            chance = 4 + len(self.enemies) * 4
-            if random.randrange(chance) == 0 and enemy.center_x not in x_spawn:
-                bullet = ActionSprite(
-                    ":resources:images/space_shooter/laserRed01.png",
-                    scale=SPRITE_SCALING_LASER,
-                    angle=180,
-                )
-                bullet.center_x = enemy.center_x
-                bullet.top = enemy.bottom
-                # Use MoveBy action for continuous downward movement
-                bullet.do(MoveBy((0, -WINDOW_HEIGHT), duration=WINDOW_HEIGHT / BULLET_SPEED))
-                self.enemy_bullets.append(bullet)
-            x_spawn.append(enemy.center_x)
-
-
-class InvadersGame(Game):
-    """Main game window class."""
-
-    def __init__(self):
-        super().__init__(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
-        self.background_color = arcade.color.AMAZON
-        self.game_view = InvadersView(self)
-        self.show_view(self.game_view)
+            self.restart_text.draw()
 
 
 def main():
-    """Main function"""
-
-    game = InvadersGame()
+    """Run the efficient slime invaders game"""
+    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
+    game = GameView()
+    game.reset()
+    window.show_view(game)
     arcade.run()
 
 

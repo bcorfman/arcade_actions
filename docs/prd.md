@@ -4,7 +4,7 @@
 
 ## ✅ Project Overview
 
-The goal is to create a robust, modern **Actions system for the Arcade 3.x Python library**, inspired by Cocos2D's action system but reimagined to fit Arcade's physics, sprite, and delta-time-based architecture.
+The goal is to create a robust, conditional **Actions system for the Arcade 3.x Python library**, inspired by Cocos2D's action system but reimagined to fit Arcade's API.
 
 This system enables complex sprite behaviors (movement, rotation, scaling, fading, grouping, scheduling) in games like Space Invaders, Galaga, and Asteroids — all using high-level declarative actions.
 
@@ -14,16 +14,14 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 
 | Module / Feature      | Why It's Included                                                    |
 |------------------------|---------------------------------------------------------------------|
-| `base.py`             | Core `Action` class hierarchy and `ActionSprite` - the exclusive sprite class that supports actions |
-| `composite.py`       | Composite actions for combining multiple actions (Sequence, Spawn, Loop) with support for empty composites and immediate completion |
-| `game.py`            | Game state management and action scheduling integration |
-| `group.py`           | `GroupAction` and `SpriteGroup` to coordinate synchronized sprite groups with automatic management (e.g., Space Invaders formations, Galaga attack waves) |
-| `instant.py`          | Instantaneous actions (e.g., Hide, Show, Place, CallFunc) for sprite state changes |
-| `interval.py`         | Time-based actions (e.g., MoveBy, MoveTo, RotateBy, RotateTo, ScaleTo, FadeTo, JumpBy, JumpTo) and action modifiers (Easing) that use real delta-time physics and smooth interpolation |
-| `move.py`            | Complex movement actions (`Driver`, `WrappedMove`, `BoundedMove`) for arcade-style patterns |
+| `base.py`             | Core `Action` class hierarchy |
+| `composite.py`        | Composite actions for combining multiple actions (Sequence, Spawn) |
+| `conditional.py`      | Composite actions for combining multiple actions (Sequence, Spawn) |
+| `group.py`            | `GroupAction` and `SpriteGroup` to coordinate synchronized sprite groups with automatic management (e.g., Space Invaders formations, Galaga attack waves) |
+| `move.py`             | Complex movement actions (`WrappedMove`, `BoundedMove`) for arcade-style patterns |
 | Delta-Time Compliance | All actions consume `delta_time` for frame-independent accuracy |
-| Test Suite           | Pytest-based unit and integration tests to validate core and edge behavior |
-| Demo Game           | Example Space Invaders prototype showcasing actions on player, enemies, bullets |
+| Test Suite            | Pytest-based unit and integration tests to validate core and edge behavior |
+| Demo Game             | Example Space Invaders prototype showcasing actions on player, enemies, bullets |
 
 ## 🔄 Property Update System
 
@@ -57,51 +55,22 @@ This design choice simplifies the action management system and makes the behavio
 Properties managed by Arcade's standard sprite system:
 - Position (via `change_x`, `change_y`)
 - Angle (via `change_angle`)
-- Physics properties (via Pymunk integration)
 
 These properties are updated by:
 1. Arcade's sprite update system
 2. Velocity-based movement
-3. Physics integration
-
-### Clear Separation of Concerns
-- `ActionSprite` is the only class that can use Actions
-- Regular `arcade.Sprite` uses Arcade's standard velocity system
-- No mixing of the two systems on the same sprite
-- Explicit documentation that Actions only work with `ActionSprite`
-
-### Time Management
-All property updates are managed through the `GameClock` system:
-- Delta-time based updates for frame independence
-- Proper pause state handling
-- Consistent timing across all action types
-- Support for action modifiers (Easing)
 
 ---
 
 ## 🔍 In-Scope Items
 
 - High-level declarative action API over Arcade 3.x
-- Core actions: Move, Rotate, Scale, Fade, Jump, Lerp, CallFunc
-- Action modifiers: Easing for smooth interpolation of any action
-- Group actions and SpriteGroup coordination
-- Per-sprite action management (`ActionSprite`)
-- Delta-time based updates across all interval actions
-- Composite actions for complex behavior sequences with support for:
-  - Empty composites (completing immediately)
-  - Immediate completion handling
-  - Proper iteration counting for loops
-  - Frame-independent timing
+- Core actions: MoveUntil/MoveWhile, RotateUntil/RotateWhile, ScaleUntil/ScaleWhile, FadeUntil/FadeWhile, 
+- Group actions
+- Composite actions and Patterns for complex behavior sequences
 - Game state management and action lifecycle
 - Unit and integration test coverage for actions and groups
 - Example demo game with:
-    - Player movement + shooting using `ActionSprite`
-    - Enemy formations using `SpriteGroup` with automatic `GroupAction` management
-    - Space Invaders-style movement with `BoundedMove` edge detection and callbacks
-    - Collision detection using `SpriteGroup.on_collision_with()` method chaining
-    - Bullet cleanup and basic collision system
-    - Composite action sequences for complex behaviors
-    - Smooth acceleration/deceleration using action modifiers
 
 ---
 
@@ -109,12 +78,9 @@ All property updates are managed through the `GameClock` system:
 
 - Full-featured physics integration (Pymunk, collisions, impulses)
 - Advanced pathfinding or AI (A*)
-- Asset management, resource loading (images, sounds)
 - Visual editor or GUI tools for creating action sequences
 - Multiplayer or networking features
-- Detailed particle system or visual effects integration
 - Arcade's platformer physics, tilemaps, or other unrelated features
-- Actions for regular `arcade.Sprite` instances
 
 ---
 
@@ -122,12 +88,12 @@ All property updates are managed through the `GameClock` system:
 
 | Layer           | Technology                                       |
 |-----------------|--------------------------------------------------|
-| Core Language   | Python 3.10+                                     |
+| Core Language   | Python 3.13+                                     |
 | Game Engine     | Arcade 3.x                                       |
-| Actions Framework | Custom-built `ArcadeActions` library, Cocos2D-inspired |
+| Actions Framework | Custom-built `ArcadeActions` library, loosely Cocos2D-inspired |
 | Testing        | Pytest                                            |
-| Demo Game      | Arcade View + Window, using `ActionSprite` + Action groups |
-| Dependencies   | Minimal; self-contained aside from Arcade and optional Pymunk |
+| Demo Game      | Slime Invaders example from Arcade, rebuilt with Actions |
+| Dependencies   | Minimal; self-contained aside from Arcade |
 | Version Control | Git (recommended)                               |
 | Build System   | Makefile for common development tasks            |
 | Package Management | uv for dependency management                    |
@@ -138,20 +104,17 @@ All property updates are managed through the `GameClock` system:
 
 This system:
 
-✅ Makes Arcade as expressive as Cocos2D for animation and behavior  
-✅ Works at **frame-independent precision** via delta-time updates  
+✅ Makes Arcade more high-level and expressive for animation and behavior  
 ✅ Supports **group behaviors** critical for arcade shooters  
-✅ Provides **clean separation** between logic, physics, and visuals  
 ✅ Enables rapid prototyping of sophisticated gameplay without low-level math
 ✅ Offers **composite actions** for complex behavior sequences with robust edge case handling
 ✅ Integrates with Arcade's game state management
-✅ Maintains clear boundaries between Action and Arcade sprite systems
 
 ---
 
 ## 🌟 Summary
 
-We are delivering a **modern, extensible, production-ready Actions system** for Arcade that empowers indie devs to build complex 2D games faster, with cleaner and more maintainable code, and with an architecture grounded in real-time delta updates. The system includes comprehensive game state management, composite actions for complex behaviors with proper edge case handling, and a robust testing framework.
+We are delivering a **modern and extensible Actions system** for Arcade that empowers indie devs to build complex 2D games faster and with cleaner and more maintainable code, along with a robust testing framework.
 
 ## 🧪 Testing Requirements
 
@@ -165,13 +128,6 @@ We are delivering a **modern, extensible, production-ready Actions system** for 
    - Action modifiers must be tested with different types of actions
 
 2. **Property Update Testing**
-   - **ActionSprite Properties**
-     - Test direct property updates in `update()`
-     - Verify time-based interpolation
-     - Test pause state handling
-     - Test value clamping and bounds
-     - Test interpolation accuracy
-   
    - **Arcade Sprite Properties**
      - Test velocity/force calculations in `start()`
      - Verify Arcade's update system applies changes correctly
@@ -242,9 +198,9 @@ PRD.md (this file)           → Architecture & Requirements
 
 **The Solution**: Design interfaces so checking isn't needed through:
 1. **Consistent base interfaces** with default values
-2. **Clear protocols** guaranteeing expected methods/attributes  
+2. **Clear protocols** where needed, guaranteeing expected methods/attributes  
 3. **Composition patterns** eliminating optional attributes
-4. **Unified interfaces** for similar objects (Action vs GroupAction)
+4. **Unified interfaces** for similar objects 
 
 ### Exception: Genuine Decision Points
 
@@ -294,5 +250,4 @@ When refactoring existing code with excessive runtime checking:
 ### Examples in Codebase
 
 For concrete examples of these principles in action, see:
-- `actions/move.py` - BoundedMove class refactoring
-- `tests/test_bounce_fix.py` - Test cases for proper interface usage
+- `actions/move.py` - BoundedMove and WrappedMove class refactoring
