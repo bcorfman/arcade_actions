@@ -1,6 +1,5 @@
 """Test suite for base.py - Core Action system architecture."""
 
-
 import arcade
 import pytest
 from arcade.texture import Texture

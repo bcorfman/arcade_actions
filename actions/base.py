@@ -161,21 +161,6 @@ class Action:
 
         return sequence(self, other)
 
-    def __mul__(self, other: int) -> "Loop":
-        """Repeat operator - repeats the action n times.
-
-        action * n -> action_result
-        where action result performs as:
-        repeat n times the changes that action would do
-        """
-        if type(other) is not int:
-            raise TypeError("Can only multiply actions by ints")
-        if other <= 1:
-            return self
-        from .composite import loop
-
-        return loop(self, other)
-
     def __or__(self, other: "Action") -> "Spawn":
         """Spawn operator - runs two actions in parallel.
 
