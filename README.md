@@ -22,13 +22,13 @@ Actions run until conditions are met, not for fixed time periods:
 from actions.conditional import MoveUntil, RotateUntil, FadeUntil
 
 # Move until reaching a position
-move_action = MoveUntil((100, 0), lambda: sprite.center_x > 700)
+move = MoveUntil((100, 0), lambda: sprite.center_x > 700)
 
 # Rotate until reaching an angle  
-rotate_action = RotateUntil(90, lambda: sprite.angle >= 45)
+rotate = RotateUntil(90, lambda: sprite.angle >= 45)
 
 # Fade until reaching transparency
-fade_action = FadeUntil(-50, lambda: sprite.alpha <= 50)
+fade = FadeUntil(-50, lambda: sprite.alpha <= 50)
 ```
 
 ### Global Action Management
@@ -46,18 +46,20 @@ def on_update(self, delta_time):
     Action.update_all(delta_time)  # Handles all active actions
 ```
 
-### Operator-Based Composition
-Use mathematical operators to create complex behaviors:
+### Composition Helpers: `sequence()` and `parallel()`
+Build complex behaviors declaratively with helper functions:
 
 ```python
-# Sequential actions with +
-sequence = delay + move + fade
+from actions.composite import sequence, parallel
 
-# Parallel actions with |  
-parallel = move | rotate | scale
+# Sequential actions run one after another
+seq = sequence(delay, move, fade)
 
-# Nested combinations
-complex = delay + (move | fade) + final_action
+# Parallel actions run together
+par = parallel(move, rotate, scale)
+
+# Nested combinations are fully supported
+complex_action = sequence(delay, parallel(move, fade), rotate)
 ```
 
 ## 🎮 Example: Space Invaders Pattern
@@ -66,19 +68,23 @@ complex = delay + (move | fade) + final_action
 import arcade
 from actions.base import Action
 from actions.conditional import MoveUntil, DelayUntil, duration
+from actions.pattern import arrange_grid
+
 
 class SpaceInvadersGame(arcade.Window):
     def __init__(self):
         super().__init__(800, 600, "Space Invaders")
         
-        # Create enemy formation using standard arcade.SpriteList
-        enemies = arcade.SpriteList()
-        for row in range(5):
-            for col in range(10):
-                enemy = arcade.Sprite(":resources:images/enemy.png")
-                enemy.center_x = 100 + col * 60
-                enemy.center_y = 500 - row * 40
-                enemies.append(enemy)
+        # Create 5×10 grid of enemies with a single call
+        enemies = arrange_grid(
+            rows=5,
+            cols=10,
+            start_x=100,
+            start_y=500,
+            spacing_x=60,
+            spacing_y=40,
+            sprite_factory=lambda: arcade.Sprite(":resources:images/enemy.png"),
+        )
         
         # Store enemies for movement management
         self.enemies = enemies
@@ -118,7 +124,7 @@ class SpaceInvadersGame(arcade.Window):
 - **Action** - Core action class with global management
 - **CompositeAction** - Base for sequential and parallel actions
 - **Global management** - Automatic action tracking and updates
-- **Operator overloads** - `+` for sequences, `|` for parallel
+- **Composition helpers** - `sequence()` and `parallel()` functions
 
 #### Conditional Actions (actions/conditional.py)
 - **MoveUntil** - Velocity-based movement until condition met
@@ -128,8 +134,8 @@ class SpaceInvadersGame(arcade.Window):
 - **DelayUntil** - Wait for condition to be met
 
 #### Composite Actions (actions/composite.py)
-- **Sequential actions** - Run actions one after another (use `+` operator)
-- **Parallel actions** - Run actions in parallel (use `|` operator)
+- **Sequential actions** - Run actions one after another (use `sequence()`)
+- **Parallel actions** - Run actions in parallel (use `parallel()`)
 
 #### Boundary Handling (actions/conditional.py)
 - **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
@@ -143,8 +149,8 @@ class SpaceInvadersGame(arcade.Window):
 |----------|-----|---------|
 | Single sprite behavior | Direct action application | `action.apply(sprite, tag="move")` |
 | Group coordination | Action on SpriteList | `action.apply(enemies, tag="formation")` |
-| Sequential behavior | `+` operator | `delay + move + fade` |
-| Parallel behavior | `\|` operator | `move \| rotate \| scale` |
+| Sequential behavior | `sequence()` | `sequence(delay, move, fade)` |
+| Parallel behavior | `parallel()` | `parallel(move, rotate, scale)` |
 | Formation positioning | Pattern functions | `arrange_grid(enemies, rows=3, cols=5)` |
 | Boundary detection | MoveUntil with bounds | `MoveUntil(vel, cond, bounds=bounds, boundary_behavior="bounce")` |
 | Standard sprites (no actions) | arcade.Sprite + arcade.SpriteList | Regular Arcade usage |
@@ -158,13 +164,15 @@ player = arcade.Sprite("player.png")
 enemies = arcade.SpriteList([enemy1, enemy2, enemy3])
 
 # Apply actions directly
-move_action = MoveUntil((100, 0), duration(2.0))
-move_action.apply(player, tag="movement")
-move_action.apply(enemies, tag="formation")
+move = MoveUntil((100, 0), duration(2.0))
+move.apply(player, tag="movement")
+move.apply(enemies, tag="formation")
 
 # Compose with operators
-complex = delay + (move | fade) + final_action
-complex.apply(sprite, tag="complex")
+from actions.composite import sequence, parallel
+
+complex_action = sequence(delay, parallel(move, fade), rotate)
+complex_action.apply(sprite, tag="complex")
 
 # Formation positioning
 from actions.pattern import arrange_grid
@@ -220,7 +228,7 @@ def test_formation_management():
     arrange_grid(enemies, rows=2, cols=2, start_x=100, start_y=400)
     
     # Test group actions
-    pattern = delay + move + fade
+    pattern = sequence(delay, move, fade)
     pattern.apply(enemies, tag="test")
     
     # Test group state

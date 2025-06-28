@@ -11,6 +11,7 @@ import arcade
 
 from actions.base import Action
 from actions.conditional import MoveUntil
+from actions.pattern import arrange_grid
 
 SPRITE_SCALING_PLAYER = 0.75
 SPRITE_SCALING_ENEMY = 0.75
@@ -126,13 +127,17 @@ class GameView(arcade.View):
 
     def setup_level_one(self):
         """Create enemy formation"""
-        x_count, x_start, x_spacing = 7, 380, 80
-        y_count, y_start, y_spacing = 5, 470, 60
-
-        for x in range(x_start, x_spacing * x_count + x_start, x_spacing):
-            for y in range(y_start, y_spacing * y_count + y_start, y_spacing):
-                enemy = arcade.Sprite(self.texture_enemy_right, scale=SPRITE_SCALING_ENEMY, center_x=x, center_y=y)
-                self.enemy_list.append(enemy)
+        # Create enemies in a grid formation with a single call
+        rows, cols = 5, 7
+        self.enemy_list = arrange_grid(
+            rows=rows,
+            cols=cols,
+            start_x=380,
+            start_y=470,
+            spacing_x=80,
+            spacing_y=60,
+            sprite_factory=lambda: arcade.Sprite(self.texture_enemy_right, scale=SPRITE_SCALING_ENEMY),
+        )
 
         self.start_enemy_movement()
 
