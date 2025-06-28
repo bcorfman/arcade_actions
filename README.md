@@ -1,91 +1,257 @@
-# ArcadeActions
+# ArcadeActions Framework Documentation
 
-A Python library that ports the Cocos2D Actions system to Arcade 3.x, providing a powerful and intuitive way to animate sprites.
+## 🚀 Quick Start
 
-## Features
+**Getting started with ArcadeActions?** Start here: **[API Usage Guide](api_usage_guide.md)**
 
-- **Time-based animations**: Consistent behavior across different frame rates
-- **Rich action library**: Move, rotate, scale, fade, and composite actions
-- **Group actions**: Coordinate animations across multiple sprites
-- **Boundary handling**: Built-in collision detection and boundary management
-- **Easy integration**: Works seamlessly with existing Arcade projects
+ArcadeActions is a **conditional action system** for Arcade 3.x that enables declarative game behaviors through condition-based actions rather than fixed durations.
 
-<img src="res/demo.gif" style="width: 500px">
+## 📚 Documentation Overview
 
-## Installation
+### Essential Reading
+1. **[API Usage Guide](api_usage_guide.md)** - **START HERE** - Complete guide to using the framework
+2. **[Testing Guide](testing_guide.md)** - **Testing patterns and best practices**
+3. **[PRD](prd.md)** - Project requirements and architecture decisions
 
-Install from PyPI using uv (recommended):
+## 🎯 Key Concepts
 
-```bash
-uv add arcade-actions
+### Core Philosophy: Condition-Based Actions
+Actions run until conditions are met, not for fixed time periods:
+
+```python
+from actions.conditional import MoveUntil, RotateUntil, FadeUntil
+
+# Move until reaching a position
+move_action = MoveUntil((100, 0), lambda: sprite.center_x > 700)
+
+# Rotate until reaching an angle  
+rotate_action = RotateUntil(90, lambda: sprite.angle >= 45)
+
+# Fade until reaching transparency
+fade_action = FadeUntil(-50, lambda: sprite.alpha <= 50)
 ```
 
-Or using pip:
+### Global Action Management
+No manual action tracking - everything is handled globally:
 
-```bash
-pip install arcade-actions
+```python
+from actions.base import Action
+
+# Apply actions directly to any arcade.Sprite or arcade.SpriteList
+action.apply(sprite, tag="movement")
+action.apply(sprite_list, tag="formation")
+
+# Single global update in your game loop
+def on_update(self, delta_time):
+    Action.update_all(delta_time)  # Handles all active actions
 ```
 
-## Quick Start
+### Operator-Based Composition
+Use mathematical operators to create complex behaviors:
+
+```python
+# Sequential actions with +
+sequence = delay + move + fade
+
+# Parallel actions with |  
+parallel = move | rotate | scale
+
+# Nested combinations
+complex = delay + (move | fade) + final_action
+```
+
+## 🎮 Example: Space Invaders Pattern
 
 ```python
 import arcade
-from actions import MoveUntil, RotateUntil, Action, duration
+from actions.base import Action
+from actions.conditional import MoveUntil, DelayUntil, duration
 
-# Create a standard arcade sprite
-player = arcade.Sprite(":resources:images/player.png")
-player.center_x = 100
-player.center_y = 100
-
-# Create and apply actions
-move_action = MoveUntil((100, 0), duration(2.0))  # Move 100 px/sec for 2 seconds
-rotate_action = RotateUntil(180, duration(1.0))   # Rotate 180 deg/sec for 1 second
-
-# Combine actions in sequence using operator
-combo_action = move_action + rotate_action
-combo_action.apply(player, tag="combo")
-
-# In your game loop
-def on_update(self, delta_time):
-    Action.update_all(delta_time)  # Updates all active actions globally
+class SpaceInvadersGame(arcade.Window):
+    def __init__(self):
+        super().__init__(800, 600, "Space Invaders")
+        
+        # Create enemy formation using standard arcade.SpriteList
+        enemies = arcade.SpriteList()
+        for row in range(5):
+            for col in range(10):
+                enemy = arcade.Sprite(":resources:images/enemy.png")
+                enemy.center_x = 100 + col * 60
+                enemy.center_y = 500 - row * 40
+                enemies.append(enemy)
+        
+        # Store enemies for movement management
+        self.enemies = enemies
+        self._setup_movement_pattern()
+    
+    def _setup_movement_pattern(self):
+        # Create formation movement with boundary bouncing
+        def on_boundary_hit(sprite, axis):
+            if axis == 'x':
+                # Move entire formation down and change direction
+                drop_action = MoveUntil((0, -30), duration(0.3))
+                drop_action.apply(self.enemies, tag="drop")
+        
+        # Create continuous horizontal movement with boundary detection
+        bounds = (50, 0, 750, 600)  # left, bottom, right, top
+        move_action = MoveUntil(
+            (50, 0), 
+            lambda: False,  # Move indefinitely
+            bounds=bounds,
+            boundary_behavior="bounce",
+            on_boundary=on_boundary_hit
+        )
+        
+        # Apply to enemies with global management
+        move_action.apply(self.enemies, tag="formation_movement")
+    
+    def on_update(self, delta_time):
+        # Single line handles all action updates
+        Action.update_all(delta_time)
 ```
 
-## Documentation
+## 🔧 Core Components
 
-- [API Usage Guide](docs/api_usage_guide.md) - Comprehensive guide to using the library
-- [Game Loop Integration](docs/game_loop_updates.md) - How to integrate with your game loop
+### ✅ Implementation
 
-## Examples
+#### Base Action System (actions/base.py)
+- **Action** - Core action class with global management
+- **CompositeAction** - Base for sequential and parallel actions
+- **Global management** - Automatic action tracking and updates
+- **Operator overloads** - `+` for sequences, `|` for parallel
 
-- `examples/invaders.py` - Space Invaders-style game using the library
+#### Conditional Actions (actions/conditional.py)
+- **MoveUntil** - Velocity-based movement until condition met
+- **RotateUntil** - Angular velocity rotation
+- **ScaleUntil** - Scale velocity changes  
+- **FadeUntil** - Alpha velocity changes
+- **DelayUntil** - Wait for condition to be met
 
-## Development
+#### Composite Actions (actions/composite.py)
+- **Sequential actions** - Run actions one after another (use `+` operator)
+- **Parallel actions** - Run actions in parallel (use `|` operator)
 
-This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
+#### Boundary Handling (actions/conditional.py)
+- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
 
-```bash
-# Clone the repository
-git clone https://github.com/bcorfman/arcade_actions.git
-cd arcade_actions
+#### Game Management (actions/pattern.py)
+- **Formation functions** - Grid, line, circle, and V-formation positioning
 
-# Quick setup (automated)
-python setup_dev.py
+## 📋 Decision Matrix
 
-# Or manual setup:
-# Install development dependencies
-uv sync --dev
+| Scenario | Use | Example |
+|----------|-----|---------|
+| Single sprite behavior | Direct action application | `action.apply(sprite, tag="move")` |
+| Group coordination | Action on SpriteList | `action.apply(enemies, tag="formation")` |
+| Sequential behavior | `+` operator | `delay + move + fade` |
+| Parallel behavior | `\|` operator | `move \| rotate \| scale` |
+| Formation positioning | Pattern functions | `arrange_grid(enemies, rows=3, cols=5)` |
+| Boundary detection | MoveUntil with bounds | `MoveUntil(vel, cond, bounds=bounds, boundary_behavior="bounce")` |
+| Standard sprites (no actions) | arcade.Sprite + arcade.SpriteList | Regular Arcade usage |
 
-# Run tests
-uv run pytest
+## 🎯 API Patterns
 
-# Run Actions version of Arcade's Slime Invaders example
-uv run python examples/invaders.py
+### ✅ Correct Usage
+```python
+# Works with any arcade.Sprite or arcade.SpriteList
+player = arcade.Sprite("player.png")
+enemies = arcade.SpriteList([enemy1, enemy2, enemy3])
+
+# Apply actions directly
+move_action = MoveUntil((100, 0), duration(2.0))
+move_action.apply(player, tag="movement")
+move_action.apply(enemies, tag="formation")
+
+# Compose with operators
+complex = delay + (move | fade) + final_action
+complex.apply(sprite, tag="complex")
+
+# Formation positioning
+from actions.pattern import arrange_grid
+arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
+
+# Global update handles everything
+Action.update_all(delta_time)
 ```
 
-## License
+## 🧪 Testing Patterns
 
-MIT License - see [LICENSE](LICENSE) file for details.
+### Individual Actions
+```python
+def test_move_until_condition():
+    sprite = arcade.Sprite(":resources:images/test.png")
+    sprite.center_x = 0
+    
+    # Apply action
+    action = MoveUntil((100, 0), lambda: sprite.center_x >= 100)
+    action.apply(sprite, tag="test")
+    
+    # Test with global update
+    Action.update_all(1.0)
+    assert sprite.center_x == 100
+```
 
-## Credits
+### Group Actions
+```python
+def test_group_coordination():
+    enemies = arcade.SpriteList()
+    for i in range(3):
+        enemy = arcade.Sprite(":resources:images/enemy.png")
+        enemies.append(enemy)
+    
+    # Apply to entire group
+    action = MoveUntil((0, -50), duration(1.0))
+    action.apply(enemies, tag="formation")
+    
+    # Test coordinated movement
+    Action.update_all(1.0)
+    for enemy in enemies:
+        assert enemy.center_y == -50
+```
 
-This library was developed using [Cursor IDE](https://www.cursor.com/) and [Claude 4 Sonnet](https://claude.ai) with me acting as Project Manager. 😎
+### Formation Management
+```python
+def test_formation_management():
+    from actions.pattern import arrange_grid
+    
+    enemies = arcade.SpriteList([enemy1, enemy2, enemy3])
+    
+    # Test formation positioning
+    arrange_grid(enemies, rows=2, cols=2, start_x=100, start_y=400)
+    
+    # Test group actions
+    pattern = delay + move + fade
+    pattern.apply(enemies, tag="test")
+    
+    # Test group state
+    assert len(enemies) == 3
+```
+
+## 📖 Documentation Structure
+
+```
+docs/
+├── README.md                 # This file - overview and quick start
+├── api_usage_guide.md       # Complete API usage patterns (START HERE)
+├── testing_guide.md         # Testing patterns and fixtures
+└── prd.md                   # Requirements and architecture
+```
+
+## 🚀 Getting Started
+
+1. **Read the [API Usage Guide](api_usage_guide.md)** to understand the framework
+2. **Study the Space Invaders example** above for a complete pattern
+3. **Start with simple conditional actions** and build up to complex compositions
+4. **Use formation functions** for organizing sprite positions and layouts
+
+The ArcadeActions framework transforms Arcade game development with declarative, condition-based behaviors! 
+
+# Individual sprite control
+sprite = arcade.Sprite("image.png")
+action = MoveUntil((100, 0), lambda: sprite.center_x > 700)
+action.apply(sprite, tag="movement")
+
+# Group management  
+enemies = arcade.SpriteList()  # Use standard arcade.SpriteList
+action = MoveUntil((50, 0), duration(2.0))
+action.apply(enemies, tag="formation") 
