@@ -49,41 +49,36 @@ sprite.do(complex_action)
 **Key features:** Automatic GroupAction management, collision detection, group operations.
 
 ```python
-from actions.group import SpriteGroup
-from actions.interval import MoveBy
+# Sequential actions
+sequence = Sequence(delay_action, move_action, fade_action)
 
-# Create a SpriteGroup
-enemies = SpriteGroup()
+# Parallel actions  
+parallel = Parallel(move_action, rotate_action, fade_action)
 
-# Add sprites to the group
-for i in range(5):
-    enemy = ActionSprite(":resources:images/enemy.png")
-    enemy.center_x = 100 + i * 80
-    enemy.center_y = 400
-    enemies.append(enemy)
-
-# Apply action to entire group (creates GroupAction automatically)
-move_action = MoveBy((200, 0), 3.0)
-enemies.do(move_action)  # All enemies move together
-
-# Update in game loop (automatically updates GroupActions)
-enemies.update(delta_time)
+# Nested composition
+complex = Sequence(delay_action, Parallel(move_action, fade_action), final_action)
 ```
 
-### 4. GroupAction
-**When to use:** Automatically created by `SpriteGroup.do()`. You rarely create these directly.
-**Key principle:** Coordinates the same action across multiple sprites.
+## Core Components
 
-```python
-# GroupAction is created automatically
-group_action = enemies.do(move_action)
+### Action Types
 
-# GroupAction manages individual actions for each sprite
-assert len(group_action.actions) == len(enemies)
+#### Conditional Actions (actions/conditional.py)
+- **MoveUntil** - Velocity-based movement
+- **RotateUntil** - Angular velocity rotation  
+- **ScaleUntil** - Scale velocity changes
+- **FadeUntil** - Alpha velocity changes
+- **DelayUntil** - Wait for condition
 
-# Automatic cleanup when actions complete
-# No manual tracking needed!
-```
+#### Composite Actions (actions/composite.py)
+- **Sequential actions** - Run actions one after another (use `+` operator)
+- **Parallel actions** - Run actions in parallel (use `|` operator)
+
+#### Boundary Handling (actions/conditional.py)
+- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
+
+#### High-Level Management (actions/pattern.py)
+- **Formation functions** - Grid, line, circle, and V-formation positioning patterns
 
 ## Usage Patterns
 
@@ -131,198 +126,80 @@ class EnemyFormation:
         self.enemies.update(delta_time)  # Automatically updates GroupActions
 ```
 
-### Pattern 3: Boundary Interactions with Groups
-**Use case:** Space Invaders-style movement, bouncing formations.
+### Pattern 3: Formation Management
+For complex game scenarios with formation positioning:
 
 ```python
-from actions.move import BoundedMove
+from actions.pattern import arrange_grid, arrange_circle
+from actions.conditional import DelayUntil, MoveUntil, FadeUntil, RotateUntil
 
-class SpaceInvaders:
-    def __init__(self):
-        self.enemies = SpriteGroup()
-        self._setup_enemies()
-        self._setup_movement()
-    
-    def _setup_movement(self):
-        # Define movement boundaries
-        def get_bounds():
-            return (50, 0, 750, 600)  # left, bottom, right, top
-        
-        # Callback for when edge enemies hit boundaries
-        def on_bounce(sprite, axis):
-            if axis == "x":
-                # Move all enemies down using GroupAction
-                move_down = MoveBy((0, -30), 0.1)  # Quick downward movement
-                self.enemies.do(move_down)
-                
-                # Clear current actions and start new movement
-                self.enemies.clear_actions()
-                self._start_new_movement()
-        
-        # Set up boundary detection (only edge sprites trigger callbacks)
-        self.boundary_action = BoundedMove(get_bounds, on_bounce=on_bounce)
-        self.boundary_action.target = self.enemies
-        self.boundary_action.start()
-        
-        # Start initial movement
-        self._start_new_movement()
-    
-    def _start_new_movement(self):
-        # Move horizontally across screen
-        move_action = MoveBy((400, 0), 4.0)
-        self.enemies.do(move_action)
-    
-    def update(self, delta_time):
-        self.enemies.update(delta_time)
-        self.boundary_action.update(delta_time)
-```
+# Create enemy formation using standard arcade.SpriteList
+enemies = arcade.SpriteList([enemy1, enemy2, enemy3])
 
-### Pattern 4: Collision Detection with Groups
-**Use case:** Bullet vs enemy collisions, player vs powerup collisions.
+# Apply formation patterns
+arrange_grid(enemies, rows=2, cols=3, start_x=200, start_y=400, spacing_x=80, spacing_y=60)
 
-```python
-class CollisionSystem:
-    def __init__(self):
-        self.player_bullets = SpriteGroup()
-        self.enemies = SpriteGroup()
-        self.shields = SpriteGroup()
-        
-        # Set up collision handlers with method chaining
-        self.player_bullets.on_collision_with(
-            self.enemies, self._bullet_enemy_collision
-        ).on_collision_with(
-            self.shields, self._bullet_shield_collision
-        )
-    
-    def _bullet_enemy_collision(self, bullet, hit_enemies):
-        bullet.remove_from_sprite_lists()
-        for enemy in hit_enemies:
-            enemy.remove_from_sprite_lists()
-            # Add explosion effect, score, etc.
-    
-    def _bullet_shield_collision(self, bullet, hit_shields):
-        bullet.remove_from_sprite_lists()
-        for shield in hit_shields:
-            shield.remove_from_sprite_lists()
-    
-    def update(self, delta_time):
-        self.player_bullets.update(delta_time)
-        self.enemies.update(delta_time)
-        self.shields.update(delta_time)
-        
-        # Check collisions
-        self.player_bullets.update_collisions()
-```
+# Apply any actions using clean operators
+delay = DelayUntil(duration(2.0))
+move = MoveUntil((0, -50), duration(1.5))
+fade = FadeUntil(-30, lambda: formation.sprite_count <= 2)
 
-### Pattern 5: Custom Collision Detection
-**Use case:** Testing without OpenGL context, custom collision algorithms, performance optimization.
+# Compose and apply
+sequence = delay + move
+parallel = move | fade
+formation.apply(sequence, tag="initial")
+formation.schedule(3.0, parallel, tag="retreat")
 
-```python
-from actions.protocols import BoundingBoxCollisionDetector, MockCollisionDetector
+# Set up conditional breakaway behavior
+def breakaway_condition():
+    return any(sprite.center_y < 100 for sprite in enemies)
 
-class TestableCollisionSystem:
-    def __init__(self, use_mock_collisions=False):
-        if use_mock_collisions:
-            # For testing - full control over collision results
-            collision_detector = MockCollisionDetector()
-        else:
-            # For testing without OpenGL - simple bounding box collision
-            collision_detector = BoundingBoxCollisionDetector()
-        
-        # Inject collision detector into sprite groups
-        self.player_bullets = SpriteGroup(collision_detector=collision_detector)
-        self.enemies = SpriteGroup(collision_detector=collision_detector)
-        
-        if use_mock_collisions:
-            # Pre-configure collision results for testing
-            self._setup_mock_collisions(collision_detector)
-        
-        # Set up collision handlers
-        self.player_bullets.on_collision_with(self.enemies, self._bullet_enemy_collision)
-    
-    def _setup_mock_collisions(self, mock_detector):
-        """Configure mock collision results for testing."""
-        # Example: bullet at (100, 100) collides with specific enemy
-        bullet = ActionSprite(":resources:images/bullet.png", center_x=100, center_y=100)
-        enemy = ActionSprite(":resources:images/enemy.png", center_x=100, center_y=100)
-        mock_detector.set_collision_result(bullet, tuple([enemy]), [enemy])
-    
-    def _bullet_enemy_collision(self, bullet, hit_enemies):
-        bullet.remove_from_sprite_lists()
-        for enemy in hit_enemies:
-            enemy.remove_from_sprite_lists()
-    
-    def update(self, delta_time):
-        self.player_bullets.update(delta_time)
-        self.enemies.update(delta_time)
-        self.player_bullets.update_collisions()
-```
+edge_sprites = [enemies[0], enemies[2]]  # Edge sprites break away first
+formation.setup_conditional_breakaway(
+    breakaway_condition, edge_sprites, tag="breakaway_monitor"
+)
 
-## Decision Matrix
+# Register lifecycle callbacks
+def on_formation_destroyed(group):
+    print(f"Formation {group.name} was destroyed!")
 
-| Scenario | Use | Reason |
-|----------|-----|--------|
-| Single sprite needs to move | `ActionSprite.do(action)` | Simple, direct control |
-| Multiple sprites move together | `SpriteGroup.do(action)` | Automatic coordination |
-| Sprites need different actions | Individual `ActionSprite.do()` calls | Different behaviors |
-| Boundary detection for groups | `BoundedMove` + `SpriteGroup` | Edge detection + callbacks |
-| Screen wrapping for groups | `WrappedMove` + `SpriteGroup` | Edge detection + callbacks |
-| Collision detection | `SpriteGroup.on_collision_with()` | Efficient group collisions |
-| Testing without OpenGL | `BoundingBoxCollisionDetector` | No OpenGL context needed |
-| Controlled test collisions | `MockCollisionDetector` | Full control over collision results |
-| Production collision detection | `ArcadeCollisionDetector` (default) | Uses Arcade's optimized collision |
-| Complex sequences | Composite actions (`+`, `|`, `*`) | Declarative behavior |
-| Organize sprites in formations | Formation patterns (`GridPattern`, etc.) | Structured positioning |
-| Game-level group management | `AttackGroup` + patterns | Lifecycle + scheduling |
-| Inspect group action progress | `GroupAction` (from `SpriteGroup.do()`) | Consistent action interface |
+def on_sprites_break_away(new_group):
+    print(f"Sprites broke away into {new_group.name}")
+    # Apply different behavior to breakaway group
+    panic_action = MoveUntil((200, -200), duration(0.5))
+    new_group.apply(panic_action, tag="panic")
 
-## Common Mistakes to Avoid
+formation.on_destroy(on_formation_destroyed)
+formation.on_breakaway(on_sprites_break_away)
 
-### ❌ Don't: Use regular arcade.Sprite with Actions
-```python
-# WRONG - arcade.Sprite doesn't support actions
-sprite = arcade.Sprite("image.png")
-sprite.do(MoveBy((100, 0), 1.0))  # This will fail!
-```
+# Advanced operator compositions
+move_action = MoveUntil((50, 25), duration(2.0))
+rotate_action = RotateUntil(360, duration(3.0))
+scale_action = ScaleUntil(0.5, duration(1.5))
 
-### ✅ Do: Use ActionSprite for all action-based sprites
-```python
-# CORRECT - ActionSprite supports actions
-sprite = ActionSprite("image.png")
-sprite.do(MoveBy((100, 0), 1.0))  # This works!
-```
+# Complex nested compositions
+sequential = move_action + rotate_action + scale_action              # All sequential
+parallel = move_action | rotate_action | scale_action                # All parallel
+mixed = move_action + (rotate_action | scale_action)                 # Mixed composition
+complex_nested = (move_action | rotate_action) + scale_action + (move_action | rotate_action)
 
-### ❌ Don't: Manually track GroupActions
-```python
-# WRONG - Manual tracking is error-prone
-group_action = sprite_group.do(move_action)
-# ... later in game loop ...
-group_action.update(delta_time)  # Easy to forget!
-```
+# Apply different compositions with tags
+sequential.apply(enemies, tag="sequential")
+parallel.apply(enemies, tag="parallel") 
+mixed.apply(enemies, tag="mixed")
+complex_nested.apply(enemies, tag="complex")
 
-### ✅ Do: Let SpriteGroup handle GroupActions automatically
-```python
-# CORRECT - Automatic management
-sprite_group.do(move_action)
-# ... later in game loop ...
-sprite_group.update(delta_time)  # Automatically updates GroupActions
-```
+# Action management and queries
+all_active = Action.get_all_actions()
+movement_active = Action.get_tag_actions("movement")
 
-### ❌ Don't: Apply BoundedMove to individual sprites in a group
-```python
-# WRONG - Causes spacing issues
-for sprite in sprite_group:
-    bounce_action = BoundedMove(get_bounds)
-    sprite.do(move_action | bounce_action)
-```
+# Stop specific tagged actions
+Action.stop_by_tag("effects")  # Stop just effects
+Action.clear_all()             # Stop all actions
 
-### ✅ Do: Apply BoundedMove to the entire SpriteGroup
-```python
-# CORRECT - Proper edge detection and coordination
-bounce_action = BoundedMove(get_bounds, on_bounce=handle_bounce)
-bounce_action.target = sprite_group
-bounce_action.start()
-sprite_group.do(move_action)
+# Properties and state
+print(f"Formation has {len(enemies)} sprites")
+print(f"Formation is empty: {len(enemies) == 0}")
 ```
 
 ### ❌ Don't: Apply WrappedMove to individual sprites in a group
@@ -335,34 +212,45 @@ for sprite in sprite_group:
 
 ### ✅ Do: Apply WrappedMove to the entire SpriteGroup
 ```python
-# CORRECT - Only edge sprites trigger wraps, enables coordination
-wrap_action = WrappedMove(get_bounds, on_wrap=handle_wrap)
-wrap_action.target = sprite_group
-wrap_action.start()
-sprite_group.do(move_action)
-```
+from actions.conditional import MoveUntil
 
 ### ❌ Don't: Directly manipulate sprite positions in groups
 ```python
 # WRONG - Direct position manipulation bypasses the action system
 def on_bounce(sprite, axis):
-    for enemy in enemies:
-        enemy.center_y -= 30  # Direct manipulation!
+    print(f"Sprite bounced on {axis} axis")
+
+bounds = (0, 0, 800, 600)  # left, bottom, right, top
+movement = MoveUntil(
+    (100, 50), 
+    lambda: False,  # Move indefinitely
+    bounds=bounds,
+    boundary_behavior="bounce",
+    on_boundary=on_bounce
+)
+movement.apply(sprite, tag="bounce")
+
+# Group bouncing (like Space Invaders)
+def formation_bounce(sprite, axis):
+    if axis == 'x':
+        # Move entire formation down
+        down_action = MoveUntil((0, -30), duration(0.2))
+        down_action.apply(enemies, tag="drop")
+
+group_movement = MoveUntil(
+    (100, 0), 
+    lambda: False,
+    bounds=bounds,
+    boundary_behavior="bounce",
+    on_boundary=formation_bounce
+)
+group_movement.apply(enemies, tag="formation_bounce")
 ```
 
-### ✅ Do: Use GroupActions for coordinated positioning
-```python
-# CORRECT - Use MoveBy GroupAction for coordinated movement
-def on_bounce(sprite, axis):
-    move_down = MoveBy((0, -30), 0.1)  # Quick downward movement
-    enemies.do(move_down)  # GroupAction coordinates all sprites
-```
+## Action Management
 
-## Advanced Group Management
-
-### 5. GroupAction
-**When to use:** You rarely create these directly - they're automatically created by `SpriteGroup.do()`.
-**Key principle:** Provides batch optimization for movement actions and consistent interface with individual actions.
+### Tags and Organization
+Use tags to organize and control different types of actions:
 
 ```python
 from actions.group import SpriteGroup, GroupAction
@@ -420,54 +308,59 @@ formation.update(delta_time)
 **Key principle:** Separate positioning logic from movement logic.
 
 ```python
-from actions.group import (
-    LinePattern, GridPattern, CirclePattern, VFormationPattern,
-    AttackGroup, SpriteGroup
-)
+import arcade
+from actions.base import Action
+from actions.conditional import MoveUntil, DelayUntil, duration
+from actions.pattern import arrange_grid
 
-# Line formation for horizontal arrangements
-line_pattern = LinePattern(spacing=60.0)
-line_formation = AttackGroup(SpriteGroup(bullets))
-line_pattern.apply(line_formation, start_x=100, start_y=300)
-
-# Grid formation for Space Invaders-style enemies
-grid_pattern = GridPattern(rows=5, cols=8, spacing_x=50, spacing_y=40)
-enemy_formation = AttackGroup(SpriteGroup(enemies))
-grid_pattern.apply(enemy_formation, start_x=150, start_y=500)
-
-# Circle formation for defensive patterns
-circle_pattern = CirclePattern(radius=120.0)
-shield_formation = AttackGroup(SpriteGroup(shields))
-circle_pattern.apply(shield_formation, center_x=400, center_y=300)
-
-# V formation for flying patterns
-v_pattern = VFormationPattern(angle=30.0, spacing=50.0)
-fighter_formation = AttackGroup(SpriteGroup(fighters))
-v_pattern.apply(fighter_formation, apex_x=400, apex_y=500)
-
-# Combine patterns with movement
-grid_pattern.apply(enemy_formation, start_x=150, start_y=500)
-enemy_formation.do(MoveBy((200, 0), 3.0))  # Move formation as unit
-```
-
-## Testing Patterns
-
-### Testing Individual Actions
-```python
-def test_individual_action(self):
-    sprite = ActionSprite(":resources:images/test.png")
-    sprite.center_x = 0
-    sprite.center_y = 0
+class SpaceInvadersGame(arcade.Window):
+    def __init__(self):
+        super().__init__(800, 600, "Space Invaders")
+        
+        # Create enemy formation
+        enemies = arcade.SpriteList()
+        for row in range(5):
+            for col in range(10):
+                enemy = arcade.Sprite(":resources:images/enemy.png")
+                enemy.center_x = 100 + col * 60
+                enemy.center_y = 500 - row * 40
+                enemies.append(enemy)
+        
+        # Store enemies for management
+        self.enemies = enemies
+        
+        # Set up formation movement pattern
+        self._setup_formation_movement()
     
-    move_action = MoveBy((100, 0), 1.0)
-    sprite.do(move_action)
+    def _setup_formation_movement(self):
+        # Wait 2 seconds, then start moving
+        delay = DelayUntil(duration(2.0))
+        move_right = MoveUntil((50, 0), duration(4.0))
+        
+        # Use operators for clean composition
+        sequence = delay + move_right
+        sequence.apply(self.enemies, tag="movement")
+        
+        # Set up boundary bouncing
+        def on_formation_bounce(sprite, axis):
+            # Move formation down and reverse direction
+            if axis == 'x':
+                drop = MoveUntil((0, -30), duration(0.3))
+                drop.apply(self.enemies, tag="drop")
+        
+        bounds = (50, 0, 750, 600)  # left, bottom, right, top
+        formation_move = MoveUntil(
+            (50, 0), 
+            lambda: False,
+            bounds=bounds,
+            boundary_behavior="bounce",
+            on_boundary=on_formation_bounce
+        )
+        formation_move.apply(self.enemies, tag="bounce")
     
-    sprite.update(0.5)  # Half duration
-    assert sprite.center_x == 50  # Halfway there
-    
-    sprite.update(0.5)  # Complete
-    assert sprite.center_x == 100
-    assert not sprite.is_busy()
+    def on_update(self, delta_time):
+        # Single global update handles all actions
+        Action.update_all(delta_time)
 ```
 
 ### Testing Group Actions
@@ -514,184 +407,39 @@ def test_boundary_with_group(self):
     assert bounce_called
 ```
 
-### Testing Wrapping Interactions
+### 3. Use Formation Functions for Positioning
 ```python
-def test_wrapping_with_group(self):
-    sprite_group = SpriteGroup()
-    # ... setup sprites near screen edge ...
-    
-    wrap_called = False
-    def on_wrap(sprite, axis):
-        nonlocal wrap_called
-        wrap_called = True
-    
-    bounds = lambda: (800, 600)  # width, height
-    wrap_action = WrappedMove(bounds, on_wrap=on_wrap)
-    wrap_action.target = sprite_group
-    wrap_action.start()
-    
-    move_action = MoveBy((200, 0), 1.0)
-    sprite_group.do(move_action)
-    
-    sprite_group.update(1.0)
-    wrap_action.update(1.0)
-    
-    assert wrap_called
+# Good: Formation positioning
+from actions.pattern import arrange_grid
+arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
+
+# Avoid: Manual sprite positioning
+# Manual calculation of sprite positions
 ```
 
 ### Testing Collision Detection
 ```python
-def test_collision_with_mock_detector(self):
-    # Use MockCollisionDetector for full control
-    mock_detector = MockCollisionDetector()
-    bullets = SpriteGroup(collision_detector=mock_detector)
-    enemies = SpriteGroup()
-    
-    # Create test sprites
-    bullet = ActionSprite(":resources:images/test.png", center_x=100, center_y=100)
-    enemy = ActionSprite(":resources:images/test.png", center_x=200, center_y=200)
-    bullets.append(bullet)
-    enemies.append(enemy)
-    
-    # Pre-configure collision result
-    mock_detector.set_collision_result(bullet, tuple(enemies), [enemy])
-    
-    # Set up collision handler
-    collisions_detected = []
-    def on_collision(bullet, hit_enemies):
-        collisions_detected.append((bullet, hit_enemies))
-    
-    bullets.on_collision_with(enemies, on_collision)
-    bullets.update_collisions()
-    
-    # Verify mock detector was used
-    assert len(collisions_detected) == 1
-    assert collisions_detected[0][0] is bullet
-    assert enemy in collisions_detected[0][1]
+# Good: Organized with tags
+movement.apply(sprite, tag="movement")
+effects.apply(sprite, tag="effects")
 
-def test_collision_with_bounding_box_detector(self):
-    # Use BoundingBoxCollisionDetector for testing without OpenGL
-    bbox_detector = BoundingBoxCollisionDetector()
-    bullets = SpriteGroup(collision_detector=bbox_detector)
-    enemies = SpriteGroup()
-    
-    # Create overlapping sprites
-    bullet = ActionSprite(":resources:images/test.png", center_x=100, center_y=100)
-    enemy = ActionSprite(":resources:images/test.png", center_x=100, center_y=100)
-    bullets.append(bullet)
-    enemies.append(enemy)
-    
-    # Set up collision handler
-    collisions_detected = []
-    def on_collision(bullet, hit_enemies):
-        collisions_detected.append((bullet, hit_enemies))
-    
-    bullets.on_collision_with(enemies, on_collision)
-    bullets.update_collisions()
-    
-    # Should detect collision since sprites overlap
-    assert len(collisions_detected) == 1
-
-def test_collision_with_no_detector_specified(self):
-    # Default behavior uses ArcadeCollisionDetector
-    bullets = SpriteGroup()  # No collision_detector specified
-    enemies = SpriteGroup()
-    
-    # Create overlapping sprites
-    bullet = ActionSprite(":resources:images/test.png", center_x=100, center_y=100)
-    enemy = ActionSprite(":resources:images/test.png", center_x=100, center_y=100)
-    bullets.append(bullet)
-    enemies.append(enemy)
-    
-    # Set up collision handler
-    collisions_detected = []
-    def on_collision(bullet, hit_enemies):
-        collisions_detected.append((bullet, hit_enemies))
-    
-    bullets.on_collision_with(enemies, on_collision)
-    
-    # This would use Arcade's collision detection (requires OpenGL context)
-    # bullets.update_collisions()  # Comment out for CI/unit tests
+# Stop specific systems
+Action.stop(sprite, tag="effects")
 ```
 
-### Testing AttackGroup and Patterns
-```python
-def test_attack_group_with_pattern(self):
-    sprites = [ActionSprite(":resources:images/test.png") for _ in range(6)]
-    sprite_group = SpriteGroup(sprites)
-    formation = AttackGroup(sprite_group, name="test_formation")
-    
-    # Test pattern application
-    pattern = GridPattern(rows=2, cols=3, spacing_x=50, spacing_y=40)
-    pattern.apply(formation, start_x=100, start_y=200)
-    
-    # Verify positions
-    assert sprites[0].center_x == 100  # First sprite
-    assert sprites[0].center_y == 200
-    assert sprites[1].center_x == 150  # Second sprite (one spacing over)
-    assert sprites[3].center_y == 160  # Second row (one spacing down)
-    
-    # Test action application
-    move_action = MoveBy((50, 0), 1.0)
-    formation.do(move_action)
-    
-    formation.update(1.0)  # Complete action
-    
-    # All sprites should have moved
-    assert sprites[0].center_x == 150  # Moved from 100
-    assert sprites[1].center_x == 200  # Moved from 150
+## Common Patterns Summary
 
-def test_group_action_batch_optimization(self):
-    # Create large group to test batch optimization
-    large_group = SpriteGroup()
-    for i in range(50):
-        sprite = ActionSprite(":resources:images/test.png")
-        sprite.center_x = i * 10
-        large_group.append(sprite)
-    
-    # Apply movement action
-    move_action = MoveBy((100, 0), 2.0)
-    group_action = large_group.do(move_action)
-    
-    # Verify GroupAction was created
-    assert isinstance(group_action, GroupAction)
-    assert group_action.sprite_count == 50
-    
-    # Update partway through
-    large_group.update(1.0)  # Half duration
-    
-    # All sprites should be halfway to destination
-    for i, sprite in enumerate(large_group):
-        expected_x = i * 10 + 50  # Half of 100 pixel movement
-        assert abs(sprite.center_x - expected_x) < 1.0  # Allow small floating point error
-```
+| Use Case | Pattern | Example |
+|----------|---------|---------|
+| Single sprite | Direct action application | `action.apply(sprite, tag="move")` |
+| Sprite group | Action on SpriteList | `action.apply(sprite_list, tag="formation")` |
+| Sequential behavior | `+` operator | `action1 + action2 + action3` |
+| Parallel behavior | `\|` operator | `move \| rotate \| fade` |
+| Formation positioning | Pattern functions | `arrange_grid(enemies, rows=3, cols=5)` |
+| Boundary detection | MoveUntil with bounds | `MoveUntil(vel, cond, bounds=bounds, boundary_behavior="bounce")` |
+| Delayed execution | DelayUntil | `DelayUntil(condition) + action` |
 
-## Performance Considerations
-
-1. **SpriteGroup vs SpriteList**: `SpriteGroup` extends `arcade.SpriteList`, so it has the same performance characteristics plus action management.
-
-2. **GroupAction batch optimization**: Movement actions use batch processing for significant performance gains with large groups (50+ sprites).
-
-3. **AttackGroup overhead**: Minimal additional overhead over SpriteGroup - mainly adds scheduling and lifecycle management.
-
-4. **Formation patterns**: O(n) positioning operations - very fast even for large groups.
-
-5. **Boundary detection**: Only edge sprites are checked, making it efficient for large groups.
-
-6. **Collision detection**: Uses Arcade's optimized collision detection under the hood.
-
-## Summary
-
-- **ActionSprite**: The foundation - only sprites that can use actions
-- **SpriteGroup**: For coordinated group behavior with automatic management
-- **GroupAction**: Created automatically, handles action coordination with batch optimization
-- **AttackGroup**: Game-level group management with lifecycle and scheduling
-- **Formation Patterns**: Structured positioning (GridPattern, LinePattern, CirclePattern, VFormationPattern)
-- **BoundedMove + SpriteGroup**: Perfect for Space Invaders-style movement
-- **WrappedMove + SpriteGroup**: Perfect for asteroid field-style movement
-- **Collision detection**: Built into SpriteGroup with method chaining
-
-Follow these patterns and your ArcadeActions code will be clean, efficient, and maintainable!
+The ArcadeActions framework provides a clean, declarative way to create complex game behaviors while leveraging Arcade's native sprite system!
 
 ## Runtime-checking-free patterns
 

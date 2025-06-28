@@ -1,31 +1,16 @@
 """
-Arcade Actions API - Time-based sprite animation system.
+ArcadeActions - A declarative action system for Arcade games.
 
-This package provides a comprehensive action system for animating sprites over time.
-Actions use time-based calculations (pixels per second) rather than frame-based
-calculations for consistent behavior across different frame rates.
-
-Key Classes:
-    ActionSprite: A sprite that supports time-based actions
-    SpriteGroup: A group of sprites with collision detection and actions
-    Game: Base game class with built-in action support
-
-Action Types:
-    Movement: MoveBy, MoveTo, BoundaryAction with BounceBehavior/WrapBehavior
-    Rotation: RotateBy, RotateTo
-    Scaling: ScaleBy, ScaleTo
-    Composite: Sequence, Spawn, Loop
-    Timing: CallFunc
-
-IMPORTANT: Velocity Unit Differences
-----------------------------------
-ActionSprite uses TIME-BASED velocity (pixels per second):
-    sprite.change_x = 120  # means "120 pixels per second"
-
-arcade.Sprite uses FRAME-BASED velocity (pixels per frame):
-    sprite.change_x = 2    # means "2 pixels per frame" (120 pixels/second at 60fps)
-
-Use the helper functions below for conversions when mixing both sprite types.
+Actions available:
+- Movement: MoveUntil with built-in boundary checking
+- Rotation: RotateUntil
+- Scaling: ScaleUntil
+- Visual: FadeUntil, BlinkUntil
+- Path: FollowPathUntil
+- Timing: DelayUntil, duration, time_elapsed
+- Composition: sequence() and parallel() functions for combining actions
+- Formation: arrange_line, arrange_grid, arrange_circle, arrange_v_formation functions
+- Condition helpers: sprite_count, time_elapsed
 """
 
 # Core classes

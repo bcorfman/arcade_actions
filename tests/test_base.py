@@ -1,6 +1,5 @@
 """Test suite for base.py - Core Action system architecture."""
 
-import math
 
 import arcade
 import pytest
@@ -13,7 +12,6 @@ from actions.group import (
     GridPattern,
     LinePattern,
     SpriteGroup,
-    VFormationPattern,
 )
 from actions.interval import MoveBy
 
@@ -40,6 +38,12 @@ class TestAction:
 
     def test_action_initialization(self, action):
         """Test basic action initialization."""
+
+        def condition_func():
+            return False
+
+        action = Action(condition_func=condition_func, tag="test")
+
         assert action.target is None
         assert action._elapsed == 0.0
         assert not action.done
@@ -338,184 +342,64 @@ class TestPatterns:
         pattern = CirclePattern(radius=100.0)
         pattern.apply(attack_group, center_x=400, center_y=300)
 
-        # Check that sprites are positioned in a circle
-        count = len(attack_group.sprites)
-        angle_step = 2 * math.pi / count
-        for i, sprite in enumerate(attack_group.sprites):
-            angle = i * angle_step
-            expected_x = 400 + math.cos(angle) * 100.0
-            expected_y = 300 + math.sin(angle) * 100.0
-            assert abs(sprite.center_x - expected_x) < 0.1
-            assert abs(sprite.center_y - expected_y) < 0.1
+        # Action with movement tag exists
+        assert len(Action.get_actions_for_target(sprite, "movement")) == 1
+        # No actions with effects tag
+        assert len(Action.get_actions_for_target(sprite, "effects")) == 0
 
-    def test_circle_pattern_empty_group(self):
-        """Test CirclePattern with empty sprite group."""
-        empty_group = SpriteGroup()
-        attack_group = AttackGroup(empty_group, name="empty_test")
+    def test_action_clone(self):
+        """Test action cloning."""
 
-        pattern = CirclePattern(radius=100.0)
-        # Should not raise an exception
-        pattern.apply(attack_group, center_x=400, center_y=300)
+        def condition_func():
+            return False
 
-    def test_v_formation_pattern_initialization(self):
-        """Test VFormationPattern initialization."""
-        pattern = VFormationPattern(angle=60.0, spacing=75.0)
-        assert pattern.name == "v_formation"
-        assert pattern.spacing == 75.0
+        def on_condition_met():
+            pass
 
-    def test_v_formation_pattern_apply(self, attack_group):
-        """Test VFormationPattern apply method."""
-        pattern = VFormationPattern(angle=45.0, spacing=50.0)
-        pattern.apply(attack_group, apex_x=400, apex_y=500)
+        action = Action(
+            condition_func=condition_func, on_condition_met=on_condition_met, check_interval=0.5, tag="test"
+        )
 
-        sprites = list(attack_group.sprites)
+        cloned = action.clone()
 
-        # First sprite should be at apex
-        assert sprites[0].center_x == 400
-        assert sprites[0].center_y == 500
+        assert cloned is not action
+        assert cloned.condition_func == condition_func
+        assert cloned.on_condition_met == on_condition_met
+        assert cloned.check_interval == 0.5
+        assert cloned.tag == "test"
 
-        # Check that remaining sprites are positioned correctly
-        for i in range(1, len(sprites)):
-            side = 1 if i % 2 == 1 else -1  # Alternate sides
-            distance = (i + 1) // 2 * 50.0
+    def test_action_for_each_sprite(self):
+        """Test for_each_sprite helper method."""
+        sprite_list = arcade.SpriteList()
+        sprite1 = create_test_sprite()
+        sprite2 = create_test_sprite()
+        sprite_list.append(sprite1)
+        sprite_list.append(sprite2)
 
-            offset_x = side * math.cos(math.radians(45.0)) * distance
-            offset_y = -math.sin(math.radians(45.0)) * distance
+        action = Action(condition_func=lambda: False)
+        action.target = sprite_list
 
-            expected_x = 400 + offset_x
-            expected_y = 500 + offset_y
+        visited_sprites = []
 
-            assert abs(sprites[i].center_x - expected_x) < 0.1
-            assert abs(sprites[i].center_y - expected_y) < 0.1
+        def visit_sprite(sprite):
+            visited_sprites.append(sprite)
 
-    def test_v_formation_pattern_empty_group(self):
-        """Test VFormationPattern with empty sprite group."""
-        empty_group = SpriteGroup()
-        attack_group = AttackGroup(empty_group, name="empty_test")
+        action.for_each_sprite(visit_sprite)
 
-        pattern = VFormationPattern()
-        # Should not raise an exception
-        pattern.apply(attack_group, apex_x=400, apex_y=500)
+        assert len(visited_sprites) == 2
+        assert sprite1 in visited_sprites
+        assert sprite2 in visited_sprites
 
+    def test_action_condition_properties(self):
+        """Test action condition properties."""
+        action = Action(condition_func=lambda: False)
 
-class TestAttackGroup:
-    """Test suite for AttackGroup class."""
+        assert not action.condition_met
+        assert action.condition_data is None
 
-    @pytest.fixture
-    def sprite_group(self):
-        """Create a sprite group with test sprites."""
-        group = SpriteGroup()
-        for i in range(2):
-            sprite = ActionSprite(":resources:images/items/star.png")
-            sprite.center_x = i * 100
-            sprite.center_y = i * 100
-            group.append(sprite)
-        return group
+        # Simulate condition being met
+        action._condition_met = True
+        action._condition_data = "test_data"
 
-    @pytest.fixture
-    def attack_group(self, sprite_group):
-        """Create an attack group for testing."""
-        return AttackGroup(sprite_group, name="test_attack_group")
-
-    def test_attack_group_initialization(self, attack_group, sprite_group):
-        """Test AttackGroup initialization."""
-        assert attack_group.sprites == sprite_group
-        assert attack_group.name == "test_attack_group"
-        assert attack_group.actions == []
-        assert not attack_group.is_destroyed
-        assert attack_group.parent is None
-        assert attack_group.children == []
-        assert not attack_group._paused
-
-    def test_attack_group_do_action(self, attack_group):
-        """Test applying an action to the attack group."""
-        move_action = MoveBy((50, 50), 1.0)
-        group_action = attack_group.do(move_action)
-
-        assert len(attack_group.actions) == 1
-        assert attack_group.actions[0] == group_action
-        assert group_action.sprite_count == len(attack_group.sprites)
-
-    def test_attack_group_update(self, attack_group):
-        """Test updating the attack group."""
-        move_action = MoveBy((50, 50), 1.0)
-        attack_group.do(move_action)
-
-        # Store initial positions
-        initial_positions = [(s.center_x, s.center_y) for s in attack_group.sprites]
-
-        attack_group.update(0.5)
-
-        # Positions should have changed
-        current_positions = [(s.center_x, s.center_y) for s in attack_group.sprites]
-        assert current_positions != initial_positions
-
-    def test_attack_group_breakaway(self, attack_group):
-        """Test breaking away sprites from the group."""
-        sprites_to_break = [attack_group.sprites[0]]
-        new_group = attack_group.breakaway(sprites_to_break)
-
-        assert len(attack_group.sprites) == 1
-        assert len(new_group.sprites) == 1
-        assert new_group in attack_group.children
-        assert new_group.parent == attack_group
-
-    def test_attack_group_destroy(self, attack_group):
-        """Test destroying the attack group."""
-        # Add some actions and schedule tasks
-        move_action = MoveBy((50, 50), 1.0)
-        attack_group.do(move_action)
-
-        callback_called = False
-
-        def on_destroy(group):
-            nonlocal callback_called
-            callback_called = True
-
-        attack_group.on_destroy(on_destroy)
-        attack_group.destroy()
-
-        assert attack_group.is_destroyed
-        assert len(attack_group.actions) == 0
-        assert callback_called
-
-    def test_attack_group_callbacks(self, attack_group):
-        """Test attack group callbacks."""
-        destroy_called = False
-        breakaway_called = False
-
-        def on_destroy(group):
-            nonlocal destroy_called
-            destroy_called = True
-
-        def on_breakaway(group):
-            nonlocal breakaway_called
-            breakaway_called = True
-
-        attack_group.on_destroy(on_destroy)
-        attack_group.on_breakaway(on_breakaway)
-
-        # Test breakaway callback
-        sprites_to_break = [attack_group.sprites[0]]
-        attack_group.breakaway(sprites_to_break)
-        assert breakaway_called
-
-        # Test destroy callback
-        attack_group.destroy()
-        assert destroy_called
-
-    def test_attack_group_empty_sprite_destruction(self):
-        """Test that attack group destroys itself when no sprites remain."""
-        # Create group with sprites
-        sprite_group = SpriteGroup()
-        sprite = ActionSprite(":resources:images/items/star.png")
-        sprite_group.append(sprite)
-
-        attack_group = AttackGroup(sprite_group)
-
-        # Remove all sprites
-        sprite_group.clear()
-
-        # Update should trigger destruction
-        attack_group.update(0.1)
-        assert attack_group.is_destroyed
+        assert action.condition_met
+        assert action.condition_data == "test_data"

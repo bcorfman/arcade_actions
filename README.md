@@ -38,8 +38,8 @@ player.center_x = 100
 player.center_y = 100
 
 # Create and apply actions
-move_action = MoveBy((200, 0), 2.0)  # Move 200 pixels right over 2 seconds
-rotate_action = RotateBy(360, 1.0)   # Rotate 360 degrees over 1 second
+move_action = MoveUntil((100, 0), duration(2.0))  # Move 100 px/sec for 2 seconds
+rotate_action = RotateUntil(180, duration(1.0))   # Rotate 180 deg/sec for 1 second
 
 # Combine actions in sequence
 combo_action = Sequence([move_action, rotate_action])
@@ -54,7 +54,6 @@ def on_update(self, delta_time):
 
 - [API Usage Guide](docs/api_usage_guide.md) - Comprehensive guide to using the library
 - [Game Loop Integration](docs/game_loop_updates.md) - How to integrate with your game loop
-- [Boundary Events](docs/boundary_event.md) - Working with boundaries and collisions
 
 ## Examples
 
