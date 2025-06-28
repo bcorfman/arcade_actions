@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arcade-actions"
-version = "0.1.1"
-description = "A port of Cocos2D Actions for use with the Arcade 3.0 library"
+version = "0.1.2"
+description = "Extension library for the Arcade library, providing a high-level way to animate sprites with conditional actions."
 authors = [{name = "Brandon Corfman", email = "h9tbgnbbk@privaterelay.appleid.com"}]
 license = {file="LICENSE"}
 readme = "README.md"
