@@ -115,11 +115,21 @@ For complex game scenarios with formation positioning:
 from actions.pattern import arrange_grid, arrange_circle
 from actions.conditional import DelayUntil, MoveUntil, FadeUntil, RotateUntil
 
-# Create enemy formation using standard arcade.SpriteList
-enemies = arcade.SpriteList([enemy1, enemy2, enemy3])
+# Create a 3×5 enemy grid in one call using sprite_factory
+from functools import partial
 
-# Apply formation patterns
-arrange_grid(enemies, rows=2, cols=3, start_x=200, start_y=400, spacing_x=80, spacing_y=60)
+# Define how each enemy sprite should be built
+enemy_factory = partial(arcade.Sprite, ":resources:images/enemy.png")
+
+enemies = arrange_grid(
+    rows=3,
+    cols=5,
+    start_x=200,
+    start_y=400,
+    spacing_x=80,
+    spacing_y=60,
+    sprite_factory=enemy_factory,
+)
 
 # Apply any actions using clean operators
 delay = DelayUntil(duration(2.0))

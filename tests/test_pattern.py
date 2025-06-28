@@ -119,6 +119,36 @@ class TestArrangeGridFunctions:
             assert sprite.center_x == i * 50
             assert sprite.center_y == 100
 
+    def test_arrange_grid_factory_creation(self):
+        """Test that arrange_grid can create its own sprites via sprite_factory."""
+        rows, cols = 2, 3
+
+        def coin_sprite():
+            return arcade.Sprite(":resources:images/items/coinGold.png")
+
+        grid = arrange_grid(
+            rows=rows,
+            cols=cols,
+            start_x=10,
+            start_y=50,
+            spacing_x=20,
+            spacing_y=30,
+            sprite_factory=coin_sprite,
+        )
+
+        # Should return a SpriteList with rows*cols sprites
+        assert isinstance(grid, arcade.SpriteList)
+        assert len(grid) == rows * cols
+
+        # Check a couple of positions to ensure arrangement
+        assert grid[0].center_x == 10  # Row 0, Col 0
+        assert grid[0].center_y == 50
+        assert grid[cols - 1].center_x == 10 + (cols - 1) * 20  # Last in first row
+        assert grid[cols - 1].center_y == 50
+        # First sprite of second row
+        assert grid[cols].center_x == 10
+        assert grid[cols].center_y == 50 - 30
+
 
 class TestArrangeCircleFunctions:
     """Test suite for arrange_circle function."""

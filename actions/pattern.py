@@ -8,87 +8,100 @@ from collections.abc import Callable
 import arcade
 
 
+def _default_factory(texture: str = ":resources:images/items/star.png", scale: float = 1.0):
+    """Return a lambda that creates a sprite with the given texture and scale."""
+
+    return lambda: arcade.Sprite(texture, scale=scale)
+
+
 def arrange_line(
-    sprites: arcade.SpriteList | list[arcade.Sprite], start_x: float = 0, start_y: float = 0, spacing: float = 50.0
-):
-    """Arrange sprites in a horizontal line.
+    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
+    *,
+    count: int | None = None,
+    start_x: float = 0,
+    start_y: float = 0,
+    spacing: float = 50.0,
+    sprite_factory: Callable[[], arcade.Sprite] | None = None,
+) -> arcade.SpriteList:
+    """Create or arrange sprites in a horizontal line.
 
-    Positions sprites in a straight line with configurable spacing between them.
-    Useful for creating horizontal formations, bullet patterns, or UI elements.
-
-    Args:
-        sprites: List of sprites to arrange
-        start_x: X coordinate of the first sprite (default: 0)
-        start_y: Y coordinate for all sprites (default: 0)
-        spacing: Distance between sprite centers in pixels (default: 50.0)
-
-    Example:
-        arrange_line(enemies, start_x=100, start_y=300, spacing=80.0)
-        # Sprites positioned at (100,300), (180,300), (260,300), etc.
+    If *sprites* is given, it is arranged in-place. If *sprites* is **None**, a new
+    :class:`arcade.SpriteList` is created with ``count`` sprites produced by
+    *sprite_factory* (defaults to a simple star sprite).
     """
+
+    if sprites is None:
+        if count is None or count <= 0:
+            raise ValueError("When *sprites* is None you must supply a positive *count*.")
+
+        sprite_factory = sprite_factory or _default_factory()
+        sprites = arcade.SpriteList()
+        for _ in range(count):
+            sprites.append(sprite_factory())
+
+    # Arrange positions
     for i, sprite in enumerate(sprites):
         sprite.center_x = start_x + i * spacing
         sprite.center_y = start_y
 
+    return sprites
+
 
 def arrange_grid(
-    sprites: arcade.SpriteList | list[arcade.Sprite],
+    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
+    *,
     rows: int = 5,
     cols: int = 10,
     start_x: float = 100,
     start_y: float = 500,
     spacing_x: float = 60.0,
     spacing_y: float = 50.0,
-):
-    """Arrange sprites in a rectangular grid formation.
+    sprite_factory: Callable[[], arcade.Sprite] | None = None,
+) -> arcade.SpriteList:
+    """Create or arrange sprites in a rectangular grid formation.
 
-    Creates rows and columns of sprites with configurable spacing.
-    Perfect for Space Invaders-style enemy formations or organized layouts.
-
-    Args:
-        sprites: List of sprites to arrange
-        rows: Number of rows in the grid (default: 5)
-        cols: Number of columns in the grid (default: 10)
-        start_x: X coordinate of the top-left sprite (default: 100)
-        start_y: Y coordinate of the top row (default: 500)
-        spacing_x: Horizontal spacing between sprites in pixels (default: 60.0)
-        spacing_y: Vertical spacing between sprites in pixels (default: 50.0)
-
-    Example:
-        arrange_grid(enemies, rows=3, cols=5, start_x=200, start_y=400, spacing_x=80, spacing_y=60)
-        # Creates 3x5 grid starting at (200,400)
+    If *sprites* is **None**, a new :class:`arcade.SpriteList` with ``rows × cols``
+    sprites is created using *sprite_factory* (defaults to a star sprite). The
+    function always returns the arranged sprite list.
     """
+
+    if sprites is None:
+        sprite_factory = sprite_factory or _default_factory()
+        sprites = arcade.SpriteList()
+        for _ in range(rows * cols):
+            sprites.append(sprite_factory())
+
     for i, sprite in enumerate(sprites):
         row = i // cols
         col = i % cols
         sprite.center_x = start_x + col * spacing_x
         sprite.center_y = start_y - row * spacing_y
 
+    return sprites
+
 
 def arrange_circle(
-    sprites: arcade.SpriteList | list[arcade.Sprite],
+    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
+    *,
+    count: int | None = None,
     center_x: float = 400,
     center_y: float = 300,
     radius: float = 100.0,
-):
-    """Arrange sprites in a circular formation.
+    sprite_factory: Callable[[], arcade.Sprite] | None = None,
+) -> arcade.SpriteList:
+    """Create or arrange sprites in a circular formation."""
 
-    Distributes sprites evenly around a circle with configurable radius.
-    Great for radial bullet patterns or defensive formations.
+    if sprites is None:
+        if count is None or count <= 0:
+            raise ValueError("When *sprites* is None you must supply a positive *count*.")
+        sprite_factory = sprite_factory or _default_factory()
+        sprites = arcade.SpriteList()
+        for _ in range(count):
+            sprites.append(sprite_factory())
 
-    Args:
-        sprites: List of sprites to arrange
-        center_x: X coordinate of the circle center (default: 400)
-        center_y: Y coordinate of the circle center (default: 300)
-        radius: Radius of the circle in pixels (default: 100.0)
-
-    Example:
-        arrange_circle(enemies, center_x=400, center_y=300, radius=150.0)
-        # Sprites arranged in circle around (400,300) with radius 150
-    """
     count = len(sprites)
     if count == 0:
-        return
+        return sprites
 
     angle_step = 2 * math.pi / count
     for i, sprite in enumerate(sprites):
@@ -96,45 +109,41 @@ def arrange_circle(
         sprite.center_x = center_x + math.cos(angle) * radius
         sprite.center_y = center_y + math.sin(angle) * radius
 
+    return sprites
+
 
 def arrange_v_formation(
-    sprites: arcade.SpriteList | list[arcade.Sprite],
+    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
+    *,
+    count: int | None = None,
     apex_x: float = 400,
     apex_y: float = 500,
     angle: float = 45.0,
     spacing: float = 50.0,
-):
-    """Arrange sprites in a V or wedge formation.
+    sprite_factory: Callable[[], arcade.Sprite] | None = None,
+) -> arcade.SpriteList:
+    """Create or arrange sprites in a V or wedge formation."""
 
-    Creates a V-shaped formation with one sprite at the apex and others
-    arranged alternately on left and right sides. Useful for flying formations
-    or arrow-like attack patterns.
+    if sprites is None:
+        if count is None or count <= 0:
+            raise ValueError("When *sprites* is None you must supply a positive *count*.")
+        sprite_factory = sprite_factory or _default_factory()
+        sprites = arcade.SpriteList()
+        for _ in range(count):
+            sprites.append(sprite_factory())
 
-    Args:
-        sprites: List of sprites to arrange
-        apex_x: X coordinate of the apex sprite (default: 400)
-        apex_y: Y coordinate of the apex sprite (default: 500)
-        angle: Angle of the V formation in degrees (default: 45.0)
-        spacing: Distance between sprites in the formation (default: 50.0)
-
-    Example:
-        arrange_v_formation(enemies, apex_x=400, apex_y=500, angle=30.0, spacing=60.0)
-        # Creates V formation with apex at (400,500)
-    """
     count = len(sprites)
     if count == 0:
-        return
+        return sprites
 
-    # Convert angle to radians
     angle_rad = math.radians(angle)
 
     # Place the first sprite at the apex
     sprites[0].center_x = apex_x
     sprites[0].center_y = apex_y
 
-    # Place remaining sprites alternating on left and right sides
     for i in range(1, count):
-        side = 1 if i % 2 == 1 else -1  # Alternate sides
+        side = 1 if i % 2 == 1 else -1
         distance = (i + 1) // 2 * spacing
 
         offset_x = side * math.cos(angle_rad) * distance
@@ -142,6 +151,8 @@ def arrange_v_formation(
 
         sprites[i].center_x = apex_x + offset_x
         sprites[i].center_y = apex_y + offset_y
+
+    return sprites
 
 
 def time_elapsed(seconds: float) -> Callable:
