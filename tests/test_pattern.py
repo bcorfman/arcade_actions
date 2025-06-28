@@ -275,7 +275,7 @@ class TestConditionHelpers:
 
         try:
             condition()
-            assert False, "Should have raised ValueError"
+            raise AssertionError("Should have raised ValueError")
         except ValueError as e:
             assert "Invalid comparison operator" in str(e)
 

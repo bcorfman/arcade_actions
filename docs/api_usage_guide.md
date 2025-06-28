@@ -64,13 +64,11 @@ complex = delay_action + (move_action | fade_action) + final_action
 - **Sequential actions** - Run actions one after another (use `+` operator)
 - **Parallel actions** - Run actions in parallel (use `|` operator)
 
-#### Boundary Actions (actions/move.py)
-- **BoundedMove** - Bounce off boundaries with callbacks
-- **WrappedMove** - Wrap around screen edges
+#### Boundary Handling (actions/conditional.py)
+- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
 
 #### High-Level Management (actions/pattern.py)
-- **AttackGroup** - Game-oriented sprite group management
-- **GridPattern** - Formation positioning patterns
+- **Formation functions** - Grid, line, circle, and V-formation positioning patterns
 
 ## Usage Patterns
 
@@ -110,20 +108,18 @@ formation_move.apply(enemies, tag="formation")
 # All sprites in the list move together
 ```
 
-### Pattern 3: AttackGroup for Game Logic
-For complex game scenarios with lifecycle management:
+### Pattern 3: Formation Management
+For complex game scenarios with formation positioning:
 
 ```python
-from actions.pattern import AttackGroup, GridPattern
+from actions.pattern import arrange_grid, arrange_circle
 from actions.conditional import DelayUntil, MoveUntil, FadeUntil, RotateUntil
 
-# Create AttackGroup for high-level management
+# Create enemy formation using standard arcade.SpriteList
 enemies = arcade.SpriteList([enemy1, enemy2, enemy3])
-formation = AttackGroup(enemies, name="wave_1", auto_destroy_when_empty=True)
 
 # Apply formation patterns
-grid_pattern = GridPattern(rows=2, cols=3, spacing_x=80, spacing_y=60)
-grid_pattern.apply(formation, start_x=200, start_y=400)
+arrange_grid(enemies, rows=2, cols=3, start_x=200, start_y=400, spacing_x=80, spacing_y=60)
 
 # Apply any actions using clean operators
 delay = DelayUntil(duration(2.0))
@@ -170,53 +166,59 @@ mixed = move_action + (rotate_action | scale_action)                 # Mixed com
 complex_nested = (move_action | rotate_action) + scale_action + (move_action | rotate_action)
 
 # Apply different compositions with tags
-formation.apply(sequential, tag="sequential")
-formation.apply(parallel, tag="parallel") 
-formation.apply(mixed, tag="mixed")
-formation.apply(complex_nested, tag="complex")
+sequential.apply(enemies, tag="sequential")
+parallel.apply(enemies, tag="parallel") 
+mixed.apply(enemies, tag="mixed")
+complex_nested.apply(enemies, tag="complex")
 
 # Action management and queries
-all_active = formation.get_active_actions()
-movement_active = formation.get_active_actions(tag="movement")
+all_active = Action.get_all_actions()
+movement_active = Action.get_tag_actions("movement")
 
 # Stop specific tagged actions
-formation.stop_all_actions(tag="effects")  # Stop just effects
-formation.stop_all_actions()               # Stop all actions
+Action.stop_by_tag("effects")  # Stop just effects
+Action.clear_all()             # Stop all actions
 
 # Properties and state
-print(f"Formation has {formation.sprite_count} sprites")
-print(f"Formation is empty: {formation.is_empty}")
-print(f"Formation destroyed: {formation.is_destroyed}")
+print(f"Formation has {len(enemies)} sprites")
+print(f"Formation is empty: {len(enemies) == 0}")
 ```
 
 ### Pattern 4: Boundary Interactions
 For arcade-style movement with boundary detection:
 
 ```python
-from actions.move import BoundedMove
+from actions.conditional import MoveUntil
 
 # Individual sprite bouncing
 def on_bounce(sprite, axis):
     print(f"Sprite bounced on {axis} axis")
 
-bounds = lambda: (0, 0, 800, 600)
-bouncer = BoundedMove(bounds, on_bounce=on_bounce)
-movement = MoveUntil((100, 50), lambda: False)  # Move indefinitely
-bouncer.wrap_action(movement)
-bouncer.apply(sprite, tag="bounce")
+bounds = (0, 0, 800, 600)  # left, bottom, right, top
+movement = MoveUntil(
+    (100, 50), 
+    lambda: False,  # Move indefinitely
+    bounds=bounds,
+    boundary_behavior="bounce",
+    on_boundary=on_bounce
+)
+movement.apply(sprite, tag="bounce")
 
 # Group bouncing (like Space Invaders)
-formation = AttackGroup(enemies)
 def formation_bounce(sprite, axis):
     if axis == 'x':
         # Move entire formation down
         down_action = MoveUntil((0, -30), duration(0.2))
-        formation.apply(down_action, tag="drop")
+        down_action.apply(enemies, tag="drop")
 
-group_bouncer = BoundedMove(bounds, on_bounce=formation_bounce)
-group_movement = MoveUntil((100, 0), lambda: False)
-group_bouncer.wrap_action(group_movement)
-group_bouncer.apply(formation.sprites, tag="formation_bounce")
+group_movement = MoveUntil(
+    (100, 0), 
+    lambda: False,
+    bounds=bounds,
+    boundary_behavior="bounce",
+    on_boundary=formation_bounce
+)
+group_movement.apply(enemies, tag="formation_bounce")
 ```
 
 ## Action Management
@@ -256,7 +258,7 @@ Action.clear_all()
 import arcade
 from actions.base import Action
 from actions.conditional import MoveUntil, DelayUntil, duration
-from actions.pattern import AttackGroup
+from actions.pattern import arrange_grid
 
 class SpaceInvadersGame(arcade.Window):
     def __init__(self):
@@ -271,8 +273,8 @@ class SpaceInvadersGame(arcade.Window):
                 enemy.center_y = 500 - row * 40
                 enemies.append(enemy)
         
-        # Use AttackGroup for high-level management
-        self.formation = AttackGroup(enemies, "invaders")
+        # Store enemies for management
+        self.enemies = enemies
         
         # Set up formation movement pattern
         self._setup_formation_movement()
@@ -284,20 +286,24 @@ class SpaceInvadersGame(arcade.Window):
         
         # Use operators for clean composition
         sequence = delay + move_right
-        self.formation.apply(sequence, tag="movement")
+        sequence.apply(self.enemies, tag="movement")
         
         # Set up boundary bouncing
         def on_formation_bounce(sprite, axis):
             # Move formation down and reverse direction
             if axis == 'x':
                 drop = MoveUntil((0, -30), duration(0.3))
-                self.formation.apply(drop, tag="drop")
+                drop.apply(self.enemies, tag="drop")
         
-        bounds = lambda: (50, 0, 750, 600)
-        bouncer = BoundedMove(bounds, on_bounce=on_formation_bounce)
-        formation_move = MoveUntil((50, 0), lambda: False)
-        bouncer.wrap_action(formation_move)
-        bouncer.apply(self.formation.sprites, tag="bounce")
+        bounds = (50, 0, 750, 600)  # left, bottom, right, top
+        formation_move = MoveUntil(
+            (50, 0), 
+            lambda: False,
+            bounds=bounds,
+            boundary_behavior="bounce",
+            on_boundary=on_formation_bounce
+        )
+        formation_move.apply(self.enemies, tag="bounce")
     
     def on_update(self, delta_time):
         # Single global update handles all actions
@@ -324,14 +330,14 @@ complex_action = delay + (move | fade) + final_move
 # complex_action = Sequence(delay, Spawn(move, fade), final_move)
 ```
 
-### 3. Use AttackGroup for Game Logic
+### 3. Use Formation Functions for Positioning
 ```python
-# Good: High-level game management
-formation = AttackGroup(enemies, auto_destroy_when_empty=True)
-formation.apply(pattern, tag="attack")
+# Good: Formation positioning
+from actions.pattern import arrange_grid
+arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
 
-# Avoid: Manual sprite list management
-# Manual tracking of sprite lifecycles and cleanup
+# Avoid: Manual sprite positioning
+# Manual calculation of sprite positions
 ```
 
 ### 4. Tag Your Actions
@@ -352,8 +358,8 @@ Action.stop(sprite, tag="effects")
 | Sprite group | Action on SpriteList | `action.apply(sprite_list, tag="formation")` |
 | Sequential behavior | `+` operator | `action1 + action2 + action3` |
 | Parallel behavior | `\|` operator | `move \| rotate \| fade` |
-| Game management | AttackGroup | `formation.apply(pattern, tag="attack")` |
-| Boundary detection | BoundedMove wrapper | `bouncer.wrap_action(movement)` |
+| Formation positioning | Pattern functions | `arrange_grid(enemies, rows=3, cols=5)` |
+| Boundary detection | MoveUntil with bounds | `MoveUntil(vel, cond, bounds=bounds, boundary_behavior="bounce")` |
 | Delayed execution | DelayUntil | `DelayUntil(condition) + action` |
 
 The ArcadeActions framework provides a clean, declarative way to create complex game behaviors while leveraging Arcade's native sprite system!

@@ -22,7 +22,10 @@ class TestAction:
 
     def test_action_initialization(self):
         """Test basic action initialization."""
-        condition_func = lambda: False
+
+        def condition_func():
+            return False
+
         action = Action(condition_func=condition_func, tag="test")
 
         assert action.target is None
@@ -196,8 +199,13 @@ class TestAction:
 
     def test_action_clone(self):
         """Test action cloning."""
-        condition_func = lambda: False
-        on_condition_met = lambda: None
+
+        def condition_func():
+            return False
+
+        def on_condition_met():
+            pass
+
         action = Action(
             condition_func=condition_func, on_condition_met=on_condition_met, check_interval=0.5, tag="test"
         )

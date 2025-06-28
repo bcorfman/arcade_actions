@@ -2,7 +2,7 @@
 ArcadeActions - A declarative action system for Arcade games.
 
 Actions available:
-- Movement: MoveUntil (now with built-in boundary checking)
+- Movement: MoveUntil with built-in boundary checking
 - Rotation: RotateUntil
 - Scaling: ScaleUntil
 - Visual: FadeUntil, BlinkUntil

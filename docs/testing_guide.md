@@ -13,8 +13,8 @@ This guide documents the testing architecture and patterns for the ArcadeActions
 | `test_base.py` | Core Action class and global management | Action lifecycle, global updates, tagging |
 | `test_condition_actions.py` | Conditional actions (MoveUntil, etc.) | Condition evaluation, velocity-based updates |
 | `test_composite.py` | Sequential and parallel actions | Operator composition, nested actions |
-| `test_move.py` | Boundary actions | BoundedMove, WrappedMove, boundary detection |
-| `test_pattern.py` | AttackGroup and formation patterns | High-level game management, breakaway behavior |
+| `test_move.py` | Boundary actions | MoveUntil boundary detection with bounce/wrap |
+| `test_pattern.py` | Formation pattern functions | Positioning and layout behavior |
 
 ### Test Organization Principles
 
@@ -92,19 +92,25 @@ def test_operator_composition(self):
     assert len(nested_actions) == 1
 ```
 
-### Pattern 3: AttackGroup Testing
+### Pattern 3: Formation Testing
 
-Tests high-level game management with conditional actions:
+Tests formation positioning with conditional actions:
 
 ```python
-def test_attack_group_conditional_actions(self):
-    """Test AttackGroup with conditional action patterns."""
-    sprite_list = create_test_sprite_list(5)
-    attack_group = AttackGroup(sprite_list, name="formation")
+def test_formation_conditional_actions(self):
+    """Test formation functions with conditional action patterns."""
+    from actions.pattern import arrange_grid
+    
+    sprite_list = create_test_sprite_list(6)
     
     # Apply formation pattern
-    grid_pattern = GridPattern(rows=2, cols=3)
-    grid_pattern.apply(attack_group, start_x=200, start_y=400)
+    arrange_grid(sprite_list, rows=2, cols=3, start_x=200, start_y=400, spacing_x=60, spacing_y=50)
+    
+    # Verify positioning
+    assert sprite_list[0].center_x == 200
+    assert sprite_list[0].center_y == 400
+    assert sprite_list[1].center_x == 260  # 200 + 60 spacing
+    assert sprite_list[3].center_y == 350  # 400 - 50 spacing
     
     # Create complex action composition
     delay = DelayUntil(duration(1.0))
@@ -116,62 +122,57 @@ def test_attack_group_conditional_actions(self):
     parallel = move | fade
     
     # Apply to group
-    attack_group.apply(sequence, tag="sequence_movement")
-    attack_group.schedule(2.0, parallel, tag="delayed_parallel")
+    sequence.apply(sprite_list, tag="sequence_movement")
+    parallel.apply(sprite_list, tag="parallel_effects")
     
     # Verify global action management
     sequence_actions = Action.get_tag_actions("sequence_movement")
-    delayed_actions = Action.get_tag_actions("delayed_parallel")
+    parallel_actions = Action.get_tag_actions("parallel_effects")
     
     assert len(sequence_actions) == 1
-    assert len(delayed_actions) == 1
-    assert sequence_actions[0].target == sprite_list
+    assert len(parallel_actions) == 1
 ```
 
-### Pattern 4: Conditional Breakaway Testing
+### Pattern 4: Conditional Logic Testing
 
-Tests complex conditional behaviors with breakaway logic:
+Tests complex conditional behaviors with sprite list management:
 
 ```python
-def test_conditional_breakaway(self):
-    """Test AttackGroup conditional breakaway with actions."""
+def test_conditional_sprite_management(self):
+    """Test conditional actions with sprite list management."""
     sprite_list = create_test_sprite_list(5)
-    attack_group = AttackGroup(sprite_list, name="main_formation")
     
-    # Set up breakaway condition
-    def breakaway_condition():
+    # Set up conditional action based on sprite positions
+    def move_condition():
         return any(sprite.center_y < 300 for sprite in sprite_list)
     
-    breakaway_sprites = [sprite_list[0], sprite_list[2]]
-    breakaway_action = attack_group.setup_conditional_breakaway(
-        breakaway_condition, breakaway_sprites, tag="breakaway_monitor"
-    )
+    # Create conditional movement
+    move_action = MoveUntil((0, -50), move_condition)
+    move_action.apply(sprite_list, tag="conditional_move")
     
-    # Verify monitoring action is active
-    assert breakaway_action in Action._active_actions
+    # Verify action is active
+    active_actions = Action.get_tag_actions("conditional_move")
+    assert len(active_actions) == 1
     
-    # Register callback
-    breakaway_triggered = False
-    new_breakaway_group = None
+    # Track condition changes
+    condition_met = False
+    original_positions = [(s.center_x, s.center_y) for s in sprite_list]
     
-    def on_breakaway(group):
-        nonlocal breakaway_triggered, new_breakaway_group
-        breakaway_triggered = True
-        new_breakaway_group = group
-    
-    attack_group.on_breakaway(on_breakaway)
-    
-    # Trigger condition
+    # Trigger condition by updating sprite positions
     for sprite in sprite_list:
         sprite.center_y = 250  # Below threshold
     
-    Action.update_all(0.1)
+    # Update actions until condition is met
+    for _ in range(10):
+        Action.update_all(0.1)
+        if move_condition():
+            condition_met = True
+            break
     
-    # Verify breakaway occurred
-    assert breakaway_triggered
-    assert new_breakaway_group is not None
-    assert len(new_breakaway_group.sprites) == 2
-    assert len(attack_group.sprites) == 3
+    # Verify condition was met and action completed
+    assert condition_met
+    final_actions = Action.get_tag_actions("conditional_move")
+    assert len(final_actions) == 0  # Action should be complete
 ```
 
 ### Pattern 5: Boundary Action Testing
@@ -179,8 +180,8 @@ def test_conditional_breakaway(self):
 Tests boundary detection with callback integration:
 
 ```python
-def test_bounded_move_with_callbacks(self):
-    """Test BoundedMove with boundary callbacks."""
+def test_move_until_with_boundary_callbacks(self):
+    """Test MoveUntil with boundary callbacks."""
     sprite = create_test_sprite()
     sprite.center_x = 750  # Near right boundary
     
@@ -189,20 +190,23 @@ def test_bounded_move_with_callbacks(self):
     def on_boundary_hit(hitting_sprite, axis):
         boundary_hits.append((hitting_sprite, axis))
     
-    # Set up boundary detection
-    bounds = lambda: (0, 0, 800, 600)
-    bouncer = BoundedMove(bounds, on_bounce=on_boundary_hit)
-    
-    # Create movement that will hit boundary
-    move_action = MoveUntil((100, 0), lambda: False)  # Move indefinitely
-    bouncer.wrap_action(move_action)
+    # Create movement with boundary detection
+    bounds = (0, 0, 800, 600)  # left, bottom, right, top
+    move_action = MoveUntil(
+        (100, 0), 
+        lambda: False,  # Move indefinitely
+        bounds=bounds,
+        boundary_behavior="bounce",
+        on_boundary=on_boundary_hit
+    )
     
     # Apply and test
-    bouncer.apply(sprite, tag="boundary_test")
+    move_action.apply(sprite, tag="boundary_test")
     
     # Move to trigger boundary
     for _ in range(10):
         Action.update_all(0.1)
+        sprite.update()  # Apply velocity to position
         if boundary_hits:
             break
     
@@ -299,10 +303,10 @@ Test full game scenarios with multiple systems:
 
 ```python
 def test_complete_formation_workflow(self):
-    """Test complete AttackGroup workflow with patterns and actions."""
+    """Test complete formation workflow with patterns and actions."""
     # Create formation
     sprite_list = create_test_sprite_list(8)
-    formation = AttackGroup(sprite_list, name="enemy_formation")
+    # Use sprite_list directly for formation management
     
     # Apply formation pattern
     grid_pattern = GridPattern(rows=2, cols=4, spacing_x=80, spacing_y=60)
@@ -372,7 +376,7 @@ def test_large_action_count_performance(self):
 - **Core Actions**: 100% line coverage for base Action class
 - **Conditional Actions**: 95% coverage including edge cases
 - **Composite Actions**: 100% coverage for operator overloads
-- **AttackGroup**: 90% coverage including lifecycle management
+- **Formation functions**: 90% coverage including positioning and layout
 - **Boundary Actions**: 85% coverage including callback scenarios
 
 ### Critical Test Cases

@@ -108,11 +108,11 @@ class MoveUntil(_Action):
         such as for startup acceleration from zero to target velocity.
 
         Args:
-            velocity: New (dx, dy) velocity tuple to apply
+            velocity: (dx, dy) velocity tuple to apply
         """
         self.current_velocity = velocity
         if not self.done:
-            self.apply_effect()  # Immediately apply new velocity to sprites
+            self.apply_effect()  # Immediately apply velocity to sprites
 
     def remove_effect(self) -> None:
         """Stop movement by clearing velocity on all sprites."""

@@ -2,7 +2,7 @@
 
 ## 🚀 Quick Start
 
-**New to ArcadeActions?** Start here: **[API Usage Guide](api_usage_guide.md)**
+**Getting started with ArcadeActions?** Start here: **[API Usage Guide](api_usage_guide.md)**
 
 ArcadeActions is a **conditional action system** for Arcade 3.x that enables declarative game behaviors through condition-based actions rather than fixed durations.
 
@@ -12,7 +12,6 @@ ArcadeActions is a **conditional action system** for Arcade 3.x that enables dec
 1. **[API Usage Guide](api_usage_guide.md)** - **START HERE** - Complete guide to using the framework
 2. **[Testing Guide](testing_guide.md)** - **Testing patterns and best practices**
 3. **[PRD](prd.md)** - Project requirements and architecture decisions
-4. **[Boundary Events](boundary_event.md)** - BoundedMove and WrappedMove patterns
 
 ## 🎯 Key Concepts
 
@@ -67,8 +66,6 @@ complex = delay + (move | fade) + final_action
 import arcade
 from actions.base import Action
 from actions.conditional import MoveUntil, DelayUntil, duration
-from actions.pattern import AttackGroup
-from actions.move import BoundedMove
 
 class SpaceInvadersGame(arcade.Window):
     def __init__(self):
@@ -83,8 +80,8 @@ class SpaceInvadersGame(arcade.Window):
                 enemy.center_y = 500 - row * 40
                 enemies.append(enemy)
         
-        # Use AttackGroup for high-level game management
-        self.formation = AttackGroup(enemies, name="invaders")
+        # Store enemies for movement management
+        self.enemies = enemies
         self._setup_movement_pattern()
     
     def _setup_movement_pattern(self):
@@ -93,18 +90,20 @@ class SpaceInvadersGame(arcade.Window):
             if axis == 'x':
                 # Move entire formation down and change direction
                 drop_action = MoveUntil((0, -30), duration(0.3))
-                self.formation.apply(drop_action, tag="drop")
+                drop_action.apply(self.enemies, tag="drop")
         
-        # Set up boundary detection
-        bounds = lambda: (50, 0, 750, 600)
-        bouncer = BoundedMove(bounds, on_bounce=on_boundary_hit)
+        # Create continuous horizontal movement with boundary detection
+        bounds = (50, 0, 750, 600)  # left, bottom, right, top
+        move_action = MoveUntil(
+            (50, 0), 
+            lambda: False,  # Move indefinitely
+            bounds=bounds,
+            boundary_behavior="bounce",
+            on_boundary=on_boundary_hit
+        )
         
-        # Create continuous horizontal movement
-        move_action = MoveUntil((50, 0), lambda: False)  # Move indefinitely
-        bouncer.wrap_action(move_action)
-        
-        # Apply to formation with global management
-        bouncer.apply(self.formation.sprites, tag="formation_movement")
+        # Apply to enemies with global management
+        move_action.apply(self.enemies, tag="formation_movement")
     
     def on_update(self, delta_time):
         # Single line handles all action updates
@@ -113,7 +112,7 @@ class SpaceInvadersGame(arcade.Window):
 
 ## 🔧 Core Components
 
-### ✅ Current Implementation
+### ✅ Implementation
 
 #### Base Action System (actions/base.py)
 - **Action** - Core action class with global management
@@ -132,13 +131,11 @@ class SpaceInvadersGame(arcade.Window):
 - **Sequential actions** - Run actions one after another (use `+` operator)
 - **Parallel actions** - Run actions in parallel (use `|` operator)
 
-#### Boundary Actions (actions/move.py)
-- **BoundedMove** - Bounce off boundaries with callbacks
-- **WrappedMove** - Wrap around screen edges
+#### Boundary Handling (actions/conditional.py)
+- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
 
 #### Game Management (actions/pattern.py)
-- **AttackGroup** - High-level sprite group lifecycle management
-- **GridPattern** - Formation positioning patterns
+- **Formation functions** - Grid, line, circle, and V-formation positioning
 
 ## 📋 Decision Matrix
 
@@ -148,8 +145,8 @@ class SpaceInvadersGame(arcade.Window):
 | Group coordination | Action on SpriteList | `action.apply(enemies, tag="formation")` |
 | Sequential behavior | `+` operator | `delay + move + fade` |
 | Parallel behavior | `\|` operator | `move \| rotate \| scale` |
-| Game lifecycle management | AttackGroup | `formation.apply(pattern, tag="attack")` |
-| Boundary detection | BoundedMove wrapper | `bouncer.wrap_action(movement)` |
+| Formation positioning | Pattern functions | `arrange_grid(enemies, rows=3, cols=5)` |
+| Boundary detection | MoveUntil with bounds | `MoveUntil(vel, cond, bounds=bounds, boundary_behavior="bounce")` |
 | Standard sprites (no actions) | arcade.Sprite + arcade.SpriteList | Regular Arcade usage |
 
 ## 🎯 API Patterns
@@ -169,10 +166,9 @@ move_action.apply(enemies, tag="formation")
 complex = delay + (move | fade) + final_action
 complex.apply(sprite, tag="complex")
 
-# High-level management
-formation = AttackGroup(enemies)
-formation.apply(pattern, tag="attack")
-formation.schedule(3.0, retreat_pattern, tag="retreat")
+# Formation positioning
+from actions.pattern import arrange_grid
+arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
 
 # Global update handles everything
 Action.update_all(delta_time)
@@ -213,18 +209,22 @@ def test_group_coordination():
         assert enemy.center_y == -50
 ```
 
-### AttackGroup Management
+### Formation Management
 ```python
-def test_attack_group():
-    enemies = arcade.SpriteList([enemy1, enemy2])
-    formation = AttackGroup(enemies, auto_destroy_when_empty=True)
+def test_formation_management():
+    from actions.pattern import arrange_grid
     
-    # Test high-level patterns
+    enemies = arcade.SpriteList([enemy1, enemy2, enemy3])
+    
+    # Test formation positioning
+    arrange_grid(enemies, rows=2, cols=2, start_x=100, start_y=400)
+    
+    # Test group actions
     pattern = delay + move + fade
-    formation.apply(pattern, tag="test")
+    pattern.apply(enemies, tag="test")
     
-    # Test lifecycle management
-    assert not formation.is_destroyed
+    # Test group state
+    assert len(enemies) == 3
 ```
 
 ## 📖 Documentation Structure
@@ -233,7 +233,7 @@ def test_attack_group():
 docs/
 ├── README.md                 # This file - overview and quick start
 ├── api_usage_guide.md       # Complete API usage patterns (START HERE)
-├── boundary_event.md        # Boundary callback patterns
+├── testing_guide.md         # Testing patterns and fixtures
 └── prd.md                   # Requirements and architecture
 ```
 
@@ -242,7 +242,7 @@ docs/
 1. **Read the [API Usage Guide](api_usage_guide.md)** to understand the framework
 2. **Study the Space Invaders example** above for a complete pattern
 3. **Start with simple conditional actions** and build up to complex compositions
-4. **Use AttackGroup** for game-level sprite management and lifecycle
+4. **Use formation functions** for organizing sprite positions and layouts
 
 The ArcadeActions framework transforms Arcade game development with declarative, condition-based behaviors! 
 

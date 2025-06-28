@@ -192,7 +192,6 @@ class TestRotateUntil:
     def test_rotate_until_basic(self):
         """Test basic RotateUntil functionality."""
         sprite = create_test_sprite()
-        start_angle = sprite.angle
 
         target_reached = False
 
@@ -288,7 +287,6 @@ class TestBlinkUntil:
     def test_blink_until_basic(self):
         """Test basic BlinkUntil functionality."""
         sprite = create_test_sprite()
-        start_visible = sprite.visible
 
         target_reached = False
 

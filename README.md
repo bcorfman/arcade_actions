@@ -37,7 +37,7 @@ player = arcade.Sprite(":resources:images/player.png")
 player.center_x = 100
 player.center_y = 100
 
-# Create and apply actions using the current API
+# Create and apply actions
 move_action = MoveUntil((100, 0), duration(2.0))  # Move 100 px/sec for 2 seconds
 rotate_action = RotateUntil(180, duration(1.0))   # Rotate 180 deg/sec for 1 second
 
@@ -54,7 +54,6 @@ def on_update(self, delta_time):
 
 - [API Usage Guide](docs/api_usage_guide.md) - Comprehensive guide to using the library
 - [Game Loop Integration](docs/game_loop_updates.md) - How to integrate with your game loop
-- [Boundary Events](docs/boundary_event.md) - Working with boundaries and collisions
 
 ## Examples
 

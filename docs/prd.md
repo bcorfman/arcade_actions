@@ -17,8 +17,8 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 | `base.py`             | Core `Action` class with global action management and operator overloads |
 | `conditional.py`      | Condition-based actions (MoveUntil, RotateUntil, etc.) |
 | `composite.py`        | Composite actions for combining multiple actions (sequential, parallel) |
-| `move.py`             | Boundary actions (`WrappedMove`, `BoundedMove`) for arcade-style patterns |
-| `pattern.py`          | `AttackGroup` for high-level game management and formation patterns |
+| `conditional.py`      | Includes boundary handling in `MoveUntil` for arcade-style patterns |
+| `pattern.py`          | Formation functions for positioning and layout patterns |
 | Global Action Management | Automatic action tracking, updates, and lifecycle management |
 | Test Suite            | Pytest-based unit and integration tests to validate core and edge behavior |
 | Operator Composition  | `+` for sequential, `|` for parallel, enabling clean declarative syntax |
@@ -57,7 +57,7 @@ This enables more flexible, game-state-driven behaviors.
 - Core conditional actions: MoveUntil, RotateUntil, ScaleUntil, FadeUntil
 - Composite actions (sequential, parallel) with operator overloads
 - Boundary actions for arcade-style movement patterns
-- AttackGroup for high-level game and formation management
+- Formation functions for positioning and layout patterns
 - Global action management system
 - Unit and integration test coverage for actions and patterns
 - Example patterns for common game behaviors
@@ -128,7 +128,7 @@ We are delivering a **modern condition-based Actions system** for Arcade that em
    - Individual action tests using direct `action.apply()` calls
    - Group action tests applying actions to `arcade.SpriteList`
    - Composite action tests using operator overloads
-   - AttackGroup tests for high-level game management
+   - Formation function tests for positioning patterns
    - Boundary action tests for arcade-style patterns
 
 4. **Documentation Requirements**
@@ -153,17 +153,17 @@ This PRD provides the architectural foundation. For implementation details, cons
 - **[api_usage_guide.md](api_usage_guide.md)** - **Primary implementation reference**
   - Complete API usage patterns and implementation details
   - Comprehensive examples of conditional actions and composition
-  - AttackGroup usage patterns and best practices
+  - Formation function usage patterns and best practices
 
 ### Specialized Implementation Guides
-- **[boundary_event.md](boundary_event.md)** - BoundedMove and WrappedMove callback patterns
+- **[testing_guide.md](testing_guide.md)** - Testing patterns and best practices
 
 ### Documentation Hierarchy
 ```
 PRD.md (this file)           → Architecture & Requirements
 ├── api_usage_guide.md       → Implementation Patterns (PRIMARY)
 ├── testing_guide.md         → Testing Patterns & Best Practices
-├── boundary_event.md        → Boundary Patterns
+├── testing_guide.md         → Testing Patterns
 └── README.md                → Quick Start Guide
 ```
 
@@ -200,7 +200,7 @@ PRD.md (this file)           → Architecture & Requirements
 2. **Global Management**: Central `Action` class manages all active actions automatically  
 3. **Condition-Based**: Actions run until conditions are met, enabling state-driven behavior
 4. **Operator Overloads**: Mathematical operators create composite actions cleanly
-5. **AttackGroup Pattern**: High-level game management without replacing core Arcade classes
+5. **Formation Pattern**: Position sprites in organized layouts without replacing core Arcade classes
 
 ---
 
@@ -232,11 +232,11 @@ def on_update(self, delta_time):
     Action.update_all(delta_time)
 ```
 
-### Pattern 4: AttackGroup for Game Logic
+### Pattern 4: Formation Functions for Layout
 ```python
-formation = AttackGroup(enemies, auto_destroy_when_empty=True)
-formation.apply(pattern, tag="attack")
-formation.schedule(3.0, retreat, tag="retreat")
+from actions.pattern import arrange_grid
+arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
+pattern.apply(enemies, tag="attack")
 ```
 
 This architecture provides a clean, powerful, and maintainable action system that enhances Arcade without replacing its core functionality.
