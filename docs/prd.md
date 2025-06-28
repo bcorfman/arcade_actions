@@ -4,9 +4,9 @@
 
 ## ✅ Project Overview
 
-The goal is to create a robust, **conditional Actions system for the Arcade 3.x Python library**, inspired by Cocos2D's action system but reimagined to fit Arcade's API.
+The goal is to create a robust, modern **Actions system for the Arcade 3.x Python library**, inspired by Cocos2D's action system but reimagined to fit Arcade's physics, sprite, and delta-time-based architecture.
 
-This system enables complex sprite behaviors (movement, rotation, scaling, fading, scheduling) in games like Space Invaders, Galaga, and Asteroids — all using high-level declarative **condition-based actions** that work directly with Arcade's native sprites.
+This system enables complex sprite behaviors (movement, rotation, scaling, fading, grouping, scheduling) in games like Space Invaders, Galaga, and Asteroids — all using high-level declarative actions.
 
 ---
 
@@ -25,29 +25,55 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 
 ## 🔄 Property Update System
 
-The Actions library uses **direct property updates** with Arcade's native sprite system:
+The Actions library handles two distinct property update systems:
 
-### Direct Property Updates
-All actions work by directly modifying sprite properties:
-- **Position** - Updated via `center_x`, `center_y` 
-- **Angle** - Updated via `angle` property
-- **Scale** - Updated via `scale` property (supports both float and tuple)
-- **Alpha** - Updated via `alpha` property
+### 1. ActionSprite Properties
+Properties managed by the Actions system through `ActionSprite`:
+- Position (direct updates in `update()`)
+- Angle (direct updates in `update()`)
+- Scale (direct updates in `update()`)
+- Alpha (direct updates in `update()`)
+- Custom properties
 
-Actions calculate velocity-based changes and apply them directly:
-1. Actions calculate position/angle/scale/alpha changes based on velocity and delta_time
-2. Actions apply changes directly to sprite properties
-3. Actions check conditions each frame to determine completion
-4. Global `Action.update_all()` handles all active actions automatically
+These properties are updated by:
+1. Actions calculate changes in `start()`
+2. Actions apply changes directly in `update()` using:
+   - Elapsed time tracking
+   - Rate-based interpolation
+   - Proper pause state handling
+3. Actions ensure clean completion in `stop()`
 
-### Condition-Based Paradigm
-Unlike duration-based actions, ArcadeActions uses **condition-based actions**:
-- **MoveUntil** - Move until condition is met
-- **RotateUntil** - Rotate until condition is met
-- **FadeUntil** - Fade until condition is met
-- **DelayUntil** - Wait until condition is met
+Note: `ActionSprite` is designed to manage only one action at a time. To achieve multiple behaviors simultaneously, use composite actions:
+- `Spawn` (|) for parallel actions
+- `Sequence` (+) for sequential actions
+- `Repeat` (*) for repeating actions
+- `Loop` for finite repetitions
 
-This enables more flexible, game-state-driven behaviors.
+This design choice simplifies the action management system and makes the behavior more predictable. When a new action is started, any existing action is automatically stopped.
+
+### 2. Arcade Sprite Properties
+Properties managed by Arcade's standard sprite system:
+- Position (via `change_x`, `change_y`)
+- Angle (via `change_angle`)
+- Physics properties (via Pymunk integration)
+
+These properties are updated by:
+1. Arcade's sprite update system
+2. Velocity-based movement
+3. Physics integration
+
+### Clear Separation of Concerns
+- `ActionSprite` is the only class that can use Actions
+- Regular `arcade.Sprite` uses Arcade's standard velocity system
+- No mixing of the two systems on the same sprite
+- Explicit documentation that Actions only work with `ActionSprite`
+
+### Time Management
+All property updates are managed through the `GameClock` system:
+- Delta-time based updates for frame independence
+- Proper pause state handling
+- Consistent timing across all action types
+- Support for action modifiers (Easing)
 
 ---
 
@@ -68,10 +94,12 @@ This enables more flexible, game-state-driven behaviors.
 
 - Full-featured physics integration (Pymunk, collisions, impulses)
 - Advanced pathfinding or AI (A*)
+- Asset management, resource loading (images, sounds)
 - Visual editor or GUI tools for creating action sequences
 - Multiplayer or networking features
-- Custom sprite classes (works with standard arcade.Sprite)
-- Manual action tracking systems (uses global management)
+- Detailed particle system or visual effects integration
+- Arcade's platformer physics, tilemaps, or other unrelated features
+- Actions for regular `arcade.Sprite` instances
 
 ---
 
@@ -79,11 +107,12 @@ This enables more flexible, game-state-driven behaviors.
 
 | Layer           | Technology                                       |
 |-----------------|--------------------------------------------------|
-| Core Language   | Python 3.13+                                     |
+| Core Language   | Python 3.10+                                     |
 | Game Engine     | Arcade 3.x                                       |
-| Actions Framework | Custom-built `ArcadeActions` library, condition-based paradigm |
+| Actions Framework | Custom-built `ArcadeActions` library, Cocos2D-inspired |
 | Testing        | Pytest                                            |
-| Dependencies   | Minimal; self-contained aside from Arcade |
+| Demo Game      | Arcade View + Window, using `ActionSprite` + Action groups |
+| Dependencies   | Minimal; self-contained aside from Arcade and optional Pymunk |
 | Version Control | Git (recommended)                               |
 | Build System   | Makefile for common development tasks            |
 | Package Management | uv for dependency management                    |
@@ -94,29 +123,31 @@ This enables more flexible, game-state-driven behaviors.
 
 This system:
 
-✅ Makes Arcade more high-level and expressive for animation and behavior  
-✅ Supports **condition-based behaviors** critical for responsive game logic
-✅ Enables rapid prototyping of sophisticated gameplay without low-level frame management
-✅ Offers **operator-based composition** for clean, declarative behavior sequences
-✅ Works seamlessly with Arcade's native sprite system
-✅ Provides **global action management** eliminating manual tracking overhead
+✅ Makes Arcade as expressive as Cocos2D for animation and behavior  
+✅ Works at **frame-independent precision** via delta-time updates  
+✅ Supports **group behaviors** critical for arcade shooters  
+✅ Provides **clean separation** between logic, physics, and visuals  
+✅ Enables rapid prototyping of sophisticated gameplay without low-level math
+✅ Offers **composite actions** for complex behavior sequences with robust edge case handling
+✅ Integrates with Arcade's game state management
+✅ Maintains clear boundaries between Action and Arcade sprite systems
 
 ---
 
 ## 🌟 Summary
 
-We are delivering a **modern condition-based Actions system** for Arcade that empowers indie devs to build complex 2D games faster with cleaner, more maintainable code through declarative action composition.
+We are delivering a **modern, extensible, production-ready Actions system** for Arcade that empowers indie devs to build complex 2D games faster, with cleaner and more maintainable code, and with an architecture grounded in real-time delta updates. The system includes comprehensive game state management, composite actions for complex behaviors with proper edge case handling, and a robust testing framework.
 
 ## 🧪 Testing Requirements
 
 ### Test Coverage Requirements
 
 1. **Core Action Testing**
-   - All conditional action types must have comprehensive test coverage
+   - All action types must have comprehensive test coverage
    - Edge cases must be explicitly tested
    - Boundary conditions must be tested for movement actions
    - Composite actions must be tested for all combinations
-   - Global action management must be tested
+   - Action modifiers must be tested with different types of actions
 
 2. **Property Update Testing**
    - Test direct property updates for position, angle, scale, alpha
@@ -137,13 +168,15 @@ We are delivering a **modern condition-based Actions system** for Arcade that em
    - Each test method must explain what aspect is being tested
    - Complex test setups must be documented with comments
    - Test fixtures must be documented with their purpose
+   - Property update type must be clearly documented
 
 5. **Quality Requirements**
    - Tests must be deterministic and repeatable
    - Tests must be independent of each other
-   - Tests must clean up after themselves using global action management
+   - Tests must clean up after themselves
    - Tests must be fast and efficient
    - Tests must be maintainable and readable
+   - Tests must verify both immediate and time-based updates
 
 ## 📚 Related Documentation
 
@@ -180,8 +213,8 @@ PRD.md (this file)           → Architecture & Requirements
 **The Real Problem**: Unclear interfaces, not the checking pattern.
 
 **The Solution**: Design interfaces so checking isn't needed through:
-1. **Consistent base interfaces** with well-defined contracts
-2. **Clear protocols** guaranteeing expected methods/attributes exist
+1. **Consistent base interfaces** with default values
+2. **Clear protocols** guaranteeing expected methods/attributes  
 3. **Composition patterns** eliminating optional attributes
 4. **Unified interfaces** for similar objects (Action base class)
 
@@ -208,13 +241,17 @@ PRD.md (this file)           → Architecture & Requirements
 
 ### Pattern 1: Direct Action Application
 ```python
-# Works with any arcade.Sprite or arcade.SpriteList
-sprite = arcade.Sprite("image.png")
-enemies = arcade.SpriteList()
+# ✅ Acceptable - genuine fallback logic
+try:
+    return expensive_operation()
+except ResourceNotAvailable:
+    return cached_result()
 
-action = MoveUntil((100, 0), lambda: sprite.center_x > 700)
-action.apply(sprite, tag="movement")
-action.apply(enemies, tag="formation")
+# ❌ Forbidden - error silencing
+try:
+    obj.method()
+except AttributeError:
+    pass  # This is a code smell
 ```
 
 ### Pattern 2: Operator Composition

@@ -2,51 +2,61 @@
 
 ## Overview
 
-ArcadeActions provides a conditional action system that works directly with Arcade's native sprites and sprite lists. The framework uses **condition-based actions** rather than duration-based ones, enabling more flexible and declarative game behaviors.
+This guide provides clear guidance on when and how to use the different components of the ArcadeActions framework. Understanding these patterns is crucial for building effective games and demos.
 
-## Core Design Principles
+## Core Components
 
-### 1. Global Action Management
-All actions are managed globally - no manual action tracking needed:
-
-```python
-from actions.base import Action
-from actions.conditional import MoveUntil, duration
-
-# Apply actions directly to any arcade.Sprite or arcade.SpriteList
-action = MoveUntil((100, 0), duration(2.0))
-action.apply(sprite, tag="movement")
-
-# Global update handles everything
-def update(self, delta_time):
-    Action.update_all(delta_time)  # Updates all active actions
-```
-
-### 2. Condition-Based Actions
-Actions run until conditions are met, not for fixed durations:
+### 1. ActionSprite
+**When to use:** For any sprite that needs to perform actions.
+**Key principle:** Only `ActionSprite` instances can use the Actions system.
 
 ```python
-# Velocity-based movement until condition is met
-move_action = MoveUntil((50, -30), lambda: sprite.center_y < 100)
-rotate_action = RotateUntil(90, lambda: sprite.angle >= 45)
-fade_action = FadeUntil(-50, lambda: sprite.alpha <= 50)
+from actions.base import ActionSprite
+from actions.interval import MoveBy
 
-# Apply directly to sprites
-move_action.apply(sprite, tag="movement")
+# Create an ActionSprite
+player = ActionSprite(":resources:images/player.png")
+player.center_x = 100
+player.center_y = 100
+
+# Apply an action
+move_action = MoveBy((200, 0), 2.0)  # Move 200 pixels right over 2 seconds
+player.do(move_action)
+
+# Update in game loop
+player.update(delta_time)
 ```
 
-### 3. Operator-Based Composition
-Use `+` for sequences and `|` for parallel actions:
+### 2. Individual Actions
+**When to use:** For single sprite behaviors, simple movements, or when you need precise control.
+
+```python
+# Basic movement
+move_action = MoveBy((100, 50), 1.0)
+sprite.do(move_action)
+
+# Rotation
+rotate_action = RotateBy(360, 2.0)
+sprite.do(rotate_action)
+
+# Composite actions for complex behavior
+complex_action = MoveBy((100, 0), 1.0) + RotateBy(180, 0.5) + FadeTo(0, 1.0)
+sprite.do(complex_action)
+```
+
+### 3. SpriteGroup
+**When to use:** For managing collections of sprites that need coordinated behavior.
+**Key features:** Automatic GroupAction management, collision detection, group operations.
 
 ```python
 # Sequential actions
-sequence = delay_action + move_action + fade_action
+sequence = Sequence(delay_action, move_action, fade_action)
 
 # Parallel actions  
-parallel = move_action | rotate_action | fade_action
+parallel = Parallel(move_action, rotate_action, fade_action)
 
 # Nested composition
-complex = delay_action + (move_action | fade_action) + final_action
+complex = Sequence(delay_action, Parallel(move_action, fade_action), final_action)
 ```
 
 ## Core Components
@@ -73,39 +83,47 @@ complex = delay_action + (move_action | fade_action) + final_action
 ## Usage Patterns
 
 ### Pattern 1: Individual Sprite Control
-For player characters, single enemies, individual UI elements:
+**Use case:** Player character, single enemies, UI elements.
 
 ```python
-import arcade
-from actions.conditional import MoveUntil, RotateUntil, duration
-
-# Create any arcade.Sprite
-player = arcade.Sprite(":resources:images/player.png")
-
-# Apply actions directly
-move_action = MoveUntil((100, 0), duration(2.0))
-move_action.apply(player, tag="movement")
-
-# Combine with operators
-dodge_sequence = move_action + RotateUntil(180, duration(0.5))
-dodge_sequence.apply(player, tag="dodge")
+class Player:
+    def __init__(self):
+        self.sprite = ActionSprite(":resources:images/player.png")
+        self.sprite.center_x = 400
+        self.sprite.center_y = 100
+    
+    def move_to(self, x, y):
+        move_action = MoveTo((x, y), 1.0)
+        self.sprite.do(move_action)
+    
+    def update(self, delta_time):
+        self.sprite.update(delta_time)
 ```
 
 ### Pattern 2: Group Coordination
-For enemy formations, bullet patterns, coordinated behaviors:
+**Use case:** Enemy formations, bullet patterns, particle effects.
 
 ```python
-# Create standard arcade.SpriteList
-enemies = arcade.SpriteList()
-for i in range(10):
-    enemy = arcade.Sprite(":resources:images/enemy.png")
-    enemies.append(enemy)
-
-# Apply actions to entire group
-formation_move = MoveUntil((0, -50), duration(3.0))
-formation_move.apply(enemies, tag="formation")
-
-# All sprites in the list move together
+class EnemyFormation:
+    def __init__(self):
+        self.enemies = SpriteGroup()
+        self._setup_formation()
+    
+    def _setup_formation(self):
+        # Create 3x5 grid of enemies
+        for row in range(3):
+            for col in range(5):
+                enemy = ActionSprite(":resources:images/enemy.png")
+                enemy.center_x = 200 + col * 80
+                enemy.center_y = 500 - row * 60
+                self.enemies.append(enemy)
+    
+    def move_formation(self, dx, dy, duration):
+        move_action = MoveBy((dx, dy), duration)
+        self.enemies.do(move_action)  # All enemies move together
+    
+    def update(self, delta_time):
+        self.enemies.update(delta_time)  # Automatically updates GroupActions
 ```
 
 ### Pattern 3: Formation Management
@@ -184,13 +202,21 @@ print(f"Formation has {len(enemies)} sprites")
 print(f"Formation is empty: {len(enemies) == 0}")
 ```
 
-### Pattern 4: Boundary Interactions
-For arcade-style movement with boundary detection:
+### ❌ Don't: Apply WrappedMove to individual sprites in a group
+```python
+# WRONG - All sprites wrap individually, no coordination
+for sprite in sprite_group:
+    wrap_action = WrappedMove(get_bounds)
+    sprite.do(move_action | wrap_action)
+```
 
+### ✅ Do: Apply WrappedMove to the entire SpriteGroup
 ```python
 from actions.conditional import MoveUntil
 
-# Individual sprite bouncing
+### ❌ Don't: Directly manipulate sprite positions in groups
+```python
+# WRONG - Direct position manipulation bypasses the action system
 def on_bounce(sprite, axis):
     print(f"Sprite bounced on {axis} axis")
 
@@ -227,32 +253,59 @@ group_movement.apply(enemies, tag="formation_bounce")
 Use tags to organize and control different types of actions:
 
 ```python
-# Apply different tagged actions
-movement_action.apply(sprite, tag="movement")
-effect_action.apply(sprite, tag="effects")
-combat_action.apply(sprite, tag="combat")
+from actions.group import SpriteGroup, GroupAction
+from actions.interval import MoveBy
 
-# Stop specific tagged actions
-Action.stop(sprite, tag="effects")  # Stop just effects
-Action.stop(sprite)  # Stop all actions on sprite
+# GroupAction is created automatically
+enemies = SpriteGroup([sprite1, sprite2, sprite3])
+group_action = enemies.do(MoveBy((200, 0), 2.0))  # Returns GroupAction
+
+# GroupAction implements the same interface as individual actions
+assert not group_action.done  # Check completion status
+group_action.pause()          # Pause all sprites in group
+group_action.resume()         # Resume all sprites in group
+
+# Batch optimization makes large groups efficient
+large_group = SpriteGroup([create_sprite() for _ in range(100)])
+large_group.do(MoveBy((50, 0), 1.0))  # Optimized for 100 sprites!
 ```
 
-### Global Control
-The global Action system provides centralized management:
+### 6. AttackGroup  
+**When to use:** For complex game scenarios requiring lifecycle management, formations, and scheduled events.
+**Key features:** Built on SpriteGroup with game-oriented additions.
 
 ```python
-# Update all actions globally
-Action.update_all(delta_time)
+from actions.group import AttackGroup, SpriteGroup, GridPattern
+from actions.interval import MoveBy
 
-# Global action queries
-active_count = Action.get_active_count()
-movement_actions = Action.get_tag_actions("movement")
+# Create an AttackGroup for complex enemy behavior
+enemies = SpriteGroup([create_enemy() for _ in range(12)])
+formation = AttackGroup(enemies, name="wave_1")
 
-# Global cleanup
-Action.clear_all()
+# Apply formation patterns
+pattern = GridPattern(rows=3, cols=4, spacing_x=80, spacing_y=60)
+pattern.apply(formation, start_x=200, start_y=400)
+
+# Schedule delayed attacks
+formation.schedule_attack(2.0, formation.do, MoveBy((100, -50), 1.5))
+formation.schedule_attack(5.0, formation.do, MoveBy((-200, 0), 2.0))
+
+# Handle breakaway scenarios
+def create_breakaway():
+    # Some sprites break away to form new attack pattern
+    breakaway_sprites = list(formation.sprites)[:3]
+    new_formation = formation.breakaway(breakaway_sprites)
+    new_formation.do(MoveBy((0, -100), 1.0))
+
+formation.schedule_attack(3.0, create_breakaway)
+
+# Update in game loop (handles all scheduled events)
+formation.update(delta_time)
 ```
 
-## Complete Game Example
+### 7. Formation Patterns
+**When to use:** For organizing sprites into recognizable formations.
+**Key principle:** Separate positioning logic from movement logic.
 
 ```python
 import arcade
@@ -310,24 +363,48 @@ class SpaceInvadersGame(arcade.Window):
         Action.update_all(delta_time)
 ```
 
-## Best Practices
-
-### 1. Prefer Conditions Over Durations
+### Testing Group Actions
 ```python
-# Good: Condition-based
-move_until_edge = MoveUntil((100, 0), lambda: sprite.center_x > 700)
-
-# Avoid: Duration-based thinking
-# move_for_time = MoveBy((500, 0), 5.0)  # Old paradigm
+def test_group_action(self):
+    sprite_group = SpriteGroup()
+    for i in range(3):
+        sprite = ActionSprite(":resources:images/test.png")
+        sprite.center_x = i * 100
+        sprite_group.append(sprite)
+    
+    move_action = MoveBy((50, 0), 1.0)
+    sprite_group.do(move_action)
+    
+    sprite_group.update(1.0)  # Complete action
+    
+    # All sprites should have moved
+    for i, sprite in enumerate(sprite_group):
+        assert sprite.center_x == i * 100 + 50
 ```
 
-### 2. Use Operators for Composition
+### Testing Boundary Interactions
 ```python
-# Good: Clean operator syntax
-complex_action = delay + (move | fade) + final_move
-
-# Avoid: Verbose constructors
-# complex_action = Sequence(delay, Spawn(move, fade), final_move)
+def test_boundary_with_group(self):
+    sprite_group = SpriteGroup()
+    # ... setup sprites near boundary ...
+    
+    bounce_called = False
+    def on_bounce(sprite, axis):
+        nonlocal bounce_called
+        bounce_called = True
+    
+    bounds = lambda: (0, 0, 800, 600)
+    bounce_action = BoundedMove(bounds, on_bounce=on_bounce)
+    bounce_action.target = sprite_group
+    bounce_action.start()
+    
+    move_action = MoveBy((200, 0), 1.0)
+    sprite_group.do(move_action)
+    
+    sprite_group.update(1.0)
+    bounce_action.update(1.0)
+    
+    assert bounce_called
 ```
 
 ### 3. Use Formation Functions for Positioning
@@ -340,7 +417,7 @@ arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
 # Manual calculation of sprite positions
 ```
 
-### 4. Tag Your Actions
+### Testing Collision Detection
 ```python
 # Good: Organized with tags
 movement.apply(sprite, tag="movement")
@@ -366,9 +443,29 @@ The ArcadeActions framework provides a clean, declarative way to create complex 
 
 ## Runtime-checking-free patterns
 
+A common temptation is to write:
+
+```python
+# ❌ old – forbidden
+if isinstance(action, MovementAction):
+    dx, dy = action.delta
+```
+
+Now you **call the capability method directly**:
+
+```python
+# ✅ new – always available
+if action.get_movement_delta() != (0, 0):
+    dx, dy = action.get_movement_delta()
+```
 
 Key conventions:
 
+1. **Capability hooks on `Action`.**
+   – `get_movement_delta()` returns `(dx, dy)` or `(0, 0)`.
+   – `adjust_for_position_delta(delta)` lets decorators (e.g. `WrappedMove`) tell inner actions about teleports.
+2. **Iteration helpers.**  Instead of `isinstance(target, arcade.SpriteList)`, call `for sprite in self._iter_target():` in custom actions.
+3. **Group detection.**  Check for the structural attribute `_group_actions` instead of type-checking `SpriteGroup`.
 4. **Lint gate.**  `ruff` blocks any new `isinstance`, `hasattr`, or `getattr` usage during CI.
 
 Stick to these patterns and you'll remain compliant with the project's "zero tolerance" design rule. 

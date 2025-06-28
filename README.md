@@ -30,10 +30,10 @@ pip install arcade-actions
 
 ```python
 import arcade
-from actions import MoveUntil, RotateUntil, Action, duration
+from actions import ActionSprite, MoveBy, RotateBy, Sequence
 
-# Create a standard arcade sprite
-player = arcade.Sprite(":resources:images/player.png")
+# Create an ActionSprite
+player = ActionSprite(":resources:images/player.png")
 player.center_x = 100
 player.center_y = 100
 
@@ -41,13 +41,13 @@ player.center_y = 100
 move_action = MoveUntil((100, 0), duration(2.0))  # Move 100 px/sec for 2 seconds
 rotate_action = RotateUntil(180, duration(1.0))   # Rotate 180 deg/sec for 1 second
 
-# Combine actions in sequence using operator
-combo_action = move_action + rotate_action
-combo_action.apply(player, tag="combo")
+# Combine actions in sequence
+combo_action = Sequence([move_action, rotate_action])
+player.do(combo_action)
 
 # In your game loop
 def on_update(self, delta_time):
-    Action.update_all(delta_time)  # Updates all active actions globally
+    player.update(delta_time)
 ```
 
 ## Documentation
@@ -57,7 +57,9 @@ def on_update(self, delta_time):
 
 ## Examples
 
-- `examples/invaders.py` - Space Invaders-style game using the library
+- `demo.py` - Complete demonstration of all available actions
+- `examples/basic_usage.py` - Simple example showing core functionality
+- `invaders.py` - Space Invaders-style game using the library
 
 ## Development
 
@@ -77,6 +79,9 @@ uv sync --dev
 
 # Run tests
 uv run pytest
+
+# Run the demo
+uv run python examples/demo.py
 
 # Run Actions version of Arcade's Slime Invaders example
 uv run python examples/invaders.py
