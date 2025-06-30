@@ -385,7 +385,9 @@ class BlinkUntil(_Action):
     """Blink sprites (toggle visibility) until a condition is satisfied.
 
     Args:
-        blink_rate: Blinks per second
+        seconds_until_change: Seconds to wait before toggling visibility. For example, a value
+            of ``0.5`` will cause the sprite to become invisible after half a second, then
+            visible again after another half-second, resulting in one full *blink* per second.
         condition_func: Function that returns truthy value when blinking should stop
         on_condition_met: Optional callback called when condition is satisfied
         check_interval: How often to check condition (in seconds)
@@ -393,14 +395,17 @@ class BlinkUntil(_Action):
 
     def __init__(
         self,
-        blink_rate: float,
+        seconds_until_change: float,
         condition_func: Callable[[], Any],
         on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
         check_interval: float = 0.0,
     ):
+        if seconds_until_change <= 0:
+            raise ValueError("seconds_until_change must be positive")
+
         super().__init__(condition_func, on_condition_met, check_interval)
-        self.blink_rate = blink_rate
-        self._blink_time = 0.0
+        self.seconds_until_change = seconds_until_change
+        self._elapsed = 0.0
         self._original_visibility = {}
 
     def apply_effect(self) -> None:
@@ -412,14 +417,14 @@ class BlinkUntil(_Action):
         self.for_each_sprite(store_visibility)
 
     def update_effect(self, delta_time: float) -> None:
-        """Apply blinking effect."""
-        self._blink_time += delta_time
-        blink_interval = 1.0 / (self.blink_rate * 2)  # Divide by 2 for on/off cycle
-        current_blink_cycle = int(self._blink_time / blink_interval) % 2
+        """Apply blinking effect based on the configured interval."""
+        self._elapsed += delta_time
+        # Determine how many intervals have passed to know whether we should show or hide.
+        cycles = int(self._elapsed / self.seconds_until_change)
 
         def apply_blink(sprite):
             original_visible = self._original_visibility.get(id(sprite), True)
-            sprite.visible = original_visible if current_blink_cycle == 0 else not original_visible
+            sprite.visible = original_visible if cycles % 2 == 0 else not original_visible
 
         self.for_each_sprite(apply_blink)
 
@@ -434,7 +439,7 @@ class BlinkUntil(_Action):
 
     def clone(self) -> "BlinkUntil":
         """Create a copy of this BlinkUntil action."""
-        return BlinkUntil(self.blink_rate, self.condition_func, self.on_condition_met, self.check_interval)
+        return BlinkUntil(self.seconds_until_change, self.condition_func, self.on_condition_met, self.check_interval)
 
 
 class DelayUntil(_Action):
@@ -470,8 +475,8 @@ def duration(seconds: float):
         # Move for 2 seconds
         MoveUntil((100, 0), duration(2.0))
 
-        # Blink for 3 seconds
-        BlinkUntil(2.0, duration(3.0))
+        # Blink (toggle visibility every 0.25 seconds) for 3 seconds
+        BlinkUntil(0.25, duration(3.0))
 
         # Delay for 1 second
         DelayUntil(duration(1.0))

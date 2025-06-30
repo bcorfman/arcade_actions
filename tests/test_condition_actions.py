@@ -293,7 +293,7 @@ class TestBlinkUntil:
         def condition():
             return target_reached
 
-        action = BlinkUntil(10.0, condition)  # 10 blinks per second
+        action = BlinkUntil(0.05, condition)  # toggle every 0.05 seconds (equivalent to 10 blinks per second)
         action.apply(sprite)
 
         Action.update_all(0.016)
