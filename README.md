@@ -277,13 +277,3 @@ docs/
 4. **Use formation functions** for organizing sprite positions and layouts
 
 The ArcadeActions framework transforms Arcade game development with declarative, condition-based behaviors! 
-
-# Individual sprite control
-sprite = arcade.Sprite("image.png")
-action = MoveUntil((100, 0), lambda: sprite.center_x > 700)
-action.apply(sprite, tag="movement")
-
-# Group management  
-enemies = arcade.SpriteList()  # Use standard arcade.SpriteList
-action = MoveUntil((50, 0), duration(2.0))
-action.apply(enemies, tag="formation")
