@@ -2,16 +2,16 @@
 
 ## 🚀 Quick Start
 
-**Getting started with ArcadeActions?** Start here: **[API Usage Guide](api_usage_guide.md)**
+**Getting started with ArcadeActions?** Start here: **[API Usage Guide](docs/api_usage_guide.md)**
 
 ArcadeActions is a **conditional action system** for Arcade 3.x that enables declarative game behaviors through condition-based actions rather than fixed durations.
 
 ## 📚 Documentation Overview
 
 ### Essential Reading
-1. **[API Usage Guide](api_usage_guide.md)** - **START HERE** - Complete guide to using the framework
-2. **[Testing Guide](testing_guide.md)** - **Testing patterns and best practices**
-3. **[PRD](prd.md)** - Project requirements and architecture decisions
+1. **[API Usage Guide](docs/api_usage_guide.md)** - **START HERE** - Complete guide to using the framework
+2. **[Testing Guide](docs/testing_guide.md)** - **Testing patterns and best practices**
+3. **[PRD](docs/prd.md)** - Project requirements and architecture decisions
 
 ## 🎯 Key Concepts
 
