@@ -2,7 +2,7 @@
 
 ## 🚀 Quick Appeal
 
-So much of building an arcade game is saying "animate this sprite until X happens", where X is colliding with another sprite, reaching a boundary, or responding to an event. Instead of low-level behavior like "add 1 to sprite.x", what if you could declare "keep moving and rotating this asteroid, wrap it the other side of the window if it hits a boundary, and call a function if it collides with another sprite (and tell me what sprite it is)."? 
+So much of building an arcade game is a cluttered of saying "animate this sprite until X happens", where X is colliding with another sprite, reaching a boundary, or responding to an event. But instead of coding at a high-level, most of us do lots of low-level behavior like "add 1 to sprite.x". Instead, what if you could more easily say "keep moving and rotating this asteroid, wrap it the other side of the window if it hits a boundary, and call a function if it collides with another sprite (and tell me what sprite it is)."? 
 
 ```python 
 # assume player and asteroid are arcade.Sprites, and asteroid_list is a arcade.SpriteList
@@ -29,7 +29,8 @@ def handle_asteroid_collision(collision_data):
     for asteroid in collision_data["asteroid_hits"]:
         print("Asteroid collisions!")
 ```
-Compare this to the amount of low-level game code you are writing now. If making your game code clean, efficient and high-level like this appeals to you, read on!
+This type of approach clearly separate the actions associated with animation from the event responses of game objects interacting. Most of all, it makes your game code understandable. 
+Compare this high-level declarative pattern to the amount of low-level game code you are writing now. If this pattern appeals to you, read on!
 
 ## 📚 Documentation Overview
 
@@ -42,7 +43,7 @@ Compare this to the amount of low-level game code you are writing now. If making
 ## 🚀 Getting Started
 
 1. **Read the [API Usage Guide](api_usage_guide.md)** to understand the framework
-2. **Study the Slime Invaders example** [remade with ArcadeActions](examples/invaders.py) for a complete pattern
+2. **Study the Slime Invaders example** [(remade for ArcadeActions)](examples/invaders.py) or the [Stars example](examples/stars.py) to understand the power of Actions
 3. **Start with simple conditional actions** and build up to complex compositions
 4. **Use formation functions** for organizing sprite positions and layouts
 
@@ -50,7 +51,7 @@ Compare this to the amount of low-level game code you are writing now. If making
 
 ```
 docs/
-├── README.md                 # This file - overview and quick start
+├── README.md                # This file - overview and quick start
 ├── api_usage_guide.md       # Complete API usage patterns (START HERE)
 ├── testing_guide.md         # Testing patterns and fixtures
 └── prd.md                   # Requirements and architecture
