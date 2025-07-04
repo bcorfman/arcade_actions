@@ -1,4 +1,4 @@
-# ArcadeActions Framework Documentation
+# ArcadeActions extension library
 
 ## 🚀 Quick Appeal
 
