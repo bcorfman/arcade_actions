@@ -32,13 +32,24 @@ class MoveUntil(_Action):
         on_boundary: Callable[[Any, str], None] | None = None,
     ):
         super().__init__(condition_func, on_condition_met, check_interval)
-        self.velocity = velocity
-        self.current_velocity = velocity  # Enable future easing wrapper compatibility
+        self.target_velocity = velocity  # Immutable target velocity
+        self.current_velocity = velocity  # Current velocity (can be scaled by factor)
 
         # Boundary checking
         self.bounds = bounds  # (left, bottom, right, top)
         self.boundary_behavior = boundary_behavior
         self.on_boundary = on_boundary
+
+    def set_factor(self, factor: float) -> None:
+        """Scale the velocity by the given factor.
+
+        Args:
+            factor: Scaling factor for velocity (0.0 = stopped, 1.0 = full speed)
+        """
+        self.current_velocity = (self.target_velocity[0] * factor, self.target_velocity[1] * factor)
+        # Immediately apply the new velocity if action is active
+        if not self.done and self.target is not None:
+            self.apply_effect()
 
     def apply_effect(self) -> None:
         """Apply velocity to all sprites."""
@@ -68,6 +79,8 @@ class MoveUntil(_Action):
             if self.boundary_behavior == "bounce":
                 sprite.change_x = -sprite.change_x
                 self.current_velocity = (-self.current_velocity[0], self.current_velocity[1])
+                # Also update target velocity to maintain factor scaling
+                self.target_velocity = (-self.target_velocity[0], self.target_velocity[1])
                 # Keep sprite in bounds
                 if sprite.center_x <= left:
                     sprite.center_x = left
@@ -87,6 +100,8 @@ class MoveUntil(_Action):
             if self.boundary_behavior == "bounce":
                 sprite.change_y = -sprite.change_y
                 self.current_velocity = (self.current_velocity[0], -self.current_velocity[1])
+                # Also update target velocity to maintain factor scaling
+                self.target_velocity = (self.target_velocity[0], -self.target_velocity[1])
                 # Keep sprite in bounds
                 if sprite.center_y <= bottom:
                     sprite.center_y = bottom
@@ -126,7 +141,7 @@ class MoveUntil(_Action):
     def clone(self) -> "MoveUntil":
         """Create a copy of this MoveUntil action."""
         return MoveUntil(
-            self.velocity,
+            self.target_velocity,  # Use target_velocity for cloning
             self.condition_func,
             self.on_condition_met,
             self.check_interval,
@@ -142,12 +157,46 @@ class FollowPathUntil(_Action):
     Unlike duration-based Bezier actions, this maintains constant speed along the curve
     and can be interrupted by any condition (collision, position, time, etc.).
 
+    The action supports automatic sprite rotation to face the movement direction, with
+    calibration offset for sprites that aren't naturally drawn pointing to the right.
+
     Args:
-        control_points: List of (x, y) points defining the Bezier curve
+        control_points: List of (x, y) points defining the Bezier curve (minimum 2 points)
         velocity: Speed in pixels per second along the curve
         condition_func: Function that returns truthy value when path following should stop
         on_condition_met: Optional callback called when condition is satisfied
-        check_interval: How often to check condition (in seconds)
+        check_interval: How often to check condition (in seconds, default: 0.0 for every frame)
+        rotate_with_path: When True, automatically rotates sprite to face movement direction.
+            When False (default), sprite maintains its original orientation.
+        rotation_offset: Rotation offset in degrees to calibrate sprite's natural orientation.
+            Use this when sprite artwork doesn't point to the right by default:
+            - 0.0 (default): Sprite artwork points right
+            - -90.0: Sprite artwork points up
+            - 180.0: Sprite artwork points left
+            - 90.0: Sprite artwork points down
+
+    Examples:
+        # Basic path following without rotation
+        action = FollowPathUntil([(100, 100), (200, 200)], 150, duration(3.0))
+
+        # Path following with automatic rotation (sprite artwork points right)
+        action = FollowPathUntil(
+            [(100, 100), (200, 200)], 150, duration(3.0),
+            rotate_with_path=True
+        )
+
+        # Path following with rotation for sprite artwork that points up by default
+        action = FollowPathUntil(
+            [(100, 100), (200, 200)], 150, duration(3.0),
+            rotate_with_path=True, rotation_offset=-90.0
+        )
+
+        # Complex curved path with rotation
+        bezier_points = [(100, 100), (150, 200), (250, 150), (300, 100)]
+        action = FollowPathUntil(
+            bezier_points, 200, lambda: sprite.center_x > 400,
+            rotate_with_path=True
+        )
     """
 
     def __init__(
@@ -157,18 +206,32 @@ class FollowPathUntil(_Action):
         condition_func: Callable[[], Any],
         on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
         check_interval: float = 0.0,
+        rotate_with_path: bool = False,
+        rotation_offset: float = 0.0,
     ):
         super().__init__(condition_func, on_condition_met, check_interval)
         if len(control_points) < 2:
             raise ValueError("Must specify at least 2 control points")
 
         self.control_points = control_points
-        self.velocity = velocity
+        self.target_velocity = velocity  # Immutable target velocity
+        self.current_velocity = velocity  # Current velocity (can be scaled)
+        self.rotate_with_path = rotate_with_path  # Enable automatic sprite rotation
+        self.rotation_offset = rotation_offset  # Degrees to offset for sprite artwork orientation
 
         # Path traversal state
-        self._curve_progress = 0.0  # 0.0 to 1.0 along the curve
-        self._curve_length = 0.0
-        self._last_position = None
+        self._curve_progress = 0.0  # Progress along curve: 0.0 (start) to 1.0 (end)
+        self._curve_length = 0.0  # Total length of the curve in pixels
+        self._last_position = None  # Previous position for calculating movement delta
+
+    def set_factor(self, factor: float) -> None:
+        """Scale the path velocity by the given factor.
+
+        Args:
+            factor: Scaling factor for path velocity (0.0 = stopped, 1.0 = full speed)
+        """
+        self.current_velocity = self.target_velocity * factor
+        # No immediate apply needed - velocity is used in update_effect
 
     def _bezier_point(self, t: float) -> tuple[float, float]:
         """Calculate point on Bezier curve at parameter t (0-1)."""
@@ -197,22 +260,22 @@ class FollowPathUntil(_Action):
         return length
 
     def apply_effect(self) -> None:
-        """Initialize path following."""
-        # Calculate curve length for constant velocity
+        """Initialize path following and rotation state."""
+        # Calculate curve length for constant velocity movement
         self._curve_length = self._calculate_curve_length()
         self._curve_progress = 0.0
 
-        # Set initial position
+        # Set initial position on the curve
         start_point = self._bezier_point(0.0)
         self._last_position = start_point
 
     def update_effect(self, delta_time: float) -> None:
-        """Update path following with constant velocity."""
+        """Update path following with constant velocity and optional rotation."""
         if self._curve_length <= 0:
             return
 
         # Calculate how far to move along curve based on velocity
-        distance_per_frame = self.velocity * delta_time
+        distance_per_frame = self.current_velocity * delta_time
         progress_delta = distance_per_frame / self._curve_length
         self._curve_progress = min(1.0, self._curve_progress + progress_delta)
 
@@ -224,9 +287,28 @@ class FollowPathUntil(_Action):
             dx = current_point[0] - self._last_position[0]
             dy = current_point[1] - self._last_position[1]
 
+            # Calculate sprite rotation angle to face movement direction
+            movement_angle = None
+            if self.rotate_with_path and (dx != 0 or dy != 0):
+                # Calculate movement direction angle using atan2 for proper quadrant handling
+                # atan2(dy, dx) returns angle in radians where:
+                #   - 0 radians (0°) = moving right (+x direction)
+                #   - π/2 radians (90°) = moving up (+y direction)
+                #   - π radians (180°) = moving left (-x direction)
+                #   - 3π/2 radians (270°) = moving down (-y direction)
+                direction_angle = math.degrees(math.atan2(dy, dx))
+
+                # Apply rotation offset to compensate for sprite artwork orientation
+                # If sprite artwork points up by default, use offset=-90 to correct
+                movement_angle = direction_angle + self.rotation_offset
+
             def apply_movement(sprite):
+                # Move sprite along the path
                 sprite.center_x += dx
                 sprite.center_y += dy
+                # Rotate sprite to face movement direction if enabled
+                if movement_angle is not None:
+                    sprite.angle = movement_angle
 
             self.for_each_sprite(apply_movement)
 
@@ -237,11 +319,19 @@ class FollowPathUntil(_Action):
             # Path completed - trigger condition
             self._condition_met = True
             self.done = True
+            if self.on_condition_met:
+                self.on_condition_met(None)
 
     def clone(self) -> "FollowPathUntil":
-        """Create a copy of this FollowPathUntil action."""
+        """Create a copy of this FollowPathUntil action with all parameters preserved."""
         return FollowPathUntil(
-            self.control_points.copy(), self.velocity, self.condition_func, self.on_condition_met, self.check_interval
+            self.control_points.copy(),
+            self.target_velocity,
+            self.condition_func,
+            self.on_condition_met,
+            self.check_interval,
+            self.rotate_with_path,
+            self.rotation_offset,
         )
 
 
@@ -263,13 +353,25 @@ class RotateUntil(_Action):
         check_interval: float = 0.0,
     ):
         super().__init__(condition_func, on_condition_met, check_interval)
-        self.angular_velocity = angular_velocity
+        self.target_angular_velocity = angular_velocity  # Immutable target rate
+        self.current_angular_velocity = angular_velocity  # Current rate (can be scaled)
+
+    def set_factor(self, factor: float) -> None:
+        """Scale the angular velocity by the given factor.
+
+        Args:
+            factor: Scaling factor for angular velocity (0.0 = stopped, 1.0 = full speed)
+        """
+        self.current_angular_velocity = self.target_angular_velocity * factor
+        # Immediately apply the new angular velocity if action is active
+        if not self.done and self.target is not None:
+            self.apply_effect()
 
     def apply_effect(self) -> None:
         """Apply angular velocity to all sprites."""
 
         def set_angular_velocity(sprite):
-            sprite.change_angle = self.angular_velocity
+            sprite.change_angle = self.current_angular_velocity
 
         self.for_each_sprite(set_angular_velocity)
 
@@ -283,7 +385,9 @@ class RotateUntil(_Action):
 
     def clone(self) -> "RotateUntil":
         """Create a copy of this RotateUntil action."""
-        return RotateUntil(self.angular_velocity, self.condition_func, self.on_condition_met, self.check_interval)
+        return RotateUntil(
+            self.target_angular_velocity, self.condition_func, self.on_condition_met, self.check_interval
+        )
 
 
 class ScaleUntil(_Action):
@@ -306,10 +410,20 @@ class ScaleUntil(_Action):
         super().__init__(condition_func, on_condition_met, check_interval)
         # Normalize scale_velocity to always be a tuple
         if isinstance(scale_velocity, int | float):
-            self.scale_velocity = (scale_velocity, scale_velocity)
+            self.target_scale_velocity = (scale_velocity, scale_velocity)
         else:
-            self.scale_velocity = scale_velocity
+            self.target_scale_velocity = scale_velocity
+        self.current_scale_velocity = self.target_scale_velocity  # Current rate (can be scaled)
         self._original_scales = {}
+
+    def set_factor(self, factor: float) -> None:
+        """Scale the scale velocity by the given factor.
+
+        Args:
+            factor: Scaling factor for scale velocity (0.0 = stopped, 1.0 = full speed)
+        """
+        self.current_scale_velocity = (self.target_scale_velocity[0] * factor, self.target_scale_velocity[1] * factor)
+        # No immediate apply needed - scaling happens in update_effect
 
     def apply_effect(self) -> None:
         """Start scaling - store original scales for velocity calculation."""
@@ -321,7 +435,7 @@ class ScaleUntil(_Action):
 
     def update_effect(self, delta_time: float) -> None:
         """Apply scaling based on velocity."""
-        sx, sy = self.scale_velocity
+        sx, sy = self.current_scale_velocity
         scale_delta_x = sx * delta_time
         scale_delta_y = sy * delta_time
 
@@ -343,7 +457,7 @@ class ScaleUntil(_Action):
 
     def clone(self) -> "ScaleUntil":
         """Create a copy of this ScaleUntil action."""
-        return ScaleUntil(self.scale_velocity, self.condition_func, self.on_condition_met, self.check_interval)
+        return ScaleUntil(self.target_scale_velocity, self.condition_func, self.on_condition_met, self.check_interval)
 
 
 class FadeUntil(_Action):
@@ -364,11 +478,21 @@ class FadeUntil(_Action):
         check_interval: float = 0.0,
     ):
         super().__init__(condition_func, on_condition_met, check_interval)
-        self.fade_velocity = fade_velocity
+        self.target_fade_velocity = fade_velocity  # Immutable target rate
+        self.current_fade_velocity = fade_velocity  # Current rate (can be scaled)
+
+    def set_factor(self, factor: float) -> None:
+        """Scale the fade velocity by the given factor.
+
+        Args:
+            factor: Scaling factor for fade velocity (0.0 = stopped, 1.0 = full speed)
+        """
+        self.current_fade_velocity = self.target_fade_velocity * factor
+        # No immediate apply needed - fading happens in update_effect
 
     def update_effect(self, delta_time: float) -> None:
         """Apply fading based on velocity."""
-        alpha_delta = self.fade_velocity * delta_time
+        alpha_delta = self.current_fade_velocity * delta_time
 
         def apply_fade(sprite):
             new_alpha = sprite.alpha + alpha_delta
@@ -378,7 +502,7 @@ class FadeUntil(_Action):
 
     def clone(self) -> "FadeUntil":
         """Create a copy of this FadeUntil action."""
-        return FadeUntil(self.fade_velocity, self.condition_func, self.on_condition_met, self.check_interval)
+        return FadeUntil(self.target_fade_velocity, self.condition_func, self.on_condition_met, self.check_interval)
 
 
 class BlinkUntil(_Action):
@@ -404,9 +528,26 @@ class BlinkUntil(_Action):
             raise ValueError("seconds_until_change must be positive")
 
         super().__init__(condition_func, on_condition_met, check_interval)
-        self.seconds_until_change = seconds_until_change
+        self.target_seconds_until_change = seconds_until_change  # Immutable target rate
+        self.current_seconds_until_change = seconds_until_change  # Current rate (can be scaled)
         self._elapsed = 0.0
         self._original_visibility = {}
+
+    def set_factor(self, factor: float) -> None:
+        """Scale the blink rate by the given factor.
+
+        Factor affects the time between blinks - higher factor = faster blinking.
+        A factor of 0.0 stops blinking (sprites stay in current visibility state).
+
+        Args:
+            factor: Scaling factor for blink rate (0.0 = stopped, 1.0 = normal speed, 2.0 = double speed)
+        """
+        if factor <= 0:
+            # Stop blinking - set to a very large value
+            self.current_seconds_until_change = float("inf")
+        else:
+            # Faster factor = shorter time between changes
+            self.current_seconds_until_change = self.target_seconds_until_change / factor
 
     def apply_effect(self) -> None:
         """Store original visibility for all sprites."""
@@ -420,7 +561,7 @@ class BlinkUntil(_Action):
         """Apply blinking effect based on the configured interval."""
         self._elapsed += delta_time
         # Determine how many intervals have passed to know whether we should show or hide.
-        cycles = int(self._elapsed / self.seconds_until_change)
+        cycles = int(self._elapsed / self.current_seconds_until_change)
 
         def apply_blink(sprite):
             original_visible = self._original_visibility.get(id(sprite), True)
@@ -439,7 +580,9 @@ class BlinkUntil(_Action):
 
     def clone(self) -> "BlinkUntil":
         """Create a copy of this BlinkUntil action."""
-        return BlinkUntil(self.seconds_until_change, self.condition_func, self.on_condition_met, self.check_interval)
+        return BlinkUntil(
+            self.target_seconds_until_change, self.condition_func, self.on_condition_met, self.check_interval
+        )
 
 
 class DelayUntil(_Action):
@@ -465,6 +608,121 @@ class DelayUntil(_Action):
     def clone(self) -> "DelayUntil":
         """Create a copy of this DelayUntil action."""
         return DelayUntil(self.condition_func, self.on_condition_met, self.check_interval)
+
+
+class InterpolateUntil(_Action):
+    """Interpolate sprites between start and end values using an easing function until a condition is satisfied.
+
+    Args:
+        start_value: Starting value for the property being interpolated
+        end_value: Ending value for the property being interpolated
+        property_name: Name of the sprite property to interpolate ('center_x', 'center_y', 'angle', 'scale', 'alpha')
+        condition_func: Function that returns truthy value when interpolation should stop
+        on_condition_met: Optional callback called when condition is satisfied
+        check_interval: How often to check condition (in seconds, default: 0.0 for every frame)
+        ease_function: Easing function to use for interpolation (default: linear)
+    """
+
+    def __init__(
+        self,
+        start_value: float,
+        end_value: float,
+        property_name: str,
+        condition_func: Callable[[], Any],
+        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        check_interval: float = 0.0,
+        ease_function: Callable[[float], float] | None = None,
+    ):
+        super().__init__(condition_func, on_condition_met, check_interval)
+        self.start_value = start_value
+        self.end_value = end_value
+        self.property_name = property_name
+        self.ease_function = ease_function or (lambda t: t)
+        self._factor = 1.0
+        self._duration = None
+        self._elapsed = 0.0
+
+    def set_factor(self, factor: float) -> None:
+        self._factor = factor
+
+    def apply_effect(self):
+        # Extract duration (explicit or closure) FIRST
+        duration_val = 1.0
+        try:
+            # EAFP: Try to get duration from the closure of the `duration` helper.
+            # This is more Pythonic and robust than checking function name with hasattr.
+            if self.condition_func.__name__ == "condition":
+                duration_val = self.condition_func.__closure__[0].cell_contents
+        except (AttributeError, IndexError, TypeError):
+            # This is expected if condition_func is not from `duration()` or has no closure.
+            pass
+
+        # An explicitly set duration should override the one from the condition.
+        if self._duration is not None:
+            duration_val = self._duration
+
+        self._duration = duration_val
+        if self._duration < 0:
+            raise ValueError("Duration must be non-negative")
+
+        # Define a helper to set the initial value, using EAFP for property validation.
+        def set_initial_value(sprite):
+            """Set the initial value of the property on a single sprite."""
+            try:
+                setattr(sprite, self.property_name, self.start_value)
+            except AttributeError:
+                raise AttributeError(f"Target sprite does not have property '{self.property_name}'")
+
+        if self._duration == 0:
+            # If duration is zero, immediately set to the end value.
+            self.for_each_sprite(lambda sprite: setattr(sprite, self.property_name, self.end_value))
+            self.done = True
+            if self.on_condition_met:
+                self.on_condition_met(None)
+            return
+
+        # For positive duration, set the initial value on all sprites.
+        self.for_each_sprite(set_initial_value)
+        self._elapsed = 0.0
+
+    def update_effect(self, delta_time: float):
+        if self.done:
+            return
+        self._elapsed += delta_time * self._factor
+        t = min(self._elapsed / self._duration, 1.0)
+        eased_t = self.ease_function(t)
+
+        # Determine the value to set based on progress
+        if t < 1.0:
+            value = self.start_value + (self.end_value - self.start_value) * eased_t
+        else:
+            value = self.end_value
+
+        # Apply the value to all target sprites
+        self.for_each_sprite(lambda sprite: setattr(sprite, self.property_name, value))
+
+        # Check for completion
+        if t >= 1.0:
+            self.done = True
+            if self.on_condition_met:
+                self.on_condition_met(None)
+
+    def remove_effect(self) -> None:
+        pass
+
+    def clone(self) -> "InterpolateUntil":
+        return InterpolateUntil(
+            self.start_value,
+            self.end_value,
+            self.property_name,
+            self.condition_func,
+            self.on_condition_met,
+            self.check_interval,
+            self.ease_function,
+        )
+
+    def set_duration(self, duration: float) -> None:
+        raise NotImplementedError
 
 
 # Common condition functions

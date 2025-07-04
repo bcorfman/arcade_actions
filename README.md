@@ -4,7 +4,7 @@
 
 **Getting started with ArcadeActions?** Start here: **[API Usage Guide](api_usage_guide.md)**
 
-ArcadeActions is a **conditional action system** for Arcade 3.x that enables declarative game behaviors through condition-based actions rather than fixed durations.
+ArcadeActions is a framework for Arcade 3.x that enables declarative, flexible game behaviors by running actions until any user-defined condition is met.
 
 ## 📚 Documentation Overview
 
@@ -19,10 +19,14 @@ ArcadeActions is a **conditional action system** for Arcade 3.x that enables dec
 Actions run until conditions are met, not for fixed time periods:
 
 ```python
-from actions.conditional import MoveUntil, RotateUntil, FadeUntil
+from actions.conditional import MoveUntil, RotateUntil, FadeUntil, FollowPathUntil
 
 # Move until reaching a position
 move = MoveUntil((100, 0), lambda: sprite.center_x > 700)
+
+# Follow curved path with automatic rotation
+path_points = [(100, 100), (200, 200), (300, 100)]
+path = FollowPathUntil(path_points, 150, lambda: sprite.center_x > 400, rotate_with_path=True)
 
 # Rotate until reaching an angle  
 rotate = RotateUntil(90, lambda: sprite.angle >= 45)
@@ -30,6 +34,44 @@ rotate = RotateUntil(90, lambda: sprite.angle >= 45)
 # Fade until reaching transparency
 fade = FadeUntil(-50, lambda: sprite.alpha <= 50)
 ```
+
+### MoveUntil with Collision Detection and Data Passing
+
+MoveUntil can do much more than just stop at a position. The condition function can return any data when a stop condition is met, and this data is passed to the callback for efficient, zero-duplication event handling. This is especially powerful for collision detection:
+
+```python
+# Example: Move a bullet until it collides with an enemy or shield, or leaves the screen
+
+def bullet_collision_check():
+    enemy_hits = arcade.check_for_collision_with_list(bullet, enemy_list)
+    shield_hits = arcade.check_for_collision_with_list(bullet, shield_list)
+    off_screen = bullet.bottom > WINDOW_HEIGHT
+
+    if enemy_hits or shield_hits or off_screen:
+        return {
+            "enemy_hits": enemy_hits,
+            "shield_hits": shield_hits,
+            "off_screen": off_screen
+        }
+    return None  # Continue moving
+
+# The callback receives the collision data from the condition function
+
+def handle_bullet_collision(collision_data):
+    bullet.remove_from_sprite_lists()
+    for enemy in collision_data["enemy_hits"]:
+        enemy.remove_from_sprite_lists()
+    for shield in collision_data["shield_hits"]:
+        shield.remove_from_sprite_lists()
+    if collision_data["off_screen"]:
+        print("Bullet left the screen!")
+
+bullet_action = MoveUntil((0, BULLET_SPEED), bullet_collision_check, handle_bullet_collision)
+bullet_action.apply(bullet)
+```
+
+This pattern ensures collision checks are only performed once per frame, and all relevant data is passed directly to the handler — no need for extra state or repeated queries. This is the recommended approach for efficient, event-driven collision handling in ArcadeActions.
+
 
 ### Global Action Management
 No manual action tracking - everything is handled globally:
@@ -128,6 +170,7 @@ class SpaceInvadersGame(arcade.Window):
 
 #### Conditional Actions (actions/conditional.py)
 - **MoveUntil** - Velocity-based movement until condition met
+- **FollowPathUntil** - Follow Bezier curve paths with optional automatic sprite rotation
 - **RotateUntil** - Angular velocity rotation
 - **ScaleUntil** - Scale velocity changes  
 - **FadeUntil** - Alpha velocity changes
@@ -143,6 +186,11 @@ class SpaceInvadersGame(arcade.Window):
 #### Game Management (actions/pattern.py)
 - **Formation functions** - Grid, line, circle, and V-formation positioning
 
+#### Easing Effects (actions/easing.py)  
+- **Easing wrapper** - Apply smooth acceleration/deceleration curves to any conditional action
+- **Multiple easing functions** - Built-in ease_in, ease_out, ease_in_out support
+- **Custom easing** - Create specialized easing curves and nested easing effects
+
 ## 📋 Decision Matrix
 
 | Scenario | Use | Example |
@@ -152,7 +200,10 @@ class SpaceInvadersGame(arcade.Window):
 | Sequential behavior | `sequence()` | `sequence(delay, move, fade)` |
 | Parallel behavior | `parallel()` | `parallel(move, rotate, scale)` |
 | Formation positioning | Pattern functions | `arrange_grid(enemies, rows=3, cols=5)` |
+| Curved path movement | FollowPathUntil | `FollowPathUntil(points, 200, condition, rotate_with_path=True)` |
 | Boundary detection | MoveUntil with bounds | `MoveUntil(vel, cond, bounds=bounds, boundary_behavior="bounce")` |
+| Smooth acceleration | Easing wrapper | `Easing(action, seconds=2.0, ease_function=easing.ease_in_out)` |
+| Complex curved movement | Easing + FollowPathUntil | `Easing(FollowPathUntil(points, vel, cond, rotate_with_path=True), 1.5)` |
 | Standard sprites (no actions) | arcade.Sprite + arcade.SpriteList | Regular Arcade usage |
 
 ## 🎯 API Patterns
@@ -168,7 +219,7 @@ move = MoveUntil((100, 0), duration(2.0))
 move.apply(player, tag="movement")
 move.apply(enemies, tag="formation")
 
-# Compose with operators
+# Compose with helpers
 from actions.composite import sequence, parallel
 
 complex_action = sequence(delay, parallel(move, fade), rotate)

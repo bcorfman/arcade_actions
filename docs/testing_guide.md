@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide documents the testing architecture and patterns for the ArcadeActions library. The test suite validates all core functionality using conditional actions, global action management, and operator composition patterns.
+This guide documents the testing architecture and patterns for the ArcadeActions library. The test suite validates all core functionality using conditional actions, global action management, and function composition patterns.
 
 ## Test Suite Structure
 
@@ -11,17 +11,18 @@ This guide documents the testing architecture and patterns for the ArcadeActions
 | Test File | Purpose | Key Patterns Tested |
 |-----------|---------|-------------------|
 | `test_base.py` | Core Action class and global management | Action lifecycle, global updates, tagging |
-| `test_condition_actions.py` | Conditional actions (MoveUntil, etc.) | Condition evaluation, velocity-based updates |
-| `test_composite.py` | Sequential and parallel actions | Operator composition, nested actions |
+| `test_condition_actions.py` | Conditional actions (MoveUntil, FollowPathUntil, etc.) | Condition evaluation, velocity-based updates, path following with rotation |
+| `test_composite.py` | Sequential and parallel actions | Function composition, nested actions |
 | `test_move.py` | Boundary actions | MoveUntil boundary detection with bounce/wrap |
 | `test_pattern.py` | Formation pattern functions | Positioning and layout behavior |
+| `test_easing.py` | Easing wrapper functionality | Smooth acceleration/deceleration, nested easing, edge cases |
 
 ### Test Organization Principles
 
 1. **Each test file maps to one module** - Direct 1:1 relationship with source files
 2. **Global action cleanup** - All tests use `Action.clear_all()` in teardown
 3. **Real conditional actions** - No mocks for core functionality [[memory:6042457797249309622]]
-4. **Operator usage** - Tests demonstrate `+` and `|` operator patterns
+4. **Function usage** - Tests demonstrate `sequence()` and `parallel()` function patterns
 5. **Tag-based organization** - Tests use meaningful tags for action management
 
 ## Testing Patterns
@@ -58,13 +59,15 @@ def test_move_until_condition(self):
     assert move_action not in Action._active_actions
 ```
 
-### Pattern 2: Operator Composition Testing
+### Pattern 2: Function Composition Testing
 
-Tests the `+` (sequential) and `|` (parallel) operators:
+Tests the `sequence()` and `parallel()` helper functions:
 
 ```python
-def test_operator_composition(self):
-    """Test action composition using operators."""
+def test_function_composition(self):
+    """Test action composition using helper functions."""
+    from actions.composite import sequence, parallel
+    
     sprite = create_test_sprite()
     
     # Create individual actions
@@ -72,14 +75,14 @@ def test_operator_composition(self):
     rotate = RotateUntil(90, duration(0.5))
     fade = FadeUntil(-30, duration(1.5))
     
-    # Test operators
-    sequence = move + rotate           # Sequential
-    parallel = move | fade             # Parallel
-    nested = move + (rotate | fade)    # Nested composition
+    # Test composition functions
+    seq = sequence(move, rotate)         # Sequential
+    par = parallel(move, fade)           # Parallel
+    nested = sequence(move, parallel(rotate, fade))  # Nested composition
     
     # Apply and verify
-    sequence.apply(sprite, tag="sequence")
-    parallel.apply(sprite, tag="parallel")
+    seq.apply(sprite, tag="sequence")
+    par.apply(sprite, tag="parallel")
     nested.apply(sprite, tag="nested")
     
     # Check global action management
@@ -90,6 +93,74 @@ def test_operator_composition(self):
     assert len(sequence_actions) == 1
     assert len(parallel_actions) == 1
     assert len(nested_actions) == 1
+
+### Pattern 2b: Path Following with Rotation Testing
+
+Tests FollowPathUntil with automatic sprite rotation functionality:
+
+```python
+def test_path_following_with_rotation(self):
+    """Test FollowPathUntil with automatic sprite rotation."""
+    sprite = create_test_sprite()
+    sprite.angle = 45  # Start with non-zero angle
+    
+    # Create curved path
+    control_points = [(100, 100), (200, 200), (300, 100)]
+    
+    # Test without rotation
+    no_rotation_action = FollowPathUntil(control_points, 150, duration(2.0))
+    no_rotation_action.apply(sprite, tag="no_rotation")
+    
+    # Store original angle
+    original_angle = sprite.angle
+    
+    # Update several frames
+    for _ in range(10):
+        Action.update_all(0.016)
+    
+    # Sprite angle should not have changed
+    assert sprite.angle == original_angle
+    
+    # Clear and test with rotation
+    Action.clear_all()
+    sprite.center_x = 100  # Reset position
+    sprite.center_y = 100
+    
+    # Test with rotation enabled
+    rotation_action = FollowPathUntil(
+        control_points, 150, duration(2.0),
+        rotate_with_path=True
+    )
+    rotation_action.apply(sprite, tag="with_rotation")
+    
+    # Update to get movement and rotation
+    Action.update_all(0.016)
+    Action.update_all(0.016)
+    
+    # Sprite should now be rotated to face movement direction
+    assert sprite.angle != original_angle
+    
+    # Test with rotation offset for sprite artwork pointing up
+    Action.clear_all()
+    sprite.center_x = 100  # Reset position
+    sprite.center_y = 100
+    
+    offset_action = FollowPathUntil(
+        control_points, 150, duration(2.0),
+        rotate_with_path=True,
+        rotation_offset=-90.0  # Compensate for upward-pointing artwork
+    )
+    offset_action.apply(sprite, tag="with_offset")
+    
+    # Update to get movement and rotation
+    Action.update_all(0.016)
+    Action.update_all(0.016)
+    
+    # Verify the rotation includes the offset
+    # For horizontal movement (0°), with -90° offset, expect -90°
+    expected_angle = -90.0
+    assert abs(sprite.angle - expected_angle) < 5.0  # Allow some tolerance
+```
 ```
 
 ### Pattern 3: Formation Testing
@@ -117,13 +188,15 @@ def test_formation_conditional_actions(self):
     move = MoveUntil((50, -25), duration(2.0))
     fade = FadeUntil(-20, duration(1.5))
     
-    # Use operators for composition
-    sequence = delay + move
-    parallel = move | fade
+    # Use helper functions for composition
+    from actions.composite import sequence, parallel
+    
+    seq = sequence(delay, move)
+    par = parallel(move, fade)
     
     # Apply to group
-    sequence.apply(sprite_list, tag="sequence_movement")
-    parallel.apply(sprite_list, tag="parallel_effects")
+    seq.apply(sprite_list, tag="sequence_movement")
+    par.apply(sprite_list, tag="parallel_effects")
     
     # Verify global action management
     sequence_actions = Action.get_tag_actions("sequence_movement")
@@ -318,8 +391,10 @@ def test_complete_formation_workflow(self):
     phase3 = (MoveUntil((100, 0), duration(1.0)) | 
               FadeUntil(-25, duration(1.5)))
     
-    # Compose with operators
-    full_sequence = phase1 + phase2 + phase3
+    # Compose with helper functions
+    from actions.composite import sequence
+    
+    full_sequence = sequence(phase1, phase2, phase3)
     formation.apply(full_sequence, tag="complete_behavior")
     
     # Set up conditional breakaway
@@ -375,7 +450,7 @@ def test_large_action_count_performance(self):
 
 - **Core Actions**: 100% line coverage for base Action class
 - **Conditional Actions**: 95% coverage including edge cases
-- **Composite Actions**: 100% coverage for operator overloads
+- **Composite Actions**: 100% coverage for composition functions
 - **Formation functions**: 90% coverage including positioning and layout
 - **Boundary Actions**: 85% coverage including callback scenarios
 
@@ -383,7 +458,7 @@ def test_large_action_count_performance(self):
 
 1. **Action Lifecycle**: Apply, update, complete, cleanup
 2. **Global Management**: Multiple actions, tagging, stopping
-3. **Operator Composition**: All operator combinations
+3. **Function Composition**: All composition function combinations
 4. **Conditional Logic**: Condition evaluation, completion callbacks
 5. **Error Handling**: Invalid conditions, empty sprite lists
 6. **Memory Management**: No action leaks, proper cleanup

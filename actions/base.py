@@ -228,17 +228,39 @@ class Action:
         return Action(self.condition_func, self.on_condition_met, self.check_interval, self.tag)
 
     def for_each_sprite(self, func: Callable[[arcade.Sprite], None]) -> None:
-        """Apply a function to each sprite in the target."""
-        if self.target is None:
-            return
+        """Apply a function to each sprite in the target.
 
-        if hasattr(self.target, "__iter__"):
-            # SpriteList - iterate over sprites
+        Args:
+            func: Function to apply to each sprite
+
+        Raises:
+            ValueError: If target is not set
+        """
+        if self.target is None:
+            raise ValueError("Action target is not set")
+
+        if isinstance(self.target, arcade.Sprite):
+            func(self.target)
+        elif isinstance(self.target, arcade.SpriteList):
             for sprite in self.target:
                 func(sprite)
-        else:
-            # Single sprite
-            func(self.target)
+
+    def set_factor(self, factor: float) -> None:
+        """Set a scaling factor for this action's intensity/rate.
+
+        This provides a universal interface for easing wrappers to modulate
+        action behavior over time. Factor of 0.0 means no effect, 1.0 means
+        full effect, values >1.0 can provide overdrive if supported.
+
+        Base implementation does nothing - actions that support factor scaling
+        should override this method.
+
+        Args:
+            factor: Scaling factor (typically 0.0 to 1.0, but can be any float)
+        """
+        # Default implementation is a no-op so any action can receive the call
+        # without requiring runtime type checks
+        pass
 
     @property
     def condition_met(self) -> bool:

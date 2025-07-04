@@ -8,6 +8,7 @@ Actions available:
 - Visual: FadeUntil, BlinkUntil
 - Path: FollowPathUntil
 - Timing: DelayUntil, duration, time_elapsed
+- Easing: Easing wrapper for smooth acceleration/deceleration effects
 - Composition: sequence() and parallel() functions for combining actions
 - Formation: arrange_line, arrange_grid, arrange_circle, arrange_v_formation functions
 - Condition helpers: sprite_count, time_elapsed
@@ -25,10 +26,16 @@ from .conditional import (
     DelayUntil,
     FadeUntil,
     FollowPathUntil,
+    InterpolateUntil,
     MoveUntil,
     RotateUntil,
     ScaleUntil,
     duration,
+)
+
+# Easing wrappers
+from .easing import (
+    Easing,
 )
 
 # Formation arrangement functions
@@ -53,6 +60,8 @@ __all__ = [
     "DelayUntil",
     "FollowPathUntil",
     "duration",
+    # Easing wrappers
+    "Easing",
     # Composition functions
     "sequence",
     "parallel",

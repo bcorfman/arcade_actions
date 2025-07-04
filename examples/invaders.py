@@ -3,6 +3,9 @@ Efficient Slime Invaders - Demonstrating enhanced MoveUntil with data passing
 
 This version shows how to avoid duplicate collision detection calls by using
 the enhanced MoveUntil that can pass collision data from condition to callback.
+
+From the project root, run with:
+    uv run python examples/invaders.py
 """
 
 import random
@@ -210,7 +213,6 @@ class GameView(arcade.View):
         bullet.bottom = self.player_sprite.top
         self.player_bullet_list.append(bullet)
 
-        # EFFICIENT: Single collision check that returns data
         def bullet_collision_check():
             enemy_hits = arcade.check_for_collision_with_list(bullet, self.enemy_list)
             shield_hits = arcade.check_for_collision_with_list(bullet, self.shield_list)
@@ -257,7 +259,6 @@ class GameView(arcade.View):
                 bullet.top = enemy.bottom
                 self.enemy_bullet_list.append(bullet)
 
-                # EFFICIENT: Single collision check for enemy bullets
                 def enemy_bullet_collision_check(bullet_ref=bullet):
                     player_hits = arcade.check_for_collision_with_list(bullet_ref, self.player_list)
                     shield_hits = arcade.check_for_collision_with_list(bullet_ref, self.shield_list)
@@ -337,7 +338,7 @@ class GameView(arcade.View):
 
 
 def main():
-    """Run the efficient slime invaders game"""
+    """Run the Slime Invaders game"""
     window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
     game = GameView()
     game.reset()

@@ -19,7 +19,8 @@ import random
 import arcade
 
 from actions.base import Action
-from actions.conditional import BlinkUntil, MoveUntil
+from actions.composite import sequence
+from actions.conditional import BlinkUntil, DelayUntil, InterpolateUntil, MoveUntil, duration
 
 # ---------------------------------------------------------------------------
 # Window configuration
@@ -75,7 +76,14 @@ class StarfieldView(arcade.View):
     # Setup helpers
     # ---------------------------------------------------------------------
     def on_wrap(self, sprite, axis):
-        sprite.position = (random.uniform(0, WINDOW_WIDTH), WINDOW_HEIGHT + 5)
+        # When a star hits a vertical boundary, wrap it to the opposite side.
+        # We check the direction of movement to decide which edge to wrap to.
+        if sprite.change_y < 0:
+            # Moving down, wrap to top
+            sprite.position = (random.uniform(0, WINDOW_WIDTH), WINDOW_HEIGHT + VERTICAL_MARGIN)
+        else:
+            # Moving up, wrap to bottom
+            sprite.position = (random.uniform(0, WINDOW_WIDTH), -VERTICAL_MARGIN)
 
     def _setup_star_layers(self) -> None:
         """Create sprite lists, populate them with stars, and start actions."""
@@ -88,15 +96,66 @@ class StarfieldView(arcade.View):
 
             blink_action = BlinkUntil(random.randint(200, 400) / 1000.0, lambda: False)
             blink_action.apply(star)
-        # Move downward indefinitely; wrap from bottom back to the top.
-        move_action = MoveUntil(
-            (0, -4),
+
+        # Action 1: A permanent action that handles boundary checking and wrapping.
+        # It has zero velocity so it only enforces the rules, it doesn't cause movement.
+        wrapping_action = MoveUntil(
+            (0, 0),
             lambda: False,  # Run forever
             bounds=bounds,
             boundary_behavior="wrap",
             on_boundary=self.on_wrap,
         )
-        move_action.apply(self.star_list)
+        wrapping_action.apply(self.star_list)
+
+        # Action 2: A recursive function that creates and applies the main animation loop.
+        def create_main_loop():
+            """Build and apply the full, looping animation sequence."""
+
+            def on_loop_complete(data=None):
+                # When the full sequence is done, call this function again to restart.
+                create_main_loop()
+
+            # The sequence of actions that control the starfield's velocity.
+            # The final action has the on_loop_complete callback attached.
+            control_sequence = sequence(
+                # 1. Start at 0 speed for 2 seconds.
+                DelayUntil(duration(1.0)),
+                # 2. Accelerate to forward speed (-4) over 2 seconds.
+                InterpolateUntil(
+                    start_value=0,
+                    end_value=-4,
+                    property_name="change_y",
+                    condition_func=duration(2.0),
+                    ease_function=arcade.easing.ease_in,
+                ),
+                # 3. Hold forward speed for 10 seconds.
+                DelayUntil(duration(5.0)),
+                # 4. Accelerate to reverse speed (20, which is 5x forward) over 0.5s.
+                InterpolateUntil(
+                    start_value=-4,
+                    end_value=14,
+                    property_name="change_y",
+                    condition_func=duration(0.5),
+                    ease_function=arcade.easing.ease_out,
+                ),
+                # 5. Hold reverse speed for 2.5 seconds.
+                DelayUntil(duration(1.5)),
+                # 6. Decelerate from reverse speed back to 0 over 2 seconds.
+                #    When this action completes, it will trigger the callback to loop.
+                InterpolateUntil(
+                    start_value=20,
+                    end_value=0,
+                    property_name="change_y",
+                    condition_func=duration(2.0),
+                    ease_function=arcade.easing.ease_out,
+                    on_condition_met=on_loop_complete,
+                ),
+            )
+            control_sequence.apply(self.star_list)
+
+        # Kick off the first iteration of the animation loop.
+        create_main_loop()
 
     # ---------------------------------------------------------------------
     # Arcade callbacks

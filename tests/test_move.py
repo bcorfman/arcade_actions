@@ -145,7 +145,7 @@ class TestMoveUntilBoundaries:
 
         cloned = original.clone()
 
-        assert cloned.velocity == original.velocity
+        assert cloned.target_velocity == original.target_velocity
         assert cloned.bounds == original.bounds
         assert cloned.boundary_behavior == original.boundary_behavior
         assert cloned.on_boundary == original.on_boundary

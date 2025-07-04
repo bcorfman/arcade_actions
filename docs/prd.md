@@ -14,14 +14,15 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 
 | Module / Feature      | Why It's Included                                                    |
 |------------------------|---------------------------------------------------------------------|
-| `base.py`             | Core `Action` class with global action management and operator overloads |
+| `base.py`             | Core `Action` class with global action management and composition helpers |
 | `conditional.py`      | Condition-based actions (MoveUntil, RotateUntil, etc.) |
 | `composite.py`        | Composite actions for combining multiple actions (sequential, parallel) |
 | `conditional.py`      | Includes boundary handling in `MoveUntil` for arcade-style patterns |
 | `pattern.py`          | Formation functions for positioning and layout patterns |
+| `easing.py`           | Easing wrapper for smooth acceleration/deceleration effects on any action |
 | Global Action Management | Automatic action tracking, updates, and lifecycle management |
 | Test Suite            | Pytest-based unit and integration tests to validate core and edge behavior |
-| Operator Composition  | `+` for sequential, `|` for parallel, enabling clean declarative syntax |
+| Function Composition  | `sequence()` and `parallel()` helpers for clean declarative syntax |
 
 ## 🔄 Property Update System
 
@@ -54,8 +55,10 @@ This enables more flexible, game-state-driven behaviors.
 ## 🔍 In-Scope Items
 
 - High-level declarative action API over Arcade 3.x
-- Core conditional actions: MoveUntil, RotateUntil, ScaleUntil, FadeUntil
-- Composite actions (sequential, parallel) with operator overloads
+- Core conditional actions: MoveUntil, FollowPathUntil, RotateUntil, ScaleUntil, FadeUntil
+- Path following with automatic sprite rotation for smooth curved movement
+- Easing wrapper for smooth acceleration/deceleration effects on any conditional action
+- Composite actions (sequential, parallel) with composition helpers
 - Boundary actions for arcade-style movement patterns
 - Formation functions for positioning and layout patterns
 - Global action management system
@@ -97,7 +100,7 @@ This system:
 ✅ Makes Arcade more high-level and expressive for animation and behavior  
 ✅ Supports **condition-based behaviors** critical for responsive game logic
 ✅ Enables rapid prototyping of sophisticated gameplay without low-level frame management
-✅ Offers **operator-based composition** for clean, declarative behavior sequences
+✅ Offers **function-based composition** for clean, declarative behavior sequences
 ✅ Works seamlessly with Arcade's native sprite system
 ✅ Provides **global action management** eliminating manual tracking overhead
 
@@ -127,7 +130,7 @@ We are delivering a **modern condition-based Actions system** for Arcade that em
 3. **Test Categories and Patterns**
    - Individual action tests using direct `action.apply()` calls
    - Group action tests applying actions to `arcade.SpriteList`
-   - Composite action tests using operator overloads
+   - Composite action tests using composition helpers
    - Formation function tests for positioning patterns
    - Boundary action tests for arcade-style patterns
 
@@ -190,7 +193,7 @@ PRD.md (this file)           → Architecture & Requirements
 1. **Global Action Management**: All actions must use the global `Action.update_all()` system
 2. **Condition-Based Design**: Actions must be condition-based, not duration-based
 3. **Native Sprite Compatibility**: Must work with standard `arcade.Sprite` and `arcade.SpriteList`
-4. **Operator Composition**: Support `+` for sequential and `|` for parallel operations
+4. **Function Composition**: Support `sequence()` and `parallel()` for clean action combination
 5. **Tag-Based Organization**: Support tagged action management for complex behaviors
 6. **Clean API Design**: Minimize wrapper methods and prefer direct action application
 
@@ -199,7 +202,7 @@ PRD.md (this file)           → Architecture & Requirements
 1. **No Custom Sprite Classes**: Works directly with `arcade.Sprite` - no ActionSprite needed
 2. **Global Management**: Central `Action` class manages all active actions automatically  
 3. **Condition-Based**: Actions run until conditions are met, enabling state-driven behavior
-4. **Operator Overloads**: Mathematical operators create composite actions cleanly
+4. **Composition Helpers**: Helper functions create composite actions cleanly
 5. **Formation Pattern**: Position sprites in organized layouts without replacing core Arcade classes
 
 ---
@@ -217,12 +220,14 @@ action.apply(sprite, tag="movement")
 action.apply(enemies, tag="formation")
 ```
 
-### Pattern 2: Operator Composition
+### Pattern 2: Function Composition
 ```python
+from actions.composite import sequence, parallel
+
 # Clean declarative syntax
-sequence = delay + move + fade
-parallel = move | rotate | scale
-complex = delay + (move | fade) + final_action
+seq = sequence(delay, move, fade)
+par = parallel(move, rotate, scale)
+complex = sequence(delay, parallel(move, fade), final_action)
 ```
 
 ### Pattern 3: Global Management

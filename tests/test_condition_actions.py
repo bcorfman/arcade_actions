@@ -9,6 +9,7 @@ from actions import (
     DelayUntil,
     FadeUntil,
     FollowPathUntil,
+    InterpolateUntil,
     MoveUntil,
     RotateUntil,
     ScaleUntil,
@@ -153,7 +154,7 @@ class TestFollowPathUntil:
             return condition_met
 
         action = FollowPathUntil(control_points, 100, condition)
-        action.apply(sprite)
+        action.apply(sprite, tag="test_basic_path")
 
         Action.update_all(0.016)
 
@@ -166,7 +167,7 @@ class TestFollowPathUntil:
         control_points = [(100, 100), (200, 100)]  # Simple straight line
 
         action = FollowPathUntil(control_points, 1000, lambda: False)  # High velocity
-        action.apply(sprite)
+        action.apply(sprite, tag="test_path_completion")
 
         # Update until path is complete
         for _ in range(100):
@@ -180,6 +181,172 @@ class TestFollowPathUntil:
         """Test FollowPathUntil requires at least 2 control points."""
         with pytest.raises(ValueError):
             FollowPathUntil([(100, 100)], 100, lambda: False)
+
+    def test_follow_path_until_no_rotation_by_default(self):
+        """Test FollowPathUntil doesn't rotate sprite by default."""
+        sprite = create_test_sprite()
+        original_angle = sprite.angle
+
+        # Horizontal path from left to right
+        control_points = [(100, 100), (200, 100)]
+        action = FollowPathUntil(control_points, 100, lambda: False)
+        action.apply(sprite, tag="test_no_rotation")
+
+        # Update several frames
+        for _ in range(10):
+            Action.update_all(0.016)
+
+        # Sprite angle should not have changed
+        assert sprite.angle == original_angle
+
+    def test_follow_path_until_rotation_horizontal_path(self):
+        """Test sprite rotation follows horizontal path correctly."""
+        sprite = create_test_sprite()
+        sprite.angle = 45  # Start with non-zero angle
+
+        # Horizontal path from left to right
+        control_points = [(100, 100), (200, 100)]
+        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True)
+        action.apply(sprite, tag="test_horizontal_rotation")
+
+        # Update a few frames to get movement
+        Action.update_all(0.016)
+        Action.update_all(0.016)
+
+        # Sprite should be pointing right (0 degrees)
+        # Allow small tolerance for floating point math
+        assert abs(sprite.angle) < 1.0
+
+    def test_follow_path_until_rotation_vertical_path(self):
+        """Test sprite rotation follows vertical path correctly."""
+        sprite = create_test_sprite()
+
+        # Vertical path from bottom to top
+        control_points = [(100, 100), (100, 200)]
+        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True)
+        action.apply(sprite, tag="test_vertical_rotation")
+
+        # Update a few frames to get movement
+        Action.update_all(0.016)
+        Action.update_all(0.016)
+
+        # Sprite should be pointing up (90 degrees)
+        assert abs(sprite.angle - 90) < 1.0
+
+    def test_follow_path_until_rotation_diagonal_path(self):
+        """Test sprite rotation follows diagonal path correctly."""
+        sprite = create_test_sprite()
+
+        # Diagonal path from bottom-left to top-right (45 degrees)
+        control_points = [(100, 100), (200, 200)]
+        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True)
+        action.apply(sprite, tag="test_diagonal_rotation")
+
+        # Update a few frames to get movement
+        Action.update_all(0.016)
+        Action.update_all(0.016)
+
+        # Sprite should be pointing at 45 degrees
+        assert abs(sprite.angle - 45) < 1.0
+
+    def test_follow_path_until_rotation_with_offset(self):
+        """Test sprite rotation with calibration offset."""
+        sprite = create_test_sprite()
+
+        # Horizontal path from left to right
+        control_points = [(100, 100), (200, 100)]
+        # Use -90 offset (sprite artwork points up by default)
+        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True, rotation_offset=-90)
+        action.apply(sprite, tag="test_rotation_offset")
+
+        # Update a few frames to get movement
+        Action.update_all(0.016)
+        Action.update_all(0.016)
+
+        # Sprite should be pointing right but compensated for -90 offset
+        # Expected angle: 0 (right direction) + (-90 offset) = -90
+        assert abs(sprite.angle - (-90)) < 1.0
+
+    def test_follow_path_until_rotation_offset_only_when_rotating(self):
+        """Test rotation offset is only applied when rotate_with_path is True."""
+        sprite = create_test_sprite()
+        original_angle = sprite.angle
+
+        # Horizontal path with offset but rotation disabled
+        control_points = [(100, 100), (200, 100)]
+        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=False, rotation_offset=-90)
+        action.apply(sprite, tag="test_no_rotation_with_offset")
+
+        # Update several frames
+        for _ in range(10):
+            Action.update_all(0.016)
+
+        # Sprite angle should not have changed (rotation disabled)
+        assert sprite.angle == original_angle
+
+    def test_follow_path_until_rotation_curved_path(self):
+        """Test sprite rotation follows curved path correctly."""
+        sprite = create_test_sprite()
+
+        # Curved path - quadratic Bezier curve
+        control_points = [(100, 100), (150, 200), (200, 100)]
+        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True)
+        action.apply(sprite, tag="test_curved_rotation")
+
+        # Store initial angle after first update
+        Action.update_all(0.016)
+        Action.update_all(0.016)
+        initial_angle = sprite.angle
+
+        # Continue updating - angle should change as we follow the curve
+        for _ in range(20):
+            Action.update_all(0.016)
+
+        # Angle should have changed as we follow the curve
+        assert sprite.angle != initial_angle
+
+    def test_follow_path_until_rotation_large_offset(self):
+        """Test sprite rotation with large offset values."""
+        sprite = create_test_sprite()
+
+        # Horizontal path with large offset
+        control_points = [(100, 100), (200, 100)]
+        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True, rotation_offset=450)
+        action.apply(sprite, tag="test_large_offset")
+
+        # Update a few frames to get movement
+        Action.update_all(0.016)
+        Action.update_all(0.016)
+
+        # Large offset should work (450 degrees = 90 degrees normalized)
+        # Expected: 0 (right direction) + 450 (offset) = 450 degrees
+        assert abs(sprite.angle - 450) < 1.0
+
+    def test_follow_path_until_rotation_negative_offset(self):
+        """Test sprite rotation with negative offset values."""
+        sprite = create_test_sprite()
+
+        # Vertical path with negative offset
+        control_points = [(100, 100), (100, 200)]
+        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True, rotation_offset=-45)
+        action.apply(sprite, tag="test_negative_offset")
+
+        # Update a few frames to get movement
+        Action.update_all(0.016)
+        Action.update_all(0.016)
+
+        # Expected: 90 (up direction) + (-45 offset) = 45 degrees
+        assert abs(sprite.angle - 45) < 1.0
+
+    def test_follow_path_until_clone_preserves_rotation_params(self):
+        """Test cloning preserves rotation parameters."""
+        control_points = [(100, 100), (200, 100)]
+        original = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True, rotation_offset=-90)
+
+        cloned = original.clone()
+
+        assert cloned.rotate_with_path == True
+        assert cloned.rotation_offset == -90
 
 
 class TestRotateUntil:
@@ -364,3 +531,129 @@ class TestDuration:
 
         # Should return True immediately for negative durations
         assert condition()
+
+
+class TestInterpolateUntil:
+    """Test suite for InterpolateUntil action."""
+
+    def teardown_method(self):
+        Action.clear_all()
+
+    def test_interpolate_until_basic(self):
+        sprite = create_test_sprite()
+        sprite.center_x = 0
+        action = InterpolateUntil(0, 100, "center_x", duration(1.0))
+        action.apply(sprite)
+        Action.update_all(0.5)
+        assert 0 < sprite.center_x < 100
+        Action.update_all(0.5)
+        assert sprite.center_x == 100
+        assert action.done
+
+    def test_interpolate_until_custom_easing(self):
+        sprite = create_test_sprite()
+        sprite.center_x = 0
+
+        def ease_quad(t):
+            return t * t
+
+        action = InterpolateUntil(0, 100, "center_x", duration(1.0), ease_function=ease_quad)
+        action.apply(sprite)
+        Action.update_all(0.5)
+        # Should be less than linear at t=0.5
+        assert sprite.center_x < 50
+        Action.update_all(0.5)
+        assert sprite.center_x == 100
+
+    def test_interpolate_until_other_properties(self):
+        sprite = create_test_sprite()
+        sprite.angle = 0
+        action = InterpolateUntil(0, 90, "angle", duration(1.0))
+        action.apply(sprite)
+        Action.update_all(1.0)
+        assert sprite.angle == 90
+        sprite.alpha = 0
+        action2 = InterpolateUntil(0, 255, "alpha", duration(1.0))
+        action2.apply(sprite)
+        Action.update_all(1.0)
+        assert sprite.alpha == 255
+
+    def test_interpolate_until_sprite_list(self):
+        sprites = create_test_sprite_list()
+        for s in sprites:
+            s.center_x = 0
+        action = InterpolateUntil(0, 100, "center_x", duration(1.0))
+        action.apply(sprites)
+        Action.update_all(1.0)
+        for s in sprites:
+            assert s.center_x == 100
+
+    def test_interpolate_until_set_factor(self):
+        sprite = create_test_sprite()
+        sprite.center_x = 0
+        action = InterpolateUntil(0, 100, "center_x", duration(1.0))
+        action.apply(sprite)
+        action.set_factor(0.0)  # Pause
+        Action.update_all(0.5)
+        assert sprite.center_x == 0
+        action.set_factor(1.0)  # Resume
+        Action.update_all(1.0)
+        assert sprite.center_x == 100
+        action = InterpolateUntil(0, 100, "center_x", duration(1.0))
+        action.apply(sprite)
+        action.set_factor(2.0)  # Double speed
+        Action.update_all(0.5)
+        assert sprite.center_x == 100
+
+    def test_interpolate_until_completion_and_callback(self):
+        sprite = create_test_sprite()
+        sprite.center_x = 0
+        called = {}
+
+        def on_complete(data=None):
+            called["done"] = True
+
+        action = InterpolateUntil(0, 100, "center_x", duration(1.0), on_condition_met=on_complete)
+        action.apply(sprite)
+        Action.update_all(1.0)
+        assert action.done
+        assert called.get("done")
+
+    def test_interpolate_until_invalid_property(self):
+        sprite = create_test_sprite()
+        with pytest.raises(AttributeError):
+            action = InterpolateUntil(0, 100, "not_a_property", duration(1.0))
+            action.apply(sprite)
+            Action.update_all(1.0)
+
+    def test_interpolate_until_negative_duration(self):
+        sprite = create_test_sprite()
+        action = InterpolateUntil(0, 100, "center_x", duration(-1.0))
+        with pytest.raises(ValueError):
+            action.apply(sprite)
+
+    def test_interpolate_until_start_equals_end(self):
+        sprite = create_test_sprite()
+        sprite.center_x = 42
+        action = InterpolateUntil(42, 42, "center_x", duration(1.0))
+        action.apply(sprite)
+        Action.update_all(1.0)
+        assert sprite.center_x == 42
+        assert action.done
+
+    def test_interpolate_until_clone(self):
+        sprite = create_test_sprite()
+        action = InterpolateUntil(0, 100, "center_x", duration(1.0))
+        clone = action.clone()
+        assert isinstance(clone, InterpolateUntil)
+        assert clone.start_value == 0
+        assert clone.end_value == 100
+        assert clone.property_name == "center_x"
+
+    def test_interpolate_until_zero_duration(self):
+        sprite = create_test_sprite()
+        sprite.center_x = 0
+        action = InterpolateUntil(0, 100, "center_x", duration(0.0))
+        action.apply(sprite)
+        assert sprite.center_x == 100
+        assert action.done
