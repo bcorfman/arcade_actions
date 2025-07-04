@@ -2,7 +2,7 @@
 
 ## 🚀 Quick Appeal
 
-So much of building an arcade game is a cluttered of saying "animate this sprite until X happens", where X is colliding with another sprite, reaching a boundary, or responding to an event. But instead of coding at a high-level, most of us do lots of low-level behavior like "add 1 to sprite.x". Instead, what if you could more easily say "keep moving and rotating this asteroid, wrap it the other side of the window if it hits a boundary, and call a function if it collides with another sprite (and tell me what sprite it is)."? 
+So much of building an arcade game is a cluttered way of saying "animate this sprite until X happens", where X is colliding with another sprite, reaching a boundary, or responding to an event. But instead of coding at a high-level, most of us do lots of low-level behavior like "add 1 to sprite.x". Instead, what if you could more easily say "keep moving and rotating this asteroid, wrap it the other side of the window if it hits a boundary, and call a function if it collides with another sprite (and tell me what sprite it is)."? 
 
 ```python 
 # assume player and asteroid are arcade.Sprites, and asteroid_list is a arcade.SpriteList
