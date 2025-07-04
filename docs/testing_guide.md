@@ -14,8 +14,9 @@ This guide documents the testing architecture and patterns for the ArcadeActions
 | `test_condition_actions.py` | Conditional actions (MoveUntil, FollowPathUntil, etc.) | Condition evaluation, velocity-based updates, path following with rotation |
 | `test_composite.py` | Sequential and parallel actions | Function composition, nested actions |
 | `test_move.py` | Boundary actions | MoveUntil boundary detection with bounce/wrap |
-| `test_pattern.py` | Formation pattern functions | Positioning and layout behavior |
-| `test_easing.py` | Easing wrapper functionality | Smooth acceleration/deceleration, nested easing, edge cases |
+| `test_formation.py` | Formation arrangement functions | Sprite positioning and layout behavior |
+| `test_pattern.py` | Movement pattern functions | Pattern creation and condition helpers |
+| `test_easing.py` | Ease wrapper functionality | Smooth acceleration/deceleration, nested easing, edge cases |
 
 ### Test Organization Principles
 
@@ -170,7 +171,7 @@ Tests formation positioning with conditional actions:
 ```python
 def test_formation_conditional_actions(self):
     """Test formation functions with conditional action patterns."""
-    from actions.pattern import arrange_grid
+    from actions.formation import arrange_grid, arrange_diamond
     
     sprite_list = create_test_sprite_list(6)
     
@@ -182,6 +183,28 @@ def test_formation_conditional_actions(self):
     assert sprite_list[0].center_y == 400
     assert sprite_list[1].center_x == 260  # 200 + 60 spacing
     assert sprite_list[3].center_y == 350  # 400 - 50 spacing
+    
+    # Test diamond formation with include_center parameter
+    diamond_sprites = create_test_sprite_list(5)
+    arrange_diamond(diamond_sprites, center_x=300, center_y=200, spacing=40, include_center=True)
+    
+    # Verify center sprite
+    assert diamond_sprites[0].center_x == 300
+    assert diamond_sprites[0].center_y == 200
+    
+    # Verify first layer Manhattan distances
+    for sprite in diamond_sprites[1:5]:
+        manhattan_dist = abs(sprite.center_x - 300) + abs(sprite.center_y - 200)
+        assert abs(manhattan_dist - 40) < 0.1
+    
+    # Test hollow diamond
+    hollow_sprites = create_test_sprite_list(4)
+    arrange_diamond(hollow_sprites, center_x=100, center_y=100, spacing=30, include_center=False)
+    
+    # All sprites should be at layer 1 distance
+    for sprite in hollow_sprites:
+        manhattan_dist = abs(sprite.center_x - 100) + abs(sprite.center_y - 100)
+        assert abs(manhattan_dist - 30) < 0.1
     
     # Create complex action composition
     delay = DelayUntil(duration(1.0))
@@ -204,6 +227,88 @@ def test_formation_conditional_actions(self):
     
     assert len(sequence_actions) == 1
     assert len(parallel_actions) == 1
+
+### Pattern 3b: Movement Pattern Testing
+
+Tests movement pattern functions and condition helpers:
+
+```python
+def test_movement_pattern_functions(self):
+    """Test movement pattern creation and application."""
+    from actions.pattern import (
+        create_zigzag_pattern, create_wave_pattern, create_spiral_pattern,
+        create_figure_eight_pattern, create_orbit_pattern, create_bounce_pattern,
+        create_patrol_pattern, time_elapsed, sprite_count
+    )
+    
+    sprite = create_test_sprite()
+    
+    # Test zigzag pattern creation
+    zigzag = create_zigzag_pattern(width=100, height=50, speed=150, segments=4)
+    assert hasattr(zigzag, 'apply')
+    zigzag.apply(sprite, tag="zigzag")
+    
+    # Verify pattern is applied
+    zigzag_actions = Action.get_tag_actions("zigzag")
+    assert len(zigzag_actions) == 1
+    
+    # Test wave pattern
+    Action.clear_all()
+    wave = create_wave_pattern(amplitude=30, frequency=2, length=400, speed=120)
+    wave.apply(sprite, tag="wave")
+    
+    # Update to start path following
+    Action.update_all(0.016)
+    initial_pos = (sprite.center_x, sprite.center_y)
+    
+    Action.update_all(0.5)  # Half second update
+    assert sprite.center_x != initial_pos[0] or sprite.center_y != initial_pos[1]
+    
+    # Test spiral pattern
+    Action.clear_all()
+    spiral = create_spiral_pattern(
+        center_x=400, center_y=300, max_radius=100, 
+        revolutions=2, speed=180, direction="outward"
+    )
+    spiral.apply(sprite, tag="spiral")
+    
+    # Test bounce pattern
+    Action.clear_all()
+    bounce = create_bounce_pattern(
+        velocity=(100, 80), bounds=(0, 0, 800, 600)
+    )
+    bounce.apply(sprite, tag="bounce")
+    
+    # Test patrol pattern
+    Action.clear_all()
+    patrol = create_patrol_pattern(
+        start_pos=(100, 200), end_pos=(300, 200), speed=120
+    )
+    patrol.apply(sprite, tag="patrol")
+    
+    # Test condition helpers
+    sprite_list = create_test_sprite_list(5)
+    
+    # Test time_elapsed condition
+    time_condition = time_elapsed(1.0)
+    assert not time_condition()  # Should be False initially
+    
+    # Test sprite_count condition  
+    count_condition = sprite_count(sprite_list, 3, "<=")
+    assert not count_condition()  # 5 sprites > 3
+    
+    # Remove sprites to trigger condition
+    sprite_list.pop()
+    sprite_list.pop()
+    sprite_list.pop()  # Now 2 sprites <= 3
+    assert count_condition()
+    
+    # Test different comparison operators
+    eq_condition = sprite_count(sprite_list, 2, "==")
+    assert eq_condition()  # Exactly 2 sprites
+    
+    gt_condition = sprite_count(sprite_list, 1, ">")
+    assert gt_condition()  # 2 sprites > 1
 ```
 
 ### Pattern 4: Conditional Logic Testing
@@ -452,6 +557,7 @@ def test_large_action_count_performance(self):
 - **Conditional Actions**: 95% coverage including edge cases
 - **Composite Actions**: 100% coverage for composition functions
 - **Formation functions**: 90% coverage including positioning and layout
+- **Movement pattern functions**: 85% coverage including pattern creation and condition helpers
 - **Boundary Actions**: 85% coverage including callback scenarios
 
 ### Critical Test Cases
@@ -471,7 +577,10 @@ def test_large_action_count_performance(self):
 # Run all tests
 python -m pytest tests/ -v
 
-# Run specific test file
+# Run specific test file for formation functions
+python -m pytest tests/test_formation.py -v
+
+# Run specific test file for movement patterns
 python -m pytest tests/test_pattern.py -v
 
 # Run with coverage

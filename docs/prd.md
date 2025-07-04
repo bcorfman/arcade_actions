@@ -239,7 +239,7 @@ def on_update(self, delta_time):
 
 ### Pattern 4: Formation Functions for Layout
 ```python
-from actions.pattern import arrange_grid
+from actions.formation import arrange_grid
 arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
 pattern.apply(enemies, tag="attack")
 ```

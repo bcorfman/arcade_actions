@@ -1,5 +1,9 @@
 """
-Attack patterns and group management.
+Movement patterns and condition helpers.
+
+This module provides functions for creating complex movement patterns like zigzag,
+wave, spiral, and orbit movements, as well as condition helper functions for
+use with conditional actions.
 """
 
 import math
@@ -8,170 +12,285 @@ from collections.abc import Callable
 import arcade
 
 
-def _default_factory(texture: str = ":resources:images/items/star.png", scale: float = 1.0):
-    """Return a lambda that creates a sprite with the given texture and scale."""
+def create_zigzag_pattern(width: float, height: float, speed: float, segments: int = 4):
+    """Create a zigzag movement pattern using sequences of MoveUntil actions.
 
-    return lambda: arcade.Sprite(texture, scale=scale)
+    Args:
+        width: Horizontal distance for each zigzag segment
+        height: Vertical distance for each zigzag segment
+        speed: Movement speed in pixels per second
+        segments: Number of zigzag segments to create
 
+    Returns:
+        Sequence action that creates zigzag movement
 
-def arrange_line(
-    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
-    *,
-    count: int | None = None,
-    start_x: float = 0,
-    start_y: float = 0,
-    spacing: float = 50.0,
-    sprite_factory: Callable[[], arcade.Sprite] | None = None,
-) -> arcade.SpriteList:
-    """Create or arrange sprites in a horizontal line.
-
-    If *sprites* is given, it is arranged in-place. If *sprites* is **None**, a new
-    :class:`arcade.SpriteList` is created with ``count`` sprites produced by
-    *sprite_factory* (defaults to a simple star sprite).
+    Example:
+        zigzag = create_zigzag_pattern(width=100, height=50, speed=150, segments=6)
+        zigzag.apply(sprite, tag="zigzag_movement")
     """
+    from actions.composite import sequence
+    from actions.conditional import MoveUntil, duration
 
-    if sprites is None:
-        if count is None or count <= 0:
-            raise ValueError("When *sprites* is None you must supply a positive *count*.")
+    # Calculate time for each segment
+    distance = math.sqrt(width**2 + height**2)
+    segment_time = distance / speed
 
-        sprite_factory = sprite_factory or _default_factory()
-        sprites = arcade.SpriteList()
-        for _ in range(count):
-            sprites.append(sprite_factory())
+    actions = []
+    for i in range(segments):
+        # Alternate direction for zigzag effect
+        direction = 1 if i % 2 == 0 else -1
+        velocity = (width * direction / segment_time, height / segment_time)
 
-    # Arrange positions
-    for i, sprite in enumerate(sprites):
-        sprite.center_x = start_x + i * spacing
-        sprite.center_y = start_y
+        actions.append(MoveUntil(velocity, duration(segment_time)))
 
-    return sprites
+    return sequence(*actions)
 
 
-def arrange_grid(
-    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
-    *,
-    rows: int = 5,
-    cols: int = 10,
-    start_x: float = 100,
-    start_y: float = 500,
-    spacing_x: float = 60.0,
-    spacing_y: float = 50.0,
-    sprite_factory: Callable[[], arcade.Sprite] | None = None,
-) -> arcade.SpriteList:
-    """Create or arrange sprites in a rectangular grid formation.
+def create_wave_pattern(amplitude: float, frequency: float, length: float, speed: float):
+    """Create a smooth wave movement pattern using Bezier path following.
 
-    If *sprites* is **None**, a new :class:`arcade.SpriteList` with ``rows × cols``
-    sprites is created using *sprite_factory* (defaults to a star sprite). The
-    function always returns the arranged sprite list.
+    Args:
+        amplitude: Height of the wave peaks/troughs
+        frequency: Number of complete wave cycles
+        length: Total horizontal distance of the wave
+        speed: Movement speed in pixels per second
+
+    Returns:
+        FollowPathUntil action that creates wave movement
+
+    Example:
+        wave = create_wave_pattern(amplitude=50, frequency=2, length=400, speed=200)
+        wave.apply(sprite, tag="wave_movement")
     """
+    from actions.conditional import FollowPathUntil, duration
 
-    if sprites is None:
-        sprite_factory = sprite_factory or _default_factory()
-        sprites = arcade.SpriteList()
-        for _ in range(rows * cols):
-            sprites.append(sprite_factory())
+    # Generate control points for wave using sine function
+    num_points = max(8, int(frequency * 4))  # More points for higher frequency
+    control_points = []
 
-    for i, sprite in enumerate(sprites):
-        row = i // cols
-        col = i % cols
-        sprite.center_x = start_x + col * spacing_x
-        sprite.center_y = start_y + row * spacing_y
+    for i in range(num_points):
+        t = i / (num_points - 1)
+        x = t * length
+        y = amplitude * math.sin(2 * math.pi * frequency * t)
+        control_points.append((x, y))
 
-    return sprites
+    # Calculate expected duration based on curve length and speed
+    expected_duration = length / speed
+
+    return FollowPathUntil(
+        control_points,
+        speed,
+        duration(expected_duration),
+        rotate_with_path=True,  # Optional: sprite rotates to follow wave direction
+    )
 
 
-def arrange_circle(
-    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
-    *,
-    count: int | None = None,
-    center_x: float = 400,
-    center_y: float = 300,
-    radius: float = 100.0,
-    sprite_factory: Callable[[], arcade.Sprite] | None = None,
-) -> arcade.SpriteList:
-    """Create or arrange sprites in a circular formation.
+def create_smooth_zigzag_pattern(width: float, height: float, speed: float, ease_duration: float = 0.5):
+    """Create a zigzag pattern with smooth easing transitions.
 
-    Sprites are arranged starting from the top (π/2) and moving clockwise.
-    This ensures that increasing Y values move sprites upward, consistent
-    with the coordinate system used in other arrangement functions.
+    Args:
+        width: Horizontal distance for each zigzag segment
+        height: Vertical distance for each zigzag segment
+        speed: Movement speed in pixels per second
+        ease_duration: Duration of easing effect in seconds
 
-    With 4 sprites, they will be placed at:
-    - First sprite: top (π/2)
-    - Second sprite: right (0)
-    - Third sprite: bottom (-π/2)
-    - Fourth sprite: left (π)
+    Returns:
+        Ease action wrapping zigzag movement
+
+    Example:
+        smooth_zigzag = create_smooth_zigzag_pattern(100, 50, 150, ease_duration=1.0)
+        smooth_zigzag.apply(sprite, tag="smooth_zigzag")
     """
+    from arcade import easing
 
-    if sprites is None:
-        if count is None or count <= 0:
-            raise ValueError("When *sprites* is None you must supply a positive *count*.")
-        sprite_factory = sprite_factory or _default_factory()
-        sprites = arcade.SpriteList()
-        for _ in range(count):
-            sprites.append(sprite_factory())
+    from actions.easing import Ease
 
-    count = len(sprites)
-    if count == 0:
-        return sprites
+    # Create the base zigzag
+    zigzag = create_zigzag_pattern(width, height, speed)
 
-    angle_step = 2 * math.pi / count
-    for i, sprite in enumerate(sprites):
-        # Start at π/2 (top) and go clockwise (negative angle)
-        # Subtract π/2 to start at the top instead of the right
-        angle = math.pi / 2 - i * angle_step
-        sprite.center_x = center_x + math.cos(angle) * radius
-        sprite.center_y = center_y + math.sin(angle) * radius
-
-    return sprites
+    # Wrap with easing for smooth acceleration
+    return Ease(zigzag, seconds=ease_duration, ease_function=easing.ease_in_out)
 
 
-def arrange_v_formation(
-    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
-    *,
-    count: int | None = None,
-    apex_x: float = 400,
-    apex_y: float = 500,
-    angle: float = 45.0,
-    spacing: float = 50.0,
-    sprite_factory: Callable[[], arcade.Sprite] | None = None,
-) -> arcade.SpriteList:
-    """Create or arrange sprites in a V or wedge formation.
+def create_spiral_pattern(
+    center_x: float, center_y: float, max_radius: float, revolutions: float, speed: float, direction: str = "outward"
+):
+    """Create an outward or inward spiral pattern.
 
-    The formation grows upward from the apex, with sprites placed in alternating
-    left-right pattern at the specified angle.
+    Args:
+        center_x: X coordinate of spiral center
+        center_y: Y coordinate of spiral center
+        max_radius: Maximum radius of the spiral
+        revolutions: Number of complete revolutions
+        speed: Movement speed in pixels per second
+        direction: "outward" for expanding spiral, "inward" for contracting
+
+    Returns:
+        FollowPathUntil action that creates spiral movement
+
+    Example:
+        spiral = create_spiral_pattern(400, 300, 150, 3.0, 200, "outward")
+        spiral.apply(sprite, tag="spiral_movement")
     """
+    from actions.conditional import FollowPathUntil, duration
 
-    if sprites is None:
-        if count is None or count <= 0:
-            raise ValueError("When *sprites* is None you must supply a positive *count*.")
-        sprite_factory = sprite_factory or _default_factory()
-        sprites = arcade.SpriteList()
-        for _ in range(count):
-            sprites.append(sprite_factory())
+    num_points = max(20, int(revolutions * 8))
+    control_points = []
 
-    count = len(sprites)
-    if count == 0:
-        return sprites
+    for i in range(num_points):
+        t = i / (num_points - 1)
+        if direction == "outward":
+            radius = t * max_radius
+        else:  # inward
+            radius = (1 - t) * max_radius
 
-    angle_rad = math.radians(angle)
+        angle = t * revolutions * 2 * math.pi
+        x = center_x + radius * math.cos(angle)
+        y = center_y + radius * math.sin(angle)
+        control_points.append((x, y))
 
-    # Place the first sprite at the apex
-    sprites[0].center_x = apex_x
-    sprites[0].center_y = apex_y
+    # Estimate total path length
+    total_length = revolutions * math.pi * max_radius  # Approximate
+    duration_time = total_length / speed
 
-    for i in range(1, count):
-        side = 1 if i % 2 == 1 else -1
-        distance = (i + 1) // 2 * spacing
-
-        offset_x = side * math.cos(angle_rad) * distance
-        offset_y = math.sin(angle_rad) * distance
-
-        sprites[i].center_x = apex_x + offset_x
-        sprites[i].center_y = apex_y + offset_y
-
-    return sprites
+    return FollowPathUntil(control_points, speed, duration(duration_time), rotate_with_path=True)
 
 
+def create_figure_eight_pattern(center_x: float, center_y: float, width: float, height: float, speed: float):
+    """Create a figure-8 (infinity) movement pattern.
+
+    Args:
+        center_x: X coordinate of pattern center
+        center_y: Y coordinate of pattern center
+        width: Width of the figure-8
+        height: Height of the figure-8
+        speed: Movement speed in pixels per second
+
+    Returns:
+        FollowPathUntil action that creates figure-8 movement
+
+    Example:
+        figure_eight = create_figure_eight_pattern(400, 300, 200, 100, 180)
+        figure_eight.apply(sprite, tag="figure_eight")
+    """
+    from actions.conditional import FollowPathUntil, duration
+
+    # Generate figure-8 using parametric equations
+    num_points = 16
+    control_points = []
+
+    for i in range(num_points + 1):  # +1 to complete the loop
+        t = (i / num_points) * 2 * math.pi
+        # Parametric equations for figure-8
+        x = center_x + (width / 2) * math.sin(t)
+        y = center_y + (height / 2) * math.sin(2 * t)
+        control_points.append((x, y))
+
+    # Estimate path length (approximate)
+    path_length = 2 * math.pi * max(width, height) / 2
+    duration_time = path_length / speed
+
+    return FollowPathUntil(control_points, speed, duration(duration_time), rotate_with_path=True)
+
+
+def create_orbit_pattern(center_x: float, center_y: float, radius: float, speed: float, clockwise: bool = True):
+    """Create a circular orbit pattern.
+
+    Args:
+        center_x: X coordinate of orbit center
+        center_y: Y coordinate of orbit center
+        radius: Radius of the orbit
+        speed: Movement speed in pixels per second
+        clockwise: True for clockwise orbit, False for counter-clockwise
+
+    Returns:
+        FollowPathUntil action that creates orbital movement
+
+    Example:
+        orbit = create_orbit_pattern(400, 300, 120, 150, clockwise=True)
+        orbit.apply(sprite, tag="orbit")
+    """
+    from actions.conditional import FollowPathUntil, duration
+
+    # Generate circular path
+    num_points = 12
+    control_points = []
+
+    for i in range(num_points + 1):  # +1 to complete the circle
+        angle_step = 2 * math.pi / num_points
+        angle = i * angle_step
+        if not clockwise:
+            angle = -angle
+
+        x = center_x + radius * math.cos(angle)
+        y = center_y + radius * math.sin(angle)
+        control_points.append((x, y))
+
+    # Calculate duration for one complete orbit
+    circumference = 2 * math.pi * radius
+    duration_time = circumference / speed
+
+    return FollowPathUntil(control_points, speed, duration(duration_time), rotate_with_path=True)
+
+
+def create_bounce_pattern(velocity: tuple[float, float], bounds: tuple[float, float, float, float]):
+    """Create a bouncing movement pattern within boundaries.
+
+    Args:
+        velocity: (dx, dy) initial velocity vector
+        bounds: (left, bottom, right, top) boundary box
+
+    Returns:
+        MoveUntil action with bouncing behavior
+
+    Example:
+        bounce = create_bounce_pattern((150, 100), bounds=(0, 0, 800, 600))
+        bounce.apply(sprite, tag="bouncing")
+    """
+    from actions.conditional import MoveUntil
+
+    return MoveUntil(
+        velocity,
+        lambda: False,  # Continue indefinitely
+        bounds=bounds,
+        boundary_behavior="bounce",
+    )
+
+
+def create_patrol_pattern(start_pos: tuple[float, float], end_pos: tuple[float, float], speed: float):
+    """Create a back-and-forth patrol pattern between two points.
+
+    Args:
+        start_pos: (x, y) starting position
+        end_pos: (x, y) ending position
+        speed: Movement speed in pixels per second
+
+    Returns:
+        Sequence action that creates patrol movement
+
+    Example:
+        patrol = create_patrol_pattern((100, 200), (500, 200), 120)
+        patrol.apply(sprite, tag="patrol")
+    """
+    from actions.composite import sequence
+    from actions.conditional import MoveUntil, duration
+
+    # Calculate distance and time for each leg
+    dx = end_pos[0] - start_pos[0]
+    dy = end_pos[1] - start_pos[1]
+    distance = math.sqrt(dx**2 + dy**2)
+    travel_time = distance / speed
+
+    # Create forward and return movements
+    forward_velocity = (dx / travel_time, dy / travel_time)
+    return_velocity = (-dx / travel_time, -dy / travel_time)
+
+    return sequence(
+        MoveUntil(forward_velocity, duration(travel_time)), MoveUntil(return_velocity, duration(travel_time))
+    )
+
+
+# Condition helper functions
 def time_elapsed(seconds: float) -> Callable:
     """Create a condition function that returns True after the specified time.
 
@@ -233,22 +352,33 @@ def sprite_count(sprite_list: arcade.SpriteList, target_count: int, comparison: 
     return condition
 
 
-# AttackGroup has been removed - use arcade.SpriteList directly with actions
+# Usage examples and notes:
 #
-# Example usage that replaces AttackGroup:
+# # Create enemy formation using formation functions:
+# from actions.formation import arrange_grid
+# enemies = arrange_grid(rows=3, cols=5, start_x=200, start_y=400)
 #
-# # Instead of AttackGroup, use arcade.SpriteList directly:
-# enemies = arcade.SpriteList()
+# # Apply movement patterns:
+# wave_movement = create_wave_pattern(amplitude=30, frequency=1, length=600, speed=100)
+# wave_movement.apply(enemies, tag="formation_wave")
 #
-# # Apply formation patterns:
-# arrange_grid(enemies, rows=3, cols=5, start_x=200, start_y=400)
+# # Individual patterns for each sprite:
+# for i, enemy in enumerate(enemies):
+#     # Stagger the wave timing for a "rolling wave" effect
+#     delay_time = i * 0.1
+#     from actions.composite import sequence
+#     from actions.conditional import DelayUntil, duration
+#     delayed_wave = sequence(
+#         DelayUntil(duration(delay_time)),
+#         create_wave_pattern(amplitude=20, frequency=2, length=400, speed=120)
+#     )
+#     delayed_wave.apply(enemy, tag=f"individual_wave_{i}")
 #
-# # Apply actions directly to sprite list:
-# move_action = MoveUntil((50, -25), time_elapsed(2.0))
-# move_action.apply(enemies, tag="movement")
-#
-# # Use explicit composition functions (see composite.py):
-# delay = DelayUntil(time_elapsed(1.0))
-# fade = FadeUntil(-30, sprite_count(enemies, 2, "<="))
-# move_sequence = sequence(delay, move_action)  # Instead of delay + move_action
-# move_parallel = parallel(move_action, fade)   # Instead of move_action | fade
+# # Combine patterns with other actions:
+# from actions.composite import parallel
+# from actions.conditional import FadeUntil
+# combined = parallel(
+#     create_spiral_pattern(400, 300, 100, 2, 150),
+#     FadeUntil(-10, sprite_count(enemies, 1, "<="))
+# )
+# combined.apply(sprite, tag="spiral_fade")

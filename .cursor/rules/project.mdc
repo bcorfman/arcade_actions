@@ -28,6 +28,14 @@ In the tests/ directory:
 
 Core design principles that must be followed:
 
+CRITICAL API Rule - Velocity Semantics:
+* ALL velocity values use Arcade's native "pixels per frame at 60 FPS" semantics, NOT "pixels per second"
+* MoveUntil((5, 0), condition) means 5 pixels per frame, not 5 pixels per second
+* RotateUntil(3, condition) means 3 degrees per frame, not 3 degrees per second  
+* This maintains perfect consistency with Arcade's sprite.change_x/change_y/change_angle system
+* NEVER convert velocities by dividing/multiplying by frame rates - use raw values directly
+* When in doubt about velocity values, refer to Arcade's native sprite velocity documentation
+
 General rules:
 * Never use Dataclasses
 * AVOID state flags (booleans like self.respawning, self.is_active); use action states and completion callbacks instead.

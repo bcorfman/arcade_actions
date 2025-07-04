@@ -610,17 +610,49 @@ class DelayUntil(_Action):
         return DelayUntil(self.condition_func, self.on_condition_met, self.check_interval)
 
 
-class InterpolateUntil(_Action):
-    """Interpolate sprites between start and end values using an easing function until a condition is satisfied.
+class TweenUntil(_Action):
+    """Directly animate a sprite property from start to end value with precise control.
+
+    TweenUntil is perfect for A-to-B property animations like UI elements sliding into position,
+    health bars updating, button feedback, or fade effects. Unlike Ease (which modulates continuous
+    actions), TweenUntil directly sets property values and completes when the end value is reached.
+
+    Use TweenUntil when you need:
+    - Precise property animation (position, scale, alpha, etc.)
+    - UI element animations (panels, buttons, menus)
+    - Value transitions (health bars, progress indicators)
+    - Simple A-to-B movements that should stop at the target
+
+    Use Ease instead when you need:
+    - Smooth acceleration/deceleration of continuous movement
+    - Complex path following with smooth transitions
+    - Actions that should continue after the easing completes
 
     Args:
-        start_value: Starting value for the property being interpolated
-        end_value: Ending value for the property being interpolated
-        property_name: Name of the sprite property to interpolate ('center_x', 'center_y', 'angle', 'scale', 'alpha')
-        condition_func: Function that returns truthy value when interpolation should stop
+        start_value: Starting value for the property being tweened
+        end_value: Ending value for the property being tweened
+        property_name: Name of the sprite property to tween ('center_x', 'center_y', 'angle', 'scale', 'alpha')
+        condition_func: Function that returns truthy value when tweening should stop
         on_condition_met: Optional callback called when condition is satisfied
         check_interval: How often to check condition (in seconds, default: 0.0 for every frame)
-        ease_function: Easing function to use for interpolation (default: linear)
+        ease_function: Easing function to use for tweening (default: linear)
+
+    Examples:
+        # UI panel slide-in animation
+        slide_in = TweenUntil(-200, 100, "center_x", duration(0.8), ease_function=easing.ease_out)
+        slide_in.apply(ui_panel, tag="show_panel")
+
+        # Health bar update
+        health_change = TweenUntil(old_health, new_health, "width", duration(0.5))
+        health_change.apply(health_bar, tag="health_update")
+
+        # Button press feedback
+        button_press = TweenUntil(1.0, 1.2, "scale", duration(0.1))
+        button_press.apply(button, tag="press_feedback")
+
+        # Fade effect
+        fade_out = TweenUntil(255, 0, "alpha", duration(1.0))
+        fade_out.apply(sprite, tag="disappear")
     """
 
     def __init__(
@@ -710,8 +742,8 @@ class InterpolateUntil(_Action):
     def remove_effect(self) -> None:
         pass
 
-    def clone(self) -> "InterpolateUntil":
-        return InterpolateUntil(
+    def clone(self) -> "TweenUntil":
+        return TweenUntil(
             self.start_value,
             self.end_value,
             self.property_name,

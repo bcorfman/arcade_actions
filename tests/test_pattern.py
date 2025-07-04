@@ -1,4 +1,4 @@
-"""Test suite for pattern.py - Formation arrangement functions."""
+"""Test suite for pattern.py - Movement patterns and condition helpers."""
 
 import math
 
@@ -6,10 +6,14 @@ import arcade
 
 from actions.base import Action
 from actions.pattern import (
-    arrange_circle,
-    arrange_grid,
-    arrange_line,
-    arrange_v_formation,
+    create_bounce_pattern,
+    create_figure_eight_pattern,
+    create_orbit_pattern,
+    create_patrol_pattern,
+    create_smooth_zigzag_pattern,
+    create_spiral_pattern,
+    create_wave_pattern,
+    create_zigzag_pattern,
     sprite_count,
     time_elapsed,
 )
@@ -31,228 +35,6 @@ def create_test_sprite_list(count=5):
         sprite.center_x = 100 + i * 50
         sprite_list.append(sprite)
     return sprite_list
-
-
-class TestArrangeLineFunctions:
-    """Test suite for arrange_line function."""
-
-    def test_arrange_line_basic(self):
-        """Test basic line arrangement."""
-        sprite_list = create_test_sprite_list(3)
-
-        arrange_line(sprite_list, start_x=100, start_y=200, spacing=60.0)
-
-        # Check sprite positions
-        assert sprite_list[0].center_x == 100
-        assert sprite_list[0].center_y == 200
-        assert sprite_list[1].center_x == 160
-        assert sprite_list[1].center_y == 200
-        assert sprite_list[2].center_x == 220
-        assert sprite_list[2].center_y == 200
-
-    def test_arrange_line_default_position(self):
-        """Test line arrangement with default position."""
-        sprite_list = create_test_sprite_list(2)
-
-        arrange_line(sprite_list)
-
-        # Check default positions
-        assert sprite_list[0].center_x == 0
-        assert sprite_list[0].center_y == 0
-        assert sprite_list[1].center_x == 50
-        assert sprite_list[1].center_y == 0
-
-    def test_arrange_line_python_list(self):
-        """Test line arrangement with Python list instead of SpriteList."""
-        sprites = [create_test_sprite() for _ in range(3)]
-
-        arrange_line(sprites, start_x=200, start_y=300, spacing=40)
-
-        assert sprites[0].center_x == 200
-        assert sprites[1].center_x == 240
-        assert sprites[2].center_x == 280
-        for sprite in sprites:
-            assert sprite.center_y == 300
-
-
-class TestArrangeGridFunctions:
-    """Test suite for arrange_grid function."""
-
-    def test_arrange_grid_basic(self):
-        """Test basic grid arrangement."""
-        sprite_list = create_test_sprite_list(6)  # 2x3 grid
-
-        arrange_grid(sprite_list, rows=2, cols=3, start_x=200, start_y=400, spacing_x=80, spacing_y=60)
-
-        # Check sprite positions for 2x3 grid
-        # Row 0
-        assert sprite_list[0].center_x == 200  # Col 0
-        assert sprite_list[0].center_y == 400
-        assert sprite_list[1].center_x == 280  # Col 1
-        assert sprite_list[1].center_y == 400
-        assert sprite_list[2].center_x == 360  # Col 2
-        assert sprite_list[2].center_y == 400
-
-        # Row 1
-        assert sprite_list[3].center_x == 200  # Col 0
-        assert sprite_list[3].center_y == 460  # Y increased by spacing_y
-        assert sprite_list[4].center_x == 280  # Col 1
-        assert sprite_list[4].center_y == 460
-        assert sprite_list[5].center_x == 360  # Col 2
-        assert sprite_list[5].center_y == 460
-
-    def test_arrange_grid_default_position(self):
-        """Test grid arrangement with default position."""
-        sprite_list = create_test_sprite_list(3)
-
-        arrange_grid(sprite_list, cols=3)
-
-        # Check default positions
-        assert sprite_list[0].center_x == 100
-        assert sprite_list[0].center_y == 500
-
-    def test_arrange_grid_single_row(self):
-        """Test grid arrangement with single row."""
-        sprite_list = create_test_sprite_list(4)
-
-        arrange_grid(sprite_list, rows=1, cols=4, start_x=0, start_y=100, spacing_x=50)
-
-        for i, sprite in enumerate(sprite_list):
-            assert sprite.center_x == i * 50
-            assert sprite.center_y == 100
-
-    def test_arrange_grid_factory_creation(self):
-        """Test that arrange_grid can create its own sprites via sprite_factory."""
-        rows, cols = 2, 3
-
-        def coin_sprite():
-            return arcade.Sprite(":resources:images/items/coinGold.png")
-
-        grid = arrange_grid(
-            rows=rows,
-            cols=cols,
-            start_x=10,
-            start_y=50,
-            spacing_x=20,
-            spacing_y=30,
-            sprite_factory=coin_sprite,
-        )
-
-        # Should return a SpriteList with rows*cols sprites
-        assert isinstance(grid, arcade.SpriteList)
-        assert len(grid) == rows * cols
-
-        # Check a couple of positions to ensure arrangement
-        assert grid[0].center_x == 10  # Row 0, Col 0
-        assert grid[0].center_y == 50
-        assert grid[cols - 1].center_x == 10 + (cols - 1) * 20  # Last in first row
-        assert grid[cols - 1].center_y == 50
-        # First sprite of second row
-        assert grid[cols].center_x == 10
-        assert grid[cols].center_y == 50 + 30  # Y increased by spacing_y
-
-
-class TestArrangeCircleFunctions:
-    """Test suite for arrange_circle function."""
-
-    def test_arrange_circle_basic(self):
-        """Test basic circle arrangement."""
-        sprite_list = create_test_sprite_list(4)  # 4 sprites for easier math
-
-        arrange_circle(sprite_list, center_x=400, center_y=300, radius=100.0)
-
-        # Check that sprites are positioned around the circle
-        # With 4 sprites, they should be at 90-degree intervals
-        # Starting at π/2 (top) and going clockwise
-        for i, sprite in enumerate(sprite_list):
-            angle = math.pi / 2 - i * 2 * math.pi / 4
-            expected_x = 400 + math.cos(angle) * 100
-            expected_y = 300 + math.sin(angle) * 100
-
-            assert abs(sprite.center_x - expected_x) < 0.1
-            assert abs(sprite.center_y - expected_y) < 0.1
-
-    def test_arrange_circle_empty_list(self):
-        """Test circle arrangement with empty list."""
-        sprite_list = arcade.SpriteList()
-
-        # Should not raise error
-        arrange_circle(sprite_list, center_x=400, center_y=300)
-
-    def test_arrange_circle_default_position(self):
-        """Test circle arrangement with default position."""
-        sprite_list = create_test_sprite_list(2)
-
-        arrange_circle(sprite_list)
-
-        # Check default center position is used
-        # Starting at π/2 (top) and going clockwise
-        for i, sprite in enumerate(sprite_list):
-            angle = math.pi / 2 - i * 2 * math.pi / 2
-            expected_x = 400 + math.cos(angle) * 100
-            expected_y = 300 + math.sin(angle) * 100
-
-            assert abs(sprite.center_x - expected_x) < 0.1
-            assert abs(sprite.center_y - expected_y) < 0.1
-
-
-class TestArrangeVFormationFunctions:
-    """Test suite for arrange_v_formation function."""
-
-    def test_arrange_v_formation_basic(self):
-        """Test basic V formation arrangement."""
-        sprite_list = create_test_sprite_list(5)
-
-        arrange_v_formation(sprite_list, apex_x=400, apex_y=500, angle=45.0, spacing=50.0)
-
-        # Check apex sprite
-        assert sprite_list[0].center_x == 400
-        assert sprite_list[0].center_y == 500
-
-        # Check that other sprites are arranged alternately
-        angle_rad = math.radians(45.0)
-
-        # Second sprite (i=1, side=1, distance=50)
-        expected_x = 400 + 1 * math.cos(angle_rad) * 50
-        expected_y = 500 + math.sin(angle_rad) * 50  # Changed to add sine for upward movement
-        assert abs(sprite_list[1].center_x - expected_x) < 0.1
-        assert abs(sprite_list[1].center_y - expected_y) < 0.1
-
-    def test_arrange_v_formation_empty_list(self):
-        """Test V formation with empty list."""
-        sprite_list = arcade.SpriteList()
-
-        # Should not raise error
-        arrange_v_formation(sprite_list, apex_x=400, apex_y=500)
-
-    def test_arrange_v_formation_single_sprite(self):
-        """Test V formation with single sprite."""
-        sprite_list = create_test_sprite_list(1)
-
-        arrange_v_formation(sprite_list, apex_x=300, apex_y=400)
-
-        # Single sprite should be at apex
-        assert sprite_list[0].center_x == 300
-        assert sprite_list[0].center_y == 400
-
-    def test_arrange_v_formation_custom_angle(self):
-        """Test V formation with custom angle."""
-        sprite_list = create_test_sprite_list(3)
-
-        arrange_v_formation(sprite_list, apex_x=200, apex_y=300, angle=30.0, spacing=40.0)
-
-        # Apex should be at specified position
-        assert sprite_list[0].center_x == 200
-        assert sprite_list[0].center_y == 300
-
-        # Other sprites should be arranged according to 30-degree angle
-        angle_rad = math.radians(30.0)
-
-        # Check second sprite positioning
-        expected_x = 200 + 1 * math.cos(angle_rad) * 40
-        expected_y = 300 + math.sin(angle_rad) * 40  # Changed to add sine for upward movement
-        assert abs(sprite_list[1].center_x - expected_x) < 0.1
-        assert abs(sprite_list[1].center_y - expected_y) < 0.1
 
 
 class TestConditionHelpers:
@@ -306,188 +88,345 @@ class TestConditionHelpers:
             assert "Invalid comparison operator" in str(e)
 
 
-class TestFormationIntegration:
-    """Test suite for integration between formations and actions."""
+class TestZigzagPattern:
+    """Test suite for zigzag movement pattern."""
 
     def teardown_method(self):
         """Clean up after each test."""
         Action.clear_all()
 
-    def test_formation_with_actions_workflow(self):
-        """Test typical workflow of arranging sprites and applying actions."""
-        from actions.conditional import MoveUntil
+    def test_create_zigzag_pattern_basic(self):
+        """Test basic zigzag pattern creation."""
+        pattern = create_zigzag_pattern(width=100, height=50, speed=150, segments=4)
 
-        # Create sprites and arrange them
-        sprite_list = create_test_sprite_list(6)
-        arrange_grid(sprite_list, rows=2, cols=3, start_x=200, start_y=400, spacing_x=80, spacing_y=60)
+        # Should return a sequence action
+        assert hasattr(pattern, "actions")
+        assert len(pattern.actions) == 4
 
-        # Apply actions directly to the sprite list
-        move_action = MoveUntil((50, -25), time_elapsed(2.0))
-        move_action.apply(sprite_list, tag="formation_movement")
+    def test_create_zigzag_pattern_application(self):
+        """Test applying zigzag pattern to sprite."""
+        sprite = create_test_sprite()
+        initial_x = sprite.center_x
 
-        # Verify action was applied
-        assert move_action in Action._active_actions
-        assert move_action.target == sprite_list
-        assert move_action.tag == "formation_movement"
+        pattern = create_zigzag_pattern(width=100, height=50, speed=150, segments=2)
+        pattern.apply(sprite, tag="zigzag_test")
 
-        # Update and verify movement
+        # Start the action and update
         Action.update_all(0.1)
-        for sprite in sprite_list:
-            assert sprite.change_x == 50
-            assert sprite.change_y == -25
 
-    def test_multiple_formations_same_sprites(self):
-        """Test applying different formation patterns to same sprite list."""
-        sprite_list = create_test_sprite_list(4)
+        # Sprite should be moving
+        assert sprite.change_x != 0 or sprite.change_y != 0
 
-        # Start with line formation
-        arrange_line(sprite_list, start_x=0, start_y=100, spacing=50)
-        line_positions = [(s.center_x, s.center_y) for s in sprite_list]
+    def test_create_zigzag_pattern_segments(self):
+        """Test zigzag pattern with different segment counts."""
+        pattern_2 = create_zigzag_pattern(width=100, height=50, speed=150, segments=2)
+        pattern_6 = create_zigzag_pattern(width=100, height=50, speed=150, segments=6)
 
-        # Change to circle formation
-        arrange_circle(sprite_list, center_x=200, center_y=200, radius=80)
-        circle_positions = [(s.center_x, s.center_y) for s in sprite_list]
-
-        # Positions should be different
-        assert line_positions != circle_positions
-
-        # Change to grid formation
-        arrange_grid(sprite_list, rows=2, cols=2, start_x=300, start_y=300)
-        grid_positions = [(s.center_x, s.center_y) for s in sprite_list]
-
-        # All formations should be different
-        assert len(set([tuple(line_positions), tuple(circle_positions), tuple(grid_positions)])) == 3
-
-    def test_formation_with_conditional_actions(self):
-        """Test formations with conditional actions and condition helpers."""
-        from actions.composite import parallel, sequence
-        from actions.conditional import FadeUntil, MoveUntil
-
-        sprite_list = create_test_sprite_list(8)
-        arrange_grid(sprite_list, rows=2, cols=4, start_x=100, start_y=400)
-
-        # Create conditional actions using helpers
-        move_action = MoveUntil((30, -20), time_elapsed(1.5))
-        fade_action = FadeUntil(-20, sprite_count(sprite_list, 4, "<="))
-
-        # Use explicit composition
-        seq = sequence(move_action, fade_action)
-        par = parallel(move_action, fade_action)
-
-        # Apply to sprite list
-        seq.apply(sprite_list, tag="sequential")
-        par.apply(sprite_list, tag="parallel")  # This will conflict but tests the API
-
-        # Verify actions were registered
-        seq_actions = Action.get_actions_for_target(sprite_list, "sequential")
-        par_actions = Action.get_actions_for_target(sprite_list, "parallel")
-
-        assert len(seq_actions) == 1
-        assert len(par_actions) == 1
+        assert len(pattern_2.actions) == 2
+        assert len(pattern_6.actions) == 6
 
 
-class TestCoordinateConsistency:
-    """Test suite specifically for verifying coordinate system consistency."""
+class TestWavePattern:
+    """Test suite for wave movement pattern."""
 
-    def test_vertical_movement_consistency(self):
-        """Test that all arrangement functions handle vertical movement consistently.
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.clear_all()
 
-        Increasing Y values should always move sprites upward in all functions.
-        """
-        # Create test sprites
-        sprites = create_test_sprite_list(4)
-        base_y = 300
+    def test_create_wave_pattern_basic(self):
+        """Test basic wave pattern creation."""
+        pattern = create_wave_pattern(amplitude=50, frequency=2, length=400, speed=200)
 
-        # Test arrange_line
-        arrange_line(sprites, start_x=100, start_y=base_y, spacing=50)
-        for sprite in sprites:
-            assert sprite.center_y == base_y
+        # Should return a FollowPathUntil action
+        assert hasattr(pattern, "control_points")
+        assert len(pattern.control_points) >= 8  # Should have multiple points
 
-        arrange_line(sprites, start_x=100, start_y=base_y + 100, spacing=50)
-        for sprite in sprites:
-            assert sprite.center_y == base_y + 100, "arrange_line should move sprites up with higher y"
+    def test_create_wave_pattern_application(self):
+        """Test applying wave pattern to sprite."""
+        sprite = create_test_sprite()
 
-        # Test arrange_grid (2x2 grid)
-        sprites = create_test_sprite_list(4)
-        arrange_grid(sprites, rows=2, cols=2, start_x=100, start_y=base_y, spacing_x=50, spacing_y=50)
-        assert sprites[0].center_y == base_y, "First row should be at base_y"
-        assert sprites[2].center_y == base_y + 50, "Second row should be above first row"
+        pattern = create_wave_pattern(amplitude=30, frequency=1, length=200, speed=100)
+        pattern.apply(sprite, tag="wave_test")
 
-        # Test arrange_circle
-        sprites = create_test_sprite_list(4)
-        radius = 100
-        arrange_circle(sprites, center_x=200, center_y=base_y, radius=radius)
+        # Verify pattern was applied
+        assert pattern.target == sprite
+        assert pattern.tag == "wave_test"
 
-        # Find top and bottom sprites by y-coordinate
-        top_sprite = max(sprites, key=lambda s: s.center_y)
-        bottom_sprite = min(sprites, key=lambda s: s.center_y)
+    def test_create_wave_pattern_frequency_affects_points(self):
+        """Test that higher frequency creates more control points."""
+        low_freq = create_wave_pattern(amplitude=50, frequency=1, length=400, speed=200)
+        high_freq = create_wave_pattern(amplitude=50, frequency=3, length=400, speed=200)
 
-        assert top_sprite.center_y > base_y, "Circle top point should be above center"
-        assert bottom_sprite.center_y < base_y, "Circle bottom point should be below center"
+        assert len(high_freq.control_points) > len(low_freq.control_points)
 
-    def test_grid_row_progression(self):
-        """Test that grid rows progress upward consistently."""
-        rows, cols = 3, 2
-        sprites = create_test_sprite_list(rows * cols)
-        start_y = 300
-        spacing_y = 50
 
-        arrange_grid(sprites, rows=rows, cols=cols, start_x=100, start_y=start_y, spacing_x=50, spacing_y=spacing_y)
+class TestSpiralPattern:
+    """Test suite for spiral movement pattern."""
 
-        # Check each row is higher than the previous
-        for row in range(rows):
-            row_sprites = sprites[row * cols : (row + 1) * cols]
-            expected_y = start_y + row * spacing_y
-            for sprite in row_sprites:
-                assert sprite.center_y == expected_y, f"Row {row} should be at y={expected_y}"
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.clear_all()
 
-    def test_v_formation_angle_consistency(self):
-        """Test that V-formation angles move sprites upward consistently."""
-        sprites = create_test_sprite_list(5)
-        apex_y = 300
-        spacing = 50
+    def test_create_spiral_pattern_outward(self):
+        """Test outward spiral pattern creation."""
+        pattern = create_spiral_pattern(400, 300, 150, 2.0, 200, "outward")
 
-        # Test with different angles
-        for angle in [30, 45, 60]:
-            arrange_v_formation(sprites, apex_x=200, apex_y=apex_y, angle=angle, spacing=spacing)
+        assert hasattr(pattern, "control_points")
+        points = pattern.control_points
 
-            # Apex should be at base
-            assert sprites[0].center_y == apex_y, "Apex should be at specified y-coordinate"
+        # First point should be near center (small radius)
+        first_dist = math.sqrt((points[0][0] - 400) ** 2 + (points[0][1] - 300) ** 2)
+        last_dist = math.sqrt((points[-1][0] - 400) ** 2 + (points[-1][1] - 300) ** 2)
 
-            # All other sprites should be above apex
-            for sprite in sprites[1:]:
-                assert sprite.center_y > apex_y, f"Wing sprites should be above apex for angle {angle}"
-                # Verify the height increase is proportional to sine of angle
-                expected_min_height = spacing * math.sin(math.radians(angle))
-                actual_height = sprite.center_y - apex_y
-                assert actual_height >= expected_min_height * 0.99, f"Height increase incorrect for angle {angle}"
+        # Outward spiral should end farther from center than it starts
+        assert last_dist > first_dist
 
-    def test_circle_quadrant_consistency(self):
-        """Test that circle arrangement maintains consistent quadrant positions."""
-        sprites = create_test_sprite_list(4)
-        center_y = 300
-        radius = 100
+    def test_create_spiral_pattern_inward(self):
+        """Test inward spiral pattern creation."""
+        pattern = create_spiral_pattern(400, 300, 150, 2.0, 200, "inward")
 
-        arrange_circle(sprites, center_x=200, center_y=center_y, radius=radius)
+        points = pattern.control_points
 
-        # With 4 sprites, they should be at:
-        # - First sprite: top (π/2)
-        # - Second sprite: right (0)
-        # - Third sprite: bottom (-π/2)
-        # - Fourth sprite: left (π)
-        top_sprite = sprites[0]
-        right_sprite = sprites[1]
-        bottom_sprite = sprites[2]
-        left_sprite = sprites[3]
+        # First point should be far from center (large radius)
+        first_dist = math.sqrt((points[0][0] - 400) ** 2 + (points[0][1] - 300) ** 2)
+        last_dist = math.sqrt((points[-1][0] - 400) ** 2 + (points[-1][1] - 300) ** 2)
 
-        # Verify vertical positions
-        assert top_sprite.center_y > center_y, "Top sprite should be above center"
-        assert bottom_sprite.center_y < center_y, "Bottom sprite should be below center"
+        # Inward spiral should end closer to center than it starts
+        assert last_dist < first_dist
 
-        # Verify horizontal positions
-        assert right_sprite.center_x > 200, "Right sprite should be right of center"
-        assert left_sprite.center_x < 200, "Left sprite should be left of center"
+    def test_create_spiral_pattern_application(self):
+        """Test applying spiral pattern to sprite."""
+        sprite = create_test_sprite()
 
-        # Verify quadrant positions
-        assert right_sprite.center_y == center_y, "Right sprite should be at center_y"
-        assert left_sprite.center_y == center_y, "Left sprite should be at center_y"
+        pattern = create_spiral_pattern(200, 200, 100, 1.5, 150)
+        pattern.apply(sprite, tag="spiral_test")
+
+        assert pattern.target == sprite
+
+
+class TestFigureEightPattern:
+    """Test suite for figure-8 movement pattern."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.clear_all()
+
+    def test_create_figure_eight_pattern_basic(self):
+        """Test basic figure-8 pattern creation."""
+        pattern = create_figure_eight_pattern(400, 300, 200, 100, 180)
+
+        assert hasattr(pattern, "control_points")
+        assert len(pattern.control_points) == 17  # 16 + 1 to complete loop
+
+    def test_create_figure_eight_pattern_symmetry(self):
+        """Test that figure-8 pattern has approximate symmetry."""
+        pattern = create_figure_eight_pattern(400, 300, 200, 100, 180)
+        points = pattern.control_points
+
+        # Check that we have points on both sides of center
+        left_points = [p for p in points if p[0] < 400]
+        right_points = [p for p in points if p[0] > 400]
+
+        assert len(left_points) > 0
+        assert len(right_points) > 0
+
+
+class TestOrbitPattern:
+    """Test suite for orbit movement pattern."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.clear_all()
+
+    def test_create_orbit_pattern_clockwise(self):
+        """Test clockwise orbit pattern."""
+        pattern = create_orbit_pattern(400, 300, 120, 150, clockwise=True)
+
+        assert hasattr(pattern, "control_points")
+        points = pattern.control_points
+
+        # All points should be approximately the same distance from center
+        for point in points:
+            distance = math.sqrt((point[0] - 400) ** 2 + (point[1] - 300) ** 2)
+            assert abs(distance - 120) < 1.0
+
+    def test_create_orbit_pattern_counter_clockwise(self):
+        """Test counter-clockwise orbit pattern."""
+        cw_pattern = create_orbit_pattern(400, 300, 120, 150, clockwise=True)
+        ccw_pattern = create_orbit_pattern(400, 300, 120, 150, clockwise=False)
+
+        # Patterns should have same number of points but different order
+        assert len(cw_pattern.control_points) == len(ccw_pattern.control_points)
+
+
+class TestBouncePattern:
+    """Test suite for bounce movement pattern."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.clear_all()
+
+    def test_create_bounce_pattern_basic(self):
+        """Test basic bounce pattern creation."""
+        bounds = (0, 0, 800, 600)
+        pattern = create_bounce_pattern((150, 100), bounds)
+
+        # Should return a MoveUntil action with bounce behavior
+        assert hasattr(pattern, "boundary_behavior")
+        assert pattern.boundary_behavior == "bounce"
+        assert pattern.bounds == bounds
+
+    def test_create_bounce_pattern_application(self):
+        """Test applying bounce pattern to sprite."""
+        sprite = create_test_sprite()
+        bounds = (0, 0, 800, 600)
+
+        pattern = create_bounce_pattern((150, 100), bounds)
+        pattern.apply(sprite, tag="bounce_test")
+
+        Action.update_all(0.1)
+
+        # Sprite should be moving
+        # MoveUntil uses pixels per frame at 60 FPS semantics
+        assert sprite.change_x == 150
+        assert sprite.change_y == 100
+
+
+class TestPatrolPattern:
+    """Test suite for patrol movement pattern."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.clear_all()
+
+    def test_create_patrol_pattern_basic(self):
+        """Test basic patrol pattern creation."""
+        start_pos = (100, 200)
+        end_pos = (500, 200)
+
+        pattern = create_patrol_pattern(start_pos, end_pos, 120)
+
+        # Should return a sequence with two movements
+        assert hasattr(pattern, "actions")
+        assert len(pattern.actions) == 2
+
+    def test_create_patrol_pattern_distance_calculation(self):
+        """Test that patrol pattern calculates distances correctly."""
+        # Horizontal patrol
+        start_pos = (100, 200)
+        end_pos = (300, 200)  # 200 pixels apart
+
+        pattern = create_patrol_pattern(start_pos, end_pos, 100)  # 100 px/s
+
+        # Should create two actions (forward and return)
+        assert len(pattern.actions) == 2
+
+    def test_create_patrol_pattern_diagonal(self):
+        """Test patrol pattern with diagonal movement."""
+        start_pos = (100, 100)
+        end_pos = (200, 200)  # Diagonal movement
+
+        pattern = create_patrol_pattern(start_pos, end_pos, 100)
+
+        # Should still create a valid sequence
+        assert hasattr(pattern, "actions")
+        assert len(pattern.actions) == 2
+
+
+class TestSmoothZigzagPattern:
+    """Test suite for smooth zigzag movement pattern."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.clear_all()
+
+    def test_create_smooth_zigzag_pattern_basic(self):
+        """Test smooth zigzag pattern creation."""
+        pattern = create_smooth_zigzag_pattern(100, 50, 150, ease_duration=1.0)
+
+        # Should return an Ease action wrapping a zigzag
+        assert hasattr(pattern, "wrapped_action")
+        assert hasattr(pattern, "easing_duration")
+        assert pattern.easing_duration == 1.0
+
+    def test_create_smooth_zigzag_pattern_application(self):
+        """Test applying smooth zigzag pattern to sprite."""
+        sprite = create_test_sprite()
+
+        pattern = create_smooth_zigzag_pattern(80, 40, 120, ease_duration=0.5)
+        pattern.apply(sprite, tag="smooth_zigzag_test")
+
+        assert pattern.target == sprite
+
+
+class TestPatternIntegration:
+    """Test suite for integration between patterns and other actions."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.clear_all()
+
+    def test_pattern_with_sprite_list(self):
+        """Test applying patterns to sprite lists."""
+        from actions.formation import arrange_line
+
+        # Create formation
+        sprites = arrange_line(count=3, start_x=100, start_y=200, spacing=50)
+
+        # Apply wave pattern to entire formation
+        wave = create_wave_pattern(amplitude=30, frequency=1, length=300, speed=150)
+        wave.apply(sprites, tag="formation_wave")
+
+        assert wave.target == sprites
+
+    def test_pattern_composition(self):
+        """Test composing patterns with other actions."""
+        from actions.composite import sequence
+        from actions.conditional import DelayUntil, FadeUntil, duration
+
+        sprite = create_test_sprite()
+
+        # Create a complex sequence: delay, then zigzag, then fade
+        complex_action = sequence(
+            DelayUntil(duration(0.5)), create_zigzag_pattern(80, 40, 120, segments=3), FadeUntil(-20, duration(2.0))
+        )
+
+        complex_action.apply(sprite, tag="complex_sequence")
+
+        # Should be a valid sequence
+        assert hasattr(complex_action, "actions")
+        assert len(complex_action.actions) == 3
+
+    def test_pattern_with_conditions(self):
+        """Test patterns with condition helpers."""
+        sprite_list = create_test_sprite_list(5)
+
+        # Create a spiral that stops when few sprites remain
+        spiral = create_spiral_pattern(400, 300, 100, 2, 150)
+
+        # Note: This test mainly verifies that condition helpers work with patterns
+        condition = sprite_count(sprite_list, 2, "<=")
+
+        # Should not trigger initially
+        assert not condition()
+
+        # Remove sprites to trigger condition
+        while len(sprite_list) > 2:
+            sprite_list.remove(sprite_list[0])
+
+        assert condition()
+
+    def test_multiple_patterns_same_sprite(self):
+        """Test applying multiple patterns to the same sprite with different tags."""
+        sprite = create_test_sprite()
+
+        # Apply different patterns with different tags (this would conflict in real usage)
+        wave = create_wave_pattern(amplitude=20, frequency=1, length=200, speed=100)
+        spiral = create_spiral_pattern(300, 300, 80, 1, 120)
+
+        wave.apply(sprite, tag="wave_movement")
+        spiral.apply(sprite, tag="spiral_movement")  # This will override the wave
+
+        # Most recent action should be active
+        spiral_actions = Action.get_actions_for_target(sprite, "spiral_movement")
+        assert len(spiral_actions) == 1

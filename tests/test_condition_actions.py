@@ -9,10 +9,10 @@ from actions import (
     DelayUntil,
     FadeUntil,
     FollowPathUntil,
-    InterpolateUntil,
     MoveUntil,
     RotateUntil,
     ScaleUntil,
+    TweenUntil,
     duration,
 )
 
@@ -81,6 +81,50 @@ class TestMoveUntil:
         assert sprite.change_x == 0
         assert sprite.change_y == 0
         assert action.done
+
+    def test_move_until_frame_based_semantics(self):
+        """Test that MoveUntil uses pixels per frame at 60 FPS semantics."""
+        sprite = create_test_sprite()
+
+        # 5 pixels per frame should move 5 pixels when sprite.update() is called
+        action = MoveUntil((5, 0), lambda: False)
+        action.apply(sprite)
+
+        # Update action to apply velocity
+        Action.update_all(0.016)
+        assert sprite.change_x == 5  # Raw frame-based value
+
+        # Move sprite using its velocity
+        start_x = sprite.center_x
+        sprite.update()  # Arcade applies change_x to position
+
+        # Should have moved exactly 5 pixels
+        distance_moved = sprite.center_x - start_x
+        assert distance_moved == 5.0
+
+    def test_move_until_velocity_values(self):
+        """Test that MoveUntil sets velocity values directly (pixels per frame at 60 FPS)."""
+        sprite = create_test_sprite()
+
+        # Test various velocity values
+        test_cases = [
+            (1, 0),  # Should result in change_x = 1.0
+            (2, 0),  # Should result in change_x = 2.0
+            (0, 3),  # Should result in change_y = 3.0
+            (5, 4),  # Should result in change_x = 5.0, change_y = 4.0
+        ]
+
+        for input_velocity in test_cases:
+            Action.clear_all()
+            sprite.change_x = 0
+            sprite.change_y = 0
+
+            action = MoveUntil(input_velocity, lambda: False)
+            action.apply(sprite)
+            Action.update_all(0.016)
+
+            assert sprite.change_x == input_velocity[0], f"Failed for input {input_velocity}"
+            assert sprite.change_y == input_velocity[1], f"Failed for input {input_velocity}"
 
     def test_move_until_callback(self):
         """Test MoveUntil with callback."""
@@ -370,7 +414,7 @@ class TestRotateUntil:
 
         Action.update_all(0.016)
 
-        # Should be rotating
+        # RotateUntil uses degrees per frame at 60 FPS semantics
         assert sprite.change_angle == 90
 
         # Trigger condition
@@ -378,6 +422,48 @@ class TestRotateUntil:
         Action.update_all(0.016)
 
         assert action.done
+
+    def test_rotate_until_frame_based_semantics(self):
+        """Test that RotateUntil uses degrees per frame at 60 FPS semantics."""
+        sprite = create_test_sprite()
+
+        # 3 degrees per frame should rotate 3 degrees when sprite.update() is called
+        action = RotateUntil(3, lambda: False)
+        action.apply(sprite)
+
+        # Update action to apply angular velocity
+        Action.update_all(0.016)
+        assert sprite.change_angle == 3  # Raw frame-based value
+
+        # Rotate sprite using its angular velocity
+        start_angle = sprite.angle
+        sprite.update()  # Arcade applies change_angle to angle
+
+        # Should have rotated exactly 3 degrees
+        angle_rotated = sprite.angle - start_angle
+        assert angle_rotated == 3.0
+
+    def test_rotate_until_angular_velocity_values(self):
+        """Test that RotateUntil sets angular velocity values directly (degrees per frame at 60 FPS)."""
+        sprite = create_test_sprite()
+
+        # Test various angular velocity values
+        test_cases = [
+            1,  # Should result in change_angle = 1.0
+            2,  # Should result in change_angle = 2.0
+            5,  # Should result in change_angle = 5.0
+            -3,  # Should result in change_angle = -3.0
+        ]
+
+        for input_angular_velocity in test_cases:
+            Action.clear_all()
+            sprite.change_angle = 0
+
+            action = RotateUntil(input_angular_velocity, lambda: False)
+            action.apply(sprite)
+            Action.update_all(0.016)
+
+            assert sprite.change_angle == input_angular_velocity, f"Failed for input {input_angular_velocity}"
 
 
 class TestScaleUntil:
@@ -533,31 +619,38 @@ class TestDuration:
         assert condition()
 
 
-class TestInterpolateUntil:
-    """Test suite for InterpolateUntil action."""
+class TestTweenUntil:
+    """Test suite for TweenUntil action - Direct property animation from start to end value."""
 
     def teardown_method(self):
         Action.clear_all()
 
-    def test_interpolate_until_basic(self):
+    def test_tween_until_basic_property_animation(self):
+        """Test TweenUntil for precise A-to-B property animation."""
         sprite = create_test_sprite()
         sprite.center_x = 0
-        action = InterpolateUntil(0, 100, "center_x", duration(1.0))
+
+        # Direct property animation from 0 to 100 over 1 second
+        action = TweenUntil(0, 100, "center_x", duration(1.0))
         action.apply(sprite)
+
+        # At halfway point, should be partway through
         Action.update_all(0.5)
         assert 0 < sprite.center_x < 100
+
+        # At completion, should be exactly at end value and done
         Action.update_all(0.5)
         assert sprite.center_x == 100
         assert action.done
 
-    def test_interpolate_until_custom_easing(self):
+    def test_tween_until_custom_easing(self):
         sprite = create_test_sprite()
         sprite.center_x = 0
 
         def ease_quad(t):
             return t * t
 
-        action = InterpolateUntil(0, 100, "center_x", duration(1.0), ease_function=ease_quad)
+        action = TweenUntil(0, 100, "center_x", duration(1.0), ease_function=ease_quad)
         action.apply(sprite)
         Action.update_all(0.5)
         # Should be less than linear at t=0.5
@@ -565,33 +658,38 @@ class TestInterpolateUntil:
         Action.update_all(0.5)
         assert sprite.center_x == 100
 
-    def test_interpolate_until_other_properties(self):
+    def test_tween_until_ui_and_effect_animations(self):
+        """Test TweenUntil for typical UI and visual effect use cases."""
         sprite = create_test_sprite()
+
+        # Button rotation feedback animation
         sprite.angle = 0
-        action = InterpolateUntil(0, 90, "angle", duration(1.0))
-        action.apply(sprite)
+        rotation_feedback = TweenUntil(0, 90, "angle", duration(1.0))
+        rotation_feedback.apply(sprite)
         Action.update_all(1.0)
         assert sprite.angle == 90
+
+        # Fade-in effect animation
         sprite.alpha = 0
-        action2 = InterpolateUntil(0, 255, "alpha", duration(1.0))
-        action2.apply(sprite)
+        fade_in = TweenUntil(0, 255, "alpha", duration(1.0))
+        fade_in.apply(sprite)
         Action.update_all(1.0)
         assert sprite.alpha == 255
 
-    def test_interpolate_until_sprite_list(self):
+    def test_tween_until_sprite_list(self):
         sprites = create_test_sprite_list()
         for s in sprites:
             s.center_x = 0
-        action = InterpolateUntil(0, 100, "center_x", duration(1.0))
+        action = TweenUntil(0, 100, "center_x", duration(1.0))
         action.apply(sprites)
         Action.update_all(1.0)
         for s in sprites:
             assert s.center_x == 100
 
-    def test_interpolate_until_set_factor(self):
+    def test_tween_until_set_factor(self):
         sprite = create_test_sprite()
         sprite.center_x = 0
-        action = InterpolateUntil(0, 100, "center_x", duration(1.0))
+        action = TweenUntil(0, 100, "center_x", duration(1.0))
         action.apply(sprite)
         action.set_factor(0.0)  # Pause
         Action.update_all(0.5)
@@ -599,13 +697,13 @@ class TestInterpolateUntil:
         action.set_factor(1.0)  # Resume
         Action.update_all(1.0)
         assert sprite.center_x == 100
-        action = InterpolateUntil(0, 100, "center_x", duration(1.0))
+        action = TweenUntil(0, 100, "center_x", duration(1.0))
         action.apply(sprite)
         action.set_factor(2.0)  # Double speed
         Action.update_all(0.5)
         assert sprite.center_x == 100
 
-    def test_interpolate_until_completion_and_callback(self):
+    def test_tween_until_completion_and_callback(self):
         sprite = create_test_sprite()
         sprite.center_x = 0
         called = {}
@@ -613,47 +711,88 @@ class TestInterpolateUntil:
         def on_complete(data=None):
             called["done"] = True
 
-        action = InterpolateUntil(0, 100, "center_x", duration(1.0), on_condition_met=on_complete)
+        action = TweenUntil(0, 100, "center_x", duration(1.0), on_condition_met=on_complete)
         action.apply(sprite)
         Action.update_all(1.0)
         assert action.done
         assert called.get("done")
 
-    def test_interpolate_until_invalid_property(self):
+    def test_tween_until_invalid_property(self):
+        """Test TweenUntil behavior with invalid property names."""
         sprite = create_test_sprite()
-        with pytest.raises(AttributeError):
-            action = InterpolateUntil(0, 100, "not_a_property", duration(1.0))
-            action.apply(sprite)
-            Action.update_all(1.0)
 
-    def test_interpolate_until_negative_duration(self):
+        # Arcade sprites are permissive and allow setting arbitrary attributes
+        # so this test demonstrates that TweenUntil can work with any property name
+        action = TweenUntil(0, 100, "custom_property", duration(1.0))
+        action.apply(sprite)
+        Action.update_all(1.0)
+
+        # The sprite should now have the custom property set to the end value
+        assert sprite.custom_property == 100
+        assert action.done
+
+    def test_tween_until_negative_duration(self):
         sprite = create_test_sprite()
-        action = InterpolateUntil(0, 100, "center_x", duration(-1.0))
+        action = TweenUntil(0, 100, "center_x", duration(-1.0))
         with pytest.raises(ValueError):
             action.apply(sprite)
 
-    def test_interpolate_until_start_equals_end(self):
+    def test_tween_until_vs_ease_comparison(self):
+        """Test demonstrating when to use TweenUntil vs Ease."""
+        sprite1 = create_test_sprite()
+        sprite2 = create_test_sprite()
+        sprite1.center_x = 0
+        sprite2.center_x = 0
+
+        # TweenUntil: Perfect for UI panel slide-in (precise A-to-B movement)
+        ui_slide = TweenUntil(0, 200, "center_x", duration(1.0))
+        ui_slide.apply(sprite1, tag="ui_animation")
+
+        # Ease: Perfect for missile launch (smooth acceleration to cruise speed)
+        from actions.easing import Ease
+
+        missile_move = MoveUntil((200, 0), lambda: False)  # Continuous movement
+        missile_launch = Ease(missile_move, seconds=1.0)
+        missile_launch.apply(sprite2, tag="missile_launch")
+
+        # After 1 second:
+        Action.update_all(1.0)
+
+        # UI panel: Precisely positioned and stopped
+        assert ui_slide.done
+        assert sprite1.center_x == 200  # Exact target position
+        assert sprite1.change_x == 0  # No velocity (not moving)
+
+        # Missile: Reached cruise speed and continues moving
+        assert missile_launch.done  # Easing is done
+        assert not missile_move.done  # But missile keeps flying
+        # MoveUntil uses pixels per frame at 60 FPS semantics
+        assert sprite2.change_x == 200  # At cruise velocity
+
+        # Key difference: TweenUntil stops, Ease transitions to continuous action
+
+    def test_tween_until_start_equals_end(self):
         sprite = create_test_sprite()
         sprite.center_x = 42
-        action = InterpolateUntil(42, 42, "center_x", duration(1.0))
+        action = TweenUntil(42, 42, "center_x", duration(1.0))
         action.apply(sprite)
         Action.update_all(1.0)
         assert sprite.center_x == 42
         assert action.done
 
-    def test_interpolate_until_clone(self):
+    def test_tween_until_clone(self):
         sprite = create_test_sprite()
-        action = InterpolateUntil(0, 100, "center_x", duration(1.0))
+        action = TweenUntil(0, 100, "center_x", duration(1.0))
         clone = action.clone()
-        assert isinstance(clone, InterpolateUntil)
+        assert isinstance(clone, TweenUntil)
         assert clone.start_value == 0
         assert clone.end_value == 100
         assert clone.property_name == "center_x"
 
-    def test_interpolate_until_zero_duration(self):
+    def test_tween_until_zero_duration(self):
         sprite = create_test_sprite()
         sprite.center_x = 0
-        action = InterpolateUntil(0, 100, "center_x", duration(0.0))
+        action = TweenUntil(0, 100, "center_x", duration(0.0))
         action.apply(sprite)
         assert sprite.center_x == 100
         assert action.done

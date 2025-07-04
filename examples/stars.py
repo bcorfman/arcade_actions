@@ -20,7 +20,7 @@ import arcade
 
 from actions.base import Action
 from actions.composite import sequence
-from actions.conditional import BlinkUntil, DelayUntil, InterpolateUntil, MoveUntil, duration
+from actions.conditional import BlinkUntil, DelayUntil, MoveUntil, TweenUntil, duration
 
 # ---------------------------------------------------------------------------
 # Window configuration
@@ -117,12 +117,14 @@ class StarfieldView(arcade.View):
                 create_main_loop()
 
             # The sequence of actions that control the starfield's velocity.
-            # The final action has the on_loop_complete callback attached.
+            # Uses TweenUntil to directly set velocity values (change_y property)
+            # This is correct because we need precise velocity transitions, not smooth
+            # acceleration into continuous movement (which would use Ease wrapper)
             control_sequence = sequence(
                 # 1. Start at 0 speed for 2 seconds.
                 DelayUntil(duration(1.0)),
                 # 2. Accelerate to forward speed (-4) over 2 seconds.
-                InterpolateUntil(
+                TweenUntil(
                     start_value=0,
                     end_value=-4,
                     property_name="change_y",
@@ -132,7 +134,7 @@ class StarfieldView(arcade.View):
                 # 3. Hold forward speed for 10 seconds.
                 DelayUntil(duration(5.0)),
                 # 4. Accelerate to reverse speed (20, which is 5x forward) over 0.5s.
-                InterpolateUntil(
+                TweenUntil(
                     start_value=-4,
                     end_value=14,
                     property_name="change_y",
@@ -143,7 +145,7 @@ class StarfieldView(arcade.View):
                 DelayUntil(duration(1.5)),
                 # 6. Decelerate from reverse speed back to 0 over 2 seconds.
                 #    When this action completes, it will trigger the callback to loop.
-                InterpolateUntil(
+                TweenUntil(
                     start_value=20,
                     end_value=0,
                     property_name="change_y",

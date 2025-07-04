@@ -8,9 +8,11 @@ Actions available:
 - Visual: FadeUntil, BlinkUntil
 - Path: FollowPathUntil
 - Timing: DelayUntil, duration, time_elapsed
-- Easing: Easing wrapper for smooth acceleration/deceleration effects
+- Easing: Ease wrapper for smooth acceleration/deceleration effects
+- Interpolation: TweenUntil for direct property animation from start to end value
 - Composition: sequence() and parallel() functions for combining actions
 - Formation: arrange_line, arrange_grid, arrange_circle, arrange_v_formation functions
+- Movement Patterns: create_zigzag_pattern, create_wave_pattern, create_spiral_pattern, etc.
 - Condition helpers: sprite_count, time_elapsed
 """
 
@@ -26,24 +28,37 @@ from .conditional import (
     DelayUntil,
     FadeUntil,
     FollowPathUntil,
-    InterpolateUntil,
     MoveUntil,
     RotateUntil,
     ScaleUntil,
+    TweenUntil,
     duration,
 )
 
 # Easing wrappers
 from .easing import (
-    Easing,
+    Ease,
 )
 
 # Formation arrangement functions
-from .pattern import (
+from .formation import (
     arrange_circle,
+    arrange_diamond,
     arrange_grid,
     arrange_line,
     arrange_v_formation,
+)
+
+# Movement patterns and condition helpers
+from .pattern import (
+    create_bounce_pattern,
+    create_figure_eight_pattern,
+    create_orbit_pattern,
+    create_patrol_pattern,
+    create_smooth_zigzag_pattern,
+    create_spiral_pattern,
+    create_wave_pattern,
+    create_zigzag_pattern,
     sprite_count,
     time_elapsed,
 )
@@ -59,9 +74,10 @@ __all__ = [
     "BlinkUntil",
     "DelayUntil",
     "FollowPathUntil",
+    "TweenUntil",
     "duration",
     # Easing wrappers
-    "Easing",
+    "Ease",
     # Composition functions
     "sequence",
     "parallel",
@@ -69,7 +85,17 @@ __all__ = [
     "arrange_line",
     "arrange_grid",
     "arrange_circle",
+    "arrange_diamond",
     "arrange_v_formation",
+    # Movement patterns
+    "create_zigzag_pattern",
+    "create_wave_pattern",
+    "create_smooth_zigzag_pattern",
+    "create_spiral_pattern",
+    "create_figure_eight_pattern",
+    "create_orbit_pattern",
+    "create_bounce_pattern",
+    "create_patrol_pattern",
     # Condition helpers
     "time_elapsed",
     "sprite_count",

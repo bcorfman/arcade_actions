@@ -1,143 +1,210 @@
 """
-Easing Demo using ArcadeActions
+Ease Wrapper Demo using ArcadeActions
 
-This example shows how to use ArcadeActions' InterpolateUntil action to animate sprites with different easing functions.
-Each ball moves horizontally from left to right, demonstrating various easing curves.
+This example shows how to use ArcadeActions' Ease wrapper class to create smooth acceleration
+and deceleration effects for continuous actions. Each missile launches with different easing curves,
+smoothly accelerating to cruise speed and then continuing at that speed until hitting a boundary.
+
+Ease is perfect for this use case because:
+- Missiles need realistic acceleration from 0 to cruise speed
+- After acceleration completes, missiles should continue at constant velocity
+- We want smooth transitions into continuous movement, not precise A-to-B positioning
+
+This is different from TweenUntil, which would be used for precise property animation
+that stops at a target value (like UI elements or health bars).
 
 From the project root, run with:
     uv run python examples/easing_demo.py
-
-Requires Arcade and ArcadeActions to be installed and importable.
 """
+
+import logging
 
 import arcade
 from arcade import easing
 from arcade.types import Color
 
 from actions.base import Action
-from actions.conditional import InterpolateUntil, duration
+from actions.conditional import MoveUntil
+from actions.easing import Ease
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # --- Constants ---
-SPRITE_SCALING = 0.5
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
-WINDOW_TITLE = "ArcadeActions Easing Demo"
+WINDOW_TITLE = "ArcadeActions Ease Wrapper Demo"
 
-BACKGROUND_COLOR = "#F5D167"
-TEXT_COLOR = "#4B1DF2"
-BALL_COLOR = "#42B5EB"
-LINE_COLOR = "#45E6D0"
-LINE_WIDTH = 3
+BACKGROUND_COLOR = "#2C3E50"
+TEXT_COLOR = "#ECF0F1"
+MISSILE_COLOR = "#E74C3C"
+TRAIL_COLOR = "#F39C12"
+LINE_COLOR = "#3498DB"
+LINE_WIDTH = 2
 
-X_START = 40
-X_END = 1200
+X_START = 60
+MISSILE_VELOCITY = 5  # pixels per frame cruise speed (300 pixels/second at 60 FPS)
 Y_INTERVAL = 60
-BALL_RADIUS = 13
-TIME = 6.0
+MISSILE_SIZE = 8
+EASING_DURATION = 2.0  # seconds to reach cruise speed
 
-# List of (easing function, label) to demonstrate
-EASINGS = [
+# List of (easing function, label) to demonstrate with Ease wrapper
+EASING_FUNCTIONS = [
     (easing.linear, "Linear"),
     (easing.ease_out, "Ease out"),
     (easing.ease_in, "Ease in"),
-    (easing.smoothstep, "Smoothstep"),
     (easing.ease_in_out, "Ease in/out"),
     (easing.ease_out_elastic, "Ease out elastic"),
     (easing.ease_in_back, "Ease in back"),
     (easing.ease_out_back, "Ease out back"),
-    (easing.ease_in_sin, "Ease in sin"),
-    (easing.ease_out_sin, "Ease out sin"),
-    (easing.ease_in_out_sin, "Ease in out sin"),
 ]
 
 
-class EasingBall(arcade.SpriteCircle):
-    """A ball that can be animated with ArcadeActions."""
+class Missile(arcade.SpriteCircle):
+    """A missile that can be launched with smooth acceleration using Ease wrapper."""
 
     def __init__(self, radius, color):
         super().__init__(radius, color)
+        self.trail_points = []
+        self.max_trail_length = 20
+
+    def update(self, delta_time=None, *args, **kwargs):
+        super().update(delta_time, *args, **kwargs)
+
+        # Add current position to trail
+        self.trail_points.append((self.center_x, self.center_y))
+        if len(self.trail_points) > self.max_trail_length:
+            self.trail_points.pop(0)
 
 
-class EasingDemoView(arcade.View):
-    """Main application view for the easing demo."""
+class EaseDemoView(arcade.View):
+    """Main application view for the Ease wrapper demo."""
 
     def __init__(self):
         super().__init__()
         self.background_color = Color.from_hex_string(BACKGROUND_COLOR)
-        self.ball_list = arcade.SpriteList()
+        self.missile_list = arcade.SpriteList()
         self.text_list = []
         self.lines = arcade.shape_list.ShapeElementList()
 
     def setup(self):
         text_color = Color.from_hex_string(TEXT_COLOR)
         line_color = Color.from_hex_string(LINE_COLOR)
+
         y = Y_INTERVAL
-        for ease_func, label in EASINGS:
-            # Create ball
-            ball = EasingBall(BALL_RADIUS, Color.from_hex_string(BALL_COLOR))
-            ball.position = (X_START, y)
-            self.ball_list.append(ball)
-            # Create line
+        for ease_func, label in EASING_FUNCTIONS:
+            # Create missile
+            missile = Missile(MISSILE_SIZE, Color.from_hex_string(MISSILE_COLOR))
+            missile.position = (X_START, y)
+            self.missile_list.append(missile)
+
+            # Create reference line showing launch path
             line = arcade.shape_list.create_line(
                 X_START,
-                y - BALL_RADIUS - LINE_WIDTH,
-                X_END,
-                y - BALL_RADIUS,
+                y,
+                WINDOW_WIDTH - 60,
+                y,
                 line_color,
                 line_width=LINE_WIDTH,
             )
             self.lines.append(line)
+
             # Create label
             text = arcade.Text(
                 label,
-                x=X_START,
-                y=y - BALL_RADIUS,
+                x=X_START - 50,
+                y=y - 5,
                 color=text_color,
-                font_size=24,
+                font_size=16,
+                anchor_x="right",
             )
             self.text_list.append(text)
 
-            # Use a nested function to correctly capture the loop variables (ease_func, label)
-            # and create a self-restarting animation loop for each ball.
-            def start_animation_loop(target_ball, current_ease_func, current_label):
-                def create_and_apply_animation(start_x, end_x):
-                    # This callback is triggered when one leg of the animation completes.
-                    # It starts the next leg in the opposite direction.
-                    def on_complete(data=None):
-                        create_and_apply_animation(start_x=end_x, end_x=start_x)
+            # Launch missile with Ease wrapper for smooth acceleration
+            self._launch_missile(missile, ease_func, label)
 
-                    action = InterpolateUntil(
-                        start_value=start_x,
-                        end_value=end_x,
-                        property_name="center_x",
-                        condition_func=duration(TIME),
-                        on_condition_met=on_complete,
-                        ease_function=current_ease_func,
-                    )
-                    action.apply(target_ball, tag=f"easing_{current_label.lower().replace(' ', '_')}")
-
-                # Start the first animation from left to right.
-                create_and_apply_animation(X_START, X_END)
-
-            start_animation_loop(ball, ease_func, label)
             y += Y_INTERVAL
+
+    def _launch_missile(self, missile, ease_func, label):
+        """Launch a missile with smooth acceleration using Ease wrapper."""
+
+        def on_boundary_hit(sprite, axis):
+            """Reset missile position when it hits the right boundary."""
+            sprite.center_x = X_START
+            sprite.trail_points.clear()
+
+        # Create continuous movement action (missile flies until hitting boundary)
+        bounds = (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+        continuous_flight = MoveUntil(
+            (MISSILE_VELOCITY, 0),  # Cruise velocity
+            lambda: False,  # Never stop on its own
+            bounds=bounds,
+            boundary_behavior="wrap",
+            on_boundary=on_boundary_hit,
+        )
+
+        # Wrap with Ease for smooth acceleration to cruise speed
+        smooth_launch = Ease(continuous_flight, seconds=EASING_DURATION, ease_function=ease_func)
+
+        # Apply the eased launch
+        smooth_launch.apply(missile, tag=f"launch_{label.lower().replace(' ', '_')}")
 
     def on_draw(self):
         self.clear()
+
+        # Draw reference lines
         self.lines.draw()
-        self.ball_list.draw()
+
+        # Draw missile trails
+        trail_color = Color.from_hex_string(TRAIL_COLOR)
+        for missile in self.missile_list:
+            if len(missile.trail_points) > 1:
+                for i in range(len(missile.trail_points) - 1):
+                    alpha = int(255 * (i / len(missile.trail_points)))
+                    trail_color_faded = (*trail_color[:3], alpha)
+                    arcade.draw_line(
+                        missile.trail_points[i][0],
+                        missile.trail_points[i][1],
+                        missile.trail_points[i + 1][0],
+                        missile.trail_points[i + 1][1],
+                        trail_color_faded,
+                        2,
+                    )
+
+        # Draw missiles
+        self.missile_list.draw()
+
+        # Draw labels
         for text in self.text_list:
             text.draw()
 
+        # Draw instructions
+        instructions = arcade.Text(
+            "Watch how each missile accelerates differently to the same cruise speed",
+            x=WINDOW_WIDTH // 2,
+            y=WINDOW_HEIGHT - 30,
+            color=Color.from_hex_string(TEXT_COLOR),
+            font_size=18,
+            anchor_x="center",
+        )
+        instructions.draw()
+
     def on_update(self, delta_time):
-        # Update all ArcadeActions
+        # Update all ArcadeActions (handles Easing wrapper and continuous movement)
         Action.update_all(delta_time)
-        self.ball_list.update()
+
+        # Update missiles (applies velocities and updates trails)
+        self.missile_list.update(delta_time)
+
+    def on_key_press(self, key, modifiers):
+        if key == arcade.key.ESCAPE:
+            self.window.close()
 
 
 def main():
     window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
-    view = EasingDemoView()
+    view = EaseDemoView()
     view.setup()
     window.show_view(view)
     arcade.run()

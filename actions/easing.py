@@ -14,13 +14,25 @@ from arcade import easing
 from actions.base import Action
 
 
-class Easing(Action):
+class Ease(Action):
     """
-    Wraps a conditional action and modulates its rate using an easing function.
+    Wraps continuous actions to create smooth acceleration and deceleration effects.
 
-    This allows the wrapped action to appear to accelerate, decelerate, or both — depending
-    on the easing curve used. The easing function transforms normalized time (t in [0,1])
-    into a factor that scales the wrapped action's intensity via set_factor().
+    Ease is perfect for creating natural-feeling movement by smoothly transitioning into
+    and out of continuous actions like movement, rotation, or path following. After the easing
+    duration completes, the wrapped action continues running at full intensity until its own
+    condition is met.
+
+    Use Ease when you need:
+    - Smooth acceleration into constant movement (missiles, vehicles)
+    - Natural deceleration when stopping continuous actions
+    - Cinematic effects for formations or complex movements
+    - Realistic physics-like acceleration curves
+
+    Use TweenUntil instead when you need:
+    - Precise A-to-B property animation (UI elements, health bars)
+    - Simple movements that should stop at a target position
+    - Direct control over specific property values
 
     The wrapped action must implement set_factor(float) to respond to intensity changes.
     All conditional actions in ArcadeActions support this interface.
@@ -31,16 +43,22 @@ class Easing(Action):
         ease_function: Easing function taking t ∈ [0, 1] and returning eased factor
         on_complete: Optional callback when easing completes
 
-    Example:
-        >>> from actions.conditional import MoveUntil, duration
-        >>> from actions.easing import Easing
-        >>> from arcade import easing
-        >>> # Create base movement action
-        >>> move = MoveUntil((100, 0), lambda: False)  # Move indefinitely
-        >>> # Wrap with easing for smooth acceleration/deceleration
-        >>> eased_move = Easing(move, seconds=2.0, ease_function=easing.ease_in_out)
-        >>> eased_move.apply(sprite, tag="eased_movement")
-        >>> # The sprite will smoothly accelerate to full speed, then decelerate to stop
+    Examples:
+        # Smooth missile launch - accelerates to cruise speed, then continues
+        missile_move = MoveUntil((300, 0), lambda: False)
+        smooth_launch = Ease(missile_move, seconds=1.5, ease_function=easing.ease_out)
+        smooth_launch.apply(missile, tag="launch")
+
+        # Formation movement with smooth acceleration
+        formation_move = MoveUntil((100, 0), lambda: False)
+        smooth_formation = Ease(formation_move, seconds=2.0, ease_function=easing.ease_in_out)
+        smooth_formation.apply(enemy_formation, tag="advance")
+
+        # Smooth curved path following with rotation
+        path_points = [(100, 100), (200, 200), (300, 100)]
+        path_action = FollowPathUntil(path_points, 250, lambda: False, rotate_with_path=True)
+        eased_path = Ease(path_action, seconds=1.5, ease_function=easing.ease_in_out)
+        eased_path.apply(sprite, tag="patrol")
     """
 
     def __init__(
@@ -122,9 +140,9 @@ class Easing(Action):
         """
         self.wrapped_action.set_factor(factor)
 
-    def clone(self) -> Easing:
-        """Create a copy of this Easing action."""
-        return Easing(
+    def clone(self) -> Ease:
+        """Create a copy of this Ease action."""
+        return Ease(
             self.wrapped_action.clone(),
             self.easing_duration,
             self.ease_function,
@@ -134,7 +152,7 @@ class Easing(Action):
     def __repr__(self) -> str:
         """String representation for debugging."""
         return (
-            f"Easing(duration={self.easing_duration}, "
+            f"Ease(duration={self.easing_duration}, "
             f"ease_function={self.ease_function.__name__}, "
             f"wrapped={repr(self.wrapped_action)})"
         )
