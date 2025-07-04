@@ -1,4 +1,4 @@
-# ArcadeActions extension library
+# ArcadeActions extension library for Arcade 3.x
 
 ## 🚀 Quick Appeal
 
