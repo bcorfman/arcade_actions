@@ -11,5 +11,14 @@ You are an expert Python consultant who gets paid bonuses for designs that follo
 * Dependency injection and testability
 * Best practices
 
+Before writing any code, ask these questions in order:
+
+1. **Can this be done with existing actions?** (MoveUntil, BlinkUntil, etc.)
+2. **Can this be done with existing composition?** (sequence, parallel, repeat)
+3. **Can this be done with a simple callback or condition?**
+4. **Only then consider a new action class**
+
+If you're about to create a new class, stop and re-read this section.
 Refer to all documents in the /docs directory for context before proceeding with code generation.
 For any complex or critical task, ask any and all clarification questions needed before proceeding.
+

@@ -25,7 +25,7 @@ class TestMoveUntilBoundaries:
     def test_move_until_with_bounce_boundaries(self):
         """Test MoveUntil with bouncing boundaries."""
         sprite = create_test_sprite()
-        sprite.center_x = 790  # Near right boundary
+        sprite.center_x = 799  # Very close to right boundary
 
         # Create bounds (left, bottom, right, top)
         bounds = (0, 0, 800, 600)
@@ -48,7 +48,7 @@ class TestMoveUntilBoundaries:
     def test_move_until_with_wrap_boundaries(self):
         """Test MoveUntil with wrapping boundaries."""
         sprite = create_test_sprite()
-        sprite.center_x = 790  # Near right boundary
+        sprite.center_x = 799  # Very close to right boundary
 
         bounds = (0, 0, 800, 600)
 
@@ -69,7 +69,7 @@ class TestMoveUntilBoundaries:
     def test_move_until_with_boundary_callback(self):
         """Test MoveUntil boundary callback functionality."""
         sprite = create_test_sprite()
-        sprite.center_x = 790  # Near right boundary
+        sprite.center_x = 799  # Very close to right boundary
 
         boundary_hits = []
 
@@ -97,7 +97,7 @@ class TestMoveUntilBoundaries:
     def test_move_until_vertical_boundaries(self):
         """Test MoveUntil with vertical boundary interactions."""
         sprite = create_test_sprite()
-        sprite.center_y = 590  # Near top boundary
+        sprite.center_y = 599  # Very close to top boundary
 
         bounds = (0, 0, 800, 600)
 
@@ -130,6 +130,7 @@ class TestMoveUntilBoundaries:
 
         # Should move normally without boundary interference
         assert sprite.center_x > initial_x
+        # MoveUntil uses pixels per frame at 60 FPS semantics
         assert sprite.change_x == 100  # Velocity unchanged
 
     def test_move_until_boundary_clone(self):
@@ -145,7 +146,7 @@ class TestMoveUntilBoundaries:
 
         cloned = original.clone()
 
-        assert cloned.velocity == original.velocity
+        assert cloned.target_velocity == original.target_velocity
         assert cloned.bounds == original.bounds
         assert cloned.boundary_behavior == original.boundary_behavior
         assert cloned.on_boundary == original.on_boundary
@@ -155,7 +156,7 @@ class TestMoveUntilBoundaries:
         sprites = arcade.SpriteList()
         for i in range(3):
             sprite = create_test_sprite()
-            sprite.center_x = 790 + i * 2  # All near right boundary
+            sprite.center_x = 799 + i * 0.1  # All very close to right boundary
             sprites.append(sprite)
 
         bounds = (0, 0, 800, 600)

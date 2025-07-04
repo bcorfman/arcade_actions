@@ -3,6 +3,9 @@ Efficient Slime Invaders - Demonstrating enhanced MoveUntil with data passing
 
 This version shows how to avoid duplicate collision detection calls by using
 the enhanced MoveUntil that can pass collision data from condition to callback.
+
+From the project root, run with:
+    uv run python examples/invaders.py
 """
 
 import random
@@ -11,7 +14,7 @@ import arcade
 
 from actions.base import Action
 from actions.conditional import MoveUntil
-from actions.pattern import arrange_grid
+from actions.formation import arrange_grid
 
 SPRITE_SCALING_PLAYER = 0.75
 SPRITE_SCALING_ENEMY = 0.75
@@ -21,8 +24,9 @@ WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
 WINDOW_TITLE = "Slime Invaders"
 
-BULLET_SPEED = 5
-ENEMY_SPEED = 2
+# Velocities in pixels per frame at 60 FPS (Arcade native semantics)
+BULLET_SPEED = 5  # 5 pixels/frame = 300 pixels/second at 60 FPS
+ENEMY_SPEED = 2  # 2 pixels/frame = 120 pixels/second at 60 FPS
 MAX_PLAYER_BULLETS = 3
 
 # Enemy movement margins
@@ -138,7 +142,7 @@ class GameView(arcade.View):
             rows=rows,
             cols=cols,
             start_x=380,
-            start_y=250,  # Adjusted to account for inverted y-coordinate in arrange_grid
+            start_y=470,  # Position enemies higher up on screen
             spacing_x=80,
             spacing_y=60,
             sprite_factory=lambda: arcade.Sprite(self.texture_enemy_right, scale=SPRITE_SCALING_ENEMY),
@@ -191,7 +195,7 @@ class GameView(arcade.View):
             rows=5,
             cols=20,
             start_x=x_start,
-            start_y=150,
+            start_y=200,  # Position shields between player and enemies
             spacing_x=10,
             spacing_y=20,
             sprite_factory=_make_shield_block,
@@ -210,7 +214,6 @@ class GameView(arcade.View):
         bullet.bottom = self.player_sprite.top
         self.player_bullet_list.append(bullet)
 
-        # EFFICIENT: Single collision check that returns data
         def bullet_collision_check():
             enemy_hits = arcade.check_for_collision_with_list(bullet, self.enemy_list)
             shield_hits = arcade.check_for_collision_with_list(bullet, self.shield_list)
@@ -257,7 +260,6 @@ class GameView(arcade.View):
                 bullet.top = enemy.bottom
                 self.enemy_bullet_list.append(bullet)
 
-                # EFFICIENT: Single collision check for enemy bullets
                 def enemy_bullet_collision_check(bullet_ref=bullet):
                     player_hits = arcade.check_for_collision_with_list(bullet_ref, self.player_list)
                     shield_hits = arcade.check_for_collision_with_list(bullet_ref, self.shield_list)
@@ -292,9 +294,9 @@ class GameView(arcade.View):
         Action.update_all(delta_time)
 
         # Update all sprite lists so sprites move based on their velocity
-        self.enemy_list.update()
-        self.player_bullet_list.update()
-        self.enemy_bullet_list.update()
+        self.enemy_list.update(delta_time)
+        self.player_bullet_list.update(delta_time)
+        self.enemy_bullet_list.update(delta_time)
 
         self.allow_enemies_to_fire()
 
@@ -337,7 +339,7 @@ class GameView(arcade.View):
 
 
 def main():
-    """Run the efficient slime invaders game"""
+    """Run the Slime Invaders game"""
     window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
     game = GameView()
     game.reset()
