@@ -1,10 +1,7 @@
 """
 Starfield demo showcasing ArcadeActions MoveUntil with wrapping boundaries.
 
-Five layers of stars scroll downward at different speeds to create a simple
-parallax effect:
-    • Darkest (farthest) stars scroll the slowest.
-    • Brightest (nearest) stars scroll the fastest.
+This was intentionally built to resemble the starfield in Galaga.
 
 Press ESC at any time to exit the application.
 
