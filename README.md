@@ -29,8 +29,15 @@ def handle_asteroid_collision(collision_data):
     for asteroid in collision_data["asteroid_hits"]:
         print("Asteroid collisions!")
 ```
-
 Compare this to the amount of low-level game code you are writing now. If making your game code clean, efficient and high-level like this appeals to you, read on!
+
+## 📚 Documentation Overview
+
+### Essential Reading
+1. **[API Usage Guide](docs/api_usage_guide.md)** - **START HERE** - Complete guide to using the framework
+2. **[Testing Guide](docs/testing_guide.md)** - **Testing patterns and best practices**
+3. **[PRD](docs/prd.md)** - Project requirements and architecture decisions
+
 
 ## 🚀 Getting Started
 
@@ -38,8 +45,6 @@ Compare this to the amount of low-level game code you are writing now. If making
 2. **Study the Space Invaders example** above for a complete pattern
 3. **Start with simple conditional actions** and build up to complex compositions
 4. **Use formation functions** for organizing sprite positions and layouts
-
-The ArcadeActions framework transforms Arcade game development with declarative, condition-based behaviors! 
 
 ## 📖 Documentation Structure
 
