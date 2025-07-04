@@ -42,7 +42,7 @@ Compare this to the amount of low-level game code you are writing now. If making
 ## 🚀 Getting Started
 
 1. **Read the [API Usage Guide](api_usage_guide.md)** to understand the framework
-2. **Study the Space Invaders example** above for a complete pattern
+2. **Study the Slime Invaders example** [remade with ArcadeActions](examples/invaders.py) for a complete pattern
 3. **Start with simple conditional actions** and build up to complex compositions
 4. **Use formation functions** for organizing sprite positions and layouts
 
