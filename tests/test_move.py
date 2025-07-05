@@ -2,8 +2,8 @@
 
 import arcade
 
+from actions import move_until
 from actions.base import Action
-from actions.conditional import MoveUntil
 from actions.pattern import time_elapsed
 
 
@@ -31,8 +31,7 @@ class TestMoveUntilBoundaries:
         bounds = (0, 0, 800, 600)
 
         # Move right - should hit boundary and bounce
-        move_action = MoveUntil((100, 0), time_elapsed(2.0), bounds=bounds, boundary_behavior="bounce")
-        move_action.apply(sprite, tag="movement")
+        move_until(sprite, (100, 0), time_elapsed(2.0), bounds=bounds, boundary_behavior="bounce", tag="movement")
 
         # Update action to set velocity
         Action.update_all(0.1)
@@ -53,8 +52,7 @@ class TestMoveUntilBoundaries:
         bounds = (0, 0, 800, 600)
 
         # Move right - should wrap to left side
-        move_action = MoveUntil((100, 0), time_elapsed(2.0), bounds=bounds, boundary_behavior="wrap")
-        move_action.apply(sprite, tag="movement")
+        move_until(sprite, (100, 0), time_elapsed(2.0), bounds=bounds, boundary_behavior="wrap", tag="movement")
 
         # Update action to set velocity
         Action.update_all(0.1)
@@ -77,10 +75,15 @@ class TestMoveUntilBoundaries:
             boundary_hits.append((hitting_sprite, axis))
 
         bounds = (0, 0, 800, 600)
-        move_action = MoveUntil(
-            (100, 0), time_elapsed(2.0), bounds=bounds, boundary_behavior="bounce", on_boundary=on_boundary_hit
+        move_until(
+            sprite,
+            (100, 0),
+            time_elapsed(2.0),
+            bounds=bounds,
+            boundary_behavior="bounce",
+            on_boundary=on_boundary_hit,
+            tag="movement",
         )
-        move_action.apply(sprite, tag="movement")
 
         # Update action to set velocity
         Action.update_all(0.1)
@@ -102,8 +105,7 @@ class TestMoveUntilBoundaries:
         bounds = (0, 0, 800, 600)
 
         # Move up - should hit top boundary and bounce
-        move_action = MoveUntil((0, 100), time_elapsed(2.0), bounds=bounds, boundary_behavior="bounce")
-        move_action.apply(sprite, tag="movement")
+        move_until(sprite, (0, 100), time_elapsed(2.0), bounds=bounds, boundary_behavior="bounce", tag="movement")
 
         # Update action to set velocity
         Action.update_all(0.1)
@@ -122,8 +124,7 @@ class TestMoveUntilBoundaries:
         initial_x = sprite.center_x
 
         # No bounds specified - should move normally
-        move_action = MoveUntil((100, 0), time_elapsed(1.0))
-        move_action.apply(sprite, tag="movement")
+        move_until(sprite, (100, 0), time_elapsed(1.0), tag="movement")
 
         Action.update_all(0.5)
         sprite.update()  # Apply velocity to position
@@ -140,7 +141,8 @@ class TestMoveUntilBoundaries:
         def on_boundary(sprite, axis):
             pass
 
-        original = MoveUntil(
+        # Create unbound action for cloning test
+        original = move_until(
             (50, 25), time_elapsed(2.0), bounds=bounds, boundary_behavior="wrap", on_boundary=on_boundary
         )
 
@@ -161,8 +163,9 @@ class TestMoveUntilBoundaries:
 
         bounds = (0, 0, 800, 600)
 
-        move_action = MoveUntil((100, 0), time_elapsed(2.0), bounds=bounds, boundary_behavior="bounce")
-        move_action.apply(sprites, tag="group_movement")
+        move_until(
+            sprites, (100, 0), time_elapsed(2.0), bounds=bounds, boundary_behavior="bounce", tag="group_movement"
+        )
 
         # Update action to set velocity
         Action.update_all(0.1)

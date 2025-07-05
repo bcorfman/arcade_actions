@@ -22,8 +22,8 @@ import arcade
 from arcade import easing
 from arcade.types import Color
 
-from actions.base import Action
-from actions.conditional import TweenUntil, duration
+from actions import Action, tween_until
+from actions.conditional import duration
 
 # --- Constants ---
 SPRITE_SCALING = 0.5
@@ -116,7 +116,8 @@ class InterpolateDemoView(arcade.View):
 
                     # TweenUntil: Perfect for precise A-to-B position animation
                     # Directly animates center_x from start_x to end_x with easing curve
-                    action = TweenUntil(
+                    tween_until(
+                        target_ball,
                         start_value=start_x,
                         end_value=end_x,
                         property_name="center_x",
@@ -124,7 +125,6 @@ class InterpolateDemoView(arcade.View):
                         on_condition_met=on_complete,
                         ease_function=current_ease_func,
                     )
-                    action.apply(target_ball, tag=f"tween_{current_label.lower().replace(' ', '_')}")
 
                 # Start the first animation from left to right.
                 create_and_apply_animation(X_START, X_END)

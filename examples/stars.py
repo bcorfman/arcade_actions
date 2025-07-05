@@ -15,9 +15,15 @@ import random
 
 import arcade
 
-from actions.base import Action
+from actions import (
+    Action,
+    BlinkUntil,
+    DelayUntil,
+    MoveUntil,
+    TweenUntil,
+)
 from actions.composite import sequence
-from actions.conditional import BlinkUntil, DelayUntil, MoveUntil, TweenUntil, duration
+from actions.conditional import duration
 
 # ---------------------------------------------------------------------------
 # Window configuration
@@ -64,7 +70,7 @@ class StarfieldView(arcade.View):
         super().__init__()
 
         self.star_list = arcade.SpriteList()
-        self._setup_star_layers()
+        self._setup_stars()
 
         # A solid black background keeps the focus on the starfield.
         self.background_color = arcade.color.BLACK
@@ -82,8 +88,8 @@ class StarfieldView(arcade.View):
             # Moving up, wrap to bottom
             sprite.position = (random.uniform(0, WINDOW_WIDTH), -VERTICAL_MARGIN)
 
-    def _setup_star_layers(self) -> None:
-        """Create sprite lists, populate them with stars, and start actions."""
+    def _setup_stars(self) -> None:
+        """Populate sprite list with stars, and start actions."""
         bounds = (0, -VERTICAL_MARGIN, WINDOW_WIDTH, WINDOW_HEIGHT + VERTICAL_MARGIN)
 
         for _ in range(MAX_STARS):

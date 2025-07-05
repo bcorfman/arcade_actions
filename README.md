@@ -5,26 +5,39 @@
 So much of building an arcade game is a cluttered way of saying "animate this sprite until X happens", where X is colliding with another sprite, reaching a boundary, or responding to an event. But instead of coding at a high-level, most of us do lots of low-level behavior like "add 1 to sprite.x". Instead, what if you could more easily say "keep moving and rotating this asteroid, wrap it the other side of the window if it hits a boundary, and call a function if it collides with another sprite (and tell me what sprite it is)."? 
 
 ```python 
+from actions import move_until, rotate_until
+from actions.conditional import MoveUntil, RotateUntil
+from actions.composite import parallel
+
 # assume player and asteroid are arcade.Sprites, and asteroid_list is a arcade.SpriteList
-move = MoveUntil((5, 4), lambda: False)
-rotate = RotateUntil(1.5, lambda: False, asteroid_collision_check, handle_asteroid_collision)
-actions = parallel(move, rotate)
-actions.apply(asteroid)
+
+# For simple, immediate actions, use helper functions:
+move_until(asteroid, (5, 4), lambda: False, tag="movement")
+rotate_until(asteroid, 1.5, asteroid_collision_check, on_stop=handle_asteroid_collision, tag="rotation")
+
+# For complex compositions, use direct classes:
+asteroid_behavior = parallel(
+    MoveUntil((5, 4), lambda: False),
+    RotateUntil(1.5, asteroid_collision_check, on_condition_met=handle_asteroid_collision)
+)
+asteroid_behavior.apply(asteroid, tag="complex_behavior")
+
 
 def asteroid_collision_check():
     player_hit = arcade.check_for_collision(player, asteroid)
     asteroid_hits = arcade.check_for_collision_with_list(asteroid, asteroid_list)
-    
+
     if player_hit or asteroid_hits:
         return {
             "player_hit": player_hit,
-            "asteroid_hit": asteroid_hits,
+            "asteroid_hits": asteroid_hits,
         }
     return None  # Continue moving
 
+
 # The callback receives the collision data from the condition function
 def handle_asteroid_collision(collision_data):
-    if collision_data["player_hit"]
+    if collision_data["player_hit"]:
         print("Player destroyed!")
     for asteroid in collision_data["asteroid_hits"]:
         print("Asteroid collisions!")
@@ -99,16 +112,16 @@ docs/
 
 | Scenario | Use | Example |
 |----------|-----|---------|
-| Single sprite behavior | Direct action application | `action.apply(sprite, tag="move")` |
-| Group coordination | Action on SpriteList | `action.apply(enemies, tag="formation")` |
-| Sequential behavior | `sequence()` | `sequence(delay, move, fade)` |
-| Parallel behavior | `parallel()` | `parallel(move, rotate, scale)` |
-| Formation positioning | Pattern functions | `arrange_grid(enemies, rows=3, cols=5)` |
-| Curved path movement | FollowPathUntil | `FollowPathUntil(points, 200, condition, rotate_with_path=True)` |
-| Boundary detection | MoveUntil with bounds | `MoveUntil(vel, cond, bounds=bounds, boundary_behavior="bounce")` |
-| Smooth acceleration | Ease wrapper | `Ease(action, seconds=2.0, ease_function=easing.ease_in_out)` |
-| Complex curved movement | Ease + FollowPathUntil | `Ease(FollowPathUntil(points, vel, cond, rotate_with_path=True), 1.5)` |
-| Property animation | TweenUntil | `TweenUntil(0, 100, "center_x", duration(1.0))` |
+| Simple sprite actions | Helper functions | `move_until(sprite, ..., tag="move")` |
+| Sprite group actions | Helper functions on SpriteList | `move_until(enemies, ..., tag="formation")` |
+| Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
+| Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), RotateUntil(...))` |
+| Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
+| Curved path movement | `follow_path_until` helper | `follow_path_until(sprite, points, ...)` |
+| Boundary detection | `move_until` with bounds | `move_until(sprite, ..., bounds=bounds, boundary_behavior="bounce")` |
+| Smooth acceleration | `ease()` helper | `ease(sprite, action, ...)` |
+| Complex curved movement | `ease()` + `follow_path_until` | `ease(sprite, follow_path_until(...), ...)` |
+| Property animation | `tween_until` helper | `tween_until(sprite, 0, 100, "center_x", ...)` |
 | Standard sprites (no actions) | arcade.Sprite + arcade.SpriteList | Regular Arcade usage |
 
 
@@ -116,15 +129,15 @@ docs/
 
 ```python
 import arcade
-from actions.base import Action
-from actions.conditional import MoveUntil, DelayUntil, duration
+from actions import Action, move_until
+from actions.conditional import duration
 from actions.formation import arrange_grid
 
 
 class SpaceInvadersGame(arcade.Window):
     def __init__(self):
         super().__init__(800, 600, "Space Invaders")
-        
+
         # Create 5×10 grid of enemies with a single call
         enemies = arrange_grid(
             rows=5,
@@ -135,32 +148,30 @@ class SpaceInvadersGame(arcade.Window):
             spacing_y=40,
             sprite_factory=lambda: arcade.Sprite(":resources:images/enemy.png"),
         )
-        
+
         # Store enemies for movement management
         self.enemies = enemies
         self._setup_movement_pattern()
-    
+
     def _setup_movement_pattern(self):
         # Create formation movement with boundary bouncing
         def on_boundary_hit(sprite, axis):
-            if axis == 'x':
+            if axis == "x":
                 # Move entire formation down and change direction
-                drop_action = MoveUntil((0, -30), duration(0.3))
-                drop_action.apply(self.enemies, tag="drop")
-        
+                move_until(self.enemies, (0, -30), duration(0.3), tag="drop")
+
         # Create continuous horizontal movement with boundary detection
         bounds = (50, 0, 750, 600)  # left, bottom, right, top
-        move_action = MoveUntil(
-            (50, 0), 
+        move_until(
+            self.enemies,
+            (50, 0),
             lambda: False,  # Move indefinitely
             bounds=bounds,
             boundary_behavior="bounce",
-            on_boundary=on_boundary_hit
+            on_boundary=on_boundary_hit,
+            tag="formation_movement",
         )
-        
-        # Apply to enemies with global management
-        move_action.apply(self.enemies, tag="formation_movement")
-    
+
     def on_update(self, delta_time):
         # Single line handles all action updates
         Action.update_all(delta_time)

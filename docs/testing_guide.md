@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide documents the testing architecture and patterns for the ArcadeActions library. The test suite validates all core functionality using conditional actions, global action management, and function composition patterns.
+This guide documents the testing architecture and patterns for the ArcadeActions library. The test suite validates all core functionality using conditional actions, global action management, and proper composition patterns.
 
 ## Test Suite Structure
 
@@ -17,91 +17,155 @@ This guide documents the testing architecture and patterns for the ArcadeActions
 | `test_formation.py` | Formation arrangement functions | Sprite positioning and layout behavior |
 | `test_pattern.py` | Movement pattern functions | Pattern creation and condition helpers |
 | `test_easing.py` | Ease wrapper functionality | Smooth acceleration/deceleration, nested easing, edge cases |
+| `test_api_sugar.py` | Helper functions and proper usage patterns | Helper functions vs. direct classes |
 
 ### Test Organization Principles
 
 1. **Each test file maps to one module** - Direct 1:1 relationship with source files
 2. **Global action cleanup** - All tests use `Action.clear_all()` in teardown
 3. **Real conditional actions** - No mocks for core functionality [[memory:6042457797249309622]]
-4. **Function usage** - Tests demonstrate `sequence()` and `parallel()` function patterns
+4. **Proper composition patterns** - Tests demonstrate correct usage of helpers vs. direct classes
 5. **Tag-based organization** - Tests use meaningful tags for action management
 
 ## Testing Patterns
 
-### Pattern 1: Individual Action Testing
+### Pattern 1: Helper Function Testing (Simple Actions)
 
-Tests individual conditional actions with real sprites:
+Tests helper functions for immediate, simple actions:
 
 ```python
-def test_move_until_condition(self):
-    """Test MoveUntil with position-based condition."""
+def test_helper_function_immediate_application(self):
+    """Test helper functions for simple, immediate actions."""
+    from actions import move_until, rotate_until
+    from actions.conditional import duration
+    
     sprite = create_test_sprite()
     
-    # Create conditional action
-    move_action = MoveUntil((100, 0), lambda: sprite.center_x >= 200)
+    # Helper functions apply immediately
+    move_action = move_until(sprite, (100, 0), duration(2.0), tag="movement")
+    rotate_action = rotate_until(sprite, 90, duration(1.0), tag="rotation")
     
-    # Apply and verify registration
-    returned_action = move_action.apply(sprite, tag="movement")
-    assert returned_action == move_action
+    # Verify actions are applied and registered
     assert move_action in Action._active_actions
+    assert rotate_action in Action._active_actions
     
-    # Test updates until condition met
+    # Test updates
     initial_x = sprite.center_x
-    Action.update_all(1.0)  # 1 second update
+    initial_angle = sprite.angle
     
-    assert sprite.center_x > initial_x
-    assert not move_action.is_complete
-    
-    # Move to trigger completion
-    sprite.center_x = 250
     Action.update_all(0.1)
     
-    assert move_action.is_complete
-    assert move_action not in Action._active_actions
+    assert sprite.center_x > initial_x
+    assert sprite.angle != initial_angle
+    
+    # Verify tagging works
+    movement_actions = Action.get_actions_for_target(sprite, "movement")
+    rotation_actions = Action.get_actions_for_target(sprite, "rotation")
+    
+    assert len(movement_actions) == 1
+    assert len(rotation_actions) == 1
 ```
 
-### Pattern 2: Function Composition Testing
+### Pattern 2: Direct Class + Sequence Testing (Complex Behaviors)
 
-Tests the `sequence()` and `parallel()` helper functions:
+Tests direct action classes with sequence composition for complex behaviors:
 
 ```python
-def test_function_composition(self):
-    """Test action composition using helper functions."""
+def test_direct_class_sequence_composition(self):
+    """Test direct classes with sequence() for complex behaviors."""
+    from actions.conditional import DelayUntil, MoveUntil, RotateUntil, duration
     from actions.composite import sequence, parallel
     
     sprite = create_test_sprite()
     
-    # Create individual actions
-    move = MoveUntil((50, 0), duration(1.0))
-    rotate = RotateUntil(90, duration(0.5))
-    fade = FadeUntil(-30, duration(1.5))
+    # Create complex sequence using direct classes
+    complex_behavior = sequence(
+        DelayUntil(duration(0.5)),
+        MoveUntil((50, 0), duration(1.0)),
+        parallel(
+            RotateUntil(180, duration(0.5)),
+            FadeUntil(-50, duration(0.8))
+        )
+    )
     
-    # Test composition functions
-    seq = sequence(move, rotate)         # Sequential
-    par = parallel(move, fade)           # Parallel
-    nested = sequence(move, parallel(rotate, fade))  # Nested composition
+    # Apply the sequence
+    complex_behavior.apply(sprite, tag="complex")
     
-    # Apply and verify
-    seq.apply(sprite, tag="sequence")
-    par.apply(sprite, tag="parallel")
-    nested.apply(sprite, tag="nested")
+    # Verify sequence is registered as a single action
+    complex_actions = Action.get_actions_for_target(sprite, "complex")
+    assert len(complex_actions) == 1
+    assert isinstance(complex_actions[0], _Sequence)
     
-    # Check global action management
-    sequence_actions = Action.get_tag_actions("sequence")
-    parallel_actions = Action.get_tag_actions("parallel")
-    nested_actions = Action.get_tag_actions("nested")
+    # Test sequence execution
+    initial_x = sprite.center_x
     
-    assert len(sequence_actions) == 1
-    assert len(parallel_actions) == 1
-    assert len(nested_actions) == 1
+    # During delay phase
+    Action.update_all(0.1)
+    assert sprite.center_x == initial_x  # No movement during delay
+    
+    # After delay, during movement phase
+    Action.update_all(0.6)  # Past delay phase
+    assert sprite.center_x > initial_x  # Should be moving now
+```
 
-### Pattern 2b: Path Following with Rotation Testing
+### Pattern 3: Anti-Pattern Testing (What NOT to Do)
+
+Tests that demonstrate and document problematic patterns:
+
+```python
+def test_avoid_helper_function_operator_mixing(self):
+    """Document why mixing helper functions with operators is problematic."""
+    from actions import move_until, delay_until
+    from actions.conditional import duration
+    
+    sprite = create_test_sprite()
+    
+    # This pattern is problematic and should be avoided
+    # Helper functions apply immediately, creating conflicts with operator composition
+    
+    # ❌ PROBLEMATIC: This creates two separate actions that run simultaneously
+    # instead of a proper sequence
+    move_action = move_until(sprite, (50, 0), duration(1.0), tag="move")
+    delay_action = delay_until(sprite, duration(0.5), tag="delay")
+    
+    # The actions are already applied and running independently
+    assert len(Action.get_actions_for_target(sprite)) == 2
+    
+    # Even if we try to use operators, it doesn't create a proper sequence
+    # because the actions are already applied
+    try:
+        combined = move_action + delay_action  # This might work but is confusing
+        # The combined action would be a new sequence, but the original actions
+        # are still running independently
+    except Exception:
+        pass  # This might fail depending on implementation
+    
+    # ✅ CORRECT: Use direct classes for sequences
+    Action.clear_all()
+    
+    from actions.conditional import DelayUntil, MoveUntil
+    from actions.composite import sequence
+    
+    proper_sequence = sequence(
+        DelayUntil(duration(0.5)),
+        MoveUntil((50, 0), duration(1.0))
+    )
+    proper_sequence.apply(sprite, tag="proper_sequence")
+    
+    # This creates a single sequence action
+    assert len(Action.get_actions_for_target(sprite)) == 1
+```
+
+### Pattern 4: Path Following with Rotation Testing
 
 Tests FollowPathUntil with automatic sprite rotation functionality:
 
 ```python
 def test_path_following_with_rotation(self):
     """Test FollowPathUntil with automatic sprite rotation."""
+    from actions import follow_path_until
+    from actions.conditional import duration
+    
     sprite = create_test_sprite()
     sprite.angle = 45  # Start with non-zero angle
     
@@ -109,8 +173,10 @@ def test_path_following_with_rotation(self):
     control_points = [(100, 100), (200, 200), (300, 100)]
     
     # Test without rotation
-    no_rotation_action = FollowPathUntil(control_points, 150, duration(2.0))
-    no_rotation_action.apply(sprite, tag="no_rotation")
+    follow_path_until(
+        sprite, control_points, 150, duration(2.0),
+        rotate_with_path=False, tag="no_rotation"
+    )
     
     # Store original angle
     original_angle = sprite.angle
@@ -128,11 +194,10 @@ def test_path_following_with_rotation(self):
     sprite.center_y = 100
     
     # Test with rotation enabled
-    rotation_action = FollowPathUntil(
-        control_points, 150, duration(2.0),
-        rotate_with_path=True
+    follow_path_until(
+        sprite, control_points, 150, duration(2.0),
+        rotate_with_path=True, tag="with_rotation"
     )
-    rotation_action.apply(sprite, tag="with_rotation")
     
     # Update to get movement and rotation
     Action.update_all(0.016)
@@ -146,12 +211,11 @@ def test_path_following_with_rotation(self):
     sprite.center_x = 100  # Reset position
     sprite.center_y = 100
     
-    offset_action = FollowPathUntil(
-        control_points, 150, duration(2.0),
-        rotate_with_path=True,
-        rotation_offset=-90.0  # Compensate for upward-pointing artwork
+    follow_path_until(
+        sprite, control_points, 150, duration(2.0),
+        rotate_with_path=True, rotation_offset=-90.0,
+        tag="with_offset"
     )
-    offset_action.apply(sprite, tag="with_offset")
     
     # Update to get movement and rotation
     Action.update_all(0.016)
@@ -162,16 +226,18 @@ def test_path_following_with_rotation(self):
     expected_angle = -90.0
     assert abs(sprite.angle - expected_angle) < 5.0  # Allow some tolerance
 ```
-```
 
-### Pattern 3: Formation Testing
+### Pattern 5: Formation Testing
 
-Tests formation positioning with conditional actions:
+Tests formation positioning with proper action patterns:
 
 ```python
-def test_formation_conditional_actions(self):
-    """Test formation functions with conditional action patterns."""
+def test_formation_with_proper_action_patterns(self):
+    """Test formation functions with proper action usage patterns."""
     from actions.formation import arrange_grid, arrange_diamond
+    from actions.conditional import DelayUntil, MoveUntil, FadeUntil, duration
+    from actions.composite import sequence, parallel
+    from actions import move_until
     
     sprite_list = create_test_sprite_list(6)
     
@@ -184,72 +250,49 @@ def test_formation_conditional_actions(self):
     assert sprite_list[1].center_x == 260  # 200 + 60 spacing
     assert sprite_list[3].center_y == 350  # 400 - 50 spacing
     
-    # Test diamond formation with include_center parameter
-    diamond_sprites = create_test_sprite_list(5)
-    arrange_diamond(diamond_sprites, center_x=300, center_y=200, spacing=40, include_center=True)
+    # ✅ CORRECT: Use helper functions for simple group actions
+    move_until(sprite_list, (50, -25), duration(2.0), tag="simple_movement")
     
-    # Verify center sprite
-    assert diamond_sprites[0].center_x == 300
-    assert diamond_sprites[0].center_y == 200
+    # ✅ CORRECT: Use direct classes for complex sequences
+    complex_formation_behavior = sequence(
+        DelayUntil(duration(1.0)),
+        MoveUntil((50, -25), duration(2.0)),
+        parallel(
+            MoveUntil((0, -50), duration(1.0)),
+            FadeUntil(-20, duration(1.5))
+        )
+    )
+    complex_formation_behavior.apply(sprite_list, tag="complex_behavior")
     
-    # Verify first layer Manhattan distances
-    for sprite in diamond_sprites[1:5]:
-        manhattan_dist = abs(sprite.center_x - 300) + abs(sprite.center_y - 200)
-        assert abs(manhattan_dist - 40) < 0.1
+    # Verify proper action management
+    simple_actions = Action.get_actions_for_target(sprite_list, "simple_movement")
+    complex_actions = Action.get_actions_for_target(sprite_list, "complex_behavior")
     
-    # Test hollow diamond
-    hollow_sprites = create_test_sprite_list(4)
-    arrange_diamond(hollow_sprites, center_x=100, center_y=100, spacing=30, include_center=False)
-    
-    # All sprites should be at layer 1 distance
-    for sprite in hollow_sprites:
-        manhattan_dist = abs(sprite.center_x - 100) + abs(sprite.center_y - 100)
-        assert abs(manhattan_dist - 30) < 0.1
-    
-    # Create complex action composition
-    delay = DelayUntil(duration(1.0))
-    move = MoveUntil((50, -25), duration(2.0))
-    fade = FadeUntil(-20, duration(1.5))
-    
-    # Use helper functions for composition
-    from actions.composite import sequence, parallel
-    
-    seq = sequence(delay, move)
-    par = parallel(move, fade)
-    
-    # Apply to group
-    seq.apply(sprite_list, tag="sequence_movement")
-    par.apply(sprite_list, tag="parallel_effects")
-    
-    # Verify global action management
-    sequence_actions = Action.get_tag_actions("sequence_movement")
-    parallel_actions = Action.get_tag_actions("parallel_effects")
-    
-    assert len(sequence_actions) == 1
-    assert len(parallel_actions) == 1
+    assert len(simple_actions) == 1  # Single helper function action
+    assert len(complex_actions) == 1  # Single sequence action
+```
 
-### Pattern 3b: Movement Pattern Testing
+### Pattern 6: Movement Pattern Testing
 
-Tests movement pattern functions and condition helpers:
+Tests movement pattern functions with proper composition:
 
 ```python
-def test_movement_pattern_functions(self):
-    """Test movement pattern creation and application."""
+def test_movement_patterns_proper_usage(self):
+    """Test movement pattern functions with proper usage patterns."""
     from actions.pattern import (
         create_zigzag_pattern, create_wave_pattern, create_spiral_pattern,
-        create_figure_eight_pattern, create_orbit_pattern, create_bounce_pattern,
-        create_patrol_pattern, time_elapsed, sprite_count
+        time_elapsed, sprite_count
     )
     
     sprite = create_test_sprite()
     
-    # Test zigzag pattern creation
+    # Movement patterns return sequence actions that should be applied
     zigzag = create_zigzag_pattern(width=100, height=50, speed=150, segments=4)
     assert hasattr(zigzag, 'apply')
     zigzag.apply(sprite, tag="zigzag")
     
-    # Verify pattern is applied
-    zigzag_actions = Action.get_tag_actions("zigzag")
+    # Verify pattern is applied as a single sequence
+    zigzag_actions = Action.get_actions_for_target(sprite, "zigzag")
     assert len(zigzag_actions) == 1
     
     # Test wave pattern
@@ -263,28 +306,6 @@ def test_movement_pattern_functions(self):
     
     Action.update_all(0.5)  # Half second update
     assert sprite.center_x != initial_pos[0] or sprite.center_y != initial_pos[1]
-    
-    # Test spiral pattern
-    Action.clear_all()
-    spiral = create_spiral_pattern(
-        center_x=400, center_y=300, max_radius=100, 
-        revolutions=2, speed=180, direction="outward"
-    )
-    spiral.apply(sprite, tag="spiral")
-    
-    # Test bounce pattern
-    Action.clear_all()
-    bounce = create_bounce_pattern(
-        velocity=(100, 80), bounds=(0, 0, 800, 600)
-    )
-    bounce.apply(sprite, tag="bounce")
-    
-    # Test patrol pattern
-    Action.clear_all()
-    patrol = create_patrol_pattern(
-        start_pos=(100, 200), end_pos=(300, 200), speed=120
-    )
-    patrol.apply(sprite, tag="patrol")
     
     # Test condition helpers
     sprite_list = create_test_sprite_list(5)
@@ -302,64 +323,18 @@ def test_movement_pattern_functions(self):
     sprite_list.pop()
     sprite_list.pop()  # Now 2 sprites <= 3
     assert count_condition()
-    
-    # Test different comparison operators
-    eq_condition = sprite_count(sprite_list, 2, "==")
-    assert eq_condition()  # Exactly 2 sprites
-    
-    gt_condition = sprite_count(sprite_list, 1, ">")
-    assert gt_condition()  # 2 sprites > 1
 ```
 
-### Pattern 4: Conditional Logic Testing
+### Pattern 7: Boundary Action Testing
 
-Tests complex conditional behaviors with sprite list management:
-
-```python
-def test_conditional_sprite_management(self):
-    """Test conditional actions with sprite list management."""
-    sprite_list = create_test_sprite_list(5)
-    
-    # Set up conditional action based on sprite positions
-    def move_condition():
-        return any(sprite.center_y < 300 for sprite in sprite_list)
-    
-    # Create conditional movement
-    move_action = MoveUntil((0, -50), move_condition)
-    move_action.apply(sprite_list, tag="conditional_move")
-    
-    # Verify action is active
-    active_actions = Action.get_tag_actions("conditional_move")
-    assert len(active_actions) == 1
-    
-    # Track condition changes
-    condition_met = False
-    original_positions = [(s.center_x, s.center_y) for s in sprite_list]
-    
-    # Trigger condition by updating sprite positions
-    for sprite in sprite_list:
-        sprite.center_y = 250  # Below threshold
-    
-    # Update actions until condition is met
-    for _ in range(10):
-        Action.update_all(0.1)
-        if move_condition():
-            condition_met = True
-            break
-    
-    # Verify condition was met and action completed
-    assert condition_met
-    final_actions = Action.get_tag_actions("conditional_move")
-    assert len(final_actions) == 0  # Action should be complete
-```
-
-### Pattern 5: Boundary Action Testing
-
-Tests boundary detection with callback integration:
+Tests boundary detection with proper callback integration:
 
 ```python
-def test_move_until_with_boundary_callbacks(self):
-    """Test MoveUntil with boundary callbacks."""
+def test_boundary_actions_with_proper_callbacks(self):
+    """Test boundary actions with callback integration."""
+    from actions import move_until
+    from actions.conditional import duration
+    
     sprite = create_test_sprite()
     sprite.center_x = 750  # Near right boundary
     
@@ -368,18 +343,17 @@ def test_move_until_with_boundary_callbacks(self):
     def on_boundary_hit(hitting_sprite, axis):
         boundary_hits.append((hitting_sprite, axis))
     
-    # Create movement with boundary detection
+    # Create movement with boundary detection using helper function
     bounds = (0, 0, 800, 600)  # left, bottom, right, top
-    move_action = MoveUntil(
+    move_until(
+        sprite,
         (100, 0), 
         lambda: False,  # Move indefinitely
         bounds=bounds,
         boundary_behavior="bounce",
-        on_boundary=on_boundary_hit
+        on_boundary=on_boundary_hit,
+        tag="boundary_test"
     )
-    
-    # Apply and test
-    move_action.apply(sprite, tag="boundary_test")
     
     # Move to trigger boundary
     for _ in range(10):
@@ -480,44 +454,104 @@ Action.update_all(delta_time)
 Test full game scenarios with multiple systems:
 
 ```python
-def test_complete_formation_workflow(self):
-    """Test complete formation workflow with patterns and actions."""
-    # Create formation
+def test_complete_game_scenario_workflow(self):
+    """Test complete game scenario with formations, patterns, and actions."""
+    from actions.formation import arrange_grid
+    from actions.pattern import create_zigzag_pattern
+    from actions.conditional import DelayUntil, MoveUntil, FadeUntil, duration
+    from actions.composite import sequence, parallel
+    from actions import move_until
+    
+    # Create enemy formation
     sprite_list = create_test_sprite_list(8)
-    # Use sprite_list directly for formation management
     
     # Apply formation pattern
-    grid_pattern = GridPattern(rows=2, cols=4, spacing_x=80, spacing_y=60)
-    grid_pattern.apply(formation, start_x=100, start_y=500)
+    arrange_grid(sprite_list, rows=2, cols=4, start_x=100, start_y=500, spacing_x=80, spacing_y=60)
     
-    # Create complex behavior sequence
-    phase1 = DelayUntil(duration(1.0))
-    phase2 = MoveUntil((0, -50), duration(2.0))
-    phase3 = (MoveUntil((100, 0), duration(1.0)) | 
-              FadeUntil(-25, duration(1.5)))
+    # ✅ CORRECT: Use helper functions for simple group movement
+    move_until(sprite_list, (0, -50), duration(2.0), tag="initial_movement")
     
-    # Compose with helper functions
-    from actions.composite import sequence
-    
-    full_sequence = sequence(phase1, phase2, phase3)
-    formation.apply(full_sequence, tag="complete_behavior")
-    
-    # Set up conditional breakaway
-    def low_health_condition():
-        return formation.sprite_count <= 3
-    
-    breakaway_sprites = [sprite_list[0], sprite_list[1]]
-    formation.setup_conditional_breakaway(
-        low_health_condition, breakaway_sprites, tag="breakaway"
+    # ✅ CORRECT: Use direct classes for complex sequences
+    complex_behavior = sequence(
+        DelayUntil(duration(1.0)),
+        MoveUntil((50, -25), duration(2.0)),
+        parallel(
+            MoveUntil((0, -50), duration(1.0)),
+            FadeUntil(-20, duration(1.5))
+        )
     )
+    complex_behavior.apply(sprite_list, tag="complex_behavior")
+    
+    # Create movement patterns for individual sprites
+    zigzag_pattern = create_zigzag_pattern(width=100, height=50, speed=150, segments=4)
+    zigzag_pattern.apply(sprite_list[0], tag="zigzag_leader")
     
     # Verify all systems work together
-    assert formation.sprite_count == 8
-    complete_actions = Action.get_tag_actions("complete_behavior")
-    breakaway_actions = Action.get_tag_actions("breakaway")
+    assert len(sprite_list) == 8
     
-    assert len(complete_actions) == 1
-    assert len(breakaway_actions) == 1
+    # Check action registration
+    initial_actions = Action.get_actions_for_target(sprite_list, "initial_movement")
+    complex_actions = Action.get_actions_for_target(sprite_list, "complex_behavior")
+    zigzag_actions = Action.get_actions_for_target(sprite_list[0], "zigzag_leader")
+    
+    assert len(initial_actions) == 1
+    assert len(complex_actions) == 1
+    assert len(zigzag_actions) == 1
+    
+    # Test updates
+    Action.update_all(0.1)
+    
+    # Verify actions are running
+    assert len(Action._active_actions) >= 3
+```
+
+### Easing Integration Tests
+
+Test easing effects with various action types:
+
+```python
+def test_easing_integration_workflow(self):
+    """Test easing integration with different action types."""
+    from actions import ease, move_until, rotate_until, follow_path_until
+    from actions.conditional import duration
+    from arcade import easing
+    
+    sprite = create_test_sprite()
+    
+    # Test easing with movement
+    move_action = move_until(sprite, (200, 0), duration(3.0), tag="move")
+    ease(sprite, move_action, seconds=2.0, ease_function=easing.ease_in_out, tag="ease_move")
+    
+    # Test easing with rotation
+    rotate_action = rotate_until(sprite, 360, duration(2.0), tag="rotate")
+    ease(sprite, rotate_action, seconds=1.5, ease_function=easing.ease_in, tag="ease_rotate")
+    
+    # Test easing with path following
+    path_points = [(100, 100), (200, 200), (300, 100)]
+    path_action = follow_path_until(
+        sprite, path_points, 150, duration(4.0),
+        rotate_with_path=True, tag="path"
+    )
+    ease(sprite, path_action, seconds=2.0, ease_function=easing.ease_out, tag="ease_path")
+    
+    # Verify all easing actions are registered
+    move_actions = Action.get_actions_for_target(sprite, "ease_move")
+    rotate_actions = Action.get_actions_for_target(sprite, "ease_rotate")
+    path_actions = Action.get_actions_for_target(sprite, "ease_path")
+    
+    assert len(move_actions) == 1
+    assert len(rotate_actions) == 1
+    assert len(path_actions) == 1
+    
+    # Test concurrent easing effects
+    initial_pos = (sprite.center_x, sprite.center_y)
+    initial_angle = sprite.angle
+    
+    Action.update_all(0.1)
+    
+    # Verify effects are applied
+    assert sprite.center_x != initial_pos[0] or sprite.center_y != initial_pos[1]
+    assert sprite.angle != initial_angle
 ```
 
 ## Performance Testing Guidelines
@@ -530,6 +564,7 @@ Test that global action management scales properly:
 def test_large_action_count_performance(self):
     """Test performance with many active actions."""
     import time
+    from actions.conditional import MoveUntil, duration
     
     # Create many sprites with actions
     sprites = [create_test_sprite() for _ in range(100)]
@@ -547,6 +582,59 @@ def test_large_action_count_performance(self):
     # Should complete quickly even with many actions
     assert (end_time - start_time) < 1.0
     assert len(Action._active_actions) == 100
+
+def test_sequence_performance(self):
+    """Test performance with complex sequence compositions."""
+    import time
+    from actions.conditional import DelayUntil, MoveUntil, RotateUntil, duration
+    from actions.composite import sequence, parallel
+    
+    sprites = [create_test_sprite() for _ in range(20)]
+    
+    # Create complex sequences for each sprite
+    for i, sprite in enumerate(sprites):
+        complex_sequence = sequence(
+            DelayUntil(duration(0.1)),
+            parallel(
+                MoveUntil((50, 25), duration(2.0)),
+                RotateUntil(180, duration(1.5))
+            ),
+            MoveUntil((-25, -25), duration(1.0))
+        )
+        complex_sequence.apply(sprite, tag=f"complex_{i}")
+    
+    # Time updates with complex sequences
+    start_time = time.time()
+    for _ in range(60):  # 1 second at 60 FPS
+        Action.update_all(0.016)
+    end_time = time.time()
+    
+    # Should handle complex sequences efficiently
+    assert (end_time - start_time) < 2.0
+    assert len(Action._active_actions) == 20  # One sequence per sprite
+
+def test_memory_cleanup_performance(self):
+    """Test that completed actions are properly cleaned up."""
+    from actions.conditional import MoveUntil, duration
+    
+    sprite = create_test_sprite()
+    
+    # Create many short-lived actions
+    for i in range(50):
+        action = MoveUntil((10, 0), duration(0.1))  # Very short duration
+        action.apply(sprite, tag=f"short_{i}")
+    
+    initial_count = len(Action._active_actions)
+    assert initial_count == 50
+    
+    # Run until all actions complete
+    for _ in range(100):  # Should be enough time
+        Action.update_all(0.016)
+        if len(Action._active_actions) == 0:
+            break
+    
+    # Verify cleanup
+    assert len(Action._active_actions) == 0
 ```
 
 ## Coverage Requirements
@@ -564,10 +652,98 @@ def test_large_action_count_performance(self):
 
 1. **Action Lifecycle**: Apply, update, complete, cleanup
 2. **Global Management**: Multiple actions, tagging, stopping
-3. **Function Composition**: All composition function combinations
+3. **Proper Usage Patterns**: Helper functions vs. direct classes
 4. **Conditional Logic**: Condition evaluation, completion callbacks
-5. **Error Handling**: Invalid conditions, empty sprite lists
-6. **Memory Management**: No action leaks, proper cleanup
+5. **Sequence Composition**: Complex nested sequences and parallel actions
+6. **Path Following**: Automatic rotation and path completion
+7. **Boundary Detection**: Bounce/wrap behaviors and callbacks
+8. **Formation Management**: Grid, diamond, circle arrangements
+9. **Movement Patterns**: Zigzag, wave, spiral pattern creation
+10. **Easing Integration**: Smooth acceleration/deceleration effects
+11. **Error Handling**: Invalid conditions, empty sprite lists
+12. **Memory Management**: No action leaks, proper cleanup
+
+### Edge Case Testing
+
+Important edge cases to test:
+
+```python
+def test_edge_cases(self):
+    """Test important edge cases and error conditions."""
+    from actions import move_until
+    from actions.conditional import duration, MoveUntil
+    from actions.composite import sequence
+    
+    sprite = create_test_sprite()
+    
+    # Test with empty sprite list
+    empty_list = arcade.SpriteList()
+    move_until(empty_list, (5, 0), duration(1.0), tag="empty")
+    
+    # Should not crash
+    Action.update_all(0.1)
+    
+    # Test with very short durations
+    move_until(sprite, (100, 0), duration(0.001), tag="short")
+    
+    # Test with zero velocity
+    move_until(sprite, (0, 0), duration(1.0), tag="zero_velocity")
+    
+    # Test immediate condition satisfaction
+    move_until(sprite, (5, 0), lambda: True, tag="immediate")
+    
+    # Test with None condition (should run forever)
+    action = MoveUntil((5, 0), lambda: False)
+    action.apply(sprite, tag="forever")
+    
+    # Update and verify
+    Action.update_all(0.1)
+    
+    # Test empty sequence
+    empty_seq = sequence()
+    empty_seq.apply(sprite, tag="empty_sequence")
+    
+    # Should complete immediately
+    Action.update_all(0.001)
+    empty_actions = Action.get_actions_for_target(sprite, "empty_sequence")
+    assert len(empty_actions) == 0  # Should be completed and removed
+
+def test_error_conditions(self):
+    """Test error handling and recovery."""
+    from actions import move_until
+    from actions.conditional import duration
+    
+    sprite = create_test_sprite()
+    
+    # Test with invalid bounds
+    try:
+        move_until(
+            sprite, (5, 0), duration(1.0),
+            bounds=(800, 600, 0, 0),  # Invalid: left > right, top > bottom
+            boundary_behavior="bounce",
+            tag="invalid_bounds"
+        )
+        Action.update_all(0.1)
+        # Should handle gracefully
+    except Exception as e:
+        # Log but don't fail test if error handling is implemented
+        print(f"Bounds error handled: {e}")
+    
+    # Test with invalid velocity values
+    move_until(sprite, (float('inf'), 0), duration(1.0), tag="inf_velocity")
+    move_until(sprite, (float('nan'), 0), duration(1.0), tag="nan_velocity")
+    
+    # Should not crash the action system
+    Action.update_all(0.1)
+    
+    # Test stopping non-existent actions
+    Action.stop_actions_for_target(sprite, "non_existent_tag")
+    
+    # Test multiple stop calls
+    action = move_until(sprite, (5, 0), duration(1.0), tag="multi_stop")
+    action.stop()
+    action.stop()  # Should not crash
+```
 
 ## Running Tests
 
@@ -600,4 +776,62 @@ uv add --group dev pytest pytest-cov
 uv run pytest tests/ -v
 ```
 
-The testing suite provides comprehensive validation of the ArcadeActions library while demonstrating best practices for using the conditional action system in real game scenarios. 
+### Continuous Integration
+
+The test suite should be integrated into CI/CD pipelines:
+
+```yaml
+# Example GitHub Actions workflow
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      - name: Run tests
+        run: uv run pytest tests/ --cov=actions --cov-report=xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+```
+
+### Test Documentation Standards
+
+Each test should follow documentation standards:
+
+1. **Clear test names** that describe what is being tested
+2. **Docstrings** explaining the test purpose and any complex setup
+3. **Comments** for non-obvious assertions or test logic
+4. **Pattern examples** showing correct vs. incorrect usage
+5. **Edge case coverage** with explanations of why they matter
+
+### Best Practices Summary
+
+1. **Test behavior, not implementation** - Focus on what actions do, not how they do it
+2. **Use real sprites and sprite lists** - Avoid unnecessary mocking
+3. **Demonstrate correct patterns** - Show proper usage of helpers vs. direct classes
+4. **Test edge cases** - Empty lists, zero values, immediate conditions
+5. **Verify cleanup** - Ensure no action leaks or memory issues
+6. **Performance awareness** - Test that the system scales properly
+7. **Clear documentation** - Make tests serve as usage examples
+
+### Testing Checklist
+
+Before submitting code, ensure:
+
+- [ ] All new functionality has corresponding tests
+- [ ] Tests demonstrate proper usage patterns (helpers vs. direct classes)
+- [ ] Edge cases and error conditions are covered
+- [ ] Performance implications are tested
+- [ ] Memory cleanup is verified
+- [ ] Integration scenarios are tested
+- [ ] Documentation examples match test patterns
+- [ ] No unnecessary mocks are used
+- [ ] Test names clearly describe what is being tested
+- [ ] Global action cleanup is performed in teardown
+
+The testing suite provides comprehensive validation of the ArcadeActions library while demonstrating best practices for using the conditional action system in real game scenarios. The tests serve as both validation and documentation, showing developers the correct patterns for different use cases. 

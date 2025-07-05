@@ -4,6 +4,62 @@
 
 ArcadeActions provides a conditional action system that works directly with Arcade's native sprites and sprite lists. The framework uses **condition-based actions** rather than duration-based ones, enabling more flexible and declarative game behaviors.
 
+## Recommended Usage Patterns
+
+### Pattern 1: Helper Functions for Simple, Immediate Actions
+
+Helper functions like `move_until`, `rotate_until`, and `follow_path_until` are designed for simple, immediate application to sprites:
+
+```python
+from actions import move_until, rotate_until
+from actions.conditional import duration
+
+# Simple, immediate actions - this is what helper functions are for
+move_until(player_sprite, (5, 0), lambda: player_sprite.center_x > 800)
+rotate_until(enemy_swarm, 1.5, duration(5.0))
+```
+
+### Pattern 2: Direct Classes with sequence() for Complex Compositions
+
+For complex, multi-step sequences, use direct action classes with the `sequence()` and `parallel()` functions:
+
+```python
+from actions.base import Action
+from actions.composite import sequence, parallel
+from actions.conditional import DelayUntil, MoveUntil, RotateUntil, FadeUntil, duration
+
+# Complex sequences - use direct classes
+complex_behavior = sequence(
+    DelayUntil(duration(1.0)),
+    MoveUntil((100, 0), duration(2.0)),
+    parallel(
+        RotateUntil(180, duration(1.0)),
+        FadeUntil(-50, duration(1.5))
+    )
+)
+complex_behavior.apply(sprite, tag="complex_movement")
+```
+
+### Why This Design?
+
+**Helper functions** immediately apply actions when called, which conflicts with sequence construction. **Direct classes** create actions without applying them, allowing proper sequence composition.
+
+```python
+# ❌ PROBLEMATIC: Helper functions + operators
+# This creates conflicts because helpers apply immediately
+(delay_until(sprite, duration(1.0)) + move_until(sprite, (5, 0), duration(2.0)))
+
+# ✅ CORRECT: Direct classes + sequence()
+# This works perfectly because actions aren't applied until the sequence is
+sequence(
+    DelayUntil(duration(1.0)),
+    MoveUntil((5, 0), duration(2.0))
+).apply(sprite)
+
+# ✅ ALSO CORRECT: Helper functions for immediate, simple actions
+move_until(sprite, (5, 0), duration(2.0))  # Applied immediately
+```
+
 ## Core Design Principles
 
 ### 1. Velocity Semantics: Pixels Per Frame at 60 FPS
@@ -25,11 +81,11 @@ All actions are managed globally - no manual action tracking needed:
 
 ```python
 from actions.base import Action
-from actions.conditional import MoveUntil, duration
+from actions import move_until
+from actions.conditional import duration
 
 # Apply actions directly to any arcade.Sprite or arcade.SpriteList
-action = MoveUntil((100, 0), duration(2.0))
-action.apply(sprite, tag="movement")
+move_until(sprite, (100, 0), duration(2.0), tag="movement")
 
 # Global update handles everything
 def update(self, delta_time):
@@ -40,39 +96,28 @@ def update(self, delta_time):
 Actions run until conditions are met, not for fixed durations:
 
 ```python
+from actions import move_until, rotate_until, fade_until, follow_path_until
+
 # Velocity-based movement until condition is met (pixels per frame at 60 FPS)
-move_action = MoveUntil((5, -2), lambda: sprite.center_y < 100)  # 5 pixels/frame right, 2 pixels/frame down
+move_until(sprite, (5, -2), lambda: sprite.center_y < 100)
 
 # Path following with automatic rotation
 path_points = [(100, 100), (200, 200), (300, 100)]
-path_action = FollowPathUntil(
-    path_points, 2.5, lambda: sprite.center_x > 400,  # 2.5 pixels/frame speed
-    rotate_with_path=True, rotation_offset=-90  # Sprite artwork points up
+follow_path_until(
+    sprite, path_points, 2.5, lambda: sprite.center_x > 400
 )
 
-rotate_action = RotateUntil(1.5, lambda: sprite.angle >= 45)  # 1.5 degrees/frame
-fade_action = FadeUntil(-4, lambda: sprite.alpha <= 50)       # -4 alpha/frame
-
-# Apply directly to sprites
-move_action.apply(sprite, tag="movement")
-path_action.apply(sprite, tag="path_following")
+rotate_until(sprite, 1.5, lambda: sprite.angle >= 45)
+fade_until(sprite, -4, lambda: sprite.alpha <= 50)
 ```
 
-### 4. Function-Based Composition
-Use `sequence()` and `parallel()` helper functions for composition:
+### 4. Clear Separation of Use Cases
 
-```python
-from actions.composite import sequence, parallel
-
-# Sequential actions
-seq = sequence(delay_action, move_action, fade_action)
-
-# Parallel actions  
-par = parallel(move_action, rotate_action, fade_action)
-
-# Nested composition
-complex = sequence(delay_action, parallel(move_action, fade_action), final_action)
-```
+| Use Case | Pattern | Example |
+|----------|---------|---------|
+| **Simple immediate actions** | Helper functions | `move_until(sprite, (5, 0), condition)` |
+| **Complex sequences** | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
+| **Parallel effects** | Direct classes + `parallel()` | `parallel(MoveUntil(...), FadeUntil(...))` |
 
 ## Core Components
 
@@ -81,7 +126,7 @@ complex = sequence(delay_action, parallel(move_action, fade_action), final_actio
 #### Conditional Actions (actions/conditional.py)
 - **MoveUntil** - Velocity-based movement
 - **FollowPathUntil** - Follow Bezier curve paths with optional sprite rotation to face movement direction
-- **RotateUntil** - Angular velocity rotation  
+- **RotateUntil** - Angular velocity rotation
 - **ScaleUntil** - Scale velocity changes
 - **FadeUntil** - Alpha velocity changes
 - **DelayUntil** - Wait for condition
@@ -116,7 +161,7 @@ ArcadeActions provides two distinct but complementary approaches for creating sm
 
 **Purpose:** Ease wraps continuous actions (like `MoveUntil`, `FollowPathUntil`, `RotateUntil`) and modulates their intensity over time, creating smooth acceleration and deceleration effects.
 
-**How it works:** The `Ease` wrapper applies a time-based factor (0.0 to 1.0) to the wrapped action using `set_factor()`. After the easing duration completes, the wrapped action continues running at full intensity until its own condition is met.
+**How it works:** The `ease()` helper function wraps an existing action and applies the eased effect to a target. After the easing duration completes, the wrapped action continues running at full intensity until its own condition is met.
 
 **Key characteristics:**
 - Wraps existing continuous actions
@@ -126,36 +171,32 @@ ArcadeActions provides two distinct but complementary approaches for creating sm
 - Supports complex actions like curved path following
 
 ```python
-from actions.easing import Ease
-from actions.conditional import MoveUntil, FollowPathUntil
+from actions import ease, move_until, follow_path_until
 from arcade import easing
 
 # Example 1: Smooth missile launch
-missile_movement = MoveUntil((300, 0), lambda: False)  # Continuous movement
-smooth_launch = Ease(missile_movement, seconds=1.5, ease_function=easing.ease_out)
-smooth_launch.apply(missile, tag="launch")
+missile_movement = move_until(missile, (300, 0), lambda: False)  # Continuous movement
+ease(missile, missile_movement, seconds=1.5, ease_function=easing.ease_out)
+
 # Result: Missile smoothly accelerates to 300px/s over 1.5 seconds, then continues at that speed
 
 # Example 2: Smooth curved path with rotation
 path_points = [(100, 100), (200, 200), (400, 150), (500, 100)]
-path_action = FollowPathUntil(
-    path_points, 250, lambda: False,
-    rotate_with_path=True, rotation_offset=-90
+path_action = follow_path_until(
+    enemy, path_points, 250, lambda: False
 )
-eased_path = Ease(path_action, seconds=2.0, ease_function=easing.ease_in_out)
-eased_path.apply(enemy, tag="patrol")
+ease(enemy, path_action, seconds=2.0, ease_function=easing.ease_in_out)
 # Result: Enemy smoothly accelerates along curved path while rotating to face direction
 
 # Example 3: Formation movement
-formation_move = MoveUntil((100, 0), lambda: False)
-smooth_formation = Ease(formation_move, seconds=1.0, ease_function=easing.ease_in)
-smooth_formation.apply(enemy_formation, tag="advance")
+formation_move = move_until(enemy_formation, (100, 0), lambda: False)
+ease(enemy_formation, formation_move, seconds=1.0, ease_function=easing.ease_in)
 # Result: Entire formation smoothly accelerates to marching speed
 ```
 
 ### TweenUntil: Direct Property Animation
 
-**Purpose:** `TweenUntil` directly animates a specific sprite property from a start value to an end value over time, with optional easing curves for the interpolation itself.
+**Purpose:** `tween_until` directly animates a specific sprite property from a start value to an end value over time, with optional easing curves for the interpolation itself.
 
 **How it works:** Calculates intermediate values between start and end using linear interpolation and an optional easing function, then directly sets the property value each frame. The action completes when the end value is reached or the condition is met.
 
@@ -167,27 +208,24 @@ smooth_formation.apply(enemy_formation, tag="advance")
 - Perfect for UI animations and precise movements
 
 ```python
-from actions.conditional import TweenUntil, duration
+from actions import tween_until
+from actions.conditional import duration
 from arcade import easing
 
 # Example 1: UI panel slide-in
-slide_in = TweenUntil(-200, 100, "center_x", duration(0.8), ease_function=easing.ease_out)
-slide_in.apply(ui_panel, tag="show_panel")
+tween_until(ui_panel, -200, 100, "center_x", duration(0.8), ease_function=easing.ease_out)
 # Result: Panel slides from x=-200 to x=100 with smooth deceleration, then stops
 
 # Example 2: Health bar animation
-health_update = TweenUntil(current_health, new_health, "width", duration(0.5))
-health_update.apply(health_bar, tag="health_change")
+tween_until(health_bar, current_health, new_health, "width", duration(0.5))
 # Result: Health bar width changes smoothly from current to new value
 
 # Example 3: Button feedback animation
-button_press = TweenUntil(1.0, 1.2, "scale", duration(0.1), ease_function=easing.ease_out)
-button_press.apply(button_sprite, tag="press_feedback")
+tween_until(button_sprite, 1.0, 1.2, "scale", duration(0.1), ease_function=easing.ease_out)
 # Result: Button scales from normal size to 120% over 0.1 seconds, then stops
 
 # Example 4: Fade transition
-fade_out = TweenUntil(255, 0, "alpha", duration(1.0), ease_function=easing.ease_in)
-fade_out.apply(sprite, tag="disappear")
+tween_until(sprite, 255, 0, "alpha", duration(1.0), ease_function=easing.ease_in)
 # Result: Sprite fades from opaque to transparent over 1 second
 ```
 
@@ -195,56 +233,59 @@ fade_out.apply(sprite, tag="disappear")
 
 | Scenario | Choose | Reason |
 |----------|--------|--------|
-| **Missile/projectile launch** | `Ease` | Need smooth acceleration to cruise speed, then constant velocity |
-| **UI element slide-in** | `TweenUntil` | Need precise positioning from off-screen to final location |
-| **Enemy formation movement** | `Ease` | Formation should smoothly reach marching speed and continue |
-| **Health/progress bar updates** | `TweenUntil` | Need exact value changes with smooth visual transition |
-| **Curved path following** | `Ease` | Complex path requires smooth acceleration along the curve |
-| **Button press feedback** | `TweenUntil` | Need precise scale/position changes for UI responsiveness |
-| **Vehicle acceleration** | `Ease` | Realistic acceleration to top speed, then constant motion |
-| **Fade in/out effects** | `TweenUntil` | Precise alpha value control with smooth transitions |
-| **Camera smooth following** | `Ease` | Smooth acceleration when starting to follow target |
-| **Menu animations** | `TweenUntil` | Precise positioning and scaling for UI elements |
+| **Missile/projectile launch** | `ease` | Need smooth acceleration to cruise speed, then constant velocity |
+| **UI element slide-in** | `tween_until` | Need precise positioning from off-screen to final location |
+| **Enemy formation movement** | `ease` | Formation should smoothly reach marching speed and continue |
+| **Health/progress bar updates** | `tween_until` | Need exact value changes with smooth visual transition |
+| **Curved path following** | `ease` | Complex path requires smooth acceleration along the curve |
+| **Button press feedback** | `tween_until` | Need precise scale/position changes for UI responsiveness |
+| **Vehicle acceleration** | `ease` | Realistic acceleration to top speed, then constant motion |
+| **Fade in/out effects** | `tween_until` | Precise alpha value control with smooth transitions |
+| **Camera smooth following** | `ease` | Smooth acceleration when starting to follow target |
+| **Menu animations** | `tween_until` | Precise positioning and scaling for UI elements |
 
 ### Combining Both Approaches
 
 You can use both techniques together for complex animations:
 
 ```python
-# Combine eased movement with precise property animation
-from actions.composite import parallel
-
-# Smooth movement with simultaneous fade
-eased_move = Ease(MoveUntil((200, 0), duration(3.0)), seconds=1.0)
-fade_effect = TweenUntil(255, 0, "alpha", duration(2.0))
-combined = parallel(eased_move, fade_effect)
-combined.apply(sprite, tag="move_and_fade")
-
 # Sequential combination: precise positioning followed by smooth movement
-position_setup = TweenUntil(0, 100, "center_x", duration(0.5))
-smooth_patrol = Ease(MoveUntil((50, 0), lambda: False), seconds=1.0)
-sequence_action = sequence(position_setup, smooth_patrol)
-sequence_action.apply(guard, tag="setup_patrol")
+from actions.conditional import TweenUntil, MoveUntil, duration
+from actions.composite import sequence
+from actions import ease
+
+def create_guard_behavior(guard_sprite):
+    # Step 1: Precise positioning
+    position_setup = TweenUntil(0, 100, "center_x", duration(0.5))
+    
+    # Step 2: Smooth patrol movement  
+    patrol_move = MoveUntil((50, 0), lambda: False)
+    
+    # Create sequence
+    behavior_sequence = sequence(position_setup, patrol_move)
+    behavior_sequence.apply(guard_sprite, tag="guard_behavior")
+    
+    # Add easing to the patrol movement after positioning
+    # Note: This requires more complex timing - simpler to use separate actions
+    ease(guard_sprite, patrol_move, seconds=1.0)
 ```
 
 ### Advanced Easing Patterns
 
 ```python
-# Nested easing for complex effects
-base_move = MoveUntil((300, 0), lambda: False)
-inner_ease = Ease(base_move, seconds=1.0, ease_function=easing.ease_in)
-outer_ease = Ease(inner_ease, seconds=2.0, ease_function=easing.ease_out)
-outer_ease.apply(sprite, tag="complex_acceleration")
+from actions.conditional import MoveUntil
+from actions import ease
+from arcade import easing
 
 # Multiple concurrent eased effects
-move_ease = Ease(MoveUntil((200, 100), lambda: False), seconds=2.0)
-rotate_ease = Ease(RotateUntil(360, lambda: False), seconds=1.5)
-fade_ease = Ease(FadeUntil(-100, lambda: False), seconds=3.0)
+move_action = move_until(sprite, (200, 100), lambda: False)
+rotate_action = rotate_until(sprite, 360, lambda: False)
+fade_action = fade_until(sprite, -100, lambda: False)
 
 # Apply different easing curves to each effect
-move_ease.apply(sprite, tag="movement")
-rotate_ease.apply(sprite, tag="rotation") 
-fade_ease.apply(sprite, tag="fade")
+ease(sprite, move_action, seconds=2.0, ease_function=easing.ease_in_out)
+ease(sprite, rotate_action, seconds=1.5, ease_function=easing.ease_in)
+ease(sprite, fade_action, seconds=3.0, ease_function=easing.ease_out)
 ```
 
 ## Usage Patterns
@@ -254,20 +295,15 @@ For player characters, single enemies, individual UI elements:
 
 ```python
 import arcade
-from actions.conditional import MoveUntil, RotateUntil, duration
+from actions import move_until, rotate_until
+from actions.conditional import duration
 
 # Create any arcade.Sprite
 player = arcade.Sprite(":resources:images/player.png")
 
-# Apply actions directly
-move_action = MoveUntil((100, 0), duration(2.0))
-move_action.apply(player, tag="movement")
-
-# Combine with helper functions
-from actions.composite import sequence
-
-dodge_sequence = sequence(move_action, RotateUntil(180, duration(0.5)))
-dodge_sequence.apply(player, tag="dodge")
+# Apply simple actions directly using helper functions
+move_until(player, (100, 0), duration(2.0), tag="movement")
+rotate_until(player, 180, duration(0.5), tag="rotation")
 ```
 
 ### Pattern 2: Group Coordination
@@ -281,18 +317,42 @@ for i in range(10):
     enemies.append(enemy)
 
 # Apply actions to entire group
-formation_move = MoveUntil((0, -50), duration(3.0))
-formation_move.apply(enemies, tag="formation")
+move_until(enemies, (0, -50), duration(3.0), tag="formation")
 
 # All sprites in the list move together
 ```
 
-### Pattern 3: Formation Management
+### Pattern 3: Complex Sequential Behaviors
+For multi-step animations and complex game scenarios:
+
+```python
+from actions.base import Action
+from actions.composite import sequence, parallel
+from actions.conditional import DelayUntil, MoveUntil, RotateUntil, FadeUntil, duration
+
+# Create complex behavior using direct classes
+def create_enemy_attack_sequence(enemy_sprite):
+    attack_sequence = sequence(
+        DelayUntil(duration(1.0)),                    # Wait 1 second
+        MoveUntil((0, -100), duration(2.0)),          # Move down
+        parallel(                                      # Simultaneously:
+            RotateUntil(360, duration(1.0)),          #   Spin
+            FadeUntil(-50, duration(1.5))             #   Fade out
+        ),
+        MoveUntil((200, 0), duration(1.0))            # Move sideways
+    )
+    attack_sequence.apply(enemy_sprite, tag="attack_sequence")
+
+# Apply to multiple enemies
+for enemy in enemy_list:
+    create_enemy_attack_sequence(enemy)
+```
+
+### Pattern 4: Formation Management
 For complex game scenarios with formation positioning:
 
 ```python
 from actions.formation import arrange_grid, arrange_circle, arrange_diamond
-from actions.conditional import DelayUntil, MoveUntil, FadeUntil, RotateUntil
 
 # Create a 3×5 enemy grid in one call using sprite_factory
 from functools import partial
@@ -310,26 +370,11 @@ enemies = arrange_grid(
     sprite_factory=enemy_factory,
 )
 
-# Create solid diamond formation for special attack patterns
-diamond_formation = arrange_diamond(
-    count=13,  # 1 center + 4 in layer 1 + 8 in layer 2
-    center_x=400,
-    center_y=300,
-    spacing=60,
-    sprite_factory=enemy_factory,
-)
+# Apply simple movement to the formation
+move_until(enemies, (0, -50), duration(3.0), tag="formation_move")
+```
 
-# Create hollow diamond formation (no center sprite) 
-hollow_diamond = arrange_diamond(
-    count=12,  # 4 in layer 1 + 8 in layer 2 (no center)
-    center_x=600,
-    center_y=300,
-    spacing=60,
-    include_center=False,  # Creates hollow formation
-    sprite_factory=enemy_factory,
-)
-
-### Pattern 4: Movement Patterns
+### Pattern 5: Movement Patterns
 For creating complex movement behaviors using pattern functions:
 
 ```python
@@ -351,203 +396,106 @@ wave_movement = create_wave_pattern(
 )
 wave_movement.apply(boss_sprite, tag="wave_movement")
 
-# Projectile with spiral pattern
-spiral_movement = create_spiral_pattern(
-    center_x=400, center_y=300, max_radius=200, 
-    revolutions=3, speed=180, direction="outward"
-)
-spiral_movement.apply(projectile, tag="spiral_attack")
-
 # Guard with patrol pattern
 patrol_movement = create_patrol_pattern(
     start_pos=(100, 200), end_pos=(500, 200), speed=80
 )
 patrol_movement.apply(guard_sprite, tag="patrol")
-
-# Particle with figure-8 pattern
-figure_eight = create_figure_eight_pattern(
-    center_x=300, center_y=200, width=150, height=100, speed=90
-)
-figure_eight.apply(particle, tag="figure_eight")
-
-# Satellite with orbital pattern
-orbit = create_orbit_pattern(
-    center_x=400, center_y=300, radius=120, speed=100, clockwise=True
-)
-orbit.apply(satellite, tag="orbit")
-
-# Ball with bouncing pattern
-bounce = create_bounce_pattern(
-    velocity=(150, 100), bounds=(0, 0, 800, 600)
-)
-bounce.apply(ball_sprite, tag="bouncing")
-
-# Using condition helpers with patterns
-from actions.conditional import FadeUntil
-
-# Fade out when only 2 enemies remain
-fade_action = FadeUntil(-50, sprite_count(enemies, 2, "<="))
-fade_action.apply(background, tag="fade_background")
-
-# Movement that lasts for 5 seconds
-timed_movement = create_smooth_zigzag_pattern(80, 40, 120, ease_duration=1.0)
-# Will run until time_elapsed condition triggers termination
-
-# Apply any actions using clean helper functions
-from actions.composite import sequence, parallel
-
-delay = DelayUntil(duration(2.0))
-move = MoveUntil((0, -50), duration(1.5))
-fade = FadeUntil(-30, lambda: formation.sprite_count <= 2)
-
-# Compose and apply
-seq = sequence(delay, move)
-par = parallel(move, fade)
-formation.apply(seq, tag="initial")
-formation.schedule(3.0, par, tag="retreat")
-
-# Set up conditional breakaway behavior
-def breakaway_condition():
-    return any(sprite.center_y < 100 for sprite in enemies)
-
-edge_sprites = [enemies[0], enemies[2]]  # Edge sprites break away first
-formation.setup_conditional_breakaway(
-    breakaway_condition, edge_sprites, tag="breakaway_monitor"
-)
-
-# Register lifecycle callbacks
-def on_formation_destroyed(group):
-    print(f"Formation {group.name} was destroyed!")
-
-def on_sprites_break_away(new_group):
-    print(f"Sprites broke away into {new_group.name}")
-    # Apply different behavior to breakaway group
-    panic_action = MoveUntil((200, -200), duration(0.5))
-    new_group.apply(panic_action, tag="panic")
-
-formation.on_destroy(on_formation_destroyed)
-formation.on_breakaway(on_sprites_break_away)
-
-# Advanced function compositions
-move_action = MoveUntil((50, 25), duration(2.0))
-rotate_action = RotateUntil(360, duration(3.0))
-scale_action = ScaleUntil(0.5, duration(1.5))
-
-# Complex nested compositions
-sequential = sequence(move_action, rotate_action, scale_action)              # All sequential
-par = parallel(move_action, rotate_action, scale_action)                # All parallel
-mixed = sequence(move_action, parallel(rotate_action, scale_action))                 # Mixed composition
-complex_nested = sequence(parallel(move_action, rotate_action), scale_action, parallel(move_action, rotate_action))
-
-# Apply different compositions with tags
-sequential.apply(enemies, tag="sequential")
-par.apply(enemies, tag="parallel") 
-mixed.apply(enemies, tag="mixed")
-complex_nested.apply(enemies, tag="complex")
-
-# Action management and queries
-all_active = Action.get_all_actions()
-movement_active = Action.get_tag_actions("movement")
-
-# Stop specific tagged actions
-Action.stop_by_tag("effects")  # Stop just effects
-Action.clear_all()             # Stop all actions
-
-# Properties and state
-print(f"Formation has {len(enemies)} sprites")
-print(f"Formation is empty: {len(enemies) == 0}")
 ```
 
-### Pattern 5: Path Following with Rotation
+### Pattern 6: Path Following with Rotation
 For smooth curved movement with automatic sprite rotation:
 
 ```python
-from actions.conditional import FollowPathUntil, duration
+from actions import follow_path_until
+from actions.conditional import duration
 
 # Basic path following without rotation
 path_points = [(100, 100), (200, 150), (300, 100)]
-basic_path = FollowPathUntil(path_points, 200, duration(3.0))
-basic_path.apply(sprite, tag="movement")
+follow_path_until(sprite, path_points, 200, duration(3.0), tag="movement")
 
 # Path following with automatic rotation (sprite artwork points right)
-rotating_path = FollowPathUntil(
-    path_points, 200, duration(3.0),
-    rotate_with_path=True
+follow_path_until(
+    sprite, path_points, 200, duration(3.0),
+    rotate_with_path=True,
+    tag="rotating_movement"
 )
-rotating_path.apply(sprite, tag="rotating_movement")
 
 # Path following with rotation offset for sprites pointing up
-upward_sprite_path = FollowPathUntil(
-    path_points, 200, duration(3.0),
+follow_path_until(
+    sprite, path_points, 200, duration(3.0),
     rotate_with_path=True,
-    rotation_offset=-90.0  # Compensate for upward-pointing artwork
+    rotation_offset=-90.0,  # Compensate for upward-pointing artwork
+    tag="calibrated_movement"
 )
-upward_sprite_path.apply(sprite, tag="calibrated_movement")
 
 # Complex curved missile trajectory
 missile_path = [(player.center_x, player.center_y),
                 (target.center_x + 100, target.center_y + 50),  # Arc over target
                 (target.center_x, target.center_y)]
-missile_action = FollowPathUntil(
-    missile_path, 300, 
+follow_path_until(
+    missile_sprite,
+    missile_path, 300,
     lambda: distance_to_target() < 20,  # Until close to target
-    rotate_with_path=True  # Missile points toward movement direction
+    rotate_with_path=True,  # Missile points toward movement direction
+    tag="homing"
 )
-missile_action.apply(missile_sprite, tag="homing")
 ```
 
-### Pattern 6: Boundary Interactions
+### Pattern 7: Boundary Interactions
 For arcade-style movement with boundary detection:
 
 ```python
-from actions.conditional import MoveUntil
+from actions import move_until
+from actions.conditional import duration
 
 # Individual sprite bouncing
 def on_bounce(sprite, axis):
     print(f"Sprite bounced on {axis} axis")
 
 bounds = (0, 0, 800, 600)  # left, bottom, right, top
-movement = MoveUntil(
-    (100, 50), 
+move_until(
+    sprite,
+    (100, 50),
     lambda: False,  # Move indefinitely
     bounds=bounds,
     boundary_behavior="bounce",
-    on_boundary=on_bounce
+    on_boundary=on_bounce,
+    tag="bounce"
 )
-movement.apply(sprite, tag="bounce")
 
 # Group bouncing (like Space Invaders)
 def formation_bounce(sprite, axis):
     if axis == 'x':
         # Move entire formation down
-        down_action = MoveUntil((0, -30), duration(0.2))
-        down_action.apply(enemies, tag="drop")
+        move_until(enemies, (0, -30), duration(0.2), tag="drop")
 
-group_movement = MoveUntil(
-    (100, 0), 
+move_until(
+    enemies,
+    (100, 0),
     lambda: False,
     bounds=bounds,
     boundary_behavior="bounce",
-    on_boundary=formation_bounce
+    on_boundary=formation_bounce,
+    tag="formation_bounce"
 )
-group_movement.apply(enemies, tag="formation_bounce")
 ```
 
 ## Easing Effects
 
 ### Overview
-The Easing wrapper provides smooth acceleration and deceleration effects by modulating the intensity of any conditional action using easing curves. This creates natural-feeling animations that start slow, speed up, and slow down again.
+The `ease()` helper function provides smooth acceleration and deceleration effects by modulating the intensity of any conditional action using easing curves. This creates natural-feeling animations that start slow, speed up, and slow down again.
 
 ### Basic Easing Usage
 
 ```python
-from actions.easing import Ease
+from actions import ease, move_until
+from actions.conditional import duration
 from arcade import easing
 
 # Wrap any conditional action with easing
-move = MoveUntil((200, 0), duration(3.0))
-eased_move = Ease(move, seconds=2.0, ease_function=easing.ease_in_out)
-eased_move.apply(sprite, tag="smooth_movement")
+move = move_until(sprite, (200, 0), duration(3.0))
+ease(sprite, move, seconds=2.0, ease_function=easing.ease_in_out)
 
 # The sprite will smoothly accelerate to full speed, then decelerate
 ```
@@ -557,15 +505,19 @@ Use Arcade's built-in easing functions for different effects:
 
 ```python
 from arcade import easing
+from actions import ease, move_until
+from actions.conditional import duration
+
+move = move_until(sprite, (200, 0), duration(3.0))
 
 # Slow start, fast finish
-ease_in_move = Ease(move, seconds=2.0, ease_function=easing.ease_in)
+ease(sprite, move, seconds=2.0, ease_function=easing.ease_in)
 
 # Fast start, slow finish  
-ease_out_move = Ease(move, seconds=2.0, ease_function=easing.ease_out)
+ease(sprite, move, seconds=2.0, ease_function=easing.ease_out)
 
 # Slow start, fast middle, slow finish (default)
-ease_in_out_move = Ease(move, seconds=2.0, ease_function=easing.ease_in_out)
+ease(sprite, move, seconds=2.0, ease_function=easing.ease_in_out)
 ```
 
 ### Easing with Path Following and Rotation
@@ -577,16 +529,16 @@ control_points = [(player.center_x, player.center_y),
                   (target.center_x + 100, target.center_y + 50),  # Arc over target
                   (target.center_x, target.center_y)]
 
-missile_path = FollowPathUntil(
-    control_points, 300, 
+missile_path = follow_path_until(
+    missile_sprite,
+    control_points, 300,
     lambda: distance_to_target() < 20,
     rotate_with_path=True,  # Missile points toward movement direction
     rotation_offset=-90     # Compensate for upward-pointing artwork
 )
 
 # Add smooth acceleration/deceleration to the path following
-eased_missile = Ease(missile_path, seconds=1.5, ease_function=easing.ease_in_out)
-eased_missile.apply(missile_sprite, tag="homing_missile")
+ease(missile_sprite, missile_path, seconds=1.5, ease_function=easing.ease_in_out)
 
 # Missile will smoothly accelerate along the curved path while rotating to face direction
 ```
@@ -595,57 +547,19 @@ eased_missile.apply(missile_sprite, tag="homing_missile")
 Apply different easing to multiple effects simultaneously:
 
 ```python
+from actions import ease, move_until, rotate_until, fade_until
+
 # Create multiple effects with different easing curves
-move = MoveUntil((200, 100), lambda: False)
-rotate = RotateUntil(360, lambda: False)  # Full rotation
-fade = FadeUntil(-200, lambda: False)     # Fade to transparent
+move = move_until(sprite, (200, 100), lambda: False)
+rotate = rotate_until(sprite, 360, lambda: False)  # Full rotation
+fade = fade_until(sprite, -200, lambda: False)     # Fade to transparent
 
 # Apply different easing to each effect
-eased_move = Ease(move, seconds=2.0, ease_function=easing.ease_in_out)
-eased_rotate = Ease(rotate, seconds=1.5, ease_function=easing.ease_in)
-eased_fade = Ease(fade, seconds=3.0, ease_function=easing.ease_out)
-
-# Apply all effects to the same sprite
-eased_move.apply(sprite, tag="movement")
-eased_rotate.apply(sprite, tag="rotation")
-eased_fade.apply(sprite, tag="fade")
+ease(sprite, move, seconds=2.0, ease_function=easing.ease_in_out)
+ease(sprite, rotate, seconds=1.5, ease_function=easing.ease_in)
+ease(sprite, fade, seconds=3.0, ease_function=easing.ease_out)
 
 # Sprite moves, rotates, and fades with different easing curves
-```
-
-### Nested Easing for Complex Effects
-Combine multiple levels of easing for sophisticated animations:
-
-```python
-# Base movement action
-move = MoveUntil((300, 0), lambda: False)
-
-# First level of easing (slow acceleration)
-inner_easing = Ease(move, seconds=1.0, ease_function=easing.ease_in)
-
-# Second level of easing (slow overall progression)
-outer_easing = Ease(inner_easing, seconds=3.0, ease_function=easing.ease_out)
-outer_easing.apply(sprite, tag="complex_movement")
-
-# Creates compound easing effect with very gradual buildup
-```
-
-### Easing with Completion Callbacks
-Execute code when easing completes:
-
-```python
-def on_movement_complete():
-    print("Smooth movement finished!")
-    # Start next phase of animation
-    next_action.apply(sprite, tag="next_phase")
-
-eased_action = Ease(
-    move, 
-    seconds=2.0, 
-    ease_function=easing.ease_in_out,
-    on_complete=on_movement_complete
-)
-eased_action.apply(sprite, tag="phased_movement")
 ```
 
 ### Custom Easing Functions
@@ -659,33 +573,8 @@ def bounce_ease(t):
     else:
         return -1 + (4 - 2 * t) * t
 
-custom_eased = Ease(move, seconds=2.0, ease_function=bounce_ease)
-custom_eased.apply(sprite, tag="bouncy_movement")
-```
-
-### Easing Best Practices
-
-1. **Match Easing to Context**: Use `ease_in` for dramatic reveals, `ease_out` for natural stops, `ease_in_out` for smooth general movement
-
-2. **Layer Different Durations**: Apply easing with different durations to create complex, layered animations
-
-3. **Combine with Formation Management**: Use easing on formation movements for cinematic effects
-
-```python
-# Smooth formation movement with easing
-formation_move = MoveUntil((0, -100), duration(3.0))
-eased_formation = Ease(formation_move, seconds=2.0, ease_function=easing.ease_in_out)
-eased_formation.apply(enemies, tag="formation_descent")
-```
-
-4. **Test Edge Cases**: Handle extreme values gracefully:
-
-```python
-# Very fast easing for instant effects
-instant_ease = Ease(action, seconds=0.001)
-
-# Very slow easing for background ambience
-ambient_ease = Ease(action, seconds=30.0)
+move = move_until(sprite, (200, 0), duration(3.0))
+ease(sprite, move, seconds=2.0, ease_function=bounce_ease)
 ```
 
 ## Action Management
@@ -695,13 +584,13 @@ Use tags to organize and control different types of actions:
 
 ```python
 # Apply different tagged actions
-movement_action.apply(sprite, tag="movement")
-effect_action.apply(sprite, tag="effects")
-combat_action.apply(sprite, tag="combat")
+move_until(sprite, (100, 0), duration(2.0), tag="movement")
+fade_until(sprite, -10, duration(1.5), tag="effects")
+rotate_until(sprite, 180, duration(1.0), tag="combat")
 
 # Stop specific tagged actions
-Action.stop(sprite, tag="effects")  # Stop just effects
-Action.stop(sprite)  # Stop all actions on sprite
+Action.stop_actions_for_target(sprite, "effects")  # Stop just effects
+Action.stop_actions_for_target(sprite)  # Stop all actions on sprite
 ```
 
 ### Global Control
@@ -712,8 +601,8 @@ The global Action system provides centralized management:
 Action.update_all(delta_time)
 
 # Global action queries
-active_count = Action.get_active_count()
-movement_actions = Action.get_tag_actions("movement")
+active_count = len(Action._active_actions)
+movement_actions = Action.get_actions_for_target(sprite, "movement")
 
 # Global cleanup
 Action.clear_all()
@@ -725,6 +614,7 @@ Action.clear_all()
 import arcade
 from actions.base import Action
 from actions.conditional import MoveUntil, DelayUntil, duration
+from actions.composite import sequence
 from actions.formation import arrange_grid
 
 class SpaceInvadersGame(arcade.Window):
@@ -747,32 +637,29 @@ class SpaceInvadersGame(arcade.Window):
         self._setup_formation_movement()
     
     def _setup_formation_movement(self):
-        # Wait 2 seconds, then start moving
-        delay = DelayUntil(duration(2.0))
-        move_right = MoveUntil((50, 0), duration(4.0))
+        # Create complex sequence using direct classes
+        initial_sequence = sequence(
+            DelayUntil(duration(2.0)),           # Wait 2 seconds
+            MoveUntil((50, 0), duration(4.0))    # Move right
+        )
+        initial_sequence.apply(self.enemies, tag="initial_movement")
         
-        # Use helper functions for clean composition
-        from actions.composite import sequence
-        
-        seq = sequence(delay, move_right)
-        seq.apply(self.enemies, tag="movement")
-        
-        # Set up boundary bouncing
+        # Set up boundary bouncing using helper function
         def on_formation_bounce(sprite, axis):
             # Move formation down and reverse direction
             if axis == 'x':
-                drop = MoveUntil((0, -30), duration(0.3))
-                drop.apply(self.enemies, tag="drop")
+                move_until(self.enemies, (0, -30), duration(0.3), tag="drop")
         
         bounds = (50, 0, 750, 600)  # left, bottom, right, top
-        formation_move = MoveUntil(
+        move_until(
+            self.enemies,
             (50, 0), 
             lambda: False,
             bounds=bounds,
             boundary_behavior="bounce",
-            on_boundary=on_formation_bounce
+            on_boundary=on_formation_bounce,
+            tag="bounce_movement"
         )
-        formation_move.apply(self.enemies, tag="bounce")
     
     def on_update(self, delta_time):
         # Single global update handles all actions
@@ -781,24 +668,30 @@ class SpaceInvadersGame(arcade.Window):
 
 ## Best Practices
 
-### 1. Prefer Conditions Over Durations
+### 1. Choose the Right Pattern for the Use Case
+```python
+# ✅ Good: Helper functions for simple, immediate actions
+move_until(sprite, (100, 0), duration(2.0))
+
+# ✅ Good: Direct classes + sequence() for complex behaviors
+complex_behavior = sequence(
+    DelayUntil(duration(1.0)),
+    MoveUntil((100, 0), duration(2.0)),
+    RotateUntil(180, duration(1.0))
+)
+complex_behavior.apply(sprite)
+
+# ❌ Avoid: Mixing helper functions with operators
+# (delay_until(sprite, duration(1.0)) + move_until(sprite, (100, 0), duration(2.0)))
+```
+
+### 2. Prefer Conditions Over Durations
 ```python
 # Good: Condition-based
-move_until_edge = MoveUntil((100, 0), lambda: sprite.center_x > 700)
+move_until(sprite, (100, 0), lambda: sprite.center_x > 700)
 
 # Avoid: Duration-based thinking
 # move_for_time = MoveBy((500, 0), 5.0)  # Old paradigm
-```
-
-### 2. Use Helper Functions for Composition
-```python
-from actions.composite import sequence, parallel
-
-# Good: Clean helper function syntax
-complex_action = sequence(delay, parallel(move, fade), final_move)
-
-# Avoid: Verbose constructors
-# complex_action = Sequence(delay, Spawn(move, fade), final_move)
 ```
 
 ### 3. Use Formation Functions for Positioning
@@ -814,20 +707,21 @@ arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
 ### 4. Tag Your Actions
 ```python
 # Good: Organized with tags
-movement.apply(sprite, tag="movement")
-effects.apply(sprite, tag="effects")
+move_until(sprite, (100, 0), duration(2.0), tag="movement")
+fade_until(sprite, -10, duration(1.5), tag="effects")
 
 # Stop specific systems
-Action.stop(sprite, tag="effects")
+Action.stop_actions_for_target(sprite, tag="effects")
 ```
 
 ### 5. Choose the Right Animation Approach
 ```python
 # Good: Use Easing for continuous actions
-eased_movement = Ease(MoveUntil((200, 0), lambda: False), seconds=1.5)
+move_action = move_until(sprite, (200, 0), lambda: False)
+ease(sprite, move_action, seconds=1.5)
 
 # Good: Use TweenUntil for precise property changes
-position_animation = TweenUntil(0, 100, "center_x", duration(1.0))
+tween_until(sprite, 0, 100, "center_x", duration(1.0))
 
 # Avoid: Using the wrong approach for the use case
 # Don't use TweenUntil for complex path following
@@ -838,25 +732,21 @@ position_animation = TweenUntil(0, 100, "center_x", duration(1.0))
 
 | Use Case | Pattern | Example |
 |----------|---------|---------|
-| Single sprite | Direct action application | `action.apply(sprite, tag="move")` |
-| Sprite group | Action on SpriteList | `action.apply(sprite_list, tag="formation")` |
-| Sequential behavior | `sequence()` | `sequence(action1, action2, action3)` |
-| Parallel behavior | `parallel()` | `parallel(move, rotate, fade)` |
-| Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)`, `arrange_diamond(count=13)`, `arrange_diamond(count=12, include_center=False)` |
-| Movement patterns | Pattern functions | `create_zigzag_pattern(100, 50, 150)`, `create_wave_pattern(75, 2, 600, 120)`, `create_spiral_pattern(400, 300, 200, 3, 180)` |
-| Path following | FollowPathUntil | `FollowPathUntil(points, 200, condition, rotate_with_path=True)` |
-| Boundary detection | MoveUntil with bounds | `MoveUntil(vel, cond, bounds=bounds, boundary_behavior="bounce")` |
-| Delayed execution | DelayUntil | `DelayUntil(condition) + action` |
-| Smooth acceleration | Ease wrapper | `Ease(action, seconds=2.0, ease_function=easing.ease_in_out)` |
-| Complex curved movement | Ease + FollowPathUntil | `Ease(FollowPathUntil(points, vel, cond, rotate_with_path=True), seconds=1.5)` |
-| Multiple eased effects | Concurrent Ease | `Ease(move, 2.0, ease_in), Ease(fade, 3.0, ease_out)` |
-| Property animation | TweenUntil | `TweenUntil(start, end, "property", duration(1.0))` |
-| UI animations | TweenUntil | `TweenUntil(0, 255, "alpha", duration(0.5))` |
+| Simple sprite actions | Helper functions | `move_until(sprite, (5, 0), condition)` |
+| Sprite group actions | Helper functions on SpriteList | `move_until(sprite_list, (5, 0), condition)` |
+| Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
+| Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), FadeUntil(...))` |
+| Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
+| Movement patterns | Pattern functions | `create_zigzag_pattern(100, 50, 150)` |
+| Path following | `follow_path_until` helper | `follow_path_until(sprite, points, 200, condition)` |
+| Boundary detection | `move_until` with bounds | `move_until(sprite, vel, cond, bounds=b)` |
+| Delayed execution | Direct classes in sequences | `sequence(DelayUntil(duration(1.0)), action)` |
+| Smooth acceleration | `ease` helper | `ease(sprite, action, seconds=2.0)` |
+| Property animation | `tween_until` helper | `tween_until(sprite, start, end, "prop", duration(1.0))` |
 
 The ArcadeActions framework provides a clean, declarative way to create complex game behaviors while leveraging Arcade's native sprite system!
 
 ## Runtime-checking-free patterns
-
 
 Key conventions:
 
@@ -895,8 +785,7 @@ def handle_bullet_collision(collision_data):
     if collision_data["off_screen"]:
         print("Bullet left the screen!")
 
-bullet_action = MoveUntil((0, BULLET_SPEED), bullet_collision_check, handle_bullet_collision)
-bullet_action.apply(bullet)
+move_until(bullet, (0, BULLET_SPEED), bullet_collision_check, handle_bullet_collision)
 ```
 
 This pattern ensures collision checks are only performed once per frame, and all relevant data is passed directly to the handler—no need for extra state or repeated queries. This is the recommended approach for efficient, event-driven collision handling in ArcadeActions.

@@ -5,14 +5,16 @@ import pytest
 
 from actions import (
     Action,
-    BlinkUntil,
-    DelayUntil,
-    FadeUntil,
-    FollowPathUntil,
-    MoveUntil,
-    RotateUntil,
-    ScaleUntil,
-    TweenUntil,
+    blink_until,
+    delay_until,
+    fade_until,
+    follow_path_until,
+    move_until,
+    rotate_until,
+    scale_until,
+    tween_until,
+)
+from actions.conditional import (
     duration,
 )
 
@@ -58,8 +60,7 @@ class TestMoveUntil:
             nonlocal condition_met
             return condition_met
 
-        action = MoveUntil((100, 0), condition)
-        action.apply(sprite)
+        action = move_until(sprite, (100, 0), condition, tag="test_basic")
 
         # Update for one frame - sprite should have velocity applied
         Action.update_all(0.016)
@@ -87,8 +88,7 @@ class TestMoveUntil:
         sprite = create_test_sprite()
 
         # 5 pixels per frame should move 5 pixels when sprite.update() is called
-        action = MoveUntil((5, 0), lambda: False)
-        action.apply(sprite)
+        action = move_until(sprite, (5, 0), lambda: False, tag="test_frame_semantics")
 
         # Update action to apply velocity
         Action.update_all(0.016)
@@ -119,8 +119,7 @@ class TestMoveUntil:
             sprite.change_x = 0
             sprite.change_y = 0
 
-            action = MoveUntil(input_velocity, lambda: False)
-            action.apply(sprite)
+            action = move_until(sprite, input_velocity, lambda: False, tag="test_velocity")
             Action.update_all(0.016)
 
             assert sprite.change_x == input_velocity[0], f"Failed for input {input_velocity}"
@@ -140,8 +139,7 @@ class TestMoveUntil:
         def condition():
             return {"reason": "collision", "damage": 10}
 
-        action = MoveUntil((100, 0), condition, on_stop)
-        action.apply(sprite)
+        action = move_until(sprite, (100, 0), condition, on_stop=on_stop, tag="test_callback")
 
         Action.update_all(0.016)
 
@@ -152,8 +150,7 @@ class TestMoveUntil:
         """Test MoveUntil with SpriteList."""
         sprite_list = create_test_sprite_list()
 
-        action = MoveUntil((50, 25), lambda: False)
-        action.apply(sprite_list)
+        action = move_until(sprite_list, (50, 25), lambda: False, tag="test_sprite_list")
 
         Action.update_all(0.016)
 
@@ -165,8 +162,7 @@ class TestMoveUntil:
     def test_move_until_set_current_velocity(self):
         """Test MoveUntil set_current_velocity method."""
         sprite = create_test_sprite()
-        action = MoveUntil((100, 0), lambda: False)
-        action.apply(sprite)
+        action = move_until(sprite, (100, 0), lambda: False, tag="test_set_velocity")
 
         # Initial velocity should be set
         Action.update_all(0.016)
@@ -197,8 +193,7 @@ class TestFollowPathUntil:
             nonlocal condition_met
             return condition_met
 
-        action = FollowPathUntil(control_points, 100, condition)
-        action.apply(sprite, tag="test_basic_path")
+        action = follow_path_until(sprite, control_points, 100, condition, tag="test_basic_path")
 
         Action.update_all(0.016)
 
@@ -210,8 +205,9 @@ class TestFollowPathUntil:
         sprite = create_test_sprite()
         control_points = [(100, 100), (200, 100)]  # Simple straight line
 
-        action = FollowPathUntil(control_points, 1000, lambda: False)  # High velocity
-        action.apply(sprite, tag="test_path_completion")
+        action = follow_path_until(
+            sprite, control_points, 1000, lambda: False, tag="test_path_completion"
+        )  # High velocity
 
         # Update until path is complete
         for _ in range(100):
@@ -223,8 +219,9 @@ class TestFollowPathUntil:
 
     def test_follow_path_until_requires_points(self):
         """Test FollowPathUntil requires at least 2 control points."""
+        sprite = create_test_sprite()
         with pytest.raises(ValueError):
-            FollowPathUntil([(100, 100)], 100, lambda: False)
+            follow_path_until(sprite, [(100, 100)], 100, lambda: False)
 
     def test_follow_path_until_no_rotation_by_default(self):
         """Test FollowPathUntil doesn't rotate sprite by default."""
@@ -233,8 +230,7 @@ class TestFollowPathUntil:
 
         # Horizontal path from left to right
         control_points = [(100, 100), (200, 100)]
-        action = FollowPathUntil(control_points, 100, lambda: False)
-        action.apply(sprite, tag="test_no_rotation")
+        action = follow_path_until(sprite, control_points, 100, lambda: False, tag="test_no_rotation")
 
         # Update several frames
         for _ in range(10):
@@ -250,8 +246,9 @@ class TestFollowPathUntil:
 
         # Horizontal path from left to right
         control_points = [(100, 100), (200, 100)]
-        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True)
-        action.apply(sprite, tag="test_horizontal_rotation")
+        action = follow_path_until(
+            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_horizontal_rotation"
+        )
 
         # Update a few frames to get movement
         Action.update_all(0.016)
@@ -267,8 +264,9 @@ class TestFollowPathUntil:
 
         # Vertical path from bottom to top
         control_points = [(100, 100), (100, 200)]
-        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True)
-        action.apply(sprite, tag="test_vertical_rotation")
+        action = follow_path_until(
+            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_vertical_rotation"
+        )
 
         # Update a few frames to get movement
         Action.update_all(0.016)
@@ -283,8 +281,9 @@ class TestFollowPathUntil:
 
         # Diagonal path from bottom-left to top-right (45 degrees)
         control_points = [(100, 100), (200, 200)]
-        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True)
-        action.apply(sprite, tag="test_diagonal_rotation")
+        action = follow_path_until(
+            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_diagonal_rotation"
+        )
 
         # Update a few frames to get movement
         Action.update_all(0.016)
@@ -300,8 +299,15 @@ class TestFollowPathUntil:
         # Horizontal path from left to right
         control_points = [(100, 100), (200, 100)]
         # Use -90 offset (sprite artwork points up by default)
-        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True, rotation_offset=-90)
-        action.apply(sprite, tag="test_rotation_offset")
+        action = follow_path_until(
+            sprite,
+            control_points,
+            100,
+            lambda: False,
+            rotate_with_path=True,
+            rotation_offset=-90,
+            tag="test_rotation_offset",
+        )
 
         # Update a few frames to get movement
         Action.update_all(0.016)
@@ -318,8 +324,15 @@ class TestFollowPathUntil:
 
         # Horizontal path with offset but rotation disabled
         control_points = [(100, 100), (200, 100)]
-        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=False, rotation_offset=-90)
-        action.apply(sprite, tag="test_no_rotation_with_offset")
+        action = follow_path_until(
+            sprite,
+            control_points,
+            100,
+            lambda: False,
+            rotate_with_path=False,
+            rotation_offset=-90,
+            tag="test_no_rotation_with_offset",
+        )
 
         # Update several frames
         for _ in range(10):
@@ -334,8 +347,9 @@ class TestFollowPathUntil:
 
         # Curved path - quadratic Bezier curve
         control_points = [(100, 100), (150, 200), (200, 100)]
-        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True)
-        action.apply(sprite, tag="test_curved_rotation")
+        action = follow_path_until(
+            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_curved_rotation"
+        )
 
         # Store initial angle after first update
         Action.update_all(0.016)
@@ -355,8 +369,15 @@ class TestFollowPathUntil:
 
         # Horizontal path with large offset
         control_points = [(100, 100), (200, 100)]
-        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True, rotation_offset=450)
-        action.apply(sprite, tag="test_large_offset")
+        action = follow_path_until(
+            sprite,
+            control_points,
+            100,
+            lambda: False,
+            rotate_with_path=True,
+            rotation_offset=450,
+            tag="test_large_offset",
+        )
 
         # Update a few frames to get movement
         Action.update_all(0.016)
@@ -372,8 +393,15 @@ class TestFollowPathUntil:
 
         # Vertical path with negative offset
         control_points = [(100, 100), (100, 200)]
-        action = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True, rotation_offset=-45)
-        action.apply(sprite, tag="test_negative_offset")
+        action = follow_path_until(
+            sprite,
+            control_points,
+            100,
+            lambda: False,
+            rotate_with_path=True,
+            rotation_offset=-45,
+            tag="test_negative_offset",
+        )
 
         # Update a few frames to get movement
         Action.update_all(0.016)
@@ -384,8 +412,17 @@ class TestFollowPathUntil:
 
     def test_follow_path_until_clone_preserves_rotation_params(self):
         """Test cloning preserves rotation parameters."""
+        sprite = create_test_sprite()
         control_points = [(100, 100), (200, 100)]
-        original = FollowPathUntil(control_points, 100, lambda: False, rotate_with_path=True, rotation_offset=-90)
+        original = follow_path_until(
+            sprite,
+            control_points,
+            100,
+            lambda: False,
+            rotate_with_path=True,
+            rotation_offset=-90,
+            tag="test_rotation_params",
+        )
 
         cloned = original.clone()
 
@@ -409,8 +446,7 @@ class TestRotateUntil:
         def condition():
             return target_reached
 
-        action = RotateUntil(90, condition)  # 90 degrees per second
-        action.apply(sprite)
+        action = rotate_until(sprite, 90, condition, tag="test_basic")
 
         Action.update_all(0.016)
 
@@ -428,8 +464,7 @@ class TestRotateUntil:
         sprite = create_test_sprite()
 
         # 3 degrees per frame should rotate 3 degrees when sprite.update() is called
-        action = RotateUntil(3, lambda: False)
-        action.apply(sprite)
+        action = rotate_until(sprite, 3, lambda: False, tag="test_frame_semantics")
 
         # Update action to apply angular velocity
         Action.update_all(0.016)
@@ -459,8 +494,7 @@ class TestRotateUntil:
             Action.clear_all()
             sprite.change_angle = 0
 
-            action = RotateUntil(input_angular_velocity, lambda: False)
-            action.apply(sprite)
+            action = rotate_until(sprite, input_angular_velocity, lambda: False, tag="test_velocity")
             Action.update_all(0.016)
 
             assert sprite.change_angle == input_angular_velocity, f"Failed for input {input_angular_velocity}"
@@ -483,8 +517,7 @@ class TestScaleUntil:
         def condition():
             return target_reached
 
-        action = ScaleUntil(0.5, condition)  # Scale velocity
-        action.apply(sprite)
+        action = scale_until(sprite, 0.5, condition, tag="test_basic")
 
         Action.update_all(0.016)
 
@@ -515,8 +548,7 @@ class TestFadeUntil:
         def condition():
             return target_reached
 
-        action = FadeUntil(-100, condition)  # Fade out velocity
-        action.apply(sprite)
+        action = fade_until(sprite, -100, condition, tag="test_basic")
 
         Action.update_all(0.016)
 
@@ -546,8 +578,7 @@ class TestBlinkUntil:
         def condition():
             return target_reached
 
-        action = BlinkUntil(0.05, condition)  # toggle every 0.05 seconds (equivalent to 10 blinks per second)
-        action.apply(sprite)
+        action = blink_until(sprite, 0.05, condition, tag="test_basic")
 
         Action.update_all(0.016)
 
@@ -579,8 +610,7 @@ class TestDelayUntil:
             nonlocal condition_met
             return condition_met
 
-        action = DelayUntil(condition)
-        action.apply(sprite)
+        action = delay_until(sprite, condition, tag="test_basic")
 
         Action.update_all(0.016)
         assert not action.done
@@ -631,8 +661,7 @@ class TestTweenUntil:
         sprite.center_x = 0
 
         # Direct property animation from 0 to 100 over 1 second
-        action = TweenUntil(0, 100, "center_x", duration(1.0))
-        action.apply(sprite)
+        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_basic")
 
         # At halfway point, should be partway through
         Action.update_all(0.5)
@@ -650,8 +679,9 @@ class TestTweenUntil:
         def ease_quad(t):
             return t * t
 
-        action = TweenUntil(0, 100, "center_x", duration(1.0), ease_function=ease_quad)
-        action.apply(sprite)
+        action = tween_until(
+            sprite, 0, 100, "center_x", duration(1.0), ease_function=ease_quad, tag="test_custom_easing"
+        )
         Action.update_all(0.5)
         # Should be less than linear at t=0.5
         assert sprite.center_x < 50
@@ -664,15 +694,13 @@ class TestTweenUntil:
 
         # Button rotation feedback animation
         sprite.angle = 0
-        rotation_feedback = TweenUntil(0, 90, "angle", duration(1.0))
-        rotation_feedback.apply(sprite)
+        rotation_feedback = tween_until(sprite, 0, 90, "angle", duration(1.0), tag="test_ui_animation")
         Action.update_all(1.0)
         assert sprite.angle == 90
 
         # Fade-in effect animation
         sprite.alpha = 0
-        fade_in = TweenUntil(0, 255, "alpha", duration(1.0))
-        fade_in.apply(sprite)
+        fade_in = tween_until(sprite, 0, 255, "alpha", duration(1.0), tag="test_fade_in")
         Action.update_all(1.0)
         assert sprite.alpha == 255
 
@@ -680,8 +708,7 @@ class TestTweenUntil:
         sprites = create_test_sprite_list()
         for s in sprites:
             s.center_x = 0
-        action = TweenUntil(0, 100, "center_x", duration(1.0))
-        action.apply(sprites)
+        action = tween_until(sprites, 0, 100, "center_x", duration(1.0), tag="test_sprite_list")
         Action.update_all(1.0)
         for s in sprites:
             assert s.center_x == 100
@@ -689,16 +716,14 @@ class TestTweenUntil:
     def test_tween_until_set_factor(self):
         sprite = create_test_sprite()
         sprite.center_x = 0
-        action = TweenUntil(0, 100, "center_x", duration(1.0))
-        action.apply(sprite)
+        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_set_factor")
         action.set_factor(0.0)  # Pause
         Action.update_all(0.5)
         assert sprite.center_x == 0
         action.set_factor(1.0)  # Resume
         Action.update_all(1.0)
         assert sprite.center_x == 100
-        action = TweenUntil(0, 100, "center_x", duration(1.0))
-        action.apply(sprite)
+        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_set_factor_again")
         action.set_factor(2.0)  # Double speed
         Action.update_all(0.5)
         assert sprite.center_x == 100
@@ -711,8 +736,9 @@ class TestTweenUntil:
         def on_complete(data=None):
             called["done"] = True
 
-        action = TweenUntil(0, 100, "center_x", duration(1.0), on_condition_met=on_complete)
-        action.apply(sprite)
+        action = tween_until(
+            sprite, 0, 100, "center_x", duration(1.0), on_condition_met=on_complete, tag="test_on_complete"
+        )
         Action.update_all(1.0)
         assert action.done
         assert called.get("done")
@@ -723,8 +749,7 @@ class TestTweenUntil:
 
         # Arcade sprites are permissive and allow setting arbitrary attributes
         # so this test demonstrates that TweenUntil can work with any property name
-        action = TweenUntil(0, 100, "custom_property", duration(1.0))
-        action.apply(sprite)
+        action = tween_until(sprite, 0, 100, "custom_property", duration(1.0), tag="test_invalid_property")
         Action.update_all(1.0)
 
         # The sprite should now have the custom property set to the end value
@@ -733,9 +758,8 @@ class TestTweenUntil:
 
     def test_tween_until_negative_duration(self):
         sprite = create_test_sprite()
-        action = TweenUntil(0, 100, "center_x", duration(-1.0))
         with pytest.raises(ValueError):
-            action.apply(sprite)
+            action = tween_until(sprite, 0, 100, "center_x", duration(-1.0), tag="test_negative_duration")
 
     def test_tween_until_vs_ease_comparison(self):
         """Test demonstrating when to use TweenUntil vs Ease."""
@@ -745,15 +769,14 @@ class TestTweenUntil:
         sprite2.center_x = 0
 
         # TweenUntil: Perfect for UI panel slide-in (precise A-to-B movement)
-        ui_slide = TweenUntil(0, 200, "center_x", duration(1.0))
-        ui_slide.apply(sprite1, tag="ui_animation")
+        ui_slide = tween_until(sprite1, 0, 200, "center_x", duration(1.0), tag="test_ui_animation")
 
         # Ease: Perfect for missile launch (smooth acceleration to cruise speed)
         from actions.easing import Ease
 
-        missile_move = MoveUntil((200, 0), lambda: False)  # Continuous movement
+        missile_move = move_until(sprite2, (200, 0), lambda: False, tag="test_missile_move")
         missile_launch = Ease(missile_move, seconds=1.0)
-        missile_launch.apply(sprite2, tag="missile_launch")
+        missile_launch.apply(sprite2, tag="test_missile_launch")
 
         # After 1 second:
         Action.update_all(1.0)
@@ -774,17 +797,16 @@ class TestTweenUntil:
     def test_tween_until_start_equals_end(self):
         sprite = create_test_sprite()
         sprite.center_x = 42
-        action = TweenUntil(42, 42, "center_x", duration(1.0))
-        action.apply(sprite)
+        action = tween_until(sprite, 42, 42, "center_x", duration(1.0), tag="test_start_equals_end")
         Action.update_all(1.0)
         assert sprite.center_x == 42
         assert action.done
 
     def test_tween_until_clone(self):
         sprite = create_test_sprite()
-        action = TweenUntil(0, 100, "center_x", duration(1.0))
+        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_clone")
         clone = action.clone()
-        assert isinstance(clone, TweenUntil)
+        assert isinstance(clone, type(action))
         assert clone.start_value == 0
         assert clone.end_value == 100
         assert clone.property_name == "center_x"
@@ -792,7 +814,6 @@ class TestTweenUntil:
     def test_tween_until_zero_duration(self):
         sprite = create_test_sprite()
         sprite.center_x = 0
-        action = TweenUntil(0, 100, "center_x", duration(0.0))
-        action.apply(sprite)
+        action = tween_until(sprite, 0, 100, "center_x", duration(0.0), tag="test_zero_duration")
         assert sprite.center_x == 100
         assert action.done

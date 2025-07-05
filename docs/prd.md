@@ -20,9 +20,10 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 | `conditional.py`      | Includes boundary handling in `MoveUntil` for arcade-style patterns |
 | `pattern.py`          | Formation functions for positioning and layout patterns |
 | `easing.py`           | Easing wrapper for smooth acceleration/deceleration effects on any action |
+| `helpers.py`          | Convenience wrappers for actions, e.g., `move_until()` |
 | Global Action Management | Automatic action tracking, updates, and lifecycle management |
 | Test Suite            | Pytest-based unit and integration tests to validate core and edge behavior |
-| Function Composition  | `sequence()` and `parallel()` helpers for clean declarative syntax |
+| Operator Overloading  | `+` for sequence and `|` for parallel composition |
 
 ## 🔄 Property Update System
 
@@ -49,6 +50,30 @@ Unlike duration-based actions, ArcadeActions uses **condition-based actions**:
 - **DelayUntil** - Wait until condition is met
 
 This enables more flexible, game-state-driven behaviors.
+
+### Pattern 2: Operator-Based Composition
+```python
+from actions import move_until, rotate_until, fade_until
+
+# Clean declarative syntax with operators
+# Unbound actions can be created by passing `None` as the target
+move = move_until(None, (100, 0), lambda: False)
+rotate = rotate_until(None, 1.5, lambda: False)
+
+seq = move + rotate
+par = move | rotate
+complex_action = delay + (move | fade) + final_action
+
+# Apply the composed action to a target
+complex_action.apply(sprite)
+```
+
+### Pattern 3: Global Management
+```python
+# Single update handles all actions
+def on_update(self, delta_time):
+    Action.update_all(delta_time)
+```
 
 ---
 
@@ -211,27 +236,37 @@ PRD.md (this file)           → Architecture & Requirements
 
 ### Pattern 1: Direct Action Application
 ```python
+from actions import move_until
+
 # Works with any arcade.Sprite or arcade.SpriteList
 sprite = arcade.Sprite("image.png")
 enemies = arcade.SpriteList()
 
-action = MoveUntil((100, 0), lambda: sprite.center_x > 700)
-action.apply(sprite, tag="movement")
-action.apply(enemies, tag="formation")
+move_until(sprite, (100, 0), lambda: sprite.center_x > 700, tag="movement")
+move_until(enemies, (100, 0), lambda: False, tag="formation")
 ```
 
-### Pattern 2: Function Composition
+### Pattern 2: Operator-Based Composition
 ```python
-from actions.composite import sequence, parallel
+from actions import move_until, rotate_until, fade_until
 
-# Clean declarative syntax
-seq = sequence(delay, move, fade)
-par = parallel(move, rotate, scale)
-complex = sequence(delay, parallel(move, fade), final_action)
+# Clean declarative syntax with operators
+# Unbound actions can be created by passing `None` as the target
+move = move_until(None, (100, 0), lambda: False)
+rotate = rotate_until(None, 1.5, lambda: False)
+
+seq = move + rotate
+par = move | rotate
+complex_action = delay + (move | fade) + final_action
+
+# Apply the composed action to a target
+complex_action.apply(sprite)
 ```
 
 ### Pattern 3: Global Management
 ```python
+from actions import Action
+
 # Single update handles all actions
 def on_update(self, delta_time):
     Action.update_all(delta_time)
@@ -241,7 +276,6 @@ def on_update(self, delta_time):
 ```python
 from actions.formation import arrange_grid
 arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
-pattern.apply(enemies, tag="attack")
 ```
 
 This architecture provides a clean, powerful, and maintainable action system that enhances Arcade without replacing its core functionality.
