@@ -20,6 +20,7 @@ from typing import Any, overload
 
 import arcade
 
+from actions.base import Action
 from actions.conditional import (
     BlinkUntil,
     DelayUntil,
