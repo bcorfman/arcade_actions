@@ -5,184 +5,165 @@ Actions are used to animate sprites and sprite lists over time.
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 import arcade
 
 if TYPE_CHECKING:
-    pass
-
-"""
-Arcade-compatible action system with global action management.
-
-This module provides condition-based actions that work directly with arcade.Sprite
-and arcade.SpriteList, using Arcade's native velocity system. All actions are
-managed globally to eliminate the need for manual action list bookkeeping.
-
-The condition-based paradigm uses conditions to determine when actions complete:
-- MoveUntil(velocity, condition) - move until condition is met
-- RotateUntil(angular_velocity, condition) - rotate until condition is met  
-- ScaleUntil(scale_velocity, condition) - scale until condition is met
-- FadeUntil(fade_velocity, condition) - fade until condition is met
-
-Composite actions work with individual condition-based actions:
-- sequence() runs actions one after another until each condition is met
-- parallel() runs actions simultaneously until each individual condition is met
-"""
+    from actions.types import ActionCallback, ConditionFunc, SpriteTarget
 
 
-class Action:
-    """Base class for all actions in the ArcadeActions system.
+_T = TypeVar("_T", bound="Action")
 
-    Actions are condition-based behaviors that apply effects to sprites or sprite lists
-    until specified conditions are met. They integrate with global action management
-    for automatic lifecycle handling.
 
-    Args:
-        condition_func: Function that returns truthy value when action should complete
-        on_condition_met: Optional callback when condition is satisfied
-        check_interval: How often to check condition in seconds (default: 0.0 for every frame)
-        tag: Tag for organizing actions (default: "default")
+class Action(ABC, Generic[_T]):
+    """
+    Base class for all actions.
+
+    An action is a self-contained unit of behavior that can be applied to a
+    sprite or a list of sprites. Actions can be started, stopped, and updated
+    over time. They can also be composed into more complex actions using
+    sequences and parallels.
+
+    Operator Overloading:
+        - The `+` operator is overloaded to create a `Sequence` of actions.
+        - The `|` operator is overloaded to create a `Parallel` composition of actions.
+        - Note: `+` and `|` have the same precedence. Use parentheses to
+          enforce the desired order of operations, e.g., `a + (b | c)`.
     """
 
     _active_actions: list[Action] = []
 
     def __init__(
         self,
-        condition_func: Callable[[], Any] | None = None,
-        on_condition_met: Callable[[Any], None] | Callable[[], None] | None = None,
+        condition_func: ConditionFunc | None = None,
+        on_condition_met: ActionCallback | None = None,
         check_interval: float = 0.0,
-        tag: str = "default",
     ):
-        self.target: arcade.Sprite | arcade.SpriteList | None = None
-        self.tag = tag
-        self._is_active = False
+        self.target: SpriteTarget | None = None
+        self.tag: str | None = None
         self.done = False
+        self._is_active = False
         self._paused = False
+        self._factor = 1.0  # Multiplier for speed/rate, 1.0 = normal
+        self._condition_met = False
+        self._time_since_last_check: float = 0.0
+        self._condition_data: Any = None
 
-        # Common condition logic
+        # These are exposed for advanced use cases (e.g., custom composite actions)
         self.condition_func = condition_func
         self.on_condition_met = on_condition_met
         self.check_interval = check_interval
-        self._condition_met = False
-        self._condition_data = None
-        self._last_check_time = 0.0
 
-    def apply(self, target: arcade.Sprite | arcade.SpriteList, tag: str = "default") -> Action:
-        """Apply this action to a sprite or sprite list with the specified tag.
+    def __add__(self, other: Action) -> Action:
+        """Create a sequence of actions using the '+' operator."""
+        from actions.composite import sequence
 
-        Args:
-            target: The sprite or sprite list to apply the action to
-            tag: The tag name (default: "default")
+        return sequence(self, other)
 
-        Returns:
-            The applied action
+    def __radd__(self, other: Action) -> Action:
+        """Create a sequence of actions using the '+' operator (right-hand)."""
+        # This will be sequence(other, self)
+        return other.__add__(self)
 
-        Example:
-            action.apply(sprite, tag="movement")
+    def __or__(self, other: Action) -> Action:
+        """Create a parallel composition of actions using the '|' operator."""
+        from actions.composite import parallel
+
+        return parallel(self, other)
+
+    def __ror__(self, other: Action) -> Action:
+        """Create a parallel composition of actions using the '|' operator (right-hand)."""
+        # this will be parallel(other, self)
+        return other.__or__(self)
+
+    def apply(self, target: SpriteTarget, tag: str | None = None) -> Action:
+        """
+        Apply this action to a sprite or sprite list.
+
+        This will add the action to the global action manager, which will then
+        update it every frame.
         """
         self.target = target
         self.tag = tag
+        Action._active_actions.append(self)
         self.start()
-
-        # Add to simplified global tracking
-        if self not in Action._active_actions:
-            Action._active_actions.append(self)
-
         return self
 
     def start(self) -> None:
-        """Called when the action begins. Override in subclasses."""
+        """Called when the action begins."""
         self._is_active = True
-        if self._condition_met:
-            return
         self.apply_effect()
 
     def apply_effect(self) -> None:
-        """Apply the action's effect to the target. Override in subclasses."""
+        """Apply the action's effect to the target."""
         pass
 
     def update(self, delta_time: float) -> None:
-        """Called each frame. Handles condition checking and delegates to update_effect."""
-        if not self._is_active or self._condition_met or self._paused:
+        """
+        Update the action.
+
+        This is called every frame by the global action manager.
+        """
+        if not self._is_active or self.done or self._paused:
             return
 
-        # Let subclass update its effect
         self.update_effect(delta_time)
 
-        # Check condition if we have one
-        if self.condition_func is not None:
-            self._update_condition_check(delta_time)
+        if self.condition_func and not self._condition_met:
+            self._time_since_last_check += delta_time
+            if self._time_since_last_check >= self.check_interval:
+                self._time_since_last_check = 0.0
+                condition_result = self.condition_func()
+                if condition_result:
+                    self._condition_met = True
+                    self._condition_data = condition_result
+                    self.remove_effect()
+                    self.done = True
+                    if self.on_condition_met:
+                        # Simplified callback handling - just call with result if not True
+                        if condition_result is not True:
+                            self.on_condition_met(condition_result)
+                        else:
+                            self.on_condition_met()
 
     def update_effect(self, delta_time: float) -> None:
-        """Update the action's effect. Override in subclasses if needed."""
+        """
+        Update the action's effect.
+
+        This is called every frame by the update method.
+        """
         pass
 
-    def _update_condition_check(self, delta_time: float) -> None:
-        """Handle condition checking logic - common to all actions."""
-        self._last_check_time += delta_time
-        if self._last_check_time >= self.check_interval:
-            self._last_check_time = 0.0
-
-            condition_result = self.condition_func()
-
-            # Any truthy value means condition is met
-            if condition_result:
-                self._condition_met = True
-                self._condition_data = condition_result
-                self.remove_effect()
-                self.done = True
-
-                if self.on_condition_met:
-                    # Simplified callback handling - just call with result if not True
-                    if condition_result is not True:
-                        self.on_condition_met(condition_result)
-                    else:
-                        self.on_condition_met()
-
     def remove_effect(self) -> None:
-        """Remove the action's effect from the target. Override in subclasses."""
+        """
+        Remove the action's effect from the target.
+
+        This is called when the action is finished or stopped.
+        """
         pass
 
     def stop(self) -> None:
-        """Stop this action instance."""
-        if self._is_active:
-            self.remove_effect()
-        self._is_active = False
-        self.done = True
+        """Stop the action and remove it from the global action manager."""
         if self in Action._active_actions:
             Action._active_actions.remove(self)
+        self.done = True
+        self._is_active = False
+        self.remove_effect()
 
-    @classmethod
-    def stop_by_tag(cls, target: arcade.Sprite | arcade.SpriteList, tag: str) -> None:
-        """Stop all actions with the specified tag on the target.
+    @staticmethod
+    def get_actions_for_target(target: SpriteTarget, tag: str | None = None) -> list[Action]:
+        """Get all actions for a given target, optionally filtered by tag."""
+        if tag:
+            return [action for action in Action._active_actions if action.target == target and action.tag == tag]
+        return [action for action in Action._active_actions if action.target == target]
 
-        Args:
-            target: The sprite or sprite list
-            tag: The tag to stop
-        """
-        to_stop = []
-        for action in cls._active_actions:
-            if action.target == target and action.tag == tag:
-                to_stop.append(action)
-
-        for action in to_stop:
-            action.stop()
-
-    @classmethod
-    def stop_all_for_target(cls, target: arcade.Sprite | arcade.SpriteList) -> None:
-        """Stop all actions for the specified target.
-
-        Args:
-            target: The sprite or sprite list
-        """
-        to_stop = []
-        for action in cls._active_actions:
-            if action.target == target:
-                to_stop.append(action)
-
-        for action in to_stop:
+    @staticmethod
+    def stop_actions_for_target(target: SpriteTarget, tag: str | None = None) -> None:
+        """Stop all actions for a given target, optionally filtered by tag."""
+        for action in Action.get_actions_for_target(target, tag):
             action.stop()
 
     @classmethod
@@ -197,79 +178,45 @@ class Action:
 
     @classmethod
     def clear_all(cls) -> None:
-        """Stop and clear all active actions."""
-        for action in cls._active_actions[:]:
+        """Stop and remove all active actions."""
+        for action in list(cls._active_actions):
             action.stop()
-        cls._active_actions.clear()
 
-    @classmethod
-    def get_active_count(cls) -> int:
-        """Get the total number of active actions."""
-        return len(cls._active_actions)
-
-    @classmethod
-    def get_actions_for_target(cls, target: arcade.Sprite | arcade.SpriteList, tag: str | None = None) -> list[Action]:
-        """Get all actions for a target, optionally filtered by tag.
-
-        Args:
-            target: The sprite or sprite list
-            tag: Optional tag filter
-
-        Returns:
-            List of matching actions
-        """
-        actions = [action for action in cls._active_actions if action.target == target]
-        if tag is not None:
-            actions = [action for action in actions if action.tag == tag]
-        return actions
-
+    @abstractmethod
     def clone(self) -> Action:
-        """Create a copy of this action."""
-        return Action(self.condition_func, self.on_condition_met, self.check_interval, self.tag)
+        """Return a new instance of this action."""
+        raise NotImplementedError
 
     def for_each_sprite(self, func: Callable[[arcade.Sprite], None]) -> None:
-        """Apply a function to each sprite in the target.
-
-        Args:
-            func: Function to apply to each sprite
-
-        Raises:
-            ValueError: If target is not set
         """
-        if self.target is None:
-            raise ValueError("Action target is not set")
+        Run a function on each sprite in the target.
 
-        if isinstance(self.target, arcade.Sprite):
-            func(self.target)
-        elif isinstance(self.target, arcade.SpriteList):
+        If the target is a single sprite, the function is run on that sprite.
+        If the target is a sprite list, the function is run on each sprite in
+        the list.
+        """
+        if isinstance(self.target, arcade.SpriteList):
             for sprite in self.target:
                 func(sprite)
+        elif isinstance(self.target, arcade.Sprite):
+            func(self.target)
 
     def set_factor(self, factor: float) -> None:
-        """Set a scaling factor for this action's intensity/rate.
-
-        This provides a universal interface for easing wrappers to modulate
-        action behavior over time. Factor of 0.0 means no effect, 1.0 means
-        full effect, values >1.0 can provide overdrive if supported.
-
-        Base implementation does nothing - actions that support factor scaling
-        should override this method.
-
-        Args:
-            factor: Scaling factor (typically 0.0 to 1.0, but can be any float)
         """
-        # Default implementation is a no-op so any action can receive the call
-        # without requiring runtime type checks
-        pass
+        Set the speed/rate multiplier for this action.
+
+        This can be used to implement easing.
+        """
+        self._factor = factor
 
     @property
     def condition_met(self) -> bool:
-        """Whether the action's condition has been met."""
+        """Return True if the action's condition has been met."""
         return self._condition_met
 
     @property
-    def condition_data(self):
-        """Data returned by the condition function when it was met."""
+    def condition_data(self) -> Any:
+        """Return the data from the condition function when it was met."""
         return self._condition_data
 
     def pause(self) -> None:
@@ -307,3 +254,6 @@ class CompositeAction(Action):
     def clone(self) -> CompositeAction:
         """Create a copy of this CompositeAction."""
         raise NotImplementedError("Subclasses must implement clone()")
+
+    def apply_effect(self) -> None:
+        pass

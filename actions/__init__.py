@@ -49,6 +49,19 @@ from .formation import (
     arrange_v_formation,
 )
 
+# Helper functions
+from .helpers import (
+    blink_until,
+    delay_until,
+    ease,
+    fade_until,
+    follow_path_until,
+    move_until,
+    rotate_until,
+    scale_until,
+    tween_until,
+)
+
 # Movement patterns and condition helpers
 from .pattern import (
     create_bounce_pattern,
@@ -99,4 +112,14 @@ __all__ = [
     # Condition helpers
     "time_elapsed",
     "sprite_count",
+    # Helper functions
+    "move_until",
+    "rotate_until",
+    "follow_path_until",
+    "blink_until",
+    "delay_until",
+    "tween_until",
+    "scale_until",
+    "fade_until",
+    "ease",
 ]

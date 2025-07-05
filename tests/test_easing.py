@@ -8,6 +8,11 @@ from arcade import easing
 
 from actions import (
     Action,
+    ease,
+    move_until,
+    rotate_until,
+)
+from actions.conditional import (
     BlinkUntil,
     FadeUntil,
     FollowPathUntil,
@@ -16,6 +21,7 @@ from actions import (
     ScaleUntil,
 )
 from actions.easing import Ease
+from tests.test_base import MockAction
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -238,10 +244,12 @@ class TestEase:
         """Test Ease for realistic missile launch - smooth acceleration to cruise speed."""
         sprite = create_test_sprite()
 
-        # Missile movement: continuous at 100px/s until condition met
-        missile_movement = MoveUntil((100, 0), lambda: False)  # Continuous movement
-        smooth_launch = Ease(missile_movement, seconds=1.0, ease_function=easing.ease_in_out)
-        smooth_launch.apply(sprite, tag="missile_launch")
+        # Using the new ease() helper for clean API demonstration
+        # Creates continuous movement and applies smooth acceleration
+        missile_movement = move_until((100, 0), lambda: False)  # Unbound continuous movement
+        smooth_launch = ease(
+            sprite, missile_movement, seconds=1.0, ease_function=easing.ease_in_out, tag="missile_launch"
+        )
 
         # At start, should have smooth acceleration from 0
         Action.update_all(0.0)
@@ -474,19 +482,27 @@ class TestEase:
         sprite2 = create_test_sprite()
         sprite3 = create_test_sprite()
 
-        # Create different eased actions
+        # Demonstrate different approaches: traditional and new helper API
+        # Traditional approach for comparison
         move1 = MoveUntil((100, 0), lambda: False)
-        move2 = MoveUntil((0, 100), lambda: False)
-        rotate3 = RotateUntil(180, lambda: False)
-
         eased1 = Ease(move1, seconds=1.0, ease_function=easing.ease_in)
-        eased2 = Ease(move2, seconds=1.0, ease_function=easing.ease_out)
-        eased3 = Ease(rotate3, seconds=1.0, ease_function=easing.ease_in_out)
-
-        # Apply to different sprites with meaningful tags
         eased1.apply(sprite1, tag="move_ease_in")
-        eased2.apply(sprite2, tag="move_ease_out")
-        eased3.apply(sprite3, tag="rotate_ease_in_out")
+
+        # New helper API approach - more concise
+        ease(
+            sprite2,
+            move_until((0, 100), lambda: False),
+            seconds=1.0,
+            ease_function=easing.ease_out,
+            tag="move_ease_out",
+        )
+        ease(
+            sprite3,
+            rotate_until(180, lambda: False),
+            seconds=1.0,
+            ease_function=easing.ease_in_out,
+            tag="rotate_ease_in_out",
+        )
 
         # Update at mid-point
         Action.update_all(0.5)
@@ -675,11 +691,20 @@ class TestEase:
 
 
 class TestSetFactorEdgeCases:
-    """Test suite for set_factor edge cases and error conditions."""
+    """Test edge cases for set_factor, including no-op on base Action."""
 
     def teardown_method(self):
         """Clean up after each test."""
         Action.clear_all()
+
+    def test_base_action_set_factor_no_op(self):
+        """Test base Action set_factor is a no-op."""
+        action = MockAction(condition_func=lambda: False)
+
+        # Should not raise error
+        action.set_factor(0.5)
+        action.set_factor(-1.0)
+        action.set_factor(1000.0)
 
     def test_set_factor_before_apply(self):
         """Test set_factor works before action is applied."""
@@ -724,17 +749,6 @@ class TestSetFactorEdgeCases:
         # Test very large factor
         action.set_factor(1000.0)
         assert action.current_seconds_until_change == 0.001
-
-    def test_base_action_set_factor_no_op(self):
-        """Test base Action set_factor is a no-op."""
-        from actions.base import Action
-
-        action = Action()
-
-        # Should not raise error
-        action.set_factor(0.5)
-        action.set_factor(-1.0)
-        action.set_factor(1000.0)
 
     def test_scale_until_uniform_vs_tuple(self):
         """Test ScaleUntil set_factor with uniform vs tuple scale velocity."""

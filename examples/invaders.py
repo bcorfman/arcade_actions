@@ -12,8 +12,8 @@ import random
 
 import arcade
 
+from actions import move_until
 from actions.base import Action
-from actions.conditional import MoveUntil
 from actions.formation import arrange_grid
 
 SPRITE_SCALING_PLAYER = 0.75
@@ -167,8 +167,7 @@ class GameView(arcade.View):
             self.reverse_enemy_direction()
 
         velocity = (ENEMY_SPEED * self.enemy_direction, 0)
-        self.enemy_move_action = MoveUntil(velocity, enemies_hit_boundary, on_boundary_hit)
-        self.enemy_move_action.apply(self.enemy_list)
+        self.enemy_move_action = move_until(self.enemy_list, velocity, enemies_hit_boundary, on_stop=on_boundary_hit)
 
     def reverse_enemy_direction(self):
         """Reverse enemy direction efficiently"""
@@ -241,8 +240,7 @@ class GameView(arcade.View):
             if len(self.enemy_list) == 0:
                 self.reset()
 
-        bullet_action = MoveUntil((0, BULLET_SPEED), bullet_collision_check, handle_bullet_collision)
-        bullet_action.apply(bullet)
+        move_until(bullet, (0, BULLET_SPEED), bullet_collision_check, on_stop=handle_bullet_collision)
 
     def allow_enemies_to_fire(self):
         """Enemy firing with efficient collision detection"""
@@ -278,10 +276,9 @@ class GameView(arcade.View):
                     for shield in collision_data["shield_hits"]:
                         shield.remove_from_sprite_lists()
 
-                bullet_action = MoveUntil(
-                    (0, -BULLET_SPEED), enemy_bullet_collision_check, handle_enemy_bullet_collision
+                move_until(
+                    bullet, (0, -BULLET_SPEED), enemy_bullet_collision_check, on_stop=handle_enemy_bullet_collision
                 )
-                bullet_action.apply(bullet)
 
             x_spawn.append(enemy.center_x)
 

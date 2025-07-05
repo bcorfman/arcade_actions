@@ -254,6 +254,92 @@ class TestParallelFunction:
         assert cloned.actions[1].name == "action2"
 
 
+class TestOperatorOverloading:
+    """Test suite for operator-based composition (+ for sequence, | for parallel)."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.clear_all()
+
+    def test_plus_operator_creates_sequence(self):
+        """Test that the '+' operator creates a sequential action."""
+        sprite = create_test_sprite()
+        action1 = MockAction(duration=0.05, name="action1")
+        action2 = MockAction(duration=0.05, name="action2")
+
+        # Use + operator to create sequence
+        sequence_action = action1 + action2
+        sequence_action.apply(sprite)
+
+        # Should behave like a sequence
+        Action.update_all(0.01)
+        assert action1.started
+        assert not action2.started
+
+        # Update until first action completes
+        Action.update_all(0.06)
+        assert action1.done
+        assert action2.started
+
+    def test_pipe_operator_creates_parallel(self):
+        """Test that the '|' operator creates a parallel action."""
+        sprite = create_test_sprite()
+        action1 = MockAction(name="action1")
+        action2 = MockAction(name="action2")
+
+        # Use | operator to create parallel
+        parallel_action = action1 | action2
+        parallel_action.apply(sprite)
+
+        # Should behave like a parallel
+        Action.update_all(0.01)
+        assert action1.started
+        assert action2.started
+
+    def test_mixed_operator_composition(self):
+        """Test mixing + and | operators for complex compositions."""
+        sprite = create_test_sprite()
+        action1 = MockAction(duration=0.05, name="action1")
+        action2 = MockAction(duration=0.05, name="action2")
+        action3 = MockAction(duration=0.05, name="action3")
+
+        # Create a sequence where the second step is parallel actions
+        complex_action = action1 + (action2 | action3)
+        complex_action.apply(sprite)
+
+        # First action should start
+        Action.update_all(0.01)
+        assert action1.started
+        assert not action2.started
+        assert not action3.started
+
+        # After first action completes, parallel actions should start
+        Action.update_all(0.06)
+        assert action1.done
+        assert action2.started
+        assert action3.started
+
+    def test_operator_precedence_with_parentheses(self):
+        """Test operator precedence with explicit parentheses."""
+        sprite = create_test_sprite()
+        action1 = MockAction(duration=0.05, name="action1")
+        action2 = MockAction(duration=0.05, name="action2")
+        action3 = MockAction(duration=0.05, name="action3")
+
+        # Test a + (b | c) - explicit parentheses
+        composed = action1 + (action2 | action3)
+        composed.apply(sprite)
+
+        Action.update_all(0.01)
+        assert action1.started
+        assert not action2.started
+        assert not action3.started
+
+        Action.update_all(0.06)
+        assert action2.started
+        assert action3.started
+
+
 class TestNestedComposites:
     """Test suite for nested composite actions."""
 
@@ -261,58 +347,80 @@ class TestNestedComposites:
         """Clean up after each test."""
         Action.clear_all()
 
-    def test_sequence_of_parallels(self):
-        """Test sequence containing parallel actions."""
+    def test_sequence_of_parallels_with_operators(self):
+        """Test sequence containing parallel actions using operators."""
         sprite = create_test_sprite()
         action1 = MockAction(duration=0.05, name="action1")
         action2 = MockAction(duration=0.05, name="action2")
         action3 = MockAction(duration=0.05, name="action3")
         action4 = MockAction(duration=0.05, name="action4")
 
-        par1 = parallel(action1, action2)
-        par2 = parallel(action3, action4)
-        seq = sequence(par1, par2)
-
-        seq.target = sprite
-        seq.start()
+        # Create sequence of parallels using operators
+        composed = (action1 | action2) + (action3 | action4)
+        composed.apply(sprite)
 
         # First parallel should start
+        Action.update_all(0.01)
         assert action1.started
         assert action2.started
         assert not action3.started
         assert not action4.started
 
         # Update until first parallel completes
-        seq.update(0.06)
+        Action.update_all(0.06)
 
         # Second parallel should start
         assert action3.started
         assert action4.started
 
-    def test_parallel_of_sequences(self):
-        """Test parallel containing sequence actions."""
+    def test_parallel_of_sequences_with_operators(self):
+        """Test parallel containing sequence actions using operators."""
         sprite = create_test_sprite()
         action1 = MockAction(duration=0.05, name="action1")
         action2 = MockAction(duration=0.05, name="action2")
         action3 = MockAction(duration=0.05, name="action3")
         action4 = MockAction(duration=0.05, name="action4")
 
-        seq1 = sequence(action1, action2)
-        seq2 = sequence(action3, action4)
-        par = parallel(seq1, seq2)
-
-        par.target = sprite
-        par.start()
+        # Create parallel of sequences using operators
+        composed = (action1 + action2) | (action3 + action4)
+        composed.apply(sprite)
 
         # Both sequences should start (first actions of each)
+        Action.update_all(0.01)
         assert action1.started
         assert not action2.started
         assert action3.started
         assert not action4.started
 
         # Update until first actions complete
-        par.update(0.06)
+        Action.update_all(0.06)
 
         # Second actions should start
         assert action2.started
         assert action4.started
+
+    def test_traditional_vs_operator_equivalence(self):
+        """Test that operator syntax produces equivalent results to function syntax."""
+        sprite1 = create_test_sprite()
+        sprite2 = create_test_sprite()
+
+        # Traditional function approach
+        action1_func = MockAction(duration=0.05, name="action1")
+        action2_func = MockAction(duration=0.05, name="action2")
+        traditional = sequence(action1_func, action2_func)
+        traditional.apply(sprite1)
+
+        # Operator approach
+        action1_op = MockAction(duration=0.05, name="action1")
+        action2_op = MockAction(duration=0.05, name="action2")
+        operator_based = action1_op + action2_op
+        operator_based.apply(sprite2)
+
+        # Both should behave identically
+        Action.update_all(0.01)
+        assert action1_func.started == action1_op.started
+        assert action2_func.started == action2_op.started
+
+        Action.update_all(0.06)
+        assert action1_func.done == action1_op.done
+        assert action2_func.started == action2_op.started

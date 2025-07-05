@@ -23,12 +23,10 @@ import arcade
 from arcade import easing
 from arcade.types import Color
 
-from actions.base import Action
-from actions.conditional import MoveUntil
-from actions.easing import Ease
+from actions import Action, ease, move_until
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Constants ---
@@ -136,7 +134,8 @@ class EaseDemoView(arcade.View):
 
         # Create continuous movement action (missile flies until hitting boundary)
         bounds = (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
-        continuous_flight = MoveUntil(
+        continuous_flight = move_until(
+            missile,
             (MISSILE_VELOCITY, 0),  # Cruise velocity
             lambda: False,  # Never stop on its own
             bounds=bounds,
@@ -145,10 +144,7 @@ class EaseDemoView(arcade.View):
         )
 
         # Wrap with Ease for smooth acceleration to cruise speed
-        smooth_launch = Ease(continuous_flight, seconds=EASING_DURATION, ease_function=ease_func)
-
-        # Apply the eased launch
-        smooth_launch.apply(missile, tag=f"launch_{label.lower().replace(' ', '_')}")
+        ease(missile, continuous_flight, seconds=EASING_DURATION, ease_function=ease_func)
 
     def on_draw(self):
         self.clear()

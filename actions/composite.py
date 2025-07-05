@@ -63,7 +63,7 @@ class _Sequence(CompositeAction):
 
         # Check if current action completed after update
         if self.current_action and self.current_action.done:
-            self.current_action.stop()
+            # Don't call stop() - let the action complete naturally
             self.current_index += 1
 
             # Start next action if available
@@ -96,7 +96,8 @@ class _Sequence(CompositeAction):
         return _Sequence(*(action.clone() for action in self.actions))
 
     def __repr__(self) -> str:
-        return f"_Sequence(actions={self.actions})"
+        actions_repr = ", ".join(repr(a) for a in self.actions)
+        return f"_Sequence(actions=[{actions_repr}])"
 
 
 class _Parallel(CompositeAction):
@@ -140,7 +141,7 @@ class _Parallel(CompositeAction):
                 self._check_complete()
             return
 
-        # Update all actions first
+        # Update all actions that aren't done yet
         for action in self.actions:
             if not action.done:
                 action.update(delta_time)
@@ -171,7 +172,8 @@ class _Parallel(CompositeAction):
         return _Parallel(*(action.clone() for action in self.actions))
 
     def __repr__(self) -> str:
-        return f"_Parallel(actions={self.actions})"
+        actions_repr = ", ".join(repr(a) for a in self.actions)
+        return f"_Parallel(actions=[{actions_repr}])"
 
 
 def sequence(*actions: Action) -> _Sequence:
