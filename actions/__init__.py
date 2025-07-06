@@ -33,6 +33,7 @@ from .conditional import (
     ScaleUntil,
     TweenUntil,
     duration,
+    infinite,
 )
 
 # Easing wrappers
@@ -89,6 +90,7 @@ __all__ = [
     "FollowPathUntil",
     "TweenUntil",
     "duration",
+    "infinite",
     # Easing wrappers
     "Ease",
     # Composition functions

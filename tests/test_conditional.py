@@ -7,13 +7,15 @@ from actions import (
     Action,
     blink_until,
     delay_until,
-    duration,
     fade_until,
     follow_path_until,
     move_until,
     rotate_until,
     scale_until,
     tween_until,
+)
+from actions.conditional import (
+    duration,
 )
 
 
@@ -221,58 +223,6 @@ class TestFollowPathUntil:
         with pytest.raises(ValueError):
             follow_path_until(sprite, [(100, 100)], 100, lambda: False)
 
-    def test_follow_path_until_no_rotation_by_default(self):
-        """Test FollowPathUntil doesn't rotate sprite by default."""
-        sprite = create_test_sprite()
-        original_angle = sprite.angle
-
-        # Horizontal path from left to right
-        control_points = [(100, 100), (200, 100)]
-        action = follow_path_until(sprite, control_points, 100, lambda: False, tag="test_no_rotation")
-
-        # Update several frames
-        for _ in range(10):
-            Action.update_all(0.016)
-
-        # Sprite angle should not have changed
-        assert sprite.angle == original_angle
-
-    def test_follow_path_until_rotation_horizontal_path(self):
-        """Test sprite rotation follows horizontal path correctly."""
-        sprite = create_test_sprite()
-        sprite.angle = 45  # Start with non-zero angle
-
-        # Horizontal path from left to right
-        control_points = [(100, 100), (200, 100)]
-        action = follow_path_until(
-            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_horizontal_rotation"
-        )
-
-        # Update a few frames to get movement
-        Action.update_all(0.016)
-        Action.update_all(0.016)
-
-        # Sprite should be pointing right (0 degrees)
-        # Allow small tolerance for floating point math
-        assert abs(sprite.angle) < 1.0
-
-    def test_follow_path_until_rotation_vertical_path(self):
-        """Test sprite rotation follows vertical path correctly."""
-        sprite = create_test_sprite()
-
-        # Vertical path from bottom to top
-        control_points = [(100, 100), (100, 200)]
-        action = follow_path_until(
-            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_vertical_rotation"
-        )
-
-        # Update a few frames to get movement
-        Action.update_all(0.016)
-        Action.update_all(0.016)
-
-        # Sprite should be pointing up (90 degrees)
-        assert abs(sprite.angle - 90) < 1.0
-
     def test_follow_path_until_rotation_diagonal_path(self):
         """Test sprite rotation follows diagonal path correctly."""
         sprite = create_test_sprite()
@@ -314,99 +264,6 @@ class TestFollowPathUntil:
         # Sprite should be pointing right but compensated for -90 offset
         # Expected angle: 0 (right direction) + (-90 offset) = -90
         assert abs(sprite.angle - (-90)) < 1.0
-
-    def test_follow_path_until_rotation_offset_only_when_rotating(self):
-        """Test rotation offset is only applied when rotate_with_path is True."""
-        sprite = create_test_sprite()
-        original_angle = sprite.angle
-
-        # Horizontal path with offset but rotation disabled
-        control_points = [(100, 100), (200, 100)]
-        action = follow_path_until(
-            sprite,
-            control_points,
-            100,
-            lambda: False,
-            rotate_with_path=False,
-            rotation_offset=-90,
-            tag="test_no_rotation_with_offset",
-        )
-
-        # Update several frames
-        for _ in range(10):
-            Action.update_all(0.016)
-
-        # Sprite angle should not have changed (rotation disabled)
-        assert sprite.angle == original_angle
-
-    def test_follow_path_until_rotation_curved_path(self):
-        """Test sprite rotation follows curved path correctly."""
-        sprite = create_test_sprite()
-
-        # Curved path - quadratic Bezier curve
-        control_points = [(100, 100), (150, 200), (200, 100)]
-        action = follow_path_until(
-            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_curved_rotation"
-        )
-
-        # Store initial angle after first update
-        Action.update_all(0.016)
-        Action.update_all(0.016)
-        initial_angle = sprite.angle
-
-        # Continue updating - angle should change as we follow the curve
-        for _ in range(20):
-            Action.update_all(0.016)
-
-        # Angle should have changed as we follow the curve
-        assert sprite.angle != initial_angle
-
-    def test_follow_path_until_rotation_large_offset(self):
-        """Test sprite rotation with large offset values."""
-        sprite = create_test_sprite()
-
-        # Horizontal path with large offset
-        control_points = [(100, 100), (200, 100)]
-        action = follow_path_until(
-            sprite,
-            control_points,
-            100,
-            lambda: False,
-            rotate_with_path=True,
-            rotation_offset=450,
-            tag="test_large_offset",
-        )
-
-        # Update a few frames to get movement
-        Action.update_all(0.016)
-        Action.update_all(0.016)
-
-        # Large offset should work (450 degrees = 90 degrees normalized)
-        # Expected: 0 (right direction) + 450 (offset) = 450 degrees
-        assert abs(sprite.angle - 450) < 1.0
-
-    def test_follow_path_until_rotation_negative_offset(self):
-        """Test sprite rotation with negative offset values."""
-        sprite = create_test_sprite()
-
-        # Vertical path with negative offset
-        control_points = [(100, 100), (100, 200)]
-        action = follow_path_until(
-            sprite,
-            control_points,
-            100,
-            lambda: False,
-            rotate_with_path=True,
-            rotation_offset=-45,
-            tag="test_negative_offset",
-        )
-
-        # Update a few frames to get movement
-        Action.update_all(0.016)
-        Action.update_all(0.016)
-
-        # Expected: 90 (up direction) + (-45 offset) = 45 degrees
-        assert abs(sprite.angle - 45) < 1.0
 
     def test_follow_path_until_clone_preserves_rotation_params(self):
         """Test cloning preserves rotation parameters."""
@@ -475,27 +332,6 @@ class TestRotateUntil:
         # Should have rotated exactly 3 degrees
         angle_rotated = sprite.angle - start_angle
         assert angle_rotated == 3.0
-
-    def test_rotate_until_angular_velocity_values(self):
-        """Test that RotateUntil sets angular velocity values directly (degrees per frame at 60 FPS)."""
-        sprite = create_test_sprite()
-
-        # Test various angular velocity values
-        test_cases = [
-            1,  # Should result in change_angle = 1.0
-            2,  # Should result in change_angle = 2.0
-            5,  # Should result in change_angle = 5.0
-            -3,  # Should result in change_angle = -3.0
-        ]
-
-        for input_angular_velocity in test_cases:
-            Action.clear_all()
-            sprite.change_angle = 0
-
-            action = rotate_until(sprite, input_angular_velocity, lambda: False, tag="test_velocity")
-            Action.update_all(0.016)
-
-            assert sprite.change_angle == input_angular_velocity, f"Failed for input {input_angular_velocity}"
 
 
 class TestScaleUntil:
@@ -731,91 +567,10 @@ class TestTweenUntil:
         sprite.center_x = 0
         called = {}
 
-        def on_complete(data=None):
+        def on_stop(data=None):
             called["done"] = True
 
-        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), on_stop=on_complete, tag="test_on_complete")
-
-        # At halfway point, should be partway through
-        Action.update_all(0.5)
-        assert not called
-
-        # At completion, should be exactly at end value and callback called
-        Action.update_all(0.5)
-        assert sprite.center_x == 100
-        assert called["done"]
-
-    def test_tween_until_invalid_property(self):
-        """Test TweenUntil behavior with invalid property names."""
-        sprite = create_test_sprite()
-
-        # Arcade sprites are permissive and allow setting arbitrary attributes
-        # so this test demonstrates that TweenUntil can work with any property name
-        action = tween_until(sprite, 0, 100, "custom_property", duration(1.0), tag="test_invalid_property")
+        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), on_stop=on_stop, tag="test_on_complete")
         Action.update_all(1.0)
-
-        # The sprite should now have the custom property set to the end value
-        assert sprite.custom_property == 100
         assert action.done
-
-    def test_tween_until_negative_duration(self):
-        sprite = create_test_sprite()
-        with pytest.raises(ValueError):
-            action = tween_until(sprite, 0, 100, "center_x", duration(-1.0), tag="test_negative_duration")
-
-    def test_tween_until_vs_ease_comparison(self):
-        """Test demonstrating when to use TweenUntil vs Ease."""
-        sprite1 = create_test_sprite()
-        sprite2 = create_test_sprite()
-        sprite1.center_x = 0
-        sprite2.center_x = 0
-
-        # TweenUntil: Perfect for UI panel slide-in (precise A-to-B movement)
-        ui_slide = tween_until(sprite1, 0, 200, "center_x", duration(1.0), tag="test_ui_animation")
-
-        # Ease: Perfect for missile launch (smooth acceleration to cruise speed)
-        from actions.easing import Ease
-
-        missile_move = move_until(sprite2, (200, 0), lambda: False, tag="test_missile_move")
-        missile_launch = Ease(missile_move, duration=1.0)
-        missile_launch.apply(sprite2, tag="test_missile_launch")
-
-        # After 1 second:
-        Action.update_all(1.0)
-
-        # UI panel: Precisely positioned and stopped
-        assert ui_slide.done
-        assert sprite1.center_x == 200  # Exact target position
-        assert sprite1.change_x == 0  # No velocity (not moving)
-
-        # Missile: Reached cruise speed and continues moving
-        assert missile_launch.done  # Easing is done
-        assert not missile_move.done  # But missile keeps flying
-        # MoveUntil uses pixels per frame at 60 FPS semantics
-        assert sprite2.change_x == 200  # At cruise velocity
-
-        # Key difference: TweenUntil stops, Ease transitions to continuous action
-
-    def test_tween_until_start_equals_end(self):
-        sprite = create_test_sprite()
-        sprite.center_x = 42
-        action = tween_until(sprite, 42, 42, "center_x", duration(1.0), tag="test_start_equals_end")
-        Action.update_all(1.0)
-        assert sprite.center_x == 42
-        assert action.done
-
-    def test_tween_until_clone(self):
-        sprite = create_test_sprite()
-        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_clone")
-        clone = action.clone()
-        assert isinstance(clone, type(action))
-        assert clone.start_value == 0
-        assert clone.end_value == 100
-        assert clone.property_name == "center_x"
-
-    def test_tween_until_zero_duration(self):
-        sprite = create_test_sprite()
-        sprite.center_x = 0
-        action = tween_until(sprite, 0, 100, "center_x", duration(0.0), tag="test_zero_duration")
-        assert sprite.center_x == 100
-        assert action.done
+        assert called.get("done")

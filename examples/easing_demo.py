@@ -17,17 +17,11 @@ From the project root, run with:
     uv run python examples/easing_demo.py
 """
 
-import logging
-
 import arcade
 from arcade import easing
 from arcade.types import Color
 
-from actions import Action, ease, move_until
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from actions import Action, ease, infinite, move_until
 
 # --- Constants ---
 WINDOW_WIDTH = 1280
@@ -41,7 +35,7 @@ TRAIL_COLOR = "#F39C12"
 LINE_COLOR = "#3498DB"
 LINE_WIDTH = 2
 
-X_START = 60
+X_START = 250
 MISSILE_VELOCITY = 5  # pixels per frame cruise speed (300 pixels/second at 60 FPS)
 Y_INTERVAL = 60
 MISSILE_SIZE = 8
@@ -136,15 +130,15 @@ class EaseDemoView(arcade.View):
         bounds = (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
         continuous_flight = move_until(
             missile,
-            (MISSILE_VELOCITY, 0),  # Cruise velocity
-            lambda: False,  # Never stop on its own
+            velocity=(MISSILE_VELOCITY, 0),  # Cruise velocity
+            condition=infinite,  # Never stop on its own
             bounds=bounds,
             boundary_behavior="wrap",
             on_boundary=on_boundary_hit,
         )
 
         # Wrap with Ease for smooth acceleration to cruise speed
-        ease(missile, continuous_flight, seconds=EASING_DURATION, ease_function=ease_func)
+        ease(missile, continuous_flight, duration=EASING_DURATION, ease_function=ease_func)
 
     def on_draw(self):
         self.clear()

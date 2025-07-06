@@ -11,7 +11,7 @@ from collections.abc import Callable
 
 from arcade import easing
 
-from actions.base import Action
+from actions import Action
 
 
 class Ease(Action):
@@ -39,43 +39,49 @@ class Ease(Action):
 
     Parameters:
         action: The conditional action to be wrapped and time-warped
-        seconds: Duration of the easing effect in seconds
+        duration: Duration of the easing effect in seconds
         ease_function: Easing function taking t ∈ [0, 1] and returning eased factor
         on_complete: Optional callback when easing completes
+        tag: Optional tag for identifying this action
 
     Examples:
         # Smooth missile launch - accelerates to cruise speed, then continues
         missile_move = MoveUntil((300, 0), lambda: False)
-        smooth_launch = Ease(missile_move, seconds=1.5, ease_function=easing.ease_out)
+        smooth_launch = Ease(missile_move, duration=1.5, ease_function=easing.ease_out)
         smooth_launch.apply(missile, tag="launch")
 
         # Formation movement with smooth acceleration
         formation_move = MoveUntil((100, 0), lambda: False)
-        smooth_formation = Ease(formation_move, seconds=2.0, ease_function=easing.ease_in_out)
+        smooth_formation = Ease(formation_move, duration=2.0, ease_function=easing.ease_in_out)
         smooth_formation.apply(enemy_formation, tag="advance")
 
         # Smooth curved path following with rotation
         path_points = [(100, 100), (200, 200), (300, 100)]
         path_action = FollowPathUntil(path_points, 250, lambda: False, rotate_with_path=True)
-        eased_path = Ease(path_action, seconds=1.5, ease_function=easing.ease_in_out)
+        eased_path = Ease(path_action, duration=1.5, ease_function=easing.ease_in_out)
         eased_path.apply(sprite, tag="patrol")
     """
 
     def __init__(
         self,
         action: Action,
-        seconds: float,
-        ease_function: Callable[[float], float] = easing.ease_in_out,
+        duration: float,
+        ease_function: Callable[[float], float] | None = None,
         on_complete: Callable[[], None] | None = None,
+        tag: str | None = None,
     ):
-        if seconds <= 0:
-            raise ValueError("seconds must be positive")
+        if duration <= 0:
+            raise ValueError("duration must be positive")
 
         # No external condition - easing manages its own completion
-        super().__init__(condition_func=None, on_condition_met=None)
+        super().__init__(condition=None, on_stop=None, tag=tag)
 
         self.wrapped_action = action
-        self.easing_duration = seconds
+        self.easing_duration = duration
+
+        # Set default easing function if None provided
+        if ease_function is None:
+            ease_function = easing.ease_in_out
         self.ease_function = ease_function
         self.on_complete = on_complete
 
@@ -147,6 +153,7 @@ class Ease(Action):
             self.easing_duration,
             self.ease_function,
             self.on_complete,
+            self.tag,
         )
 
     def __repr__(self) -> str:

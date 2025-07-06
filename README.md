@@ -2,30 +2,18 @@
 
 ## 🚀 Quick Appeal
 
-So much of building an arcade game is a cluttered way of saying "animate this sprite until X happens", where X is colliding with another sprite, reaching a boundary, or responding to an event. But instead of coding at a high-level, most of us do lots of low-level behavior like "add 1 to sprite.x". Instead, what if you could more easily say "keep moving and rotating this asteroid, wrap it the other side of the window if it hits a boundary, and call a function if it collides with another sprite (and tell me what sprite it is)."? 
+So much of building an arcade game is a cluttered way of saying "animate this sprite until something happens", like colliding with another sprite, reaching a boundary, or an event response. Most of us manage this complexity in the game loop, using low-level movement of game objects and complex chains of `if`-statements. But what if you could write a command like "keep moving this sprite, wrap it the other side of the window if it hits a boundary, and raise an event when it collides with another sprite" ... and have it be clear and concise? 
 
 ```python 
-from actions import move_until, rotate_until
-from actions.conditional import MoveUntil, RotateUntil
-from actions.composite import parallel
+import arcade
+from actions import infinite, move_until, parallel
 
-# assume player and asteroid are arcade.Sprites, and asteroid_list is a arcade.SpriteList
-
-# For simple, immediate actions, use helper functions:
-move_until(asteroid, (5, 4), lambda: False, tag="movement")
-rotate_until(asteroid, 1.5, asteroid_collision_check, on_stop=handle_asteroid_collision, tag="rotation")
-
-# For complex compositions, use direct classes:
-asteroid_behavior = parallel(
-    MoveUntil((5, 4), lambda: False),
-    RotateUntil(1.5, asteroid_collision_check, on_condition_met=handle_asteroid_collision)
-)
-asteroid_behavior.apply(asteroid, tag="complex_behavior")
-
+# assume player and asteroid are arcade.Sprites, and other_asteroids is a arcade.SpriteList
+move_until(asteroid, velocity=(5, 4), condition=infinite, bounds=(-64, -64, 864, 664), boundary_behavior="wrap")
 
 def asteroid_collision_check():
     player_hit = arcade.check_for_collision(player, asteroid)
-    asteroid_hits = arcade.check_for_collision_with_list(asteroid, asteroid_list)
+    asteroid_hits = arcade.check_for_collision_with_list(asteroid, other_asteroids)
 
     if player_hit or asteroid_hits:
         return {
@@ -34,7 +22,6 @@ def asteroid_collision_check():
         }
     return None  # Continue moving
 
-
 # The callback receives the collision data from the condition function
 def handle_asteroid_collision(collision_data):
     if collision_data["player_hit"]:
@@ -42,8 +29,8 @@ def handle_asteroid_collision(collision_data):
     for asteroid in collision_data["asteroid_hits"]:
         print("Asteroid collisions!")
 ```
-This type of approach clearly separate the actions associated with animation from the event responses of game objects interacting. Most of all, it makes your game code understandable. 
-Compare this high-level declarative pattern to the amount of low-level game code you are writing now. If this pattern appeals to you, read on!
+This example shows how animations actions can be logically separated from collision responses, making your game code far more understandable. 
+Compare this to the amount of disordered and low-level game code you are writing now. If writing high-level code appeals to you ... it's why you chose Python in the first place ... read on!
 
 ## 📚 Documentation Overview
 
@@ -129,9 +116,7 @@ docs/
 
 ```python
 import arcade
-from actions import Action, move_until
-from actions.conditional import duration
-from actions.formation import arrange_grid
+from actions import Action, arrange_grid, duration, move_until
 
 
 class SpaceInvadersGame(arcade.Window):
@@ -158,18 +143,17 @@ class SpaceInvadersGame(arcade.Window):
         def on_boundary_hit(sprite, axis):
             if axis == "x":
                 # Move entire formation down and change direction
-                move_until(self.enemies, (0, -30), duration(0.3), tag="drop")
+                move_until(self.enemies, velocity=(0, -30), condition=duration(0.3))
 
         # Create continuous horizontal movement with boundary detection
         bounds = (50, 0, 750, 600)  # left, bottom, right, top
         move_until(
             self.enemies,
-            (50, 0),
-            lambda: False,  # Move indefinitely
+            velocity=(50, 0),
+            condition=infinite,
             bounds=bounds,
             boundary_behavior="bounce",
-            on_boundary=on_boundary_hit,
-            tag="formation_movement",
+            on_boundary=on_boundary_hit
         )
 
     def on_update(self, delta_time):

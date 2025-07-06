@@ -12,9 +12,7 @@ import random
 
 import arcade
 
-from actions import move_until
-from actions.base import Action
-from actions.formation import arrange_grid
+from actions import Action, arrange_grid, move_until
 
 SPRITE_SCALING_PLAYER = 0.75
 SPRITE_SCALING_ENEMY = 0.75
@@ -167,7 +165,9 @@ class GameView(arcade.View):
             self.reverse_enemy_direction()
 
         velocity = (ENEMY_SPEED * self.enemy_direction, 0)
-        self.enemy_move_action = move_until(self.enemy_list, velocity, enemies_hit_boundary, on_stop=on_boundary_hit)
+        self.enemy_move_action = move_until(
+            self.enemy_list, velocity, condition=enemies_hit_boundary, on_stop=on_boundary_hit
+        )
 
     def reverse_enemy_direction(self):
         """Reverse enemy direction efficiently"""
@@ -220,7 +220,7 @@ class GameView(arcade.View):
 
             if enemy_hits or shield_hits or off_screen:
                 return {"enemy_hits": enemy_hits, "shield_hits": shield_hits, "off_screen": off_screen}
-            return None  # Continue moving
+            return  # Continue moving
 
         def handle_bullet_collision(collision_data):
             bullet.remove_from_sprite_lists()
@@ -240,7 +240,9 @@ class GameView(arcade.View):
             if len(self.enemy_list) == 0:
                 self.reset()
 
-        move_until(bullet, (0, BULLET_SPEED), bullet_collision_check, on_stop=handle_bullet_collision)
+        move_until(
+            bullet, velocity=(0, BULLET_SPEED), condition=bullet_collision_check, on_stop=handle_bullet_collision
+        )
 
     def allow_enemies_to_fire(self):
         """Enemy firing with efficient collision detection"""
@@ -265,7 +267,7 @@ class GameView(arcade.View):
 
                     if player_hits or shield_hits or off_screen:
                         return {"player_hits": player_hits, "shield_hits": shield_hits, "off_screen": off_screen}
-                    return None  # Continue moving
+                    return {}  # Continue moving
 
                 def handle_enemy_bullet_collision(collision_data, bullet_ref=bullet):
                     bullet_ref.remove_from_sprite_lists()
@@ -277,7 +279,10 @@ class GameView(arcade.View):
                         shield.remove_from_sprite_lists()
 
                 move_until(
-                    bullet, (0, -BULLET_SPEED), enemy_bullet_collision_check, on_stop=handle_enemy_bullet_collision
+                    bullet,
+                    velocity=(0, -BULLET_SPEED),
+                    condition=enemy_bullet_collision_check,
+                    on_stop=handle_enemy_bullet_collision,
                 )
 
             x_spawn.append(enemy.center_x)
