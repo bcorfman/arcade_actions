@@ -11,7 +11,7 @@ from collections.abc import Callable
 
 from arcade import easing
 
-from actions.base import Action
+from actions import Action
 
 
 class Ease(Action):

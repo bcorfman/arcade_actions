@@ -22,8 +22,7 @@ import arcade
 from arcade import easing
 from arcade.types import Color
 
-from actions import Action, tween_until
-from actions.conditional import duration
+from actions import Action, duration, tween_until
 
 # --- Constants ---
 SPRITE_SCALING = 0.5

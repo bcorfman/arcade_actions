@@ -21,9 +21,11 @@ from typing import Any, overload
 import arcade
 from arcade import easing
 
-from actions.conditional import (
+from actions import (
+    Action,
     BlinkUntil,
     DelayUntil,
+    Ease,
     FadeUntil,
     FollowPathUntil,
     MoveUntil,
@@ -31,7 +33,6 @@ from actions.conditional import (
     ScaleUntil,
     TweenUntil,
 )
-from actions.easing import Ease
 
 SpriteTarget = arcade.Sprite | arcade.SpriteList
 

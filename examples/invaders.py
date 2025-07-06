@@ -12,9 +12,7 @@ import random
 
 import arcade
 
-from actions import move_until
-from actions.base import Action
-from actions.formation import arrange_grid
+from actions import Action, arrange_grid, move_until
 
 SPRITE_SCALING_PLAYER = 0.75
 SPRITE_SCALING_ENEMY = 0.75
