@@ -77,9 +77,7 @@ This maintains consistency with Arcade's native sprite system where `sprite.chan
 All actions are managed globally - no manual action tracking needed:
 
 ```python
-from actions.base import Action
-from actions import move_until
-from actions.conditional import duration
+from actions import Action, duration, move_until
 
 # Apply actions directly to any arcade.Sprite or arcade.SpriteList
 move_until(sprite, velocity=(100, 0), condition=duration(2.0))
@@ -246,8 +244,7 @@ You can use both techniques together for complex animations:
 
 ```python
 # Sequential combination: precise positioning followed by smooth movement
-from actions.conditional import TweenUntil, MoveUntil, duration, sequence
-from actions import ease
+from actions import TweenUntil, MoveUntil, duration, ease, sequence
 
 def create_guard_behavior(guard_sprite):
     # Step 1: Precise positioning
@@ -268,7 +265,7 @@ def create_guard_behavior(guard_sprite):
 ### Advanced Easing Patterns
 
 ```python
-from actions.conditional import ease, fade_until, infinite, move_until, rotate_until
+from actions import ease, fade_until, infinite, move_until, rotate_until
 from arcade import easing
 
 # Multiple concurrent eased effects
@@ -295,8 +292,8 @@ from actions import duration, move_until, rotate_until
 player = arcade.Sprite(":resources:images/player.png")
 
 # Apply simple actions directly using helper functions
-move_until(player, velocity=(100, 0), condition=duration(2.0), tag="movement")
-rotate_until(player, angular_velocity=180, condition=duration(0.5), tag="rotation")
+move_until(player, velocity=(100, 0), condition=duration(2.0))
+rotate_until(player, angular_velocity=180, condition=duration(0.5))
 ```
 
 ### Pattern 2: Group Coordination
@@ -344,8 +341,6 @@ For complex game scenarios with formation positioning:
 
 ```python
 from actions import arrange_grid, arrange_circle, arrange_diamond
-
-# Create a 3×5 enemy grid in one call using sprite_factory
 from functools import partial
 
 # Define how each enemy sprite should be built
@@ -379,19 +374,19 @@ from actions import (
 zigzag_movement = create_zigzag_pattern(
     width=100, height=50, speed=150, segments=6
 )
-zigzag_movement.apply(enemy_sprite, tag="zigzag_attack")
+zigzag_movement.apply(enemy_sprite)
 
 # Boss with smooth wave movement
 wave_movement = create_wave_pattern(
     amplitude=75, frequency=2, length=600, speed=120
 )
-wave_movement.apply(boss_sprite, tag="wave_movement")
+wave_movement.apply(boss_sprite)
 
 # Guard with patrol pattern
 patrol_movement = create_patrol_pattern(
     start_pos=(100, 200), end_pos=(500, 200), speed=80
 )
-patrol_movement.apply(guard_sprite, tag="patrol")
+patrol_movement.apply(guard_sprite)
 ```
 
 ### Pattern 6: Path Following with Rotation
@@ -410,7 +405,6 @@ follow_path_until(
     velocity=200, 
     condition=duration(3.0),
     rotate_with_path=True,
-    tag="rotating_movement"
 )
 
 # Path following with rotation offset for sprites pointing up
@@ -420,7 +414,6 @@ follow_path_until(
     condition=duration(3.0),
     rotate_with_path=True,
     rotation_offset=-90.0,  # Compensate for upward-pointing artwork
-    tag="calibrated_movement"
 )
 
 # Complex curved missile trajectory
@@ -433,7 +426,6 @@ follow_path_until(
     velocity=300,
     condition=lambda: distance_to_target() < 20,  # Until close to target
     rotate_with_path=True,  # Missile points toward movement direction
-    tag="homing"
 )
 ```
 
@@ -455,14 +447,13 @@ move_until(
     bounds=bounds,
     boundary_behavior="bounce",
     on_boundary=on_bounce,
-    tag="bounce"
 )
 
 # Group bouncing (like Space Invaders)
 def formation_bounce(sprite, axis):
     if axis == 'x':
         # Move entire formation down
-        move_until(enemies, (0, -30), duration(0.2), tag="drop")
+        move_until(enemies, (0, -30), duration(0.2))
 
 move_until(
     enemies,
@@ -648,7 +639,6 @@ class SpaceInvadersGame(arcade.Window):
             bounds=bounds,
             boundary_behavior="bounce",
             on_boundary=on_formation_bounce,
-            tag="bounce_movement"
         )
     
     def on_update(self, delta_time):
@@ -711,7 +701,7 @@ move_action = move_until(sprite, velocity=(200, 0), condition=infinite)
 ease(sprite, move_action, duration=1.5)
 
 # Good: Use TweenUntil for precise property changes
-tween_until(sprite, 0, 100, "center_x", duration(1.0))
+tween_until(sprite, start_value=0, end_value=100, property_name="center_x", condition=duration(1.0))
 
 # Avoid: Using the wrong approach for the use case
 # Don't use TweenUntil for complex path following
@@ -722,17 +712,17 @@ tween_until(sprite, 0, 100, "center_x", duration(1.0))
 
 | Use Case | Pattern | Example |
 |----------|---------|---------|
-| Simple sprite actions | Helper functions | `move_until(sprite, (5, 0), condition)` |
-| Sprite group actions | Helper functions on SpriteList | `move_until(sprite_list, (5, 0), condition)` |
+| Simple sprite actions | Helper functions | `move_until(sprite, velociy=(5, 0), condition=cond)` |
+| Sprite group actions | Helper functions on SpriteList | `move_until(sprite_list, velocity=(5, 0), condition=cond)` |
 | Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
 | Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), FadeUntil(...))` |
 | Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
 | Movement patterns | Pattern functions | `create_zigzag_pattern(100, 50, 150)` |
-| Path following | `follow_path_until` helper | `follow_path_until(sprite, points, 200, condition)` |
-| Boundary detection | `move_until` with bounds | `move_until(sprite, vel, cond, bounds=b)` |
+| Path following | `follow_path_until` helper | `follow_path_until(sprite, points, velocity=200, condition=cond)` |
+| Boundary detection | `move_until` with bounds | `move_until(sprite, velocity=vel, condition=cond, bounds=b)` |
 | Delayed execution | Direct classes in sequences | `sequence(DelayUntil(duration(1.0)), action)` |
 | Smooth acceleration | `ease` helper | `ease(sprite, action, duration=2.0)` |
-| Property animation | `tween_until` helper | `tween_until(sprite, start, end, "prop", duration(1.0))` |
+| Property animation | `tween_until` helper | `tween_until(sprite, start_val=start, end_val=end, "prop", duration(1.0))` |
 
 The ArcadeActions framework provides a clean, declarative way to create complex game behaviors while leveraging Arcade's native sprite system!
 

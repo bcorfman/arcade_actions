@@ -236,24 +236,24 @@ PRD.md (this file)           → Architecture & Requirements
 
 ### Pattern 1: Direct Action Application
 ```python
-from actions import move_until
+from actions import infinite, move_until
 
 # Works with any arcade.Sprite or arcade.SpriteList
 sprite = arcade.Sprite("image.png")
 enemies = arcade.SpriteList()
 
-move_until(sprite, (100, 0), lambda: sprite.center_x > 700, tag="movement")
-move_until(enemies, (100, 0), lambda: False, tag="formation")
+move_until(sprite, velocity=(100, 0), condition=lambda: sprite.center_x > 700)
+move_until(enemies, velocity=(100, 0), condition=infinite)
 ```
 
 ### Pattern 2: Operator-Based Composition
 ```python
-from actions import move_until, rotate_until, fade_until
+from actions import infinite, move_until, rotate_until, fade_until
 
 # Clean declarative syntax with operators
 # Unbound actions can be created by passing `None` as the target
-move = move_until(None, (100, 0), lambda: False)
-rotate = rotate_until(None, 1.5, lambda: False)
+move = move_until(None, velocity=(100, 0), condition=infinite)
+rotate = rotate_until(None, velocity=1.5, condition=infinite)
 
 seq = move + rotate
 par = move | rotate
@@ -274,7 +274,7 @@ def on_update(self, delta_time):
 
 ### Pattern 4: Formation Functions for Layout
 ```python
-from actions.formation import arrange_grid
+from actions import arrange_grid
 arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
 ```
 
