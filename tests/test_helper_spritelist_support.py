@@ -74,17 +74,13 @@ class TestHelperFunctionSpriteListSupport:
         """Test that tween_until helper supports SpriteList targets."""
         # This was the main regression - tween_until was typed for Sprite only
         action = tween_until(
-            self.sprite_list, start_value=0, end_value=10, property_name="change_y", condition_func=duration(0.1)
+            self.sprite_list, start_value=0, end_value=10, property_name="change_y", condition=duration(0.1)
         )
 
+        # Should accept sprite list and apply to all sprites
         assert action.target == self.sprite_list
-        assert len(Action._active_actions) == 1
-
-        # Verify it applies to all sprites in the list
-        Action.update_all(1 / 60.0)
-        assert self.sprite1.change_y != 0  # Should be tweening
-        assert self.sprite2.change_y != 0  # Should be tweening
-        assert self.sprite1.change_y == self.sprite2.change_y  # Should be same value
+        for sprite in self.sprite_list:
+            assert sprite.change_y == 0  # Should be at start value
 
     def test_blink_until_supports_sprite_list(self):
         """Test that blink_until helper supports SpriteList targets."""

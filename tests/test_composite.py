@@ -17,8 +17,13 @@ def create_test_sprite() -> arcade.Sprite:
 class MockAction(Action):
     """Mock action for testing composite actions."""
 
-    def __init__(self, duration=0.1, name="mock"):
-        super().__init__()
+    def __init__(self, duration=0.1, name="mock", condition=None, on_stop=None, check_interval=0.0):
+        # If no condition provided, use a default one that never completes
+        super().__init__(
+            condition=condition if condition is not None else lambda: False,
+            on_stop=on_stop,
+            check_interval=check_interval,
+        )
         self.duration = duration
         self.name = name
         self.time_elapsed = 0.0
@@ -41,7 +46,15 @@ class MockAction(Action):
         self.stopped = True
 
     def clone(self) -> "MockAction":
-        return MockAction(self.duration, self.name)
+        new_action = MockAction(
+            duration=self.duration,
+            name=self.name,
+            condition=self.condition,
+            on_stop=self.on_stop,
+            check_interval=self.check_interval,
+        )
+        new_action.tag = self.tag
+        return new_action
 
 
 class TestSequenceFunction:

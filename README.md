@@ -2,30 +2,18 @@
 
 ## 🚀 Quick Appeal
 
-So much of building an arcade game is a cluttered way of saying "animate this sprite until X happens", where X is colliding with another sprite, reaching a boundary, or responding to an event. But instead of coding at a high-level, most of us do lots of low-level behavior like "add 1 to sprite.x". Instead, what if you could more easily say "keep moving and rotating this asteroid, wrap it the other side of the window if it hits a boundary, and call a function if it collides with another sprite (and tell me what sprite it is)."? 
+So much of building an arcade game is a cluttered way of saying "animate this sprite until X happens", where X is colliding with another sprite, reaching a boundary, or responding to an event. But instead of coding at a high-level, most of us do lots of low-level behavior like "add 1 to sprite.x". Instead, what if you could more easily say "keep moving this asteroid, wrap it the other side of the window if it hits a boundary, and call a function if it collides with another sprite (and tell me what sprite it is)."? 
 
 ```python 
-from actions import move_until, rotate_until
-from actions.conditional import MoveUntil, RotateUntil
-from actions.composite import parallel
+from actions import infinite, move_until, parallel
 
-# assume player and asteroid are arcade.Sprites, and asteroid_list is a arcade.SpriteList
-
-# For simple, immediate actions, use helper functions:
-move_until(asteroid, (5, 4), lambda: False, tag="movement")
-rotate_until(asteroid, 1.5, asteroid_collision_check, on_stop=handle_asteroid_collision, tag="rotation")
-
-# For complex compositions, use direct classes:
-asteroid_behavior = parallel(
-    MoveUntil((5, 4), lambda: False),
-    RotateUntil(1.5, asteroid_collision_check, on_condition_met=handle_asteroid_collision)
-)
-asteroid_behavior.apply(asteroid, tag="complex_behavior")
-
+# assume player and asteroid are arcade.Sprites, and other_asteroids is a arcade.SpriteList
+# For simple, immediate actions, use helper functions.
+move_until(asteroid, velocity=(5, 4), condition=infinite, bounds=(-64, -64, 864, 664), boundary_behavior="wrap")
 
 def asteroid_collision_check():
     player_hit = arcade.check_for_collision(player, asteroid)
-    asteroid_hits = arcade.check_for_collision_with_list(asteroid, asteroid_list)
+    asteroid_hits = arcade.check_for_collision_with_list(asteroid, other_asteroids)
 
     if player_hit or asteroid_hits:
         return {
@@ -158,18 +146,17 @@ class SpaceInvadersGame(arcade.Window):
         def on_boundary_hit(sprite, axis):
             if axis == "x":
                 # Move entire formation down and change direction
-                move_until(self.enemies, (0, -30), duration(0.3), tag="drop")
+                move_until(self.enemies, velocity=(0, -30), condition=duration(0.3))
 
         # Create continuous horizontal movement with boundary detection
         bounds = (50, 0, 750, 600)  # left, bottom, right, top
         move_until(
             self.enemies,
-            (50, 0),
-            lambda: False,  # Move indefinitely
+            velocity=(50, 0),
+            condition=infinite,
             bounds=bounds,
             boundary_behavior="bounce",
-            on_boundary=on_boundary_hit,
-            tag="formation_movement",
+            on_boundary=on_boundary_hit
         )
 
     def on_update(self, delta_time):

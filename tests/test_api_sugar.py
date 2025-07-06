@@ -3,13 +3,7 @@
 import arcade
 import pytest
 
-from actions.base import Action
-from actions.conditional import MoveUntil, RotateUntil
-from actions.helpers import move_until
-
-# Import helpers and composite actions once they exist
-# from actions.helpers import move_until, rotate_until
-# from actions.composite import sequence, parallel
+from actions import Action, MoveUntil, RotateUntil, move_until
 
 
 # Fixtures for creating test sprites and lists

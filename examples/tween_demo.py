@@ -121,8 +121,8 @@ class InterpolateDemoView(arcade.View):
                         start_value=start_x,
                         end_value=end_x,
                         property_name="center_x",
-                        condition_func=duration(TIME),
-                        on_condition_met=on_complete,
+                        condition=duration(TIME),
+                        on_stop=on_complete,
                         ease_function=current_ease_func,
                     )
 

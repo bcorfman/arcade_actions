@@ -21,9 +21,10 @@ from actions import (
     DelayUntil,
     MoveUntil,
     TweenUntil,
+    duration,
+    infinite,
+    sequence,
 )
-from actions.composite import sequence
-from actions.conditional import duration
 
 # ---------------------------------------------------------------------------
 # Window configuration
@@ -103,8 +104,8 @@ class StarfieldView(arcade.View):
         # Action 1: A permanent action that handles boundary checking and wrapping.
         # It has zero velocity so it only enforces the rules, it doesn't cause movement.
         wrapping_action = MoveUntil(
-            (0, 0),
-            lambda: False,  # Run forever
+            velocity=(0, 0),
+            condition=infinite,
             bounds=bounds,
             boundary_behavior="wrap",
             on_boundary=self.on_wrap,
@@ -131,7 +132,7 @@ class StarfieldView(arcade.View):
                     start_value=0,
                     end_value=-4,
                     property_name="change_y",
-                    condition_func=duration(2.0),
+                    condition=duration(2.0),
                     ease_function=arcade.easing.ease_in,
                 ),
                 # 3. Hold forward speed for 10 seconds.
@@ -141,7 +142,7 @@ class StarfieldView(arcade.View):
                     start_value=-4,
                     end_value=14,
                     property_name="change_y",
-                    condition_func=duration(0.5),
+                    condition=duration(0.5),
                     ease_function=arcade.easing.ease_out,
                 ),
                 # 5. Hold reverse speed for 2.5 seconds.
@@ -152,9 +153,9 @@ class StarfieldView(arcade.View):
                     start_value=20,
                     end_value=0,
                     property_name="change_y",
-                    condition_func=duration(2.0),
+                    condition=duration(2.0),
                     ease_function=arcade.easing.ease_out,
-                    on_condition_met=on_loop_complete,
+                    on_stop=on_loop_complete,
                 ),
             )
             control_sequence.apply(self.star_list)
@@ -175,12 +176,10 @@ class StarfieldView(arcade.View):
     def on_draw(self):
         # Clear screen (preferred over arcade.start_render() inside a View).
         self.clear()
-
         self.star_list.draw()
 
     def on_key_press(self, key: int, modifiers: int):
         if key == arcade.key.ESCAPE:
-            # Close the whole application immediately.
             self.window.close()
 
 

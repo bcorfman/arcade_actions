@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 import arcade
 
 if TYPE_CHECKING:
-    from actions.types import ActionCallback, ConditionFunc, SpriteTarget
+    from actions.types import SpriteTarget
 
 
 _T = TypeVar("_T", bound="Action")
@@ -38,23 +38,24 @@ class Action(ABC, Generic[_T]):
 
     def __init__(
         self,
-        condition_func: ConditionFunc | None = None,
-        on_condition_met: ActionCallback | None = None,
+        condition: Callable[[], Any],
+        on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
         check_interval: float = 0.0,
+        tag: str | None = None,
     ):
         self.target: SpriteTarget | None = None
-        self.tag: str | None = None
+        self.tag = tag
         self.done = False
         self._is_active = False
         self._paused = False
         self._factor = 1.0  # Multiplier for speed/rate, 1.0 = normal
         self._condition_met = False
-        self._time_since_last_check: float = 0.0
-        self._condition_data: Any = None
+        self._elapsed = 0.0
+        self.condition_data: Any = None
 
         # These are exposed for advanced use cases (e.g., custom composite actions)
-        self.condition_func = condition_func
-        self.on_condition_met = on_condition_met
+        self.condition = condition
+        self.on_stop = on_stop
         self.check_interval = check_interval
 
     def __add__(self, other: Action) -> Action:
@@ -112,22 +113,21 @@ class Action(ABC, Generic[_T]):
 
         self.update_effect(delta_time)
 
-        if self.condition_func and not self._condition_met:
-            self._time_since_last_check += delta_time
-            if self._time_since_last_check >= self.check_interval:
-                self._time_since_last_check = 0.0
-                condition_result = self.condition_func()
+        if self.condition and not self._condition_met:
+            self._elapsed += delta_time
+            if self._elapsed >= self.check_interval:
+                self._elapsed = 0.0
+                condition_result = self.condition()
                 if condition_result:
                     self._condition_met = True
-                    self._condition_data = condition_result
+                    self.condition_data = condition_result
                     self.remove_effect()
                     self.done = True
-                    if self.on_condition_met:
-                        # Simplified callback handling - just call with result if not True
+                    if self.on_stop:
                         if condition_result is not True:
-                            self.on_condition_met(condition_result)
+                            self.on_stop(condition_result)
                         else:
-                            self.on_condition_met()
+                            self.on_stop()
 
     def update_effect(self, delta_time: float) -> None:
         """
@@ -214,10 +214,10 @@ class Action(ABC, Generic[_T]):
         """Return True if the action's condition has been met."""
         return self._condition_met
 
-    @property
-    def condition_data(self) -> Any:
-        """Return the data from the condition function when it was met."""
-        return self._condition_data
+    @condition_met.setter
+    def condition_met(self, value: bool) -> None:
+        """Set whether the action's condition has been met."""
+        self._condition_met = value
 
     def pause(self) -> None:
         """Pause the action."""
@@ -233,7 +233,7 @@ class CompositeAction(Action):
 
     def __init__(self):
         # Composite actions manage their own completion - no external condition
-        super().__init__(condition_func=None)
+        super().__init__(condition=None, on_stop=None)
         self._on_complete_called = False
 
     def _check_complete(self) -> None:

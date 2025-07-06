@@ -109,7 +109,7 @@ def create_smooth_zigzag_pattern(width: float, height: float, speed: float, ease
     zigzag = create_zigzag_pattern(width, height, speed)
 
     # Wrap with easing for smooth acceleration
-    return Ease(zigzag, seconds=ease_duration, ease_function=easing.ease_in_out)
+    return Ease(zigzag, duration=ease_duration, ease_function=easing.ease_in_out)
 
 
 def create_spiral_pattern(

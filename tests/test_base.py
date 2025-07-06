@@ -2,7 +2,7 @@
 
 import arcade
 
-from actions.base import Action
+from actions import Action
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -16,13 +16,28 @@ def create_test_sprite() -> arcade.Sprite:
 class MockAction(Action):
     """A concrete Action subclass for testing."""
 
+    def __init__(self, duration=0.1, name="mock", condition=None, on_stop=None, check_interval=0.0):
+        # If no condition provided, use a default one that never completes
+        super().__init__(
+            condition=condition if condition is not None else lambda: False,
+            on_stop=on_stop,
+            check_interval=check_interval,
+        )
+        self.duration = duration
+        self.name = name
+        self.time_elapsed = 0.0
+        self.started = False
+        self.stopped = False
+
     def apply_effect(self) -> None:
         pass
 
     def clone(self) -> Action:
         new_action = MockAction(
-            condition_func=self.condition_func,
-            on_condition_met=self.on_condition_met,
+            duration=self.duration,
+            name=self.name,
+            condition=self.condition,
+            on_stop=self.on_stop,
             check_interval=self.check_interval,
         )
         new_action.tag = self.tag
@@ -39,23 +54,23 @@ class TestAction:
     def test_action_initialization(self):
         """Test basic action initialization."""
 
-        def condition_func():
+        def condition():
             return False
 
-        action = MockAction(condition_func=condition_func)
+        action = MockAction(condition=condition)
         action.tag = "test"
 
         assert action.target is None
         assert action.tag == "test"
         assert not action._is_active
         assert not action.done
-        assert action.condition_func == condition_func
+        assert action.condition == condition
         assert not action._condition_met
 
     def test_action_apply_registration(self):
         """Test that applying an action registers it globally."""
         sprite = create_test_sprite()
-        action = MockAction(condition_func=lambda: False)
+        action = MockAction(condition=lambda: False)
 
         action.apply(sprite, tag="test")
 
@@ -76,7 +91,7 @@ class TestAction:
             time_elapsed += 0.016  # Simulate frame time
             return time_elapsed >= 1.0
 
-        action = MockAction(condition_func=time_condition)
+        action = MockAction(condition=time_condition)
         action.apply(sprite)
 
         # Update multiple times - allow extra iterations for the math to work out
@@ -94,7 +109,7 @@ class TestAction:
         callback_called = False
         callback_data = None
 
-        def on_condition_met(data=None):
+        def on_stop(data=None):
             nonlocal callback_called, callback_data
             callback_called = True
             callback_data = data
@@ -102,7 +117,7 @@ class TestAction:
         def condition():
             return {"result": "success"}
 
-        action = MockAction(condition_func=condition, on_condition_met=on_condition_met)
+        action = MockAction(condition=condition, on_stop=on_stop)
         action.apply(sprite)
 
         Action.update_all(0.016)
@@ -113,7 +128,7 @@ class TestAction:
     def test_action_stop_instance(self):
         """Test stopping a specific action instance."""
         sprite = create_test_sprite()
-        action = MockAction(condition_func=lambda: False)
+        action = MockAction(condition=lambda: False)
         action.apply(sprite)
 
         assert action._is_active
@@ -128,8 +143,8 @@ class TestAction:
     def test_action_stop_by_tag(self):
         """Test stopping actions by tag."""
         sprite = create_test_sprite()
-        action1 = MockAction(condition_func=lambda: False)
-        action2 = MockAction(condition_func=lambda: False)
+        action1 = MockAction(condition=lambda: False)
+        action2 = MockAction(condition=lambda: False)
 
         action1.apply(sprite, tag="movement")
         action2.apply(sprite, tag="effects")
@@ -142,8 +157,8 @@ class TestAction:
     def test_action_stop_all_target(self):
         """Test stopping all actions for a target."""
         sprite = create_test_sprite()
-        action1 = MockAction(condition_func=lambda: False)
-        action2 = MockAction(condition_func=lambda: False)
+        action1 = MockAction(condition=lambda: False)
+        action2 = MockAction(condition=lambda: False)
 
         action1.apply(sprite, tag="movement")
         action2.apply(sprite, tag="effects")
@@ -157,8 +172,8 @@ class TestAction:
         """Test clearing all active actions."""
         sprite1 = create_test_sprite()
         sprite2 = create_test_sprite()
-        action1 = MockAction(condition_func=lambda: False)
-        action2 = MockAction(condition_func=lambda: False)
+        action1 = MockAction(condition=lambda: False)
+        action2 = MockAction(condition=lambda: False)
 
         action1.apply(sprite1)
         action2.apply(sprite2)
@@ -175,8 +190,8 @@ class TestAction:
 
         assert len(Action._active_actions) == 0
 
-        action1 = MockAction(condition_func=lambda: False)
-        action2 = MockAction(condition_func=lambda: False)
+        action1 = MockAction(condition=lambda: False)
+        action2 = MockAction(condition=lambda: False)
         action1.apply(sprite)
         action2.apply(sprite)
 
@@ -185,8 +200,8 @@ class TestAction:
     def test_action_get_actions_for_target(self):
         """Test getting actions for target by tag."""
         sprite = create_test_sprite()
-        action1 = MockAction(condition_func=lambda: False)
-        action2 = MockAction(condition_func=lambda: False)
+        action1 = MockAction(condition=lambda: False)
+        action2 = MockAction(condition=lambda: False)
 
         action1.apply(sprite, tag="movement")
         action2.apply(sprite, tag="effects")
@@ -202,7 +217,7 @@ class TestAction:
     def test_action_check_tag_exists(self):
         """Test checking if actions with a tag exist for a target."""
         sprite = create_test_sprite()
-        action = MockAction(condition_func=lambda: False)
+        action = MockAction(condition=lambda: False)
 
         # No actions yet
         assert len(Action.get_actions_for_target(sprite, "movement")) == 0
@@ -217,20 +232,20 @@ class TestAction:
     def test_action_clone(self):
         """Test action cloning."""
 
-        def condition_func():
+        def condition():
             return False
 
-        def on_condition_met():
+        def on_stop():
             pass
 
-        action = MockAction(condition_func=condition_func, on_condition_met=on_condition_met, check_interval=0.5)
+        action = MockAction(condition=condition, on_stop=on_stop, check_interval=0.5)
         action.tag = "test"
 
         cloned = action.clone()
 
         assert cloned is not action
-        assert cloned.condition_func == condition_func
-        assert cloned.on_condition_met == on_condition_met
+        assert cloned.condition == condition
+        assert cloned.on_stop == on_stop
         assert cloned.check_interval == 0.5
         assert cloned.tag == "test"
 
@@ -242,7 +257,7 @@ class TestAction:
         sprite_list.append(sprite1)
         sprite_list.append(sprite2)
 
-        action = MockAction(condition_func=lambda: False)
+        action = MockAction(condition=lambda: False)
         action.target = sprite_list
 
         visited_sprites = []
@@ -258,14 +273,14 @@ class TestAction:
 
     def test_action_condition_properties(self):
         """Test action condition properties."""
-        action = MockAction(condition_func=lambda: False)
+        action = MockAction(condition=lambda: False)
 
         assert not action.condition_met
         assert action.condition_data is None
 
         # Simulate condition being met
-        action._condition_met = True
-        action._condition_data = "test_data"
+        action.condition_met = True
+        action.condition_data = "test_data"
 
         assert action.condition_met
         assert action.condition_data == "test_data"

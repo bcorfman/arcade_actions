@@ -19,6 +19,7 @@ from actions.conditional import (
     MoveUntil,
     RotateUntil,
     ScaleUntil,
+    duration,
 )
 from actions.easing import Ease
 from tests.test_base import MockAction
@@ -208,7 +209,7 @@ class TestEase:
         """Test Ease wrapper initialization for continuous movement actions."""
         # Ease wraps continuous actions like MoveUntil that run indefinitely
         continuous_move = MoveUntil((100, 0), lambda: False)  # Never stops on its own
-        easing_wrapper = Ease(continuous_move, seconds=2.0, ease_function=easing.ease_in_out)
+        easing_wrapper = Ease(continuous_move, duration=2.0, ease_function=easing.ease_in_out)
 
         assert easing_wrapper.wrapped_action == continuous_move
         assert easing_wrapper.easing_duration == 2.0
@@ -220,17 +221,17 @@ class TestEase:
         """Test Ease with invalid duration raises error."""
         move = MoveUntil((100, 0), lambda: False)
 
-        with pytest.raises(ValueError, match="seconds must be positive"):
-            Ease(move, seconds=0.0)
+        with pytest.raises(ValueError, match="duration must be positive"):
+            Ease(move, duration=0.0)
 
-        with pytest.raises(ValueError, match="seconds must be positive"):
-            Ease(move, seconds=-1.0)
+        with pytest.raises(ValueError, match="duration must be positive"):
+            Ease(move, duration=-1.0)
 
     def test_ease_apply(self):
         """Test Ease apply method applies both wrapper and wrapped action."""
         sprite = create_test_sprite()
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=1.0)
+        ease_action = Ease(move, duration=1.0)
 
         ease_action.apply(sprite, tag="test")
 
@@ -248,7 +249,7 @@ class TestEase:
         # Creates continuous movement and applies smooth acceleration
         missile_movement = move_until((100, 0), lambda: False)  # Unbound continuous movement
         smooth_launch = ease(
-            sprite, missile_movement, seconds=1.0, ease_function=easing.ease_in_out, tag="missile_launch"
+            sprite, missile_movement, duration=1.0, ease_function=easing.ease_in_out, tag="missile_launch"
         )
 
         # At start, should have smooth acceleration from 0
@@ -280,7 +281,7 @@ class TestEase:
         """Test Ease execution with ease_in function."""
         sprite = create_test_sprite()
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=1.0, ease_function=easing.ease_in)
+        ease_action = Ease(move, duration=1.0, ease_function=easing.ease_in)
         ease_action.apply(sprite, tag="test")
 
         # At t=0.5, ease_in(0.5) = 0.25
@@ -294,7 +295,7 @@ class TestEase:
         """Test Ease execution with ease_out function."""
         sprite = create_test_sprite()
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=1.0, ease_function=easing.ease_out)
+        ease_action = Ease(move, duration=1.0, ease_function=easing.ease_out)
         ease_action.apply(sprite, tag="test")
 
         # At t=0.5, ease_out(0.5) = 0.75
@@ -310,7 +311,7 @@ class TestEase:
 
         # Test with RotateUntil
         rotate = RotateUntil(90, lambda: False)
-        eased_rotate = Ease(rotate, seconds=1.0)
+        eased_rotate = Ease(rotate, duration=1.0)
         eased_rotate.apply(sprite, tag="rotate")
 
         Action.update_all(0.5)
@@ -324,7 +325,7 @@ class TestEase:
 
         # Test with FadeUntil
         fade = FadeUntil(-100, lambda: False)
-        eased_fade = Ease(fade, seconds=1.0)
+        eased_fade = Ease(fade, duration=1.0)
         eased_fade.apply(sprite, tag="fade")
 
         Action.update_all(0.5)
@@ -345,7 +346,7 @@ class TestEase:
             nonlocal callback_called
             callback_called = True
 
-        ease_action = Ease(move, seconds=1.0, on_complete=on_complete)
+        ease_action = Ease(move, duration=1.0, on_complete=on_complete)
         ease_action.apply(sprite, tag="test")
 
         # Complete the easing
@@ -358,7 +359,7 @@ class TestEase:
         """Test Easing stop method stops both wrapper and wrapped action."""
         sprite = create_test_sprite()
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=1.0)
+        ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite, tag="test")
 
         # Both actions should be active
@@ -376,7 +377,7 @@ class TestEase:
         """Test Easing can forward set_factor calls for nesting."""
         sprite = create_test_sprite()
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=1.0)
+        ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite, tag="test")
 
         # Set factor on the easing wrapper
@@ -390,7 +391,7 @@ class TestEase:
     def test_ease_clone(self):
         """Test Easing clone functionality."""
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=2.0, ease_function=easing.ease_in)
+        ease_action = Ease(move, duration=2.0, ease_function=easing.ease_in)
 
         cloned = ease_action.clone()
 
@@ -402,7 +403,7 @@ class TestEase:
     def test_ease_repr(self):
         """Test Easing string representation."""
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=2.0, ease_function=easing.ease_in_out)
+        ease_action = Ease(move, duration=2.0, ease_function=easing.ease_in_out)
 
         repr_str = repr(ease_action)
         assert "Ease(duration=2.0" in repr_str
@@ -413,7 +414,7 @@ class TestEase:
         """Test Easing wrapper with sprite lists."""
         sprite_list = create_test_sprite_list()
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=1.0)
+        ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite_list, tag="test")
 
         # At t=0.5, all sprites should have eased velocity
@@ -429,7 +430,7 @@ class TestEase:
         """Test wrapped action continues after easing completes."""
         sprite = create_test_sprite()
         move = MoveUntil((100, 0), lambda: False)  # Never stops on its own
-        ease_action = Ease(move, seconds=1.0)
+        ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite, tag="test")
 
         # Complete the easing
@@ -454,7 +455,7 @@ class TestEase:
         path_action = FollowPathUntil(control_points, 200, lambda: False, rotate_with_path=True, rotation_offset=-90)
 
         # Wrap with easing
-        eased_path = Ease(path_action, seconds=1.0, ease_function=easing.ease_in_out)
+        eased_path = Ease(path_action, duration=1.0, ease_function=easing.ease_in_out)
         eased_path.apply(sprite, tag="test_eased_path_rotation")
 
         # At start, should have minimal movement and rotation
@@ -485,21 +486,21 @@ class TestEase:
         # Demonstrate different approaches: traditional and new helper API
         # Traditional approach for comparison
         move1 = MoveUntil((100, 0), lambda: False)
-        eased1 = Ease(move1, seconds=1.0, ease_function=easing.ease_in)
+        eased1 = Ease(move1, duration=1.0, ease_function=easing.ease_in)
         eased1.apply(sprite1, tag="move_ease_in")
 
         # New helper API approach - more concise
         ease(
             sprite2,
             move_until((0, 100), lambda: False),
-            seconds=1.0,
+            duration=1.0,
             ease_function=easing.ease_out,
             tag="move_ease_out",
         )
         ease(
             sprite3,
             rotate_until(180, lambda: False),
-            seconds=1.0,
+            duration=1.0,
             ease_function=easing.ease_in_out,
             tag="rotate_ease_in_out",
         )
@@ -518,21 +519,21 @@ class TestEase:
         """Test Easing with zero duration raises appropriate error."""
         move = MoveUntil((100, 0), lambda: False)
 
-        with pytest.raises(ValueError, match="seconds must be positive"):
-            Ease(move, seconds=0.0)
+        with pytest.raises(ValueError, match="duration must be positive"):
+            Ease(move, duration=0.0)
 
     def test_ease_with_negative_duration(self):
         """Test Easing with negative duration raises appropriate error."""
         move = MoveUntil((100, 0), lambda: False)
 
-        with pytest.raises(ValueError, match="seconds must be positive"):
-            Ease(move, seconds=-1.0)
+        with pytest.raises(ValueError, match="duration must be positive"):
+            Ease(move, duration=-1.0)
 
     def test_ease_with_very_small_duration(self):
         """Test Easing with very small but positive duration."""
         sprite = create_test_sprite()
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=0.001)  # 1 millisecond
+        ease_action = Ease(move, duration=0.001)  # 1 millisecond
         ease_action.apply(sprite, tag="test_tiny_duration")
 
         # Should complete very quickly
@@ -550,7 +551,7 @@ class TestEase:
         def custom_ease(t):
             return 0.7
 
-        ease_action = Ease(move, seconds=1.0, ease_function=custom_ease)
+        ease_action = Ease(move, duration=1.0, ease_function=custom_ease)
         ease_action.apply(sprite, tag="test_custom_ease")
 
         # At any point during easing, should have factor 0.7
@@ -570,7 +571,7 @@ class TestEase:
         def invalid_ease(t):
             return -0.5
 
-        ease_action = Ease(move, seconds=1.0, ease_function=invalid_ease)
+        ease_action = Ease(move, duration=1.0, ease_function=invalid_ease)
         ease_action.apply(sprite, tag="test_invalid_ease")
 
         # Should handle negative factors gracefully
@@ -589,7 +590,7 @@ class TestEase:
             nonlocal callback_count
             callback_count += 1
 
-        ease_action = Ease(move, seconds=0.1, on_complete=completion_callback)
+        ease_action = Ease(move, duration=0.1, on_complete=completion_callback)
         ease_action.apply(sprite, tag="test_rapid_completion")
 
         # Complete the easing in one large step
@@ -604,10 +605,10 @@ class TestEase:
         move = MoveUntil((100, 0), lambda: False)
 
         # First level easing
-        inner_easing = Ease(move, seconds=1.0, ease_function=easing.ease_in)
+        inner_easing = Ease(move, duration=1.0, ease_function=easing.ease_in)
 
         # Second level easing
-        outer_easing = Ease(inner_easing, seconds=2.0, ease_function=easing.ease_out)
+        outer_easing = Ease(inner_easing, duration=2.0, ease_function=easing.ease_out)
         outer_easing.apply(sprite, tag="test_nested_easing")
 
         # Should forward set_factor calls through the chain
@@ -627,7 +628,7 @@ class TestEase:
         """Test stopping easing action mid-execution."""
         sprite = create_test_sprite()
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=2.0)
+        ease_action = Ease(move, duration=2.0)
         ease_action.apply(sprite, tag="test_stop_mid_execution")
 
         # Start easing
@@ -665,7 +666,7 @@ class TestEase:
             nonlocal completion_called
             completion_called = True
 
-        eased_path = Ease(path_action, seconds=2.0, ease_function=easing.ease_in_out, on_complete=on_ease_complete)
+        eased_path = Ease(path_action, duration=2.0, ease_function=easing.ease_in_out, on_complete=on_ease_complete)
         eased_path.apply(sprite, tag="test_complex_path_easing")
 
         # Track position and angle changes during easing
@@ -699,7 +700,7 @@ class TestSetFactorEdgeCases:
 
     def test_base_action_set_factor_no_op(self):
         """Test base Action set_factor is a no-op."""
-        action = MockAction(condition_func=lambda: False)
+        action = MockAction(condition=lambda: False)
 
         # Should not raise error
         action.set_factor(0.5)
@@ -799,7 +800,7 @@ class TestSetFactorEdgeCases:
         def nan_ease(t):
             return float("nan")
 
-        ease_action = Ease(move, seconds=1.0, ease_function=nan_ease)
+        ease_action = Ease(move, duration=1.0, ease_function=nan_ease)
         ease_action.apply(sprite, tag="test_nan_ease")
 
         # Should handle NaN gracefully (behavior may vary by implementation)
@@ -815,7 +816,7 @@ class TestSetFactorEdgeCases:
         def infinity_ease(t):
             return float("inf")
 
-        ease_action = Ease(move, seconds=1.0, ease_function=infinity_ease)
+        ease_action = Ease(move, duration=1.0, ease_function=infinity_ease)
         ease_action.apply(sprite, tag="test_infinity_ease")
 
         # Should handle infinity gracefully
@@ -831,7 +832,7 @@ class TestSetFactorEdgeCases:
         def exception_ease(t):
             raise ValueError("Test exception in ease function")
 
-        ease_action = Ease(move, seconds=1.0, ease_function=exception_ease)
+        ease_action = Ease(move, duration=1.0, ease_function=exception_ease)
         ease_action.apply(sprite, tag="test_exception_ease")
 
         # Should propagate exception
@@ -842,13 +843,15 @@ class TestSetFactorEdgeCases:
         """Test Easing behavior with None ease function."""
         move = MoveUntil((100, 0), lambda: False)
 
-        # Should raise error during update when trying to call None
-        ease_action = Ease(move, seconds=1.0, ease_function=None)
+        # Should use default easing function when None is provided
+        ease_action = Ease(move, duration=1.0, ease_function=None)
         sprite = create_test_sprite()
         ease_action.apply(sprite, tag="test_none_ease")
 
-        with pytest.raises(TypeError):
-            Action.update_all(0.5)
+        # Should work normally with default easing function
+        Action.update_all(0.5)
+        # Should have some movement (default is ease_in_out)
+        assert sprite.change_x > 0
 
     def test_ease_extremely_large_duration(self):
         """Test Easing with extremely large duration."""
@@ -856,7 +859,7 @@ class TestSetFactorEdgeCases:
         move = MoveUntil((100, 0), lambda: False)
 
         # Very large duration
-        ease_action = Ease(move, seconds=1e10)  # 10 billion seconds
+        ease_action = Ease(move, duration=1e10)  # 10 billion seconds
         ease_action.apply(sprite, tag="test_large_duration")
 
         # After small update, should have very small progress
@@ -874,11 +877,11 @@ class TestSetFactorEdgeCases:
 
         # Easing: Smooth acceleration into continuous movement
         continuous_move = MoveUntil((100, 0), lambda: False)  # Never stops
-        eased_move = Ease(continuous_move, seconds=1.0, ease_function=easing.ease_out)
+        eased_move = Ease(continuous_move, duration=1.0, ease_function=easing.ease_out)
         eased_move.apply(sprite1, tag="eased_movement")
 
         # TweenUntil: Direct property animation from A to B
-        from actions.conditional import TweenUntil, duration
+        from actions.conditional import TweenUntil
 
         direct_animation = TweenUntil(0, 100, "center_x", duration(1.0), ease_function=easing.ease_out)
         direct_animation.apply(sprite2, tag="direct_animation")
@@ -902,7 +905,7 @@ class TestSetFactorEdgeCases:
         """Test calling stop multiple times on easing action."""
         sprite = create_test_sprite()
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=1.0)
+        ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite, tag="test_multiple_stops")
 
         # Stop multiple times - should not cause errors
@@ -921,7 +924,7 @@ class TestSetFactorEdgeCases:
         def error_callback():
             raise RuntimeError("Test callback error")
 
-        ease_action = Ease(move, seconds=0.1, on_complete=error_callback)
+        ease_action = Ease(move, duration=0.1, on_complete=error_callback)
         ease_action.apply(sprite, tag="test_callback_exception")
 
         # Should propagate callback exception
@@ -932,7 +935,7 @@ class TestSetFactorEdgeCases:
         """Test Easing set_factor with extreme values."""
         sprite = create_test_sprite()
         move = MoveUntil((100, 0), lambda: False)
-        ease_action = Ease(move, seconds=1.0)
+        ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite, tag="test_extreme_factors")
 
         # Test with extremely large factor
@@ -959,7 +962,7 @@ class TestSetFactorEdgeCases:
         )
 
         # Very fast easing
-        eased_path = Ease(path_action, seconds=0.01)
+        eased_path = Ease(path_action, duration=0.01)
         eased_path.apply(sprite, tag="test_rotation_edge_cases")
 
         # Should handle large rotation offsets

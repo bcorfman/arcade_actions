@@ -53,12 +53,12 @@ This enables more flexible, game-state-driven behaviors.
 
 ### Pattern 2: Operator-Based Composition
 ```python
-from actions import move_until, rotate_until, fade_until
+from actions import move_until, rotate_until, fade_until, infinite
 
 # Clean declarative syntax with operators
 # Unbound actions can be created by passing `None` as the target
-move = move_until(None, (100, 0), lambda: False)
-rotate = rotate_until(None, 1.5, lambda: False)
+move = move_until(None, velocity=(100, 0), condition=infinite)
+rotate = rotate_until(None, velocity=1.5, condition=infinite)
 
 seq = move + rotate
 par = move | rotate
