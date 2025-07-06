@@ -29,8 +29,8 @@ def handle_asteroid_collision(collision_data):
     for asteroid in collision_data["asteroid_hits"]:
         print("Asteroid collisions!")
 ```
-This example shows how animations actions can be logically separated from collision responses, making your game code far more understandable. 
-Compare this to the amount of disordered and low-level game code you are writing now. If writing high-level code appeals to you ... it's why you chose Python in the first place ... read on!
+This example shows how animation actions can be logically separated from collision responses, making your code simple and appealing. 
+If writing high-level game code appeals to you ... it's why you chose Python in the first place ... read on!
 
 ## 📚 Documentation Overview
 
