@@ -79,7 +79,7 @@ class StarfieldView(arcade.View):
     # ---------------------------------------------------------------------
     # Setup helpers
     # ---------------------------------------------------------------------
-    def on_wrap(self, sprite, axis):
+    def on_stars_wrap(self, sprite, axis):
         # When a star hits a vertical boundary, wrap it to the opposite side.
         # We check the direction of movement to decide which edge to wrap to.
         if sprite.change_y < 0:
@@ -108,7 +108,7 @@ class StarfieldView(arcade.View):
             condition=infinite,
             bounds=bounds,
             boundary_behavior="wrap",
-            on_boundary=self.on_wrap,
+            on_boundary=self.on_stars_wrap,
         )
         wrapping_action.apply(self.star_list)
 
