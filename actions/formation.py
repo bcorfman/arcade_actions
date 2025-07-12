@@ -100,8 +100,8 @@ def arrange_grid(
         The arranged sprite list
 
     Example:
-        # Create a 3x5 grid of enemy sprites
-        enemies = arrange_grid(rows=3, cols=5, start_x=200, start_y=400)
+        # Create a 3x5 grid of star sprites
+        stars = arrange_grid(rows=3, cols=5, start_x=200, start_y=400)
 
         # Arrange existing sprites in a grid
         arrange_grid(existing_sprites, rows=2, cols=4, spacing_x=80, spacing_y=60)
