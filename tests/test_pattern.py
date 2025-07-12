@@ -5,9 +5,18 @@ import math
 import arcade
 
 from actions.base import Action
+from actions.composite import sequence
+from actions.conditional import DelayUntil, FadeUntil, duration
+from actions.formation import arrange_circle, arrange_grid, arrange_line
 from actions.pattern import (
+    BoidMoveUntil,
+    MoveUntilTowardsTarget,
+    _generate_random_spawn_point,
+    create_boid_flock_pattern,
     create_bounce_pattern,
     create_figure_eight_pattern,
+    create_formation_entry_pattern,
+    create_galaga_style_entry,
     create_orbit_pattern,
     create_patrol_pattern,
     create_smooth_zigzag_pattern,
@@ -97,7 +106,6 @@ class TestBoidFormationEntry:
 
     def test_create_boid_flock_pattern_basic(self):
         """Test basic boid flock pattern creation."""
-        from actions.pattern import create_boid_flock_pattern
 
         pattern = create_boid_flock_pattern(max_speed=4.0, duration_seconds=3.0)
 
@@ -108,8 +116,6 @@ class TestBoidFormationEntry:
 
     def test_create_boid_flock_pattern_with_player_avoidance(self):
         """Test boid flock pattern with player avoidance."""
-        from actions.pattern import create_boid_flock_pattern
-
         player_sprite = create_test_sprite()
         pattern = create_boid_flock_pattern(max_speed=3.0, duration_seconds=2.0, avoid_sprite=player_sprite)
 
@@ -117,7 +123,6 @@ class TestBoidFormationEntry:
 
     def test_create_boid_flock_pattern_application(self):
         """Test applying boid flock pattern to sprite list."""
-        from actions.pattern import create_boid_flock_pattern
 
         sprite_list = create_test_sprite_list(5)
         pattern = create_boid_flock_pattern(max_speed=2.0, duration_seconds=1.0)
@@ -128,8 +133,6 @@ class TestBoidFormationEntry:
 
     def test_create_formation_entry_pattern_basic(self):
         """Test basic formation entry pattern creation."""
-        from actions.formation import arrange_grid
-        from actions.pattern import create_formation_entry_pattern
 
         # Create target formation
         grid_formation = arrange_grid(rows=2, cols=5, start_x=200, start_y=400)
@@ -149,8 +152,6 @@ class TestBoidFormationEntry:
 
     def test_create_formation_entry_pattern_with_player(self):
         """Test formation entry pattern with player avoidance."""
-        from actions.formation import arrange_line
-        from actions.pattern import create_formation_entry_pattern
 
         player_sprite = create_test_sprite()
         line_formation = arrange_line(count=5, start_x=300, start_y=500, spacing=60)
@@ -172,7 +173,6 @@ class TestBoidFormationEntry:
 
     def test_random_spawn_point_generation(self):
         """Test random spawn point generation within area."""
-        from actions.pattern import _generate_random_spawn_point
 
         spawn_area = (0, 0, 100, 200)
 
@@ -184,7 +184,6 @@ class TestBoidFormationEntry:
 
     def test_random_spawn_point_edge_cases(self):
         """Test random spawn point generation with edge cases."""
-        from actions.pattern import _generate_random_spawn_point
 
         # Zero-width area
         narrow_area = (50, 50, 50, 100)
@@ -200,9 +199,6 @@ class TestBoidFormationEntry:
 
     def test_boid_move_until_action_basic(self):
         """Test basic BoidMoveUntil action functionality."""
-        from actions.conditional import duration
-        from actions.pattern import BoidMoveUntil
-
         sprite_list = create_test_sprite_list(3)
         condition = duration(1.0)
 
@@ -222,8 +218,6 @@ class TestBoidFormationEntry:
 
     def test_boid_move_until_action_with_avoidance(self):
         """Test BoidMoveUntil action with sprite avoidance."""
-        from actions.conditional import duration
-        from actions.pattern import BoidMoveUntil
 
         sprite_list = create_test_sprite_list(4)
         player_sprite = create_test_sprite()
@@ -238,8 +232,6 @@ class TestBoidFormationEntry:
 
     def test_boid_move_until_velocity_clamping(self):
         """Test that BoidMoveUntil properly clamps velocity to max_speed."""
-        from actions.conditional import duration
-        from actions.pattern import BoidMoveUntil
 
         # Create sprites positioned to create high cohesion forces
         sprite_list = arcade.SpriteList()
@@ -267,7 +259,6 @@ class TestBoidFormationEntry:
 
     def test_move_until_towards_target_basic(self):
         """Test basic MoveUntilTowardsTarget action functionality."""
-        from actions.pattern import MoveUntilTowardsTarget
 
         sprite = create_test_sprite()
         sprite.center_x = 100
@@ -288,7 +279,6 @@ class TestBoidFormationEntry:
 
     def test_move_until_towards_target_reaches_destination(self):
         """Test that MoveUntilTowardsTarget stops when reaching target."""
-        from actions.pattern import MoveUntilTowardsTarget
 
         sprite = create_test_sprite()
         sprite.center_x = 100
@@ -321,8 +311,6 @@ class TestBoidFormationEntry:
 
     def test_create_galaga_style_entry_complete_workflow(self):
         """Test complete Galaga-style formation entry workflow."""
-        from actions.formation import arrange_grid
-        from actions.pattern import create_galaga_style_entry
 
         # Create a formation to fill
         formation = arrange_grid(rows=4, cols=10, start_x=200, start_y=400)
@@ -351,9 +339,6 @@ class TestBoidFormationEntry:
 
     def test_create_galaga_style_entry_different_spawn_sides(self):
         """Test that different groups spawn from different sides."""
-        from actions.formation import arrange_line
-        from actions.pattern import create_galaga_style_entry
-
         formation = arrange_line(count=12, start_x=300, start_y=500)
 
         entry_actions = create_galaga_style_entry(
@@ -367,12 +352,9 @@ class TestBoidFormationEntry:
 
     def test_formation_entry_pattern_error_handling(self):
         """Test error handling in formation entry pattern creation."""
-        from actions.pattern import create_formation_entry_pattern
 
         # Test with mismatched flock size and formation size
         try:
-            from actions.formation import arrange_line
-
             small_formation = arrange_line(count=3)
 
             create_formation_entry_pattern(
@@ -672,7 +654,6 @@ class TestPatternIntegration:
 
     def test_pattern_with_sprite_list(self):
         """Test applying patterns to sprite lists."""
-        from actions.formation import arrange_line
 
         # Create formation
         sprites = arrange_line(count=3, start_x=100, start_y=200, spacing=50)
@@ -685,9 +666,6 @@ class TestPatternIntegration:
 
     def test_pattern_composition(self):
         """Test composing patterns with other actions."""
-        from actions.composite import sequence
-        from actions.conditional import DelayUntil, FadeUntil, duration
-
         sprite = create_test_sprite()
 
         # Create a complex sequence: delay, then zigzag, then fade
@@ -737,8 +715,6 @@ class TestPatternIntegration:
 
     def test_boid_formation_entry_integration(self):
         """Test integration of boid formation entry with existing patterns."""
-        from actions.formation import arrange_circle
-        from actions.pattern import create_formation_entry_pattern
 
         # Create circular formation
         formation = arrange_circle(count=8, center_x=400, center_y=300, radius=100)
