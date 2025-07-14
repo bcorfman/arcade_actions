@@ -489,7 +489,7 @@ class TestBoidFormationEntry:
 
         # Skip to slot-in phase by updating through cruise and rally phases
         # Update enough to get past cruise and rally phases
-        for _ in range(20):  # Should be enough to get to slot-in phase
+        for _ in range(100):  # More frames to ensure we reach slot-in phase
             Action.update_all(0.016)
             for sprite in sprite_list_short:
                 sprite.update()
@@ -517,6 +517,12 @@ class TestBoidFormationEntry:
             avg_long_speed = sum(long_speeds) / len(long_speeds)
             assert avg_short_speed > avg_long_speed, (
                 f"Short duration speed ({avg_short_speed}) should be higher than long duration speed ({avg_long_speed})"
+            )
+        else:
+            # If we don't have moving sprites, the test setup might be wrong
+            # Let's check if we have any sprites at all
+            assert len(short_speeds) > 0 or len(long_speeds) > 0, (
+                "No sprites are moving - test may not have reached slot-in phase"
             )
 
 

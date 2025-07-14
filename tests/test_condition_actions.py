@@ -10,6 +10,7 @@ from actions import (
     duration,
     fade_until,
     follow_path_until,
+    infinite,
     move_until,
     rotate_until,
     scale_until,
@@ -86,7 +87,7 @@ class TestMoveUntil:
         sprite = create_test_sprite()
 
         # 5 pixels per frame should move 5 pixels when sprite.update() is called
-        action = move_until(sprite, (5, 0), lambda: False, tag="test_frame_semantics")
+        action = move_until(sprite, (5, 0), infinite, tag="test_frame_semantics")
 
         # Update action to apply velocity
         Action.update_all(0.016)
@@ -117,7 +118,7 @@ class TestMoveUntil:
             sprite.change_x = 0
             sprite.change_y = 0
 
-            action = move_until(sprite, input_velocity, lambda: False, tag="test_velocity")
+            action = move_until(sprite, input_velocity, infinite, tag="test_velocity")
             Action.update_all(0.016)
 
             assert sprite.change_x == input_velocity[0], f"Failed for input {input_velocity}"
@@ -148,7 +149,7 @@ class TestMoveUntil:
         """Test MoveUntil with SpriteList."""
         sprite_list = create_test_sprite_list()
 
-        action = move_until(sprite_list, (50, 25), lambda: False, tag="test_sprite_list")
+        action = move_until(sprite_list, (50, 25), infinite, tag="test_sprite_list")
 
         Action.update_all(0.016)
 
@@ -160,7 +161,7 @@ class TestMoveUntil:
     def test_move_until_set_current_velocity(self):
         """Test MoveUntil set_current_velocity method."""
         sprite = create_test_sprite()
-        action = move_until(sprite, (100, 0), lambda: False, tag="test_set_velocity")
+        action = move_until(sprite, (100, 0), infinite, tag="test_set_velocity")
 
         # Initial velocity should be set
         Action.update_all(0.016)
@@ -203,9 +204,7 @@ class TestFollowPathUntil:
         sprite = create_test_sprite()
         control_points = [(100, 100), (200, 100)]  # Simple straight line
 
-        action = follow_path_until(
-            sprite, control_points, 1000, lambda: False, tag="test_path_completion"
-        )  # High velocity
+        action = follow_path_until(sprite, control_points, 1000, infinite, tag="test_path_completion")  # High velocity
 
         # Update until path is complete
         for _ in range(100):
@@ -219,7 +218,7 @@ class TestFollowPathUntil:
         """Test FollowPathUntil requires at least 2 control points."""
         sprite = create_test_sprite()
         with pytest.raises(ValueError):
-            follow_path_until(sprite, [(100, 100)], 100, lambda: False)
+            follow_path_until(sprite, [(100, 100)], 100, infinite)
 
     def test_follow_path_until_no_rotation_by_default(self):
         """Test FollowPathUntil doesn't rotate sprite by default."""
@@ -228,7 +227,7 @@ class TestFollowPathUntil:
 
         # Horizontal path from left to right
         control_points = [(100, 100), (200, 100)]
-        action = follow_path_until(sprite, control_points, 100, lambda: False, tag="test_no_rotation")
+        action = follow_path_until(sprite, control_points, 100, infinite, tag="test_no_rotation")
 
         # Update several frames
         for _ in range(10):
@@ -245,7 +244,7 @@ class TestFollowPathUntil:
         # Horizontal path from left to right
         control_points = [(100, 100), (200, 100)]
         action = follow_path_until(
-            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_horizontal_rotation"
+            sprite, control_points, 100, infinite, rotate_with_path=True, tag="test_horizontal_rotation"
         )
 
         # Update a few frames to get movement
@@ -263,7 +262,7 @@ class TestFollowPathUntil:
         # Vertical path from bottom to top
         control_points = [(100, 100), (100, 200)]
         action = follow_path_until(
-            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_vertical_rotation"
+            sprite, control_points, 100, infinite, rotate_with_path=True, tag="test_vertical_rotation"
         )
 
         # Update a few frames to get movement
@@ -280,7 +279,7 @@ class TestFollowPathUntil:
         # Diagonal path from bottom-left to top-right (45 degrees)
         control_points = [(100, 100), (200, 200)]
         action = follow_path_until(
-            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_diagonal_rotation"
+            sprite, control_points, 100, infinite, rotate_with_path=True, tag="test_diagonal_rotation"
         )
 
         # Update a few frames to get movement
@@ -301,7 +300,7 @@ class TestFollowPathUntil:
             sprite,
             control_points,
             100,
-            lambda: False,
+            infinite,
             rotate_with_path=True,
             rotation_offset=-90,
             tag="test_rotation_offset",
@@ -326,7 +325,7 @@ class TestFollowPathUntil:
             sprite,
             control_points,
             100,
-            lambda: False,
+            infinite,
             rotate_with_path=False,
             rotation_offset=-90,
             tag="test_no_rotation_with_offset",
@@ -346,7 +345,7 @@ class TestFollowPathUntil:
         # Curved path - quadratic Bezier curve
         control_points = [(100, 100), (150, 200), (200, 100)]
         action = follow_path_until(
-            sprite, control_points, 100, lambda: False, rotate_with_path=True, tag="test_curved_rotation"
+            sprite, control_points, 100, infinite, rotate_with_path=True, tag="test_curved_rotation"
         )
 
         # Store initial angle after first update
@@ -371,7 +370,7 @@ class TestFollowPathUntil:
             sprite,
             control_points,
             100,
-            lambda: False,
+            infinite,
             rotate_with_path=True,
             rotation_offset=450,
             tag="test_large_offset",
@@ -395,7 +394,7 @@ class TestFollowPathUntil:
             sprite,
             control_points,
             100,
-            lambda: False,
+            infinite,
             rotate_with_path=True,
             rotation_offset=-45,
             tag="test_negative_offset",
@@ -416,7 +415,7 @@ class TestFollowPathUntil:
             sprite,
             control_points,
             100,
-            lambda: False,
+            infinite,
             rotate_with_path=True,
             rotation_offset=-90,
             tag="test_rotation_params",
@@ -462,7 +461,7 @@ class TestRotateUntil:
         sprite = create_test_sprite()
 
         # 3 degrees per frame should rotate 3 degrees when sprite.update() is called
-        action = rotate_until(sprite, 3, lambda: False, tag="test_frame_semantics")
+        action = rotate_until(sprite, 3, infinite, tag="test_frame_semantics")
 
         # Update action to apply angular velocity
         Action.update_all(0.016)
@@ -492,7 +491,7 @@ class TestRotateUntil:
             Action.clear_all()
             sprite.change_angle = 0
 
-            action = rotate_until(sprite, input_angular_velocity, lambda: False, tag="test_velocity")
+            action = rotate_until(sprite, input_angular_velocity, infinite, tag="test_velocity")
             Action.update_all(0.016)
 
             assert sprite.change_angle == input_angular_velocity, f"Failed for input {input_angular_velocity}"
@@ -776,7 +775,7 @@ class TestTweenUntil:
         # Ease: Perfect for missile launch (smooth acceleration to cruise speed)
         from actions.easing import Ease
 
-        missile_move = move_until(sprite2, (200, 0), lambda: False, tag="test_missile_move")
+        missile_move = move_until(sprite2, (200, 0), infinite, tag="test_missile_move")
         missile_launch = Ease(missile_move, duration=1.0)
         missile_launch.apply(sprite2, tag="test_missile_launch")
 

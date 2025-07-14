@@ -772,10 +772,11 @@ def create_bounce_pattern(velocity: tuple[float, float], bounds: tuple[float, fl
         bounce = create_bounce_pattern((150, 100), bounds=(0, 0, 800, 600))
         bounce.apply(sprite, tag="bouncing")
     """
+    from .conditional import infinite
 
     return MoveUntil(
         velocity,
-        lambda: False,  # Continue indefinitely
+        infinite,  # Continue indefinitely
         bounds=bounds,
         boundary_behavior="bounce",
     )

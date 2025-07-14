@@ -15,7 +15,6 @@ class MoveUntil(_Action):
         velocity: (dx, dy) velocity vector to apply to sprites
         condition: Function that returns truthy value when movement should stop, or None/False to continue
         on_stop: Optional callback called when condition is satisfied. Receives condition data if provided.
-        check_interval: How often to check condition (in seconds, default: 0.0 for every frame)
         bounds: Optional (left, bottom, right, top) boundary box for bouncing/wrapping
         boundary_behavior: "bounce", "wrap", or None (default: None for no boundary checking)
         on_boundary: Optional callback(sprite, axis) called when sprite hits boundary
@@ -26,12 +25,14 @@ class MoveUntil(_Action):
         velocity: tuple[float, float],
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-        check_interval: float = 0.0,
         bounds: tuple[float, float, float, float] | None = None,
         boundary_behavior: str | None = None,
         on_boundary: Callable[[Any, str], None] | None = None,
     ):
-        super().__init__(condition, on_stop, check_interval)
+        if not isinstance(velocity, (tuple, list)) or len(velocity) != 2:
+            raise ValueError("velocity must be a tuple or list of length 2")
+
+        super().__init__(condition, on_stop)
         self.target_velocity = velocity  # Immutable target velocity
         self.current_velocity = velocity  # Current velocity (can be scaled by factor)
 
@@ -138,13 +139,33 @@ class MoveUntil(_Action):
 
         self.for_each_sprite(clear_velocity)
 
+    def reverse_movement(self, axis: str) -> None:
+        """Reverse movement on the specified axis.
+
+        Args:
+            axis: 'x' or 'y' to reverse movement on that axis
+        """
+        if axis == "x":
+            self.current_velocity = (-self.current_velocity[0], self.current_velocity[1])
+        elif axis == "y":
+            self.current_velocity = (self.current_velocity[0], -self.current_velocity[1])
+        else:
+            raise ValueError("axis must be 'x' or 'y'")
+
+        # Apply the new velocity to all sprites
+        self.apply_effect()
+
+    def reset(self) -> None:
+        """Reset velocity to original target velocity."""
+        self.current_velocity = self.target_velocity
+        self.apply_effect()
+
     def clone(self) -> "MoveUntil":
         """Create a copy of this MoveUntil action."""
         return MoveUntil(
             self.target_velocity,  # Use target_velocity for cloning
             self.condition,
             self.on_stop,
-            self.check_interval,
             self.bounds,
             self.boundary_behavior,
             self.on_boundary,
@@ -165,7 +186,6 @@ class FollowPathUntil(_Action):
         velocity: Speed in pixels per second along the curve
         condition: Function that returns truthy value when path following should stop
         on_stop: Optional callback called when condition is satisfied
-        check_interval: How often to check condition (in seconds, default: 0.0 for every frame)
         rotate_with_path: When True, automatically rotates sprite to face movement direction.
             When False (default), sprite maintains its original orientation.
         rotation_offset: Rotation offset in degrees to calibrate sprite's natural orientation.
@@ -205,11 +225,10 @@ class FollowPathUntil(_Action):
         velocity: float,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-        check_interval: float = 0.0,
         rotate_with_path: bool = False,
         rotation_offset: float = 0.0,
     ):
-        super().__init__(condition, on_stop, check_interval)
+        super().__init__(condition, on_stop)
         if len(control_points) < 2:
             raise ValueError("Must specify at least 2 control points")
 
@@ -329,20 +348,18 @@ class FollowPathUntil(_Action):
             self.target_velocity,
             self.condition,
             self.on_stop,
-            self.check_interval,
             self.rotate_with_path,
             self.rotation_offset,
         )
 
 
 class RotateUntil(_Action):
-    """Rotate sprites until a condition is satisfied.
+    """Rotate a sprite or sprite list until a condition is satisfied.
 
     Args:
-        angular_velocity: Degrees per second to rotate
+        angular_velocity: The angular velocity in degrees per frame
         condition: Function that returns truthy value when rotation should stop
         on_stop: Optional callback called when condition is satisfied
-        check_interval: How often to check condition (in seconds)
     """
 
     def __init__(
@@ -350,11 +367,10 @@ class RotateUntil(_Action):
         angular_velocity: float,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-        check_interval: float = 0.0,
     ):
-        super().__init__(condition, on_stop, check_interval)
-        self.target_angular_velocity = angular_velocity  # Immutable target rate
-        self.current_angular_velocity = angular_velocity  # Current rate (can be scaled)
+        super().__init__(condition, on_stop)
+        self.target_angular_velocity = angular_velocity  # Immutable target velocity
+        self.current_angular_velocity = angular_velocity  # Current velocity (can be scaled)
 
     def set_factor(self, factor: float) -> None:
         """Scale the angular velocity by the given factor.
@@ -385,27 +401,25 @@ class RotateUntil(_Action):
 
     def clone(self) -> "RotateUntil":
         """Create a copy of this RotateUntil action."""
-        return RotateUntil(self.target_angular_velocity, self.condition, self.on_stop, self.check_interval)
+        return RotateUntil(self.target_angular_velocity, self.condition, self.on_stop)
 
 
 class ScaleUntil(_Action):
-    """Scale sprites until a condition is satisfied.
+    """Scale a sprite or sprite list until a condition is satisfied.
 
     Args:
-        scale_velocity: Scale change per second (float for uniform, tuple for x/y)
+        scale_velocity: The scale velocity per frame
         condition: Function that returns truthy value when scaling should stop
         on_stop: Optional callback called when condition is satisfied
-        check_interval: How often to check condition (in seconds)
     """
 
     def __init__(
         self,
-        scale_velocity: tuple[float, float] | float,
+        scale_velocity: float,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-        check_interval: float = 0.0,
     ):
-        super().__init__(condition, on_stop, check_interval)
+        super().__init__(condition, on_stop)
         # Normalize scale_velocity to always be a tuple
         if isinstance(scale_velocity, int | float):
             self.target_scale_velocity = (scale_velocity, scale_velocity)
@@ -454,18 +468,17 @@ class ScaleUntil(_Action):
         self.for_each_sprite(apply_scale)
 
     def clone(self) -> "ScaleUntil":
-        """Create a copy of this ScaleUntil action."""
-        return ScaleUntil(self.target_scale_velocity, self.condition, self.on_stop, self.check_interval)
+        """Create a copy of this action."""
+        return ScaleUntil(self.target_scale_velocity, self.condition, self.on_stop)
 
 
 class FadeUntil(_Action):
     """Fade sprites until a condition is satisfied.
 
     Args:
-        fade_velocity: Alpha change per second (negative for fade out, positive for fade in)
+        fade_velocity: The fade velocity per frame (change in alpha)
         condition: Function that returns truthy value when fading should stop
         on_stop: Optional callback called when condition is satisfied
-        check_interval: How often to check condition (in seconds)
     """
 
     def __init__(
@@ -473,11 +486,10 @@ class FadeUntil(_Action):
         fade_velocity: float,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-        check_interval: float = 0.0,
     ):
-        super().__init__(condition, on_stop, check_interval)
-        self.target_fade_velocity = fade_velocity  # Immutable target rate
-        self.current_fade_velocity = fade_velocity  # Current rate (can be scaled)
+        super().__init__(condition, on_stop)
+        self.target_fade_velocity = fade_velocity  # Immutable target velocity
+        self.current_fade_velocity = fade_velocity  # Current velocity (can be scaled)
 
     def set_factor(self, factor: float) -> None:
         """Scale the fade velocity by the given factor.
@@ -499,20 +511,17 @@ class FadeUntil(_Action):
         self.for_each_sprite(apply_fade)
 
     def clone(self) -> "FadeUntil":
-        """Create a copy of this FadeUntil action."""
-        return FadeUntil(self.target_fade_velocity, self.condition, self.on_stop, self.check_interval)
+        """Create a copy of this action."""
+        return FadeUntil(self.target_fade_velocity, self.condition, self.on_stop)
 
 
 class BlinkUntil(_Action):
     """Blink sprites (toggle visibility) until a condition is satisfied.
 
     Args:
-        seconds_until_change: Seconds to wait before toggling visibility. For example, a value
-            of ``0.5`` will cause the sprite to become invisible after half a second, then
-            visible again after another half-second, resulting in one full *blink* per second.
+        seconds_until_change: Seconds to wait before toggling visibility
         condition: Function that returns truthy value when blinking should stop
         on_stop: Optional callback called when condition is satisfied
-        check_interval: How often to check condition (in seconds)
     """
 
     def __init__(
@@ -520,15 +529,14 @@ class BlinkUntil(_Action):
         seconds_until_change: float,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-        check_interval: float = 0.0,
     ):
         if seconds_until_change <= 0:
             raise ValueError("seconds_until_change must be positive")
 
-        super().__init__(condition, on_stop, check_interval)
+        super().__init__(condition, on_stop)
         self.target_seconds_until_change = seconds_until_change  # Immutable target rate
         self.current_seconds_until_change = seconds_until_change  # Current rate (can be scaled)
-        self._elapsed = 0.0
+        self._blink_elapsed = 0.0
         self._original_visibility = {}
 
     def set_factor(self, factor: float) -> None:
@@ -555,18 +563,6 @@ class BlinkUntil(_Action):
 
         self.for_each_sprite(store_visibility)
 
-    def update_effect(self, delta_time: float) -> None:
-        """Apply blinking effect based on the configured interval."""
-        self._elapsed += delta_time
-        # Determine how many intervals have passed to know whether we should show or hide.
-        cycles = int(self._elapsed / self.current_seconds_until_change)
-
-        def apply_blink(sprite):
-            original_visible = self._original_visibility.get(id(sprite), True)
-            sprite.visible = original_visible if cycles % 2 == 0 else not original_visible
-
-        self.for_each_sprite(apply_blink)
-
     def remove_effect(self) -> None:
         """Restore original visibility for all sprites."""
 
@@ -576,9 +572,25 @@ class BlinkUntil(_Action):
 
         self.for_each_sprite(restore_visibility)
 
+    def update_effect(self, delta_time: float) -> None:
+        """Apply blinking effect based on the configured interval."""
+        self._blink_elapsed += delta_time
+        # Determine how many intervals have passed to know whether we should show or hide.
+        cycles = int(self._blink_elapsed / self.current_seconds_until_change)
+
+        def apply_blink(sprite):
+            # Even cycles: visible, odd cycles: invisible
+            sprite.visible = cycles % 2 == 0
+
+        self.for_each_sprite(apply_blink)
+
+    def reset(self) -> None:
+        """Reset blinking rate to original target rate."""
+        self.current_seconds_until_change = self.target_seconds_until_change
+
     def clone(self) -> "BlinkUntil":
-        """Create a copy of this BlinkUntil action."""
-        return BlinkUntil(self.target_seconds_until_change, self.condition, self.on_stop, self.check_interval)
+        """Create a copy of this action."""
+        return BlinkUntil(self.target_seconds_until_change, self.condition, self.on_stop)
 
 
 class DelayUntil(_Action):
@@ -590,20 +602,18 @@ class DelayUntil(_Action):
     Args:
         condition: Function that returns truthy value when delay should end
         on_stop: Optional callback called when condition is satisfied
-        check_interval: How often to check condition (in seconds)
     """
 
     def __init__(
         self,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-        check_interval: float = 0.0,
     ):
-        super().__init__(condition, on_stop, check_interval)
+        super().__init__(condition, on_stop)
 
     def clone(self) -> "DelayUntil":
-        """Create a copy of this DelayUntil action."""
-        return DelayUntil(self.condition, self.on_stop, self.check_interval)
+        """Create a copy of this action."""
+        return DelayUntil(self.condition, self.on_stop)
 
 
 class TweenUntil(_Action):
@@ -630,7 +640,6 @@ class TweenUntil(_Action):
         property_name: Name of the sprite property to tween ('center_x', 'center_y', 'angle', 'scale', 'alpha')
         condition: Function that returns truthy value when tweening should stop
         on_stop: Optional callback called when condition is satisfied
-        check_interval: How often to check condition (in seconds, default: 0.0 for every frame)
         ease_function: Easing function to use for tweening (default: linear)
 
     Examples:
@@ -658,10 +667,9 @@ class TweenUntil(_Action):
         property_name: str,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-        check_interval: float = 0.0,
         ease_function: Callable[[float], float] | None = None,
     ):
-        super().__init__(condition=condition, on_stop=on_stop, check_interval=check_interval)
+        super().__init__(condition=condition, on_stop=on_stop)
         self.start_value = start_value
         self.end_value = end_value
         self.property_name = property_name
@@ -752,12 +760,45 @@ class TweenUntil(_Action):
             self.property_name,
             self.condition,
             self.on_stop,
-            self.check_interval,
             self.ease_function,
         )
 
     def set_duration(self, duration: float) -> None:
         raise NotImplementedError
+
+
+class CallbackUntil(_Action):
+    """Execute a callback function until a condition is satisfied.
+
+    The callback is called every frame while the action is active.
+
+    Args:
+        callback: Function to call every frame
+        condition: Function that returns truthy value when callbacks should stop
+        on_stop: Optional callback called when condition is satisfied
+    """
+
+    def __init__(
+        self,
+        callback: Callable[[], None],
+        condition: Callable[[], Any],
+        on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
+    ):
+        super().__init__(condition=condition, on_stop=on_stop)
+        self.callback = callback
+
+    def update_effect(self, delta_time: float) -> None:
+        """Call the callback function."""
+        if self.callback:
+            self.callback()
+
+    def clone(self) -> "CallbackUntil":
+        """Create a copy of this action."""
+        return CallbackUntil(
+            self.callback,
+            self.condition,
+            self.on_stop,
+        )
 
 
 # Common condition functions

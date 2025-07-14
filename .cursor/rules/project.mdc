@@ -40,6 +40,21 @@ General rules:
 * Never use Dataclasses
 * AVOID state flags (booleans like self.respawning, self.is_active); use action states and completion callbacks instead.
 
+CRITICAL: infinite() function rule:
+* NEVER suggest changing the infinite() function implementation in actions/conditional.py
+* The current implementation (return False) is intentional and correct for the project's usage patterns
+* Do not recommend changing it to return lambda: False or any other callable
+* This function works correctly with the existing codebase and should not be modified
+
+CRITICAL: Velocity system consistency:
+* MoveUntil ALWAYS uses sprite.change_x and sprite.change_y (Arcade's built-in velocity system)
+* NEVER use sprite.velocity - that's not how MoveUntil works
+* Be consistent - don't switch back and forth between approaches
+
+CRITICAL: Condition function usage:
+* ALWAYS use `infinite` instead of `lambda: False` for infinite/never-ending conditions
+* This is the standard pattern in the codebase
+
 For interface design:
 * ZERO TOLERANCE for runtime type/attribute checking (hasattr, getattr, isinstance, EAFP-with-pass)
 * Design interfaces so checking isn't needed - unclear interfaces are the real problem
@@ -90,6 +105,14 @@ Common implementation patterns:
 Testing patterns to follow:
 * Individual actions: Use arcade.Sprite fixtures, test with action.apply() and Action.update_all()
 * Group actions: Use arcade.SpriteList fixtures, verify actions applied to all sprites in list
+* AttackGroup tests: Test formations, lifecycle management, and breakaway behaviors
+* Boundary actions: Test edge detection, callback coordination, and movement reversal
+* See docs/testing_index.md for complete testing patterns, fixtures, and mock usage guidelines
+* Individual actions: Use arcade.Sprite fixtures, test with action.apply() and Action.update_all()
+* Group actions: Use arcade.SpriteList fixtures, verify actions applied to all sprites in list
+* AttackGroup tests: Test formations, lifecycle management, and breakaway behaviors
+* Boundary actions: Test edge detection, callback coordination, and movement reversal
+* See docs/testing_index.md for complete testing patterns, fixtures, and mock usage guidelines
 * AttackGroup tests: Test formations, lifecycle management, and breakaway behaviors
 * Boundary actions: Test edge detection, callback coordination, and movement reversal
 * See docs/testing_index.md for complete testing patterns, fixtures, and mock usage guidelines

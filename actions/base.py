@@ -40,10 +40,11 @@ class Action(ABC, Generic[_T]):
         self,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-        check_interval: float = 0.0,
         tag: str | None = None,
     ):
         self.target: SpriteTarget | None = None
+        self.condition = condition
+        self.on_stop = on_stop
         self.tag = tag
         self.done = False
         self._is_active = False
@@ -52,11 +53,6 @@ class Action(ABC, Generic[_T]):
         self._condition_met = False
         self._elapsed = 0.0
         self.condition_data: Any = None
-
-        # These are exposed for advanced use cases (e.g., custom composite actions)
-        self.condition = condition
-        self.on_stop = on_stop
-        self.check_interval = check_interval
 
     def __add__(self, other: Action) -> Action:
         """Create a sequence of actions using the '+' operator."""
@@ -114,20 +110,17 @@ class Action(ABC, Generic[_T]):
         self.update_effect(delta_time)
 
         if self.condition and not self._condition_met:
-            self._elapsed += delta_time
-            if self._elapsed >= self.check_interval:
-                self._elapsed = 0.0
-                condition_result = self.condition()
-                if condition_result:
-                    self._condition_met = True
-                    self.condition_data = condition_result
-                    self.remove_effect()
-                    self.done = True
-                    if self.on_stop:
-                        if condition_result is not True:
-                            self.on_stop(condition_result)
-                        else:
-                            self.on_stop()
+            condition_result = self.condition()
+            if condition_result:
+                self._condition_met = True
+                self.condition_data = condition_result
+                self.remove_effect()
+                self.done = True
+                if self.on_stop:
+                    if condition_result is not True:
+                        self.on_stop(condition_result)
+                    else:
+                        self.on_stop()
 
     def update_effect(self, delta_time: float) -> None:
         """
