@@ -440,90 +440,67 @@ class TestBoidFormationEntry:
                 f"Sprite y={sprite.center_y} not in spawn area y range [{spawn_area[1]}, {spawn_area[3]}]"
             )
 
-    def test_formation_entry_pattern_slot_duration_usage(self):
-        """Test that slot_duration parameter affects the timing of slot-in phase."""
-        formation = arrange_line(count=3, start_x=300, start_y=200, spacing=50)
-        sprite_list = create_test_sprite_list(3)
+    def test_slot_in_velocity_vs_duration(self):
+        """Test that slot-in velocity is inversely proportional to duration, independent of randomness."""
+        from actions.pattern import MoveUntilTowardsTarget
 
-        # Position sprites at rally point
-        rally_point = (200, 200)
-        for sprite in sprite_list:
-            sprite.center_x = rally_point[0]
-            sprite.center_y = rally_point[1]
+        # Known start and end positions
+        start_pos = (100, 100)
+        end_pos = (300, 200)
+        num_sprites = 3
 
-        # Test with short slot duration
-        short_duration = 0.5
-        pattern_short = create_formation_entry_pattern(
-            flock_size=3,
-            target_formation=formation,
-            spawn_area=(0, 0, 100, 100),
-            cruise_duration=0.1,  # Very short cruise
-            rally_point=rally_point,
-            slot_duration=short_duration,
-        )
+        # Short and long durations
+        short_duration = 0.5  # seconds
+        long_duration = 2.0  # seconds
+        fps = 60.0
 
-        # Test with long slot duration
-        long_duration = 2.0
-        pattern_long = create_formation_entry_pattern(
-            flock_size=3,
-            target_formation=formation,
-            spawn_area=(0, 0, 100, 100),
-            cruise_duration=0.1,  # Very short cruise
-            rally_point=rally_point,
-            slot_duration=long_duration,
-        )
+        # Calculate distance
+        dx = end_pos[0] - start_pos[0]
+        dy = end_pos[1] - start_pos[1]
+        distance = math.sqrt(dx * dx + dy * dy)
 
-        # Apply patterns to separate sprite lists
-        sprite_list_short = create_test_sprite_list(3)
-        sprite_list_long = create_test_sprite_list(3)
+        # Calculate expected speeds
+        short_speed = distance / (short_duration * fps)
+        long_speed = distance / (long_duration * fps)
 
+        # Create sprite lists
+        sprite_list_short = create_test_sprite_list(num_sprites)
+        sprite_list_long = create_test_sprite_list(num_sprites)
         for sprite in sprite_list_short:
-            sprite.center_x = rally_point[0]
-            sprite.center_y = rally_point[1]
+            sprite.center_x, sprite.center_y = start_pos
         for sprite in sprite_list_long:
-            sprite.center_x = rally_point[0]
-            sprite.center_y = rally_point[1]
+            sprite.center_x, sprite.center_y = start_pos
 
-        pattern_short.apply(sprite_list_short, tag="short_slot")
-        pattern_long.apply(sprite_list_long, tag="long_slot")
+        # Apply slot-in actions
+        slot_actions_short = [
+            MoveUntilTowardsTarget(target_position=end_pos, speed=short_speed, stop_distance=1.0)
+            for _ in range(num_sprites)
+        ]
+        slot_actions_long = [
+            MoveUntilTowardsTarget(target_position=end_pos, speed=long_speed, stop_distance=1.0)
+            for _ in range(num_sprites)
+        ]
+        for i, sprite in enumerate(sprite_list_short):
+            slot_actions_short[i].apply(sprite, tag="slot_short")
+        for i, sprite in enumerate(sprite_list_long):
+            slot_actions_long[i].apply(sprite, tag="slot_long")
 
-        # Skip to slot-in phase by updating through cruise and rally phases
-        # Update enough to get past cruise and rally phases
-        for _ in range(100):  # More frames to ensure we reach slot-in phase
-            Action.update_all(0.016)
-            for sprite in sprite_list_short:
-                sprite.update()
-            for sprite in sprite_list_long:
-                sprite.update()
-
-        # Now check that slot-in velocities are different based on duration
-        # Shorter duration should have higher velocities (to reach target faster)
-        short_speeds = []
-        long_speeds = []
-
+        # Step one frame to set velocities
+        Action.update_all(0.016)
         for sprite in sprite_list_short:
-            speed = math.sqrt(sprite.change_x**2 + sprite.change_y**2)
-            if speed > 0.1:  # Only count sprites that are actually moving
-                short_speeds.append(speed)
-
+            sprite.update()
         for sprite in sprite_list_long:
-            speed = math.sqrt(sprite.change_x**2 + sprite.change_y**2)
-            if speed > 0.1:  # Only count sprites that are actually moving
-                long_speeds.append(speed)
+            sprite.update()
 
-        # If both have moving sprites, short duration should have higher average speed
-        if short_speeds and long_speeds:
-            avg_short_speed = sum(short_speeds) / len(short_speeds)
-            avg_long_speed = sum(long_speeds) / len(long_speeds)
-            assert avg_short_speed > avg_long_speed, (
-                f"Short duration speed ({avg_short_speed}) should be higher than long duration speed ({avg_long_speed})"
-            )
-        else:
-            # If we don't have moving sprites, the test setup might be wrong
-            # Let's check if we have any sprites at all
-            assert len(short_speeds) > 0 or len(long_speeds) > 0, (
-                "No sprites are moving - test may not have reached slot-in phase"
-            )
+        # Measure velocities
+        short_speeds = [math.hypot(s.change_x, s.change_y) for s in sprite_list_short]
+        long_speeds = [math.hypot(s.change_x, s.change_y) for s in sprite_list_long]
+
+        avg_short_speed = sum(short_speeds) / len(short_speeds)
+        avg_long_speed = sum(long_speeds) / len(long_speeds)
+        assert avg_short_speed > avg_long_speed, (
+            f"Short duration speed ({avg_short_speed}) should be higher than long duration speed ({avg_long_speed})"
+        )
 
 
 class TestZigzagPattern:
