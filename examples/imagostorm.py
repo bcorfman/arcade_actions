@@ -78,7 +78,8 @@ class StarfieldView(arcade.View):
         self.star_list = arcade.SpriteList()
         self.cooldown_max = 30
         self.player_fire_cooldown = self.cooldown_max
-        self.prior_direction = 0
+        self.left_pressed = False
+        self.right_pressed = False
         self.fire_pressed = False
         self._setup_stars()
         self._setup_ship()
@@ -163,28 +164,46 @@ class StarfieldView(arcade.View):
         self.player_list.draw()
         self.shot_list.draw()
 
-    def on_key_press(self, key: int, modifiers: int):
+    def update_player_speed(self):
         direction = 0
-        if key == arcade.key.LEFT:
-            direction -= PLAYER_SHIP_SPEED
-        if key == arcade.key.RIGHT:
-            direction += PLAYER_SHIP_SPEED
+        if self.left_pressed and not self.right_pressed:
+            direction = -PLAYER_SHIP_SPEED
+        if self.right_pressed and not self.left_pressed:
+            direction = PLAYER_SHIP_SPEED
         if direction != 0:
-            self.prior_direction = direction
+            Action.stop_actions_for_target(self.ship, tag="player_move")
             move_until(
                 self.ship,
                 velocity=(direction, 0),
                 condition=lambda: self.ship.left < PLAYER_SHIP_LEFT_BOUND or self.ship.right > PLAYER_SHIP_RIGHT_BOUND,
                 tag="player_move",
             )
+        else:
+            Action.stop_actions_for_target(self.ship, tag="player_move")
+
+    def on_key_press(self, key: int, modifiers: int):
+        if key == arcade.key.LEFT:
+            print("left pressed")
+            self.left_pressed = True
+            self.right_pressed = False
+            self.update_player_speed()
+        elif key == arcade.key.RIGHT:
+            print("right pressed")
+            self.right_pressed = True
+            self.left_pressed = False
+            self.update_player_speed()
         if key == arcade.key.LCTRL or modifiers == arcade.key.MOD_CTRL:
             self.fire_pressed = True
         if key == arcade.key.ESCAPE:
             self.window.close()
 
     def on_key_release(self, key: int, modifiers: int):
-        if key == arcade.key.LEFT or key == arcade.key.RIGHT:
-            Action.stop_actions_for_target(self.ship, tag="player_move")
+        if key == arcade.key.LEFT:
+            self.left_pressed = False
+            self.update_player_speed()
+        elif key == arcade.key.RIGHT:
+            self.right_pressed = False
+            self.update_player_speed()
         if key == arcade.key.LCTRL:
             self.fire_pressed = False
 
