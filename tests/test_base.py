@@ -16,12 +16,12 @@ def create_test_sprite() -> arcade.Sprite:
 class MockAction(Action):
     """A concrete Action subclass for testing."""
 
-    def __init__(self, duration=0.1, name="mock", condition=None, on_stop=None, check_interval=0.0):
-        # If no condition provided, use a default one that never completes
+    def __init__(self, duration=0.1, name="mock", condition=None, on_stop=None):
+        if condition is None:
+            condition = lambda: False  # Never stop by default
         super().__init__(
-            condition=condition if condition is not None else lambda: False,
+            condition=condition,
             on_stop=on_stop,
-            check_interval=check_interval,
         )
         self.duration = duration
         self.name = name
@@ -29,19 +29,30 @@ class MockAction(Action):
         self.started = False
         self.stopped = False
 
-    def apply_effect(self) -> None:
-        pass
+    def start(self) -> None:
+        """Called when the action begins."""
+        super().start()
+        self.started = True
+
+    def stop(self) -> None:
+        """Called when the action ends."""
+        super().stop()
+        self.stopped = True
+
+    def update_effect(self, delta_time: float) -> None:
+        self.time_elapsed += delta_time
+        if self.time_elapsed >= self.duration:
+            self.done = True
 
     def clone(self) -> Action:
-        new_action = MockAction(
+        cloned = MockAction(
             duration=self.duration,
             name=self.name,
             condition=self.condition,
             on_stop=self.on_stop,
-            check_interval=self.check_interval,
         )
-        new_action.tag = self.tag
-        return new_action
+        cloned.tag = self.tag
+        return cloned
 
 
 class TestAction:
@@ -238,7 +249,7 @@ class TestAction:
         def on_stop():
             pass
 
-        action = MockAction(condition=condition, on_stop=on_stop, check_interval=0.5)
+        action = MockAction(condition=condition, on_stop=on_stop)
         action.tag = "test"
 
         cloned = action.clone()
@@ -246,7 +257,6 @@ class TestAction:
         assert cloned is not action
         assert cloned.condition == condition
         assert cloned.on_stop == on_stop
-        assert cloned.check_interval == 0.5
         assert cloned.tag == "test"
 
     def test_action_for_each_sprite(self):

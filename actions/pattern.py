@@ -11,6 +11,9 @@ import random
 from collections.abc import Callable
 
 import arcade
+from arcade import easing
+
+from actions import Ease, FollowPathUntil, MoveUntil, duration, sequence
 
 # Boid-based formation entry patterns
 
@@ -24,7 +27,7 @@ class BoidMoveUntil:
     Args:
         max_speed: Maximum speed in pixels per frame (Arcade velocity semantics)
         duration_condition: Function that returns True when movement should stop
-        avoid_sprite: Optional sprite to avoid (e.g., player)
+        avoid_sprites: Optional SpriteList of sprites to avoid (e.g., player, obstacles)
         cohesion_weight: Strength of cohesion force (default: 0.005)
         separation_weight: Strength of separation force (default: 0.05)
         alignment_weight: Strength of alignment force (default: 0.05)
@@ -38,7 +41,7 @@ class BoidMoveUntil:
         *,
         max_speed: float,
         duration_condition: Callable[[], bool],
-        avoid_sprite: arcade.Sprite | None = None,
+        avoid_sprites: arcade.SpriteList | None = None,
         cohesion_weight: float = 0.005,
         separation_weight: float = 0.05,
         alignment_weight: float = 0.05,
@@ -48,7 +51,7 @@ class BoidMoveUntil:
     ):
         self.max_speed = max_speed
         self.condition = duration_condition
-        self.avoid_sprite = avoid_sprite
+        self.avoid_sprites = avoid_sprites
         self.cohesion_weight = cohesion_weight
         self.separation_weight = separation_weight
         self.alignment_weight = alignment_weight
@@ -72,6 +75,10 @@ class BoidMoveUntil:
 
         Action._active_actions.append(self)
         return self
+
+    def start(self):
+        """Start the boid action."""
+        self._is_active = True
 
     def stop(self) -> None:
         """Stop the action and clean up."""
@@ -131,14 +138,15 @@ class BoidMoveUntil:
             steer_x += (avg_vx - sprite.change_x) * self.alignment_weight
             steer_y += (avg_vy - sprite.change_y) * self.alignment_weight
 
-            # Avoidance: steer away from avoid_sprite
-            if self.avoid_sprite:
-                dx = self.avoid_sprite.center_x - sprite.center_x
-                dy = self.avoid_sprite.center_y - sprite.center_y
-                dist_sq = dx * dx + dy * dy
-                if dist_sq < self.avoid_distance * self.avoid_distance and dist_sq > 0:
-                    steer_x -= dx * self.avoid_weight
-                    steer_y -= dy * self.avoid_weight
+            # Avoidance: steer away from all avoid_sprites
+            if self.avoid_sprites:
+                for avoid_sprite in self.avoid_sprites:
+                    dx = avoid_sprite.center_x - sprite.center_x
+                    dy = avoid_sprite.center_y - sprite.center_y
+                    dist_sq = dx * dx + dy * dy
+                    if dist_sq < self.avoid_distance * self.avoid_distance and dist_sq > 0:
+                        steer_x -= dx * self.avoid_weight
+                        steer_y -= dy * self.avoid_weight
 
             # Apply steering to current velocity
             new_vx = sprite.change_x + steer_x
@@ -167,12 +175,12 @@ class MoveUntilTowardsTarget:
 
     def __init__(
         self,
-        target: tuple[float, float],
+        target_position: tuple[float, float],
         speed: float,
         stop_distance: float = 10.0,
         condition: Callable[[], bool] | None = None,
     ):
-        self.target_point = target
+        self.target_point = target_position
         self.speed = speed
         self.stop_distance = stop_distance
         self.additional_condition = condition
@@ -193,6 +201,10 @@ class MoveUntilTowardsTarget:
 
         Action._active_actions.append(self)
         return self
+
+    def start(self):
+        """Start the action."""
+        self._is_active = True
 
     def stop(self) -> None:
         """Stop the action and clean up."""
@@ -271,27 +283,27 @@ def _generate_random_spawn_point(spawn_area: tuple[float, float, float, float]) 
 
 
 def create_boid_flock_pattern(
-    max_speed: float, duration_seconds: float, avoid_sprite: arcade.Sprite | None = None, **boid_kwargs
+    max_speed: float, duration_seconds: float, avoid_sprites: arcade.SpriteList | None = None, **boid_kwargs
 ) -> BoidMoveUntil:
     """Create a boid flocking pattern for a specified duration.
 
     Args:
         max_speed: Maximum speed in pixels per frame
         duration_seconds: How long to run the boid behavior
-        avoid_sprite: Optional sprite to avoid (e.g., player)
+        avoid_sprites: Optional SpriteList of sprites to avoid (e.g., player, obstacles)
         **boid_kwargs: Additional boid parameters (cohesion_weight, etc.)
 
     Returns:
         BoidMoveUntil action
 
     Example:
-        flock_pattern = create_boid_flock_pattern(4.0, 3.0, avoid_sprite=player)
+        flock_pattern = create_boid_flock_pattern(4.0, 3.0, avoid_sprites=player_sprites)
         flock_pattern.apply(enemy_sprites, tag="flock_cruise")
     """
     from actions.conditional import duration
 
     return BoidMoveUntil(
-        max_speed=max_speed, duration_condition=duration(duration_seconds), avoid_sprite=avoid_sprite, **boid_kwargs
+        max_speed=max_speed, duration_condition=duration(duration_seconds), avoid_sprites=avoid_sprites, **boid_kwargs
     )
 
 
@@ -302,7 +314,7 @@ def create_formation_entry_pattern(
     cruise_duration: float,
     rally_point: tuple[float, float],
     slot_duration: float,
-    avoid_sprite: arcade.Sprite | None = None,
+    avoid_sprites: arcade.SpriteList | None = None,
     max_cruise_speed: float = 4.0,
 ):
     """Create a complete formation entry pattern: cruise -> rally -> slot-in.
@@ -319,14 +331,14 @@ def create_formation_entry_pattern(
         cruise_duration: Duration of boid cruise phase in seconds
         rally_point: (x, y) intermediate rally point before formation
         slot_duration: Duration for slotting into formation in seconds
-        avoid_sprite: Optional sprite to avoid during cruise (e.g., player)
+        avoid_sprites: SpriteList of sprites to avoid during cruise (e.g., player, obstacles)
         max_cruise_speed: Maximum speed during cruise phase
 
     Returns:
         Sequence action with cruise, rally, and slot-in phases
 
     Example:
-        formation = arrange_grid(count=10, rows=2, cols=5)
+        formation = arrange_grid(rows=2, cols=5, start_x=200, start_y=400)
         entry = create_formation_entry_pattern(
             flock_size=10,
             target_formation=formation,
@@ -334,34 +346,85 @@ def create_formation_entry_pattern(
             cruise_duration=3.0,
             rally_point=(150, 350),
             slot_duration=2.0,
-            avoid_sprite=player
+            avoid_sprites=player_sprites
         )
         entry.apply(new_sprites, tag="formation_entry")
     """
     from actions.composite import parallel, sequence
 
+    # Create a custom action that positions sprites in spawn area before starting phases
+    class SpawnPositioner:
+        """Custom action to position sprites in spawn area at the start."""
+
+        def __init__(self, spawn_area):
+            self.spawn_area = spawn_area
+            self.target = None
+            self.tag = None
+            self.done = False
+            self._is_active = False
+
+        def apply(self, target, tag=None):
+            self.target = target
+            self.tag = tag
+            self._is_active = True
+            return self
+
+        def start(self):
+            """Start the action by positioning sprites immediately."""
+            self._is_active = True
+            # Position sprites immediately
+            if isinstance(self.target, arcade.SpriteList):
+                for sprite in self.target:
+                    x, y = _generate_random_spawn_point(self.spawn_area)
+                    sprite.center_x = x
+                    sprite.center_y = y
+            else:
+                x, y = _generate_random_spawn_point(self.spawn_area)
+                self.target.center_x = x
+                self.target.center_y = y
+            self.done = True
+
+        def stop(self):
+            self.done = True
+            self._is_active = False
+
+        def update(self, delta_time):
+            pass  # No update needed, positioning is immediate
+
+    # Phase 0: Position sprites in spawn area
+    spawn_positioner = SpawnPositioner(spawn_area)
+
     # Phase 1: Boid cruise
     cruise_action = create_boid_flock_pattern(
-        max_speed=max_cruise_speed, duration_seconds=cruise_duration, avoid_sprite=avoid_sprite
+        max_speed=max_cruise_speed, duration_seconds=cruise_duration, avoid_sprites=avoid_sprites
     )
 
     # Phase 2: Rally toward formation area
     rally_action = MoveUntilTowardsTarget(
-        target=rally_point,
+        target_position=rally_point,
         speed=max_cruise_speed * 0.8,  # Slightly slower for rally
         stop_distance=30.0,
     )
 
-    # Phase 3: Slot into formation positions
-    # Note: This creates a parallel action where each sprite moves to its slot
-    # The actual sprite-to-slot assignment happens when the action is applied
+    # Phase 3: Slot into formation positions using slot_duration
     slot_actions = []
     formation_positions = [(s.center_x, s.center_y) for s in target_formation[:flock_size]]
 
     for i, pos in enumerate(formation_positions):
+        # Calculate speed needed to reach position in slot_duration
+        # Note: We'll calculate distance from rally_point to slot position
+        dx = pos[0] - rally_point[0]
+        dy = pos[1] - rally_point[1]
+        distance = math.sqrt(dx * dx + dy * dy)
+
+        # Calculate speed to cover distance in slot_duration (pixels per frame)
+        # Use Arcade's velocity semantics: pixels per frame at 60 FPS
+        frames_to_complete = slot_duration * 60.0  # Convert seconds to frames at 60 FPS
+        speed_per_frame = distance / frames_to_complete if frames_to_complete > 0 else 3.0
+
         slot_action = MoveUntilTowardsTarget(
-            target=pos,
-            speed=3.0,  # Moderate speed for precise positioning
+            target_position=pos,
+            speed=speed_per_frame,
             stop_distance=5.0,
         )
         slot_actions.append(slot_action)
@@ -373,7 +436,7 @@ def create_formation_entry_pattern(
     slot_in_action = parallel(*slot_actions) if slot_actions else None
 
     # Combine all phases
-    phases = [cruise_action, rally_action]
+    phases = [spawn_positioner, cruise_action, rally_action]
     if slot_in_action:
         phases.append(slot_in_action)
 
@@ -473,7 +536,7 @@ def create_galaga_style_entry(
                 cruise_duration=cruise_duration,
                 rally_point=rally_point,
                 slot_duration=slot_duration,
-                avoid_sprite=player_sprite,
+                avoid_sprites=player_sprite,
                 max_cruise_speed=4.0 + random.uniform(-1.0, 1.0),  # Slight speed variation
             )
             entry_actions.append(entry_pattern)
@@ -481,7 +544,7 @@ def create_galaga_style_entry(
     return entry_actions
 
 
-def create_zigzag_pattern(width: float, height: float, speed: float, segments: int = 4):
+def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segments: int = 4):
     """Create a zigzag movement pattern using sequences of MoveUntil actions.
 
     Args:
@@ -494,13 +557,12 @@ def create_zigzag_pattern(width: float, height: float, speed: float, segments: i
         Sequence action that creates zigzag movement
 
     Example:
-        zigzag = create_zigzag_pattern(width=100, height=50, speed=150, segments=6)
+        zigzag = create_zigzag_pattern(dimensions=(100, 50), speed=150, segments=6)
         zigzag.apply(sprite, tag="zigzag_movement")
     """
-    from actions.composite import sequence
-    from actions.conditional import MoveUntil, duration
 
     # Calculate time for each segment
+    width, height = dimensions
     distance = math.sqrt(width**2 + height**2)
     segment_time = distance / speed
 
@@ -531,7 +593,6 @@ def create_wave_pattern(amplitude: float, frequency: float, length: float, speed
         wave = create_wave_pattern(amplitude=50, frequency=2, length=400, speed=200)
         wave.apply(sprite, tag="wave_movement")
     """
-    from actions.conditional import FollowPathUntil, duration
 
     # Generate control points for wave using sine function
     num_points = max(8, int(frequency * 4))  # More points for higher frequency
@@ -554,7 +615,7 @@ def create_wave_pattern(amplitude: float, frequency: float, length: float, speed
     )
 
 
-def create_smooth_zigzag_pattern(width: float, height: float, speed: float, ease_duration: float = 0.5):
+def create_smooth_zigzag_pattern(dimensions: tuple[float, float], speed: float, ease_duration: float = 0.5):
     """Create a zigzag pattern with smooth easing transitions.
 
     Args:
@@ -567,22 +628,19 @@ def create_smooth_zigzag_pattern(width: float, height: float, speed: float, ease
         Ease action wrapping zigzag movement
 
     Example:
-        smooth_zigzag = create_smooth_zigzag_pattern(100, 50, 150, ease_duration=1.0)
+        smooth_zigzag = create_smooth_zigzag_pattern(dimensions=(100, 50), speed=150, ease_duration=1.0)
         smooth_zigzag.apply(sprite, tag="smooth_zigzag")
     """
-    from arcade import easing
-
-    from actions.easing import Ease
 
     # Create the base zigzag
-    zigzag = create_zigzag_pattern(width, height, speed)
+    zigzag = create_zigzag_pattern(dimensions, speed)
 
     # Wrap with easing for smooth acceleration
     return Ease(zigzag, duration=ease_duration, ease_function=easing.ease_in_out)
 
 
 def create_spiral_pattern(
-    center_x: float, center_y: float, max_radius: float, revolutions: float, speed: float, direction: str = "outward"
+    center: tuple[float, float], max_radius: float, revolutions: float, speed: float, direction: str = "outward"
 ):
     """Create an outward or inward spiral pattern.
 
@@ -601,8 +659,7 @@ def create_spiral_pattern(
         spiral = create_spiral_pattern(400, 300, 150, 3.0, 200, "outward")
         spiral.apply(sprite, tag="spiral_movement")
     """
-    from actions.conditional import FollowPathUntil, duration
-
+    center_x, center_y = center
     num_points = max(20, int(revolutions * 8))
     control_points = []
 
@@ -625,7 +682,7 @@ def create_spiral_pattern(
     return FollowPathUntil(control_points, speed, duration(duration_time), rotate_with_path=True)
 
 
-def create_figure_eight_pattern(center_x: float, center_y: float, width: float, height: float, speed: float):
+def create_figure_eight_pattern(center: tuple[float, float], width: float, height: float, speed: float):
     """Create a figure-8 (infinity) movement pattern.
 
     Args:
@@ -642,8 +699,7 @@ def create_figure_eight_pattern(center_x: float, center_y: float, width: float, 
         figure_eight = create_figure_eight_pattern(400, 300, 200, 100, 180)
         figure_eight.apply(sprite, tag="figure_eight")
     """
-    from actions.conditional import FollowPathUntil, duration
-
+    center_x, center_y = center
     # Generate figure-8 using parametric equations
     num_points = 16
     control_points = []
@@ -662,7 +718,7 @@ def create_figure_eight_pattern(center_x: float, center_y: float, width: float, 
     return FollowPathUntil(control_points, speed, duration(duration_time), rotate_with_path=True)
 
 
-def create_orbit_pattern(center_x: float, center_y: float, radius: float, speed: float, clockwise: bool = True):
+def create_orbit_pattern(center: tuple[float, float], radius: float, speed: float, clockwise: bool = True):
     """Create a circular orbit pattern.
 
     Args:
@@ -679,7 +735,7 @@ def create_orbit_pattern(center_x: float, center_y: float, radius: float, speed:
         orbit = create_orbit_pattern(400, 300, 120, 150, clockwise=True)
         orbit.apply(sprite, tag="orbit")
     """
-    from actions.conditional import FollowPathUntil, duration
+    center_x, center_y = center
 
     # Generate circular path
     num_points = 12
@@ -716,11 +772,11 @@ def create_bounce_pattern(velocity: tuple[float, float], bounds: tuple[float, fl
         bounce = create_bounce_pattern((150, 100), bounds=(0, 0, 800, 600))
         bounce.apply(sprite, tag="bouncing")
     """
-    from actions.conditional import MoveUntil
+    from .conditional import infinite
 
     return MoveUntil(
         velocity,
-        lambda: False,  # Continue indefinitely
+        infinite,  # Continue indefinitely
         bounds=bounds,
         boundary_behavior="bounce",
     )
@@ -741,9 +797,6 @@ def create_patrol_pattern(start_pos: tuple[float, float], end_pos: tuple[float, 
         patrol = create_patrol_pattern((100, 200), (500, 200), 120)
         patrol.apply(sprite, tag="patrol")
     """
-    from actions.composite import sequence
-    from actions.conditional import MoveUntil, duration
-
     # Calculate distance and time for each leg
     dx = end_pos[0] - start_pos[0]
     dy = end_pos[1] - start_pos[1]

@@ -769,3 +769,17 @@ move_until(bullet, velocity=(0, BULLET_SPEED), condition=bullet_collision_check,
 ```
 
 This pattern ensures collision checks are only performed once per frame, and all relevant data is passed directly to the handler—no need for extra state or repeated queries. This is the recommended approach for efficient, event-driven collision handling in ArcadeActions.
+
+## Important Implementation Notes
+
+### infinite() Function
+
+**CRITICAL:** The `infinite()` function implementation in `actions/conditional.py` should never be modified. The current implementation (`return False`) is intentional and correct for the project's usage patterns. Do not suggest changing it to return `lambda: False` or any other callable. This function works correctly with the existing codebase and should not be modified.
+
+### Velocity System Consistency
+
+**CRITICAL:** MoveUntil ALWAYS uses `sprite.change_x` and `sprite.change_y` (Arcade's built-in velocity system). NEVER use `sprite.velocity` - that's not how MoveUntil works. Be consistent - don't switch back and forth between approaches.
+
+### Condition Function Usage
+
+**CRITICAL:** ALWAYS use `infinite` instead of `lambda: False` for infinite/never-ending conditions. This is the standard pattern in the codebase.
