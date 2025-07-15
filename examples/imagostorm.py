@@ -155,6 +155,7 @@ class StarfieldView(arcade.View):
 
         if self.player_fire_cooldown > 0:
             self.player_fire_cooldown -= 1
+        self.update_player_speed()
         self._fire_bullet_if_ready()
 
     def on_draw(self):
@@ -186,12 +187,10 @@ class StarfieldView(arcade.View):
             print("left pressed")
             self.left_pressed = True
             self.right_pressed = False
-            self.update_player_speed()
         elif key == arcade.key.RIGHT:
             print("right pressed")
             self.right_pressed = True
             self.left_pressed = False
-            self.update_player_speed()
         if key == arcade.key.LCTRL or modifiers == arcade.key.MOD_CTRL:
             self.fire_pressed = True
         if key == arcade.key.ESCAPE:
@@ -200,10 +199,8 @@ class StarfieldView(arcade.View):
     def on_key_release(self, key: int, modifiers: int):
         if key == arcade.key.LEFT:
             self.left_pressed = False
-            self.update_player_speed()
         elif key == arcade.key.RIGHT:
             self.right_pressed = False
-            self.update_player_speed()
         if key == arcade.key.LCTRL:
             self.fire_pressed = False
 
