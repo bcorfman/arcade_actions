@@ -184,11 +184,9 @@ class StarfieldView(arcade.View):
 
     def on_key_press(self, key: int, modifiers: int):
         if key == arcade.key.LEFT:
-            print("left pressed")
             self.left_pressed = True
             self.right_pressed = False
         elif key == arcade.key.RIGHT:
-            print("right pressed")
             self.right_pressed = True
             self.left_pressed = False
         if key == arcade.key.LCTRL or modifiers == arcade.key.MOD_CTRL:
