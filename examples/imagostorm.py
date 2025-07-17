@@ -43,11 +43,15 @@ VERTICAL_MARGIN: int = 5
 # ---------------------------------------------------------------------------
 PLAYER_SHIP_SPEED = 5
 PLAYER_SHIP_FIRE_SPEED = 20
-PLAYER_SHIP_LEFT_BOUND = 50
-PLAYER_SHIP_RIGHT_BOUND = WINDOW_WIDTH - 50
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
+LEFT_BOUND = 40
+RIGHT_BOUND = WINDOW_WIDTH - 40
+COOLDOWN_NORMAL = 30
+COOLDOWN_DOUBLE_FIRE = 15
+NORMAL = 0
+DOUBLE_FIRE = 1
+THREE_WAY = 2
+SHIELD = 3
+BOMB = 4
 
 
 def _random_star_position() -> tuple[float, float]:
@@ -64,6 +68,26 @@ def _create_star_sprite(color: arcade.Color, size: int = 2) -> arcade.Sprite:
     return sprite
 
 
+class Powerup(arcade.Sprite):
+    def __init__(self):
+        self.gem_textures = [
+            arcade.load_texture(":resources:/images/items/gemBlue.png"),
+            arcade.load_texture(":resources:/images/items/gemGreen.png"),
+            arcade.load_texture(":resources:/images/items/gemRed.png"),
+            arcade.load_texture(":resources:/images/items/gemYellow.png"),
+        ]
+        self.texture_index = random.randint(0, 3)
+        super().__init__(self.gem_textures[self.texture_index])
+        self.textures = self.gem_textures
+        self.center_x = random.uniform(LEFT_BOUND + self.width / 2, RIGHT_BOUND - self.width / 2)
+        self.center_y = WINDOW_HEIGHT + 30
+        arcade.schedule(self.update_animation, 1)
+
+    def update_animation(self, delta_time: float = 1 / 60, *args, **kwargs) -> None:
+        self.texture_index = (self.texture_index + 1) % len(self.textures)
+        self.texture = self.textures[self.texture_index]
+
+
 # ---------------------------------------------------------------------------
 # Main view
 # ---------------------------------------------------------------------------
@@ -73,18 +97,22 @@ class StarfieldView(arcade.View):
     def __init__(self):
         super().__init__()
 
+        self.powerup_list = arcade.SpriteList()
         self.shot_list = arcade.SpriteList()
         self.player_list = arcade.SpriteList()
         self.star_list = arcade.SpriteList()
-        self.cooldown_max = 30
+        self.enemy_list = arcade.SpriteList()
+        self._setup_stars()
+        self._setup_ship()
+        self._setup_enemies()
+        self.cooldown_normal = 30
+        self.cooldown_max = COOLDOWN_NORMAL
+        self.cooldown_timer = self.cooldown_normal
         self.player_fire_cooldown = self.cooldown_max
         self.left_pressed = False
         self.right_pressed = False
         self.fire_pressed = False
-        self._setup_stars()
-        self._setup_ship()
-
-        # A solid black background keeps the focus on the starfield.
+        self.current_powerup = 0
         self.background_color = arcade.color.BLACK
 
     # ---------------------------------------------------------------------
@@ -126,6 +154,9 @@ class StarfieldView(arcade.View):
         self.ship.center_y = 100
         self.player_list.append(self.ship)
 
+    def _setup_enemies(self) -> None:
+        pass
+
     def _fire_bullet_if_ready(self) -> None:
         if self.player_fire_cooldown == 0 and self.fire_pressed:
             shot = arcade.Sprite(":resources:/images/space_shooter/laserRed01.png")
@@ -141,6 +172,47 @@ class StarfieldView(arcade.View):
             self.shot_list.append(shot)
             self.player_fire_cooldown = self.cooldown_max
 
+    def reset_cooldown(self, delta_time):
+        self.cooldown_max = COOLDOWN_NORMAL
+        self.player_fire_cooldown = self.cooldown_max
+
+    def _spawn_powerup(self):
+        if random.random() < 0.005 and len(self.powerup_list) == 0:
+            powerup = Powerup()
+
+            def powerup_collision_check():
+                shots_colliding = arcade.check_for_collision_with_list(powerup, self.shot_list)
+                offscreen = powerup.top < -30
+                if shots_colliding or offscreen:
+                    return {
+                        "powerup_hit": shots_colliding,
+                        "offscreen": offscreen,
+                    }
+                return None
+
+            def handle_powerup_collision(collision_data):
+                if collision_data["powerup_hit"]:
+                    powerup.remove_from_sprite_lists()
+                    shots_colliding = collision_data["powerup_hit"]
+                    if shots_colliding:
+                        for shot in shots_colliding:
+                            shot.remove_from_sprite_lists()
+                        self.current_powerup |= DOUBLE_FIRE
+                        self.cooldown_max = COOLDOWN_DOUBLE_FIRE
+                        self.player_fire_cooldown = self.cooldown_max
+                        arcade.unschedule(self.reset_cooldown)
+                        arcade.schedule_once(self.reset_cooldown, 5)
+                if collision_data["offscreen"]:
+                    powerup.remove_from_sprite_lists()
+
+            self.powerup_list.append(powerup)
+            move_until(
+                self.powerup_list,
+                velocity=(0, -5),
+                condition=powerup_collision_check,
+                on_stop=handle_powerup_collision,
+            )
+
     # ---------------------------------------------------------------------
     # Arcade callbacks
     # ---------------------------------------------------------------------
@@ -150,6 +222,7 @@ class StarfieldView(arcade.View):
 
         # Apply velocities to sprites.
         self.star_list.update()
+        self.powerup_list.update()
         self.player_list.update()
         self.shot_list.update()
 
@@ -157,11 +230,13 @@ class StarfieldView(arcade.View):
             self.player_fire_cooldown -= 1
         self.update_player_speed()
         self._fire_bullet_if_ready()
+        self._spawn_powerup()
 
     def on_draw(self):
         # Clear screen (preferred over arcade.start_render() inside a View).
         self.clear()
         self.star_list.draw()
+        self.powerup_list.draw()
         self.player_list.draw()
         self.shot_list.draw()
 
@@ -176,7 +251,9 @@ class StarfieldView(arcade.View):
             move_until(
                 self.ship,
                 velocity=(direction, 0),
-                condition=lambda: self.ship.left < PLAYER_SHIP_LEFT_BOUND or self.ship.right > PLAYER_SHIP_RIGHT_BOUND,
+                condition=infinite,
+                bounds=(LEFT_BOUND + self.ship.width / 2, 0, RIGHT_BOUND - self.ship.width / 2, WINDOW_HEIGHT),
+                boundary_behavior="limit",
                 tag="player_move",
             )
         else:
