@@ -913,7 +913,8 @@ def _create_galaga_group_entry(
         return min_spacing if min_spacing != float("inf") else 50.0
 
     follower_spacing = calculate_grid_spacing(target_positions)
-    delay_between_sprites = follower_spacing / path_speed
+    # Much tighter spacing - reduce delay to 1/10th of the calculated value
+    delay_between_sprites = (follower_spacing / path_speed) * 0.1
 
     # Helper function to create spline paths (using proven working Bezier control points)
     def _create_galaga_spline_path(spawn_side_index, formation_center, path_amplitude):
@@ -928,22 +929,22 @@ def _create_galaga_group_entry(
             start_x = left
             start_y = (bottom + top) / 2
 
-            # Create S-curve using proven working Bezier control points
+            # Create dramatic S-curve using more pronounced control points
             control_points = [
                 (start_x, start_y),  # Start off-screen left
-                (start_x + 165, start_y - 100),  # Pull down-right (creates first curve)
-                (start_x + 385, start_y + 100),  # Pull up-right (creates S-shape)
+                (start_x + 200, start_y - 150),  # Pull down-right (creates dramatic first curve)
+                (start_x + 400, start_y + 150),  # Pull up-right (creates dramatic S-shape)
                 (center_x, center_y),  # End at formation center
             ]
         elif spawn_side_index == 1:  # Right spawn
             start_x = right
             start_y = (bottom + top) / 2
 
-            # Mirror the S-curve for right spawn
+            # Mirror the dramatic S-curve for right spawn
             control_points = [
                 (start_x, start_y),  # Start off-screen right
-                (start_x - 165, start_y - 100),  # Pull down-left (creates first curve)
-                (start_x - 385, start_y + 100),  # Pull up-left (creates S-shape)
+                (start_x - 200, start_y - 150),  # Pull down-left (creates dramatic first curve)
+                (start_x - 400, start_y + 150),  # Pull up-left (creates dramatic S-shape)
                 (center_x, center_y),  # End at formation center
             ]
         elif spawn_side_index == 2:  # Top spawn
@@ -971,15 +972,72 @@ def _create_galaga_group_entry(
 
         return control_points
 
+    # Helper function to create individual spline paths for each sprite
+    def _create_individual_galaga_path(spawn_side_index, target_position, path_amplitude):
+        """Create a Galaga-style spline path from spawn to individual target position."""
+        target_x, target_y = target_position
+
+        # Get spawn area bounds
+        left, bottom, right, top = spawn_area
+
+        # Generate control points for authentic Galaga S-curve path
+        if spawn_side_index == 0:  # Left spawn
+            start_x = left
+            start_y = (bottom + top) / 2
+
+            # Create S-curve using proven working Bezier control points
+            control_points = [
+                (start_x, start_y),  # Start off-screen left
+                (start_x + 200, start_y - 150),  # Pull down-right (creates dramatic first curve)
+                (start_x + 400, start_y + 150),  # Pull up-right (creates dramatic S-shape)
+                (target_x, target_y),  # End at individual target position
+            ]
+        elif spawn_side_index == 1:  # Right spawn
+            start_x = right
+            start_y = (bottom + top) / 2
+
+            # Mirror the dramatic S-curve for right spawn
+            control_points = [
+                (start_x, start_y),  # Start off-screen right
+                (start_x - 200, start_y - 150),  # Pull down-left (creates dramatic first curve)
+                (start_x - 400, start_y + 150),  # Pull up-left (creates dramatic S-shape)
+                (target_x, target_y),  # End at individual target position
+            ]
+        elif spawn_side_index == 2:  # Top spawn
+            start_x = (left + right) / 2
+            start_y = top
+
+            # Curly-Q from top
+            control_points = [
+                (start_x, start_y),  # Start off-screen top
+                (start_x + path_amplitude * 0.7, start_y - path_amplitude * 0.5),  # Curve right
+                (start_x - path_amplitude * 0.5, start_y - path_amplitude * 1.2),  # Loop back left
+                (target_x, target_y),  # End at individual target position
+            ]
+        else:  # Bottom spawn
+            start_x = (left + right) / 2
+            start_y = bottom
+
+            # Simple curve from bottom
+            control_points = [
+                (start_x, start_y),  # Start off-screen bottom
+                (start_x + path_amplitude * 0.6, start_y + path_amplitude * 0.8),  # Curve right
+                (start_x - path_amplitude * 0.4, start_y + path_amplitude * 1.5),  # Curve left
+                (target_x, target_y),  # End at individual target position
+            ]
+
+        return control_points
+
     # Simple spawn positioner
     class SimpleSpawnPositioner:
         """Position sprites in spawn area with formation spacing."""
 
-        def __init__(self, spawn_area, formation_sprites, spawn_side_index, grid_spacing):
+        def __init__(self, spawn_area, formation_sprites, spawn_side_index, grid_spacing, shared_spline_path):
             self.spawn_area = spawn_area
             self.formation_sprites = formation_sprites
             self.spawn_side_index = spawn_side_index
             self.grid_spacing = grid_spacing
+            self.shared_spline_path = shared_spline_path
             self.target = None
             self.tag = None
             self.done = False
@@ -992,45 +1050,31 @@ def _create_galaga_group_entry(
             return self
 
         def start(self):
-            """Position sprites in formation at spawn area with proper grid spacing."""
+            """Position sprites at the start of the shared path with proper grid spacing."""
             self._is_active = True
 
             if not self.formation_sprites:
                 self.done = True
                 return
 
-            # Get spawn area bounds
-            left, bottom, right, top = self.spawn_area
+            # Get the start point of the shared path (first control point)
+            start_x, start_y = self.shared_spline_path[0] if hasattr(self, "shared_spline_path") else (0, 0)
 
-            # Position sprites in formation line at spawn area using grid spacing
-            if self.spawn_side_index == 0:  # Left spawn - vertical line
-                spawn_x = left + 20
-                start_y = (bottom + top) / 2 - (len(self.formation_sprites) - 1) * self.grid_spacing / 2
-                for i, sprite in enumerate(self.formation_sprites):
-                    sprite.center_x = spawn_x
-                    sprite.center_y = start_y + i * self.grid_spacing
-                    sprite.visible = True
-            elif self.spawn_side_index == 1:  # Right spawn - vertical line
-                spawn_x = right - 20
-                start_y = (bottom + top) / 2 - (len(self.formation_sprites) - 1) * self.grid_spacing / 2
-                for i, sprite in enumerate(self.formation_sprites):
-                    sprite.center_x = spawn_x
-                    sprite.center_y = start_y + i * self.grid_spacing
-                    sprite.visible = True
-            elif self.spawn_side_index == 2:  # Top spawn - horizontal line
-                spawn_y = top - 20
-                start_x = (left + right) / 2 - (len(self.formation_sprites) - 1) * self.grid_spacing / 2
-                for i, sprite in enumerate(self.formation_sprites):
-                    sprite.center_x = start_x + i * self.grid_spacing
-                    sprite.center_y = spawn_y
-                    sprite.visible = True
-            else:  # Bottom spawn - horizontal line
-                spawn_y = bottom + 20
-                start_x = (left + right) / 2 - (len(self.formation_sprites) - 1) * self.grid_spacing / 2
-                for i, sprite in enumerate(self.formation_sprites):
-                    sprite.center_x = start_x + i * self.grid_spacing
-                    sprite.center_y = spawn_y
-                    sprite.visible = True
+            # Position sprites in a line at the start of the shared path
+            # Calculate spacing based on number of sprites
+            total_spacing = (len(self.formation_sprites) - 1) * self.grid_spacing
+            start_offset = -total_spacing / 2
+
+            for i, sprite in enumerate(self.formation_sprites):
+                # Position exactly at the path start point
+                sprite.center_x = start_x
+                sprite.center_y = start_y + start_offset + i * self.grid_spacing
+                sprite.visible = True
+
+                # Ensure sprites start with no velocity
+                sprite.change_x = 0
+                sprite.change_y = 0
+                sprite.change_angle = 0
 
             self.done = True
 
@@ -1041,9 +1085,9 @@ def _create_galaga_group_entry(
         def update(self, delta_time):
             pass
 
-    # Simple coordinator using single shared path
+    # Simple coordinator using shared path for true leader-follower behavior
     class SimpleGalagaCoordinator:
-        """Coordinates sprites following the same S-curve path with delays, then moving to final positions."""
+        """Coordinates sprites following the same shared S-curve path with delays, then moving to final positions."""
 
         def __init__(
             self,
@@ -1051,11 +1095,15 @@ def _create_galaga_group_entry(
             target_positions,
             path_speed,
             delay_between_sprites,
+            shared_spline_path,
+            formation_center,
         ):
             self.formation_sprites = formation_sprites
             self.target_positions = target_positions
             self.path_speed = path_speed
             self.delay_between_sprites = delay_between_sprites
+            self.shared_spline_path = shared_spline_path
+            self.formation_center = formation_center
             self.target = None
             self.tag = None
             self.done = False
@@ -1069,7 +1117,7 @@ def _create_galaga_group_entry(
             return self
 
         def start(self):
-            """Create and start individual sprite sequences following individual paths."""
+            """Create and start sprite sequences: delay -> shared path -> individual positioning -> rotation."""
             self._is_active = True
             self._target_positions = list(self.target_positions)
             self._rotated = [False] * len(self.formation_sprites)
@@ -1077,22 +1125,56 @@ def _create_galaga_group_entry(
             for i, sprite in enumerate(self.formation_sprites):
                 sprite_delay = i * self.delay_between_sprites
                 target_x, target_y = self.target_positions[i]
-                individual_path = self._create_individual_galaga_path(sprite, target_x, target_y)
-                from actions.conditional import DelayUntil, RotateUntil
+                from actions.conditional import DelayUntil, MoveUntil, RotateUntil
 
-                def make_path_action(sprite=sprite, target_x=target_x, target_y=target_y):
-                    def on_stop(*_):
+                def make_individual_path_action(sprite=sprite, target_x=target_x, target_y=target_y):
+                    """Each sprite follows its own S-curve path to its final position."""
+
+                    def on_path_stop(*_):
+                        # Position sprite at its final position when path completes
                         sprite.center_x = target_x
                         sprite.center_y = target_y
                         sprite.change_angle = 0
 
+                    # Create individual path for this sprite
+                    individual_path = _create_individual_galaga_path(
+                        spawn_side_index, (target_x, target_y), path_amplitude
+                    )
+
                     return FollowPathUntil(
                         control_points=individual_path,
                         velocity=self.path_speed,
-                        condition=lambda: abs(sprite.center_x - target_x) < 10 and abs(sprite.center_y - target_y) < 10,
+                        condition=lambda: abs(sprite.center_x - target_x) < 30 and abs(sprite.center_y - target_y) < 30,
                         rotate_with_path=True,
                         rotation_offset=0.0,
-                        on_stop=on_stop,
+                        on_stop=on_path_stop,
+                    )
+
+                def make_final_positioning_action(sprite=sprite, target_x=target_x, target_y=target_y):
+                    """Move from formation center to individual final grid position."""
+
+                    def on_final_stop(*_):
+                        sprite.center_x = target_x
+                        sprite.center_y = target_y
+                        sprite.change_angle = 0
+
+                    # Calculate direction and distance from formation center to final position
+                    dx = target_x - self.formation_center[0]
+                    dy = target_y - self.formation_center[1]
+                    distance = (dx**2 + dy**2) ** 0.5
+
+                    if distance > 0:
+                        # Normalize direction and apply moderate speed
+                        speed = 2.0  # Much slower speed to prevent offscreen movement
+                        velocity = (dx / distance * speed, dy / distance * speed)
+                    else:
+                        # Already at target
+                        velocity = (0, 0)
+
+                    return MoveUntil(
+                        velocity=velocity,
+                        condition=lambda: abs(sprite.center_x - target_x) < 10 and abs(sprite.center_y - target_y) < 10,
+                        on_stop=on_final_stop,
                     )
 
                 def make_rotate_action(sprite=sprite, idx=i):
@@ -1140,16 +1222,18 @@ def _create_galaga_group_entry(
 
                     return AdaptiveRotateUntil()
 
+                # Create sequence: delay -> individual path -> rotation
                 if sprite_delay > 0:
                     delay_action = DelayUntil(condition=duration(sprite_delay))
-                    path_action = make_path_action()
+                    individual_path_action = make_individual_path_action()
                     rotate_action = make_rotate_action()
-                    sprite_sequence = sequence(delay_action, path_action, rotate_action)
+                    sprite_sequence = sequence(delay_action, individual_path_action, rotate_action)
                 else:
-                    path_action = make_path_action()
+                    individual_path_action = make_individual_path_action()
                     rotate_action = make_rotate_action()
-                    sprite_sequence = sequence(path_action, rotate_action)
-                sprite_sequence.apply(sprite, tag=f"simple_galaga_{i}")
+                    sprite_sequence = sequence(individual_path_action, rotate_action)
+
+                sprite_sequence.apply(sprite, tag=f"galaga_leader_follower_{i}")
                 sprite_sequence.start()
                 self.sprite_sequences.append(sprite_sequence)
 
@@ -1174,36 +1258,24 @@ def _create_galaga_group_entry(
                     sprite.change_angle = 0
                 self.done = True
 
-        def _create_individual_galaga_path(self, sprite, target_x, target_y):
-            """Create an individual Galaga-style S-curve path from sprite's current position to target."""
-            import math
-
-            start_x = sprite.center_x
-            start_y = sprite.center_y
-            x0, y0 = start_x, start_y
-            x3, y3 = target_x, target_y
-            dx, dy = x3 - x0, y3 - y0
-            L = math.hypot(dx, dy)
-            if L == 0:
-                return [(x0, y0), (x3, y3)]
-            ux, uy = dx / L, dy / L
-            perp_x, perp_y = -uy, ux
-            # Amplitude: S-curve height, proportional to distance, minimum 60, max 180
-            amplitude = min(180, max(60, L * 0.4))
-            x1 = x0 + dx * 0.33 + perp_x * amplitude
-            y1 = y0 + dy * 0.33 + perp_y * amplitude
-            x2 = x0 + dx * 0.66 - perp_x * amplitude
-            y2 = y0 + dy * 0.66 - perp_y * amplitude
-            return [(x0, y0), (x1, y1), (x2, y2), (x3, y3)]
-
     # Create simple components
     grid_spacing = calculate_grid_spacing(target_positions)
-    spawn_positioner = SimpleSpawnPositioner(spawn_area, formation_sprites, spawn_side_index, grid_spacing)
+
+    # Create the shared spline path that all sprites in this row will follow
+    # Each sprite's path ends at its individual final position
+    shared_spline_path = _create_galaga_spline_path(spawn_side_index, formation_center, path_amplitude)
+
+    spawn_positioner = SimpleSpawnPositioner(
+        spawn_area, formation_sprites, spawn_side_index, grid_spacing, shared_spline_path
+    )
+
     coordinator = SimpleGalagaCoordinator(
         formation_sprites,
         target_positions,
-        path_speed,
+        path_speed * 3.0,  # Increase speed to make S-curve more visible
         delay_between_sprites,
+        shared_spline_path,  # Pass the shared path
+        formation_center,  # Pass formation center for positioning
     )
 
     # Combine spawn positioning and coordination

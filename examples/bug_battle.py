@@ -222,6 +222,7 @@ class StarfieldView(arcade.View):
         self.right_pressed = False
         self.fire_pressed = False
         self.background_color = arcade.color.BLACK
+        arcade.schedule_once(self._spawn_powerup, random.gauss(20, 5))
 
     # ---------------------------------------------------------------------
     # Setup helpers
@@ -332,9 +333,6 @@ class StarfieldView(arcade.View):
 
         # Handle enemy-shot collisions
         self._handle_enemy_collisions()
-
-        # Spawn powerups occasionally
-        self._spawn_powerup()
 
     def _handle_enemy_collisions(self):
         """Handle collisions between player shots and enemies."""
