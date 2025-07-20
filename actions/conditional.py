@@ -663,6 +663,42 @@ class DelayUntil(_Action):
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     ):
         super().__init__(condition, on_stop)
+        self._elapsed = 0.0
+        self._duration = None
+
+    def apply_effect(self) -> None:
+        """Initialize delay timing."""
+        # Try to extract duration from the condition function if it's from duration() helper
+        self._duration = None
+        try:
+            # Check if condition is from duration() helper by looking for closure
+            if (
+                hasattr(self.condition, "__closure__")
+                and self.condition.__closure__
+                and len(self.condition.__closure__) >= 1
+            ):
+                # Get the seconds value from the closure
+                seconds = self.condition.__closure__[0].cell_contents
+                if isinstance(seconds, (int, float)) and seconds > 0:
+                    self._duration = seconds
+        except (AttributeError, IndexError, TypeError):
+            pass
+
+        self._elapsed = 0.0
+
+    def update_effect(self, delta_time: float) -> None:
+        """Update delay timing using simulation time."""
+        if self._duration is not None:
+            # Use simulation time for duration-based delays
+            self._elapsed += delta_time
+
+            # Check if duration has elapsed
+            if self._elapsed >= self._duration:
+                # Mark as complete by setting the condition as met
+                self._condition_met = True
+                self.done = True
+                if self.on_stop:
+                    self.on_stop()
 
     def clone(self) -> "DelayUntil":
         """Create a copy of this action."""

@@ -65,8 +65,11 @@ from .helpers import (
 
 # Movement patterns and condition helpers
 from .pattern import (
+    create_boid_flock_pattern,
     create_bounce_pattern,
     create_figure_eight_pattern,
+    create_formation_entry_pattern,
+    create_galaga_style_entry,
     create_orbit_pattern,
     create_patrol_pattern,
     create_smooth_zigzag_pattern,
@@ -103,6 +106,9 @@ __all__ = [
     "arrange_diamond",
     "arrange_v_formation",
     # Movement patterns
+    "create_boid_flock_pattern",
+    "create_formation_entry_pattern",
+    "create_galaga_style_entry",
     "create_zigzag_pattern",
     "create_wave_pattern",
     "create_smooth_zigzag_pattern",
