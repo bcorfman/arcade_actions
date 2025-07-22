@@ -399,890 +399,6 @@ def create_boid_flock_pattern(
     )
 
 
-def create_formation_entry_pattern(
-    formation_sprites: arcade.SpriteList,
-    spawn_area: tuple[float, float, float, float],
-    cruise_duration: float,
-    rally_point: tuple[float, float],
-    slot_duration: float,
-    avoid_sprites: arcade.SpriteList | None = None,
-    max_cruise_speed: float = 4.0,
-    visible: bool = True,
-    spawn_spacing: float = 40.0,
-):
-    """Create a complete formation entry pattern: cruise -> rally -> slot-in.
-
-    This creates a 3-phase sequence:
-    1. Boid cruise phase: Flock behavior while staying away from player
-    2. Rally phase: Move toward rally point near formation
-    3. Slot-in phase: Individual sprites move to their formation positions
-
-    Args:
-        formation_sprites: SpriteList with sprites that will move through the pattern
-        spawn_area: (left, bottom, right, top) area to spawn from
-        cruise_duration: Duration of boid cruise phase in seconds
-        rally_point: (x, y) intermediate rally point before formation
-        slot_duration: Duration for slotting into formation in seconds
-        avoid_sprites: SpriteList of sprites to avoid during cruise (e.g., player, obstacles)
-        max_cruise_speed: Maximum speed during cruise phase
-        visible: Whether sprites should be made visible when spawning (default: True)
-        spawn_spacing: Minimum distance between sprites when spawning (default: 40.0)
-
-    Returns:
-        Sequence action with cruise, rally, and slot-in phases
-
-    Example:
-        formation = arrange_grid(rows=2, cols=5, start_x=200, start_y=400, visible=False)
-        entry = create_formation_entry_pattern(
-            formation_sprites=formation,
-            spawn_area=(0, 0, 100, 600),
-            cruise_duration=3.0,
-            rally_point=(150, 350),
-            slot_duration=2.0,
-            avoid_sprites=player_sprites,
-            visible=True
-        )
-        entry.apply(formation, tag="formation_entry")
-    """
-    from actions.composite import sequence
-
-    # Store original positions (where sprites should end up)
-    target_positions = [(s.center_x, s.center_y) for s in formation_sprites]
-
-    # Create a custom action that positions sprites in spawn area before starting phases
-    class SpawnPositioner:
-        """Custom action to position sprites in spawn area at the start."""
-
-        def __init__(self, spawn_area, visible, spawn_spacing):
-            self.spawn_area = spawn_area
-            self.visible = visible
-            self.spawn_spacing = spawn_spacing
-            self.target = None
-            self.tag = None
-            self.done = False
-            self._is_active = False
-
-        def apply(self, target, tag=None):
-            self.target = target
-            self.tag = tag
-            self._is_active = True
-            return self
-
-        def start(self):
-            """Start the action by positioning sprites immediately."""
-            self._is_active = True
-            # Position sprites immediately with adaptive spacing
-            if isinstance(self.target, arcade.SpriteList):
-                num_sprites = len(self.target)
-                if num_sprites > 0:
-                    # Calculate adaptive spacing based on sprite sizes
-                    adaptive_spacing = _calculate_adaptive_spacing(self.target, self.spawn_spacing)
-                    spawn_points = _generate_spaced_spawn_points(
-                        self.spawn_area, num_sprites, min_spacing=adaptive_spacing
-                    )
-                    for i, sprite in enumerate(self.target):
-                        if i < len(spawn_points):
-                            x, y = spawn_points[i]
-                            sprite.center_x = x
-                            sprite.center_y = y
-                            sprite.visible = self.visible  # Set visibility when spawning
-                        else:
-                            # Fallback to random positioning if we don't have enough spawn points
-                            x, y = _generate_random_spawn_point(self.spawn_area)
-                            sprite.center_x = x
-                            sprite.center_y = y
-                            sprite.visible = self.visible
-            elif isinstance(self.target, list):
-                # Handle case where target is a list of sprites
-                num_sprites = len(self.target)
-                if num_sprites > 0:
-                    # Convert list to SpriteList for adaptive spacing calculation
-                    temp_sprite_list = arcade.SpriteList()
-                    for sprite in self.target:
-                        temp_sprite_list.append(sprite)
-                    adaptive_spacing = _calculate_adaptive_spacing(temp_sprite_list, self.spawn_spacing)
-                    spawn_points = _generate_spaced_spawn_points(
-                        self.spawn_area, num_sprites, min_spacing=adaptive_spacing
-                    )
-                    for i, sprite in enumerate(self.target):
-                        if i < len(spawn_points):
-                            x, y = spawn_points[i]
-                            sprite.center_x = x
-                            sprite.center_y = y
-                            sprite.visible = self.visible  # Set visibility when spawning
-                        else:
-                            # Fallback to random positioning if we don't have enough spawn points
-                            x, y = _generate_random_spawn_point(self.spawn_area)
-                            sprite.center_x = x
-                            sprite.center_y = y
-                            sprite.visible = self.visible
-            else:
-                # Handle single sprite case
-                x, y = _generate_random_spawn_point(self.spawn_area)
-                self.target.center_x = x
-                self.target.center_y = y
-                self.target.visible = self.visible
-            self.done = True
-
-        def stop(self):
-            self.done = True
-            self._is_active = False
-
-        def update(self, delta_time):
-            pass  # No update needed, positioning is immediate
-
-    # Create a custom action for slotting into formation positions
-    class SlotIntoFormation:
-        """Custom action to move sprites to their formation positions."""
-
-        def __init__(self, target_positions, slot_duration, rally_point):
-            self.target_positions = target_positions
-            self.slot_duration = slot_duration
-            self.rally_point = rally_point
-            self.target = None
-            self.tag = None
-            self.done = False
-            self._is_active = False
-            self.start_time = None
-
-        def apply(self, target, tag=None):
-            self.target = target
-            self.tag = tag
-            self._is_active = True
-            return self
-
-        def start(self):
-            """Start the slot-in action."""
-            import time
-
-            self.start_time = time.time()
-
-        def stop(self):
-            self.done = True
-            self._is_active = False
-
-        def update(self, delta_time):
-            if not self._is_active or self.done or not self.target:
-                return
-
-            import time
-
-            elapsed = time.time() - self.start_time
-            progress = min(elapsed / self.slot_duration, 1.0)
-
-            # Move each sprite to its target position
-            if isinstance(self.target, arcade.SpriteList):
-                for i, sprite in enumerate(self.target):
-                    if i < len(self.target_positions):
-                        target_x, target_y = self.target_positions[i]
-
-                        # Calculate current position (from rally point to target)
-                        current_x = self.rally_point[0] + (target_x - self.rally_point[0]) * progress
-                        current_y = self.rally_point[1] + (target_y - self.rally_point[1]) * progress
-
-                        sprite.center_x = current_x
-                        sprite.center_y = current_y
-            elif isinstance(self.target, list):
-                # Handle case where target is a list of sprites
-                for i, sprite in enumerate(self.target):
-                    if i < len(self.target_positions):
-                        target_x, target_y = self.target_positions[i]
-
-                        # Calculate current position (from rally point to target)
-                        current_x = self.rally_point[0] + (target_x - self.rally_point[0]) * progress
-                        current_y = self.rally_point[1] + (target_y - self.rally_point[1]) * progress
-
-                        sprite.center_x = current_x
-                        sprite.center_y = current_y
-            else:
-                # Handle single sprite case
-                if len(self.target_positions) > 0:
-                    target_x, target_y = self.target_positions[0]
-
-                    # Calculate current position (from rally point to target)
-                    current_x = self.rally_point[0] + (target_x - self.rally_point[0]) * progress
-                    current_y = self.rally_point[1] + (target_y - self.rally_point[1]) * progress
-
-                    self.target.center_x = current_x
-                    self.target.center_y = current_y
-
-            if progress >= 1.0:
-                self.done = True
-
-    # Phase 0: Position sprites in spawn area
-    spawn_positioner = SpawnPositioner(spawn_area, visible, spawn_spacing)
-
-    # Phase 1: Boid cruise with adaptive separation for better spacing
-    # Calculate adaptive separation distance based on sprite sizes
-    adaptive_separation = _calculate_adaptive_spacing(formation_sprites, 50.0)
-    cruise_action = create_boid_flock_pattern(
-        max_speed=max_cruise_speed,
-        duration_seconds=cruise_duration,
-        avoid_sprites=avoid_sprites,
-        separation_weight=0.08,  # Increased separation weight
-        separation_distance=adaptive_separation,  # Adaptive separation distance
-        cohesion_weight=0.003,  # Reduced cohesion for more spread
-    )
-
-    # Phase 2: Rally toward formation area
-    rally_action = MoveUntilTowardsTarget(
-        target_position=rally_point,
-        speed=max_cruise_speed * 0.8,  # Slightly slower for rally
-        stop_distance=30.0,
-    )
-
-    # Phase 3: Slot into formation positions
-    slot_action = SlotIntoFormation(target_positions, slot_duration, rally_point)
-
-    # Combine all phases
-    phases = [spawn_positioner, cruise_action, rally_action, slot_action]
-
-    return sequence(*phases)
-
-
-def create_formation_entry_with_boid_cruise(
-    formation: arcade.SpriteList,
-    groups_per_formation: int = 4,
-    sprites_per_group: int = 10,
-    player_sprite: arcade.Sprite | None = None,
-    screen_bounds: tuple[float, float, float, float] = (0, 0, 800, 600),
-    cruise_duration: float = 3.0,
-    slot_duration: float = 2.0,
-    max_cruise_speed: float = 12.0,
-    spawn_areas: dict[str, bool] | None = None,
-):
-    """Create multiple formation entry patterns with boid cruise behavior.
-
-    This creates multiple groups that enter from different sides of the screen,
-    each following the cruise -> rally -> slot-in pattern using boid flocking.
-
-    Args:
-        formation: Target formation with all positions arranged
-        groups_per_formation: Number of groups to create (default: 4)
-        sprites_per_group: Sprites per group (default: 10)
-        player_sprite: Player sprite to avoid during cruise
-        screen_bounds: (left, bottom, right, top) screen boundaries
-        cruise_duration: Duration of cruise phase per group
-        slot_duration: Duration of slot-in phase per group
-        max_cruise_speed: Maximum speed during cruise phase in pixels per frame
-        spawn_areas: Dict to enable/disable spawn areas. Keys: "left", "right", "top", "bottom".
-                    Values: True to enable, False to disable. Default: all areas enabled.
-
-    Returns:
-        List of sequence actions, one per group
-
-    Example:
-        formation = arrange_grid(count=40, rows=4, cols=10)
-        entry_actions = create_formation_entry_with_boid_cruise(
-            formation=formation,
-            groups_per_formation=4,
-            sprites_per_group=10,
-            player_sprite=player
-        )
-
-        # Apply each group with a delay
-        for i, action in enumerate(entry_actions):
-            delay = DelayUntil(duration(i * 1.5))  # Stagger entries
-            sequence(delay, action).apply(group_sprites[i], tag=f"group_{i}")
-    """
-    left, bottom, right, top = screen_bounds
-    margin = 200  # Distance outside screen bounds
-
-    # Define all possible spawn areas for different sides
-    all_spawn_areas = [
-        (left - margin, bottom, left, top),  # Left side
-        (right, bottom, right + margin, top),  # Right side
-        (left, top, right, top + margin),  # Top side
-        (left, bottom - margin, right, bottom),  # Bottom side (less common)
-    ]
-
-    # Filter spawn areas based on spawn_areas parameter
-    if spawn_areas is not None:
-        area_names = ["left", "right", "top", "bottom"]
-        filtered_spawn_areas = []
-        for i, (area_name, area_coords) in enumerate(zip(area_names, all_spawn_areas, strict=False)):
-            if spawn_areas.get(area_name, True):  # Default to True if not specified
-                filtered_spawn_areas.append(area_coords)
-        spawn_areas = filtered_spawn_areas
-    else:
-        spawn_areas = all_spawn_areas
-
-    # Calculate formation center for rally points
-    if formation:
-        form_center_x = sum(s.center_x for s in formation) / len(formation)
-        form_center_y = sum(s.center_y for s in formation) / len(formation)
-    else:
-        form_center_x = (left + right) / 2
-        form_center_y = (bottom + top) / 2
-
-    entry_actions = []
-
-    for group_index in range(groups_per_formation):
-        # Select spawn area (cycle through available sides)
-        spawn_area = spawn_areas[group_index % len(spawn_areas)]
-
-        # Determine which spawn side this corresponds to for rally point calculation
-        spawn_side_index = group_index % len(spawn_areas)
-
-        # Calculate rally point based on spawn side
-        if spawn_side_index == 0:  # Left spawn
-            rally_point = (form_center_x - 100, form_center_y + 50)
-        elif spawn_side_index == 1:  # Right spawn
-            rally_point = (form_center_x + 100, form_center_y + 50)
-        elif spawn_side_index == 2:  # Top spawn
-            rally_point = (form_center_x, form_center_y + 100)
-        else:  # Bottom spawn (or any remaining spawn)
-            rally_point = (form_center_x, form_center_y - 100)
-
-        # Calculate which part of formation this group will fill
-        start_index = group_index * sprites_per_group
-        end_index = min(start_index + sprites_per_group, len(formation))
-        group_formation = arcade.SpriteList()
-
-        for i in range(start_index, end_index):
-            if i < len(formation):
-                group_formation.append(formation[i])
-
-        # Create formation entry pattern for this group
-        # Always create an entry action, even if the group is empty
-        entry_pattern = create_formation_entry_pattern(
-            formation_sprites=group_formation,
-            spawn_area=spawn_area,
-            cruise_duration=cruise_duration,
-            rally_point=rally_point,
-            slot_duration=slot_duration,
-            avoid_sprites=player_sprite,
-            max_cruise_speed=max_cruise_speed + random.uniform(-1.0, 1.0),  # Slight speed variation
-            visible=True,
-        )
-        entry_actions.append(entry_pattern)
-
-    return entry_actions
-
-
-def create_galaga_style_entry(
-    formation: arcade.SpriteList,
-    groups_per_formation: int = 4,
-    sprites_per_group: int = 10,
-    player_sprite: arcade.Sprite | None = None,
-    screen_bounds: tuple[float, float, float, float] = (0, 0, 800, 600),
-    path_speed: float = 150.0,
-    slot_duration: float = 2.0,
-    spawn_areas: dict[str, bool] | None = None,
-    path_amplitude: float = 100.0,
-    path_frequency: float = 1.5,
-):
-    """Create authentic Galaga-style enemy entry patterns.
-
-    This creates multiple groups that fly in curved spline paths in formation,
-    following a leader, then slot into grid positions. This matches the actual
-    Galaga enemy behavior where enemies fly in curved paths before forming up.
-
-    Args:
-        formation: Target formation with all positions arranged
-        groups_per_formation: Number of groups to create (default: 4)
-        sprites_per_group: Sprites per group (default: 10)
-        player_sprite: Player sprite to avoid during flight
-        screen_bounds: (left, bottom, right, top) screen boundaries
-        path_speed: Speed along the spline path in pixels per second
-        slot_duration: Duration of slot-in phase per group
-        spawn_areas: Dict to enable/disable spawn areas. Keys: "left", "right", "top", "bottom".
-                    Values: True to enable, False to disable. Default: all areas enabled.
-        path_amplitude: Amplitude of the wave pattern in the spline (default: 100.0)
-        path_frequency: Frequency of wave cycles in the spline (default: 1.5)
-
-    Returns:
-        List of sequence actions, one per group
-
-    Example:
-        formation = arrange_grid(count=40, rows=4, cols=10)
-        entry_actions = create_galaga_style_entry(
-            formation=formation,
-            groups_per_formation=4,
-            sprites_per_group=10,
-            player_sprite=player,
-            path_speed=200.0
-        )
-
-        # Apply each group with a delay
-        for i, action in enumerate(entry_actions):
-            delay = DelayUntil(duration(i * 2.0))  # Stagger entries
-            sequence(delay, action).apply(group_sprites[i], tag=f"group_{i}")
-    """
-    left, bottom, right, top = screen_bounds
-    margin = 200  # Distance outside screen bounds
-
-    # Define all possible spawn areas for different sides
-    all_spawn_areas = [
-        (left - margin, bottom, left, top),  # Left side
-        (right, bottom, right + margin, top),  # Right side
-        (left, top, right, top + margin),  # Top side
-        (left, bottom - margin, right, bottom),  # Bottom side (less common)
-    ]
-
-    # Filter spawn areas based on spawn_areas parameter
-    if spawn_areas is not None:
-        area_names = ["left", "right", "top", "bottom"]
-        filtered_spawn_areas = []
-        for i, (area_name, area_coords) in enumerate(zip(area_names, all_spawn_areas, strict=False)):
-            if spawn_areas.get(area_name, True):  # Default to True if not specified
-                filtered_spawn_areas.append(area_coords)
-        spawn_areas = filtered_spawn_areas
-    else:
-        spawn_areas = all_spawn_areas
-
-    # Calculate formation center for path endpoints
-    if formation:
-        form_center_x = sum(s.center_x for s in formation) / len(formation)
-        form_center_y = sum(s.center_y for s in formation) / len(formation)
-    else:
-        form_center_x = (left + right) / 2
-        form_center_y = (bottom + top) / 2
-
-    entry_actions = []
-
-    for group_index in range(groups_per_formation):
-        # Select spawn area (cycle through available sides)
-        spawn_area = spawn_areas[group_index % len(spawn_areas)]
-        spawn_side_index = group_index % len(spawn_areas)
-
-        # Calculate which part of formation this group will fill
-        start_index = group_index * sprites_per_group
-        end_index = min(start_index + sprites_per_group, len(formation))
-        group_formation = arcade.SpriteList()
-
-        for i in range(start_index, end_index):
-            if i < len(formation):
-                group_formation.append(formation[i])
-
-        # Create Galaga-style entry pattern for this group
-        entry_pattern = _create_galaga_group_entry(
-            formation_sprites=group_formation,
-            spawn_area=spawn_area,
-            spawn_side_index=spawn_side_index,
-            formation_center=(form_center_x, form_center_y),
-            path_speed=path_speed,
-            slot_duration=slot_duration,
-            path_amplitude=path_amplitude,
-            path_frequency=path_frequency,
-        )
-        entry_actions.append(entry_pattern)
-
-    return entry_actions
-
-
-def _create_galaga_group_entry(
-    formation_sprites: arcade.SpriteList,
-    spawn_area: tuple[float, float, float, float],
-    spawn_side_index: int,
-    formation_center: tuple[float, float],
-    path_speed: float,
-    slot_duration: float,
-    path_amplitude: float,
-    path_frequency: float,  # Kept for API compatibility but not used
-):
-    """Create simple leader-follower Galaga-style group entry using established ArcadeActions patterns.
-
-    All sprites follow the exact same S-curve path with time delays.
-    Leader starts immediately, followers start with delays based on formation spacing.
-    Each sprite ends up at its final formation position.
-
-    This is the SIMPLE implementation using a single shared path.
-    """
-    from actions.composite import sequence
-    from actions.conditional import FollowPathUntil, duration
-
-    # Store original target positions (where sprites should end up)
-    target_positions = [(s.center_x, s.center_y) for s in formation_sprites]
-
-    # Calculate follower spacing from formation grid
-    def calculate_grid_spacing(target_positions):
-        if len(target_positions) < 2:
-            return 50.0
-
-        # Find minimum non-zero X spacing
-        x_positions = [pos[0] for pos in target_positions]
-        min_spacing = float("inf")
-
-        for i in range(len(x_positions)):
-            for j in range(i + 1, len(x_positions)):
-                spacing = abs(x_positions[i] - x_positions[j])
-                if spacing > 0:
-                    min_spacing = min(min_spacing, spacing)
-
-        return min_spacing if min_spacing != float("inf") else 50.0
-
-    follower_spacing = calculate_grid_spacing(target_positions)
-    # Much tighter spacing - reduce delay to 1/10th of the calculated value
-    delay_between_sprites = (follower_spacing / path_speed) * 0.1
-
-    # Helper function to create spline paths (using proven working Bezier control points)
-    def _create_galaga_spline_path(spawn_side_index, formation_center, path_amplitude):
-        """Create a Galaga-style spline path from spawn to formation center."""
-        center_x, center_y = formation_center
-
-        # Get spawn area bounds
-        left, bottom, right, top = spawn_area
-
-        # Generate control points for authentic Galaga S-curve path
-        if spawn_side_index == 0:  # Left spawn
-            start_x = left
-            start_y = (bottom + top) / 2
-
-            # Create dramatic S-curve using more pronounced control points
-            control_points = [
-                (start_x, start_y),  # Start off-screen left
-                (start_x + 200, start_y - 150),  # Pull down-right (creates dramatic first curve)
-                (start_x + 400, start_y + 150),  # Pull up-right (creates dramatic S-shape)
-                (center_x, center_y),  # End at formation center
-            ]
-        elif spawn_side_index == 1:  # Right spawn
-            start_x = right
-            start_y = (bottom + top) / 2
-
-            # Mirror the dramatic S-curve for right spawn
-            control_points = [
-                (start_x, start_y),  # Start off-screen right
-                (start_x - 200, start_y - 150),  # Pull down-left (creates dramatic first curve)
-                (start_x - 400, start_y + 150),  # Pull up-left (creates dramatic S-shape)
-                (center_x, center_y),  # End at formation center
-            ]
-        elif spawn_side_index == 2:  # Top spawn
-            start_x = (left + right) / 2
-            start_y = top
-
-            # Curly-Q from top
-            control_points = [
-                (start_x, start_y),  # Start off-screen top
-                (start_x + path_amplitude * 0.7, start_y - path_amplitude * 0.5),  # Curve right
-                (start_x - path_amplitude * 0.5, start_y - path_amplitude * 1.2),  # Loop back left
-                (center_x, center_y),  # End at formation center
-            ]
-        else:  # Bottom spawn
-            start_x = (left + right) / 2
-            start_y = bottom
-
-            # Simple curve from bottom
-            control_points = [
-                (start_x, start_y),  # Start off-screen bottom
-                (start_x + path_amplitude * 0.6, start_y + path_amplitude * 0.8),  # Curve right
-                (start_x - path_amplitude * 0.4, start_y + path_amplitude * 1.5),  # Curve left
-                (center_x, center_y),  # End at formation center
-            ]
-
-        return control_points
-
-    # Helper function to create individual spline paths for each sprite
-    def _create_individual_galaga_path(spawn_side_index, target_position, path_amplitude):
-        """Create a Galaga-style spline path from spawn to individual target position."""
-        target_x, target_y = target_position
-
-        # Get spawn area bounds
-        left, bottom, right, top = spawn_area
-
-        # Generate control points for authentic Galaga S-curve path
-        if spawn_side_index == 0:  # Left spawn
-            start_x = left
-            start_y = (bottom + top) / 2
-
-            # Create S-curve using proven working Bezier control points
-            control_points = [
-                (start_x, start_y),  # Start off-screen left
-                (start_x + 200, start_y - 150),  # Pull down-right (creates dramatic first curve)
-                (start_x + 400, start_y + 150),  # Pull up-right (creates dramatic S-shape)
-                (target_x, target_y),  # End at individual target position
-            ]
-        elif spawn_side_index == 1:  # Right spawn
-            start_x = right
-            start_y = (bottom + top) / 2
-
-            # Mirror the dramatic S-curve for right spawn
-            control_points = [
-                (start_x, start_y),  # Start off-screen right
-                (start_x - 200, start_y - 150),  # Pull down-left (creates dramatic first curve)
-                (start_x - 400, start_y + 150),  # Pull up-left (creates dramatic S-shape)
-                (target_x, target_y),  # End at individual target position
-            ]
-        elif spawn_side_index == 2:  # Top spawn
-            start_x = (left + right) / 2
-            start_y = top
-
-            # Curly-Q from top
-            control_points = [
-                (start_x, start_y),  # Start off-screen top
-                (start_x + path_amplitude * 0.7, start_y - path_amplitude * 0.5),  # Curve right
-                (start_x - path_amplitude * 0.5, start_y - path_amplitude * 1.2),  # Loop back left
-                (target_x, target_y),  # End at individual target position
-            ]
-        else:  # Bottom spawn
-            start_x = (left + right) / 2
-            start_y = bottom
-
-            # Simple curve from bottom
-            control_points = [
-                (start_x, start_y),  # Start off-screen bottom
-                (start_x + path_amplitude * 0.6, start_y + path_amplitude * 0.8),  # Curve right
-                (start_x - path_amplitude * 0.4, start_y + path_amplitude * 1.5),  # Curve left
-                (target_x, target_y),  # End at individual target position
-            ]
-
-        return control_points
-
-    # Simple spawn positioner
-    class SimpleSpawnPositioner:
-        """Position sprites in spawn area with formation spacing."""
-
-        def __init__(self, spawn_area, formation_sprites, spawn_side_index, grid_spacing, shared_spline_path):
-            self.spawn_area = spawn_area
-            self.formation_sprites = formation_sprites
-            self.spawn_side_index = spawn_side_index
-            self.grid_spacing = grid_spacing
-            self.shared_spline_path = shared_spline_path
-            self.target = None
-            self.tag = None
-            self.done = False
-            self._is_active = False
-
-        def apply(self, target, tag=None):
-            self.target = target
-            self.tag = tag
-            self._is_active = True
-            return self
-
-        def start(self):
-            """Position sprites at the start of the shared path with proper grid spacing."""
-            self._is_active = True
-
-            if not self.formation_sprites:
-                self.done = True
-                return
-
-            # Get the start point of the shared path (first control point)
-            start_x, start_y = self.shared_spline_path[0] if hasattr(self, "shared_spline_path") else (0, 0)
-
-            # Position sprites in a line at the start of the shared path
-            # Calculate spacing based on number of sprites
-            total_spacing = (len(self.formation_sprites) - 1) * self.grid_spacing
-            start_offset = -total_spacing / 2
-
-            for i, sprite in enumerate(self.formation_sprites):
-                # Position exactly at the path start point
-                sprite.center_x = start_x
-                sprite.center_y = start_y + start_offset + i * self.grid_spacing
-                sprite.visible = True
-
-                # Ensure sprites start with no velocity
-                sprite.change_x = 0
-                sprite.change_y = 0
-                sprite.change_angle = 0
-
-            self.done = True
-
-        def stop(self):
-            self.done = True
-            self._is_active = False
-
-        def update(self, delta_time):
-            pass
-
-    # Simple coordinator using shared path for true leader-follower behavior
-    class SimpleGalagaCoordinator:
-        """Coordinates sprites following the same shared S-curve path with delays, then moving to final positions."""
-
-        def __init__(
-            self,
-            formation_sprites,
-            target_positions,
-            path_speed,
-            delay_between_sprites,
-            shared_spline_path,
-            formation_center,
-        ):
-            self.formation_sprites = formation_sprites
-            self.target_positions = target_positions
-            self.path_speed = path_speed
-            self.delay_between_sprites = delay_between_sprites
-            self.shared_spline_path = shared_spline_path
-            self.formation_center = formation_center
-            self.target = None
-            self.tag = None
-            self.done = False
-            self._is_active = False
-            self.sprite_sequences = []
-
-        def apply(self, target, tag=None):
-            self.target = target
-            self.tag = tag
-            self._is_active = True
-            return self
-
-        def start(self):
-            """Create and start sprite sequences: delay -> shared path -> individual positioning -> rotation."""
-            self._is_active = True
-            self._target_positions = list(self.target_positions)
-            self._rotated = [False] * len(self.formation_sprites)
-
-            for i, sprite in enumerate(self.formation_sprites):
-                sprite_delay = i * self.delay_between_sprites
-                target_x, target_y = self.target_positions[i]
-                from actions.conditional import DelayUntil, MoveUntil, RotateUntil
-
-                def make_individual_path_action(sprite=sprite, target_x=target_x, target_y=target_y):
-                    """Each sprite follows its own S-curve path to its final position."""
-
-                    def on_path_stop(*_):
-                        # Position sprite at its final position when path completes
-                        sprite.center_x = target_x
-                        sprite.center_y = target_y
-                        sprite.change_angle = 0
-
-                    # Create individual path for this sprite
-                    individual_path = _create_individual_galaga_path(
-                        spawn_side_index, (target_x, target_y), path_amplitude
-                    )
-
-                    return FollowPathUntil(
-                        control_points=individual_path,
-                        velocity=self.path_speed,
-                        condition=lambda: abs(sprite.center_x - target_x) < 30 and abs(sprite.center_y - target_y) < 30,
-                        rotate_with_path=True,
-                        rotation_offset=0.0,
-                        on_stop=on_path_stop,
-                    )
-
-                def make_final_positioning_action(sprite=sprite, target_x=target_x, target_y=target_y):
-                    """Move from formation center to individual final grid position."""
-
-                    def on_final_stop(*_):
-                        sprite.center_x = target_x
-                        sprite.center_y = target_y
-                        sprite.change_angle = 0
-
-                    # Calculate direction and distance from formation center to final position
-                    dx = target_x - self.formation_center[0]
-                    dy = target_y - self.formation_center[1]
-                    distance = (dx**2 + dy**2) ** 0.5
-
-                    if distance > 0:
-                        # Normalize direction and apply moderate speed
-                        speed = 2.0  # Much slower speed to prevent offscreen movement
-                        velocity = (dx / distance * speed, dy / distance * speed)
-                    else:
-                        # Already at target
-                        velocity = (0, 0)
-
-                    return MoveUntil(
-                        velocity=velocity,
-                        condition=lambda: abs(sprite.center_x - target_x) < 10 and abs(sprite.center_y - target_y) < 10,
-                        on_stop=on_final_stop,
-                    )
-
-                def make_rotate_action(sprite=sprite, idx=i):
-                    # Simple approach: always rotate towards 0 degrees using the shortest path
-
-                    def get_shortest_rotation_to_zero():
-                        """Calculate the angular velocity needed for shortest rotation to 0 degrees."""
-                        # Normalize current angle to [0, 360) range
-                        current_angle = sprite.angle % 360
-
-                        # Calculate shortest path to 0 degrees with smaller velocity to prevent overshoot
-                        if current_angle <= 180:
-                            # Rotate counter-clockwise (negative) to reach 0
-                            return -30.0  # Much smaller velocity
-                        else:
-                            # Rotate clockwise (positive) to reach 0
-                            return 30.0  # Much smaller velocity
-
-                    def angle_distance_to_zero():
-                        """Calculate the angular distance to 0 degrees."""
-                        normalized = sprite.angle % 360
-                        distance = min(normalized, 360 - normalized)
-                        return distance
-
-                    def on_stop(*_):
-                        sprite.angle = 0
-                        sprite.change_angle = 0
-                        self._rotated[idx] = True
-
-                    # Create a wrapper that recalculates direction on each condition check
-                    class AdaptiveRotateUntil(RotateUntil):
-                        def __init__(self):
-                            super().__init__(
-                                angular_velocity=30.0,  # Will be updated dynamically
-                                condition=lambda: angle_distance_to_zero() < 15,  # Larger tolerance
-                                on_stop=on_stop,
-                            )
-
-                        def apply_effect(self):
-                            # Update angular velocity to always go the shortest way
-                            optimal_velocity = get_shortest_rotation_to_zero()
-                            self.target_angular_velocity = optimal_velocity
-                            self.current_angular_velocity = optimal_velocity
-                            super().apply_effect()
-
-                    return AdaptiveRotateUntil()
-
-                # Create sequence: delay -> individual path -> rotation
-                if sprite_delay > 0:
-                    delay_action = DelayUntil(condition=duration(sprite_delay))
-                    individual_path_action = make_individual_path_action()
-                    rotate_action = make_rotate_action()
-                    sprite_sequence = sequence(delay_action, individual_path_action, rotate_action)
-                else:
-                    individual_path_action = make_individual_path_action()
-                    rotate_action = make_rotate_action()
-                    sprite_sequence = sequence(individual_path_action, rotate_action)
-
-                sprite_sequence.apply(sprite, tag=f"galaga_leader_follower_{i}")
-                sprite_sequence.start()
-                self.sprite_sequences.append(sprite_sequence)
-
-        def stop(self):
-            self.done = True
-            self._is_active = False
-            # Stop all sprite sequences
-            for sequence_action in self.sprite_sequences:
-                sequence_action.stop()
-
-        def update(self, delta_time):
-            if not self._is_active:
-                return
-            all_done = True
-            for sequence_action in self.sprite_sequences:
-                if not sequence_action.done:
-                    all_done = False
-                    break
-            if all_done:
-                # Only zero change_angle when all actions are done
-                for sprite in self.formation_sprites:
-                    sprite.change_angle = 0
-                self.done = True
-
-    # Create simple components
-    grid_spacing = calculate_grid_spacing(target_positions)
-
-    # Create the shared spline path that all sprites in this row will follow
-    # Each sprite's path ends at its individual final position
-    shared_spline_path = _create_galaga_spline_path(spawn_side_index, formation_center, path_amplitude)
-
-    spawn_positioner = SimpleSpawnPositioner(
-        spawn_area, formation_sprites, spawn_side_index, grid_spacing, shared_spline_path
-    )
-
-    coordinator = SimpleGalagaCoordinator(
-        formation_sprites,
-        target_positions,
-        path_speed * 3.0,  # Increase speed to make S-curve more visible
-        delay_between_sprites,
-        shared_spline_path,  # Pass the shared path
-        formation_center,  # Pass formation center for positioning
-    )
-
-    # Combine spawn positioning and coordination
-    phases = [spawn_positioner, coordinator]
-    return sequence(*phases)
-
-
 def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segments: int = 4):
     """Create a zigzag movement pattern using sequences of MoveUntil actions.
 
@@ -1650,3 +766,650 @@ def sprite_count(sprite_list: arcade.SpriteList, target_count: int, comparison: 
 #     separation_weight=0.08
 # )
 # flock_behavior.apply(wandering_enemies, tag="free_roam")
+
+
+def create_formation_entry_pattern(
+    target_positions: list[tuple[float, float]],
+    *,
+    spawn_radius: float = 800.0,
+    spawn_center: tuple[float, float] = (400, 300),
+    spawn_angle_range: tuple[float, float] = (0, math.pi),  # Semicircle
+    speed: float = 200.0,
+    stagger_delay: float = 0.2,
+    min_spacing: float = 30.0,
+    window_bounds: tuple[float, float, float, float] | None = None,
+) -> list[tuple[arcade.Sprite, arcade.SpriteList]]:
+    """Create a formation entry pattern that moves sprites from spawn to target positions.
+
+    This function creates a sequence of MoveUntil actions that move sprites from
+    semicircle spawn positions outside the window to their target formation positions.
+    Sprites are moved in waves to avoid overlaps, with innermost sprites moving first.
+
+    Args:
+        target_positions: List of (x, y) target positions for each sprite
+        spawn_radius: Distance from spawn center to place sprites (default: 800.0)
+        spawn_center: (x, y) center point for spawn semicircle (default: (400, 300))
+        spawn_angle_range: (start_angle, end_angle) in radians for spawn arc (default: (0, π))
+        speed: Movement speed in pixels per frame (Arcade velocity semantics)
+        stagger_delay: Delay between sprite movement waves in seconds (default: 0.2)
+        min_spacing: Minimum spacing between sprites during movement (default: 30.0)
+        window_bounds: (left, bottom, right, top) window bounds for spawn positioning
+
+    Returns:
+        List of (sprite, action) tuples for each sprite's movement
+
+    Example:
+        # Create a circle formation
+        circle_formation = arrange_circle(count=8, center_x=400, center_y=300, radius=100)
+        target_positions = [(sprite.center_x, sprite.center_y) for sprite in circle_formation]
+
+        # Create entry pattern
+        entry_actions = create_formation_entry_pattern(
+            target_positions=target_positions,
+            speed=150.0,
+            stagger_delay=0.3
+        )
+
+        # Apply to sprites
+        for sprite, action in entry_actions:
+            action.apply(sprite, tag="formation_entry")
+    """
+    if not target_positions:
+        return []
+
+    # Calculate spawn positions along semicircle
+    spawn_positions = _generate_semicircle_spawn_positions(
+        target_positions,
+        spawn_radius=spawn_radius,
+        spawn_center=spawn_center,
+        spawn_angle_range=spawn_angle_range,
+        window_bounds=window_bounds,
+    )
+
+    # Group sprites by distance from formation center for wave entry (innermost first)
+    formation_center = _calculate_formation_center(target_positions)
+    wave_groups = _group_sprites_by_distance_waves(target_positions, formation_center, spawn_radius)
+
+    speed = kwargs.get("speed", 10.0)
+    base_stagger_delay = kwargs.get("stagger_delay", 0.3)
+
+    final_actions = []
+    current_delay = 0.0
+
+    print(f"Formation entry: {len(wave_groups)} waves, center at {formation_center}")
+
+    # Process each wave (innermost to outermost)
+    for wave_index, sprite_indices in enumerate(wave_groups):
+        print(f"Wave {wave_index}: {len(sprite_indices)} sprites, delay={current_delay:.1f}s")
+
+        for sprite_idx in sprite_indices:
+            if sprite_idx >= len(sprites) or sprite_idx >= len(spawn_positions):
+                continue
+
+            sprite = sprites[sprite_idx]
+            target_pos = target_positions[sprite_idx]
+            spawn_pos = spawn_positions[sprite_idx]
+
+            # Position sprite at spawn location
+            sprite.center_x, sprite.center_y = spawn_pos
+
+            # Create precision movement action that stops exactly at target
+            def create_precision_condition_and_callback(target_position, sprite_ref):
+                def precision_condition():
+                    # Calculate distance to target
+                    dx = target_position[0] - sprite_ref.center_x
+                    dy = target_position[1] - sprite_ref.center_y
+                    distance = math.sqrt(dx * dx + dy * dy)
+
+                    # If very close, position exactly and stop
+                    if distance <= 2.0:  # Within 2 pixels
+                        sprite_ref.center_x = target_position[0]
+                        sprite_ref.center_y = target_position[1]
+                        sprite_ref.change_x = 0
+                        sprite_ref.change_y = 0
+                        return True
+
+                    # If close, slow down proportionally to prevent overshoot
+                    elif distance <= 20.0:  # Within 20 pixels, start slowing
+                        current_speed = math.sqrt(sprite_ref.change_x**2 + sprite_ref.change_y**2)
+                        if current_speed > 0:
+                            # Scale velocity by distance ratio (closer = slower)
+                            scale_factor = max(0.1, distance / 20.0)  # Minimum 10% speed
+                            direction_x = dx / distance
+                            direction_y = dy / distance
+                            # Set new velocity directly
+                            sprite_ref.change_x = direction_x * current_speed * scale_factor
+                            sprite_ref.change_y = direction_y * current_speed * scale_factor
+
+                    return False  # Continue moving
+
+                return precision_condition
+
+            # Create movement action with wave-based delay
+            velocity = _calculate_velocity_to_target(spawn_pos, target_pos, speed)
+
+            if current_delay > 0.01:  # Add delay for waves after the first
+                from actions.composite import sequence
+                from actions.conditional import DelayUntil
+
+                delay_action = DelayUntil(duration(current_delay))
+                movement_action = MoveUntil(velocity, create_precision_condition_and_callback(target_pos, sprite))
+                combined_action = sequence(delay_action, movement_action)
+            else:
+                movement_action = MoveUntil(velocity, create_precision_condition_and_callback(target_pos, sprite))
+                combined_action = movement_action
+
+            final_actions.append((sprite, combined_action))
+
+        # Add stagger delay for next wave (ensure previous wave has time to clear paths)
+        # Longer delay for waves that are likely to intersect with the next wave
+        wave_delay = base_stagger_delay * (2.0 if len(sprite_indices) > 4 else 1.5)
+        current_delay += wave_delay
+
+    return final_actions
+
+
+def _generate_semicircle_spawn_positions(
+    target_positions: list[tuple[float, float]],
+    spawn_radius: float,
+    spawn_center: tuple[float, float],
+    spawn_angle_range: tuple[float, float],
+    window_bounds: tuple[float, float, float, float] | None = None,
+) -> list[tuple[float, float]]:
+    """Generate spawn positions along a semicircle outside the window.
+
+    Args:
+        target_positions: List of target positions
+        spawn_radius: Distance from spawn center
+        spawn_center: (x, y) center of spawn semicircle (will be overridden by formation center)
+        spawn_angle_range: (start_angle, end_angle) in radians
+        window_bounds: Optional window bounds for positioning
+
+    Returns:
+        List of (x, y) spawn positions
+    """
+    num_sprites = len(target_positions)
+    if num_sprites == 0:
+        return []
+
+    # Always use the formation center as the spawn center
+    formation_center = _calculate_formation_center(target_positions)
+
+    # Adjust spawn radius if window bounds are provided
+    if window_bounds:
+        left, bottom, right, top = window_bounds
+        # Ensure spawn radius is outside window
+        window_diagonal = math.sqrt((right - left) ** 2 + (top - bottom) ** 2)
+        spawn_radius = max(spawn_radius, window_diagonal * 0.6)
+
+    # Use shared helper function to calculate spawn points
+    return _calculate_spawn_points_from_formation(target_positions, formation_center, spawn_radius)
+
+
+def _calculate_spawn_points_from_formation(
+    target_positions: list[tuple[float, float]],
+    formation_center: tuple[float, float],
+    spawn_radius: float,
+) -> list[tuple[float, float]]:
+    """Calculate spawn points by projecting from formation center through target positions to spawn radius.
+
+    Args:
+        target_positions: List of (x, y) formation positions
+        formation_center: (x, y) center of formation and semicircle
+        spawn_radius: Radius from formation center to semicircle for spawn points
+
+    Returns:
+        List of (x, y) spawn positions
+    """
+    import math
+
+    center_x, center_y = formation_center
+    spawn_points = []
+
+    for x, y in target_positions:
+        dx = x - center_x
+        dy = y - center_y
+        dist = math.hypot(dx, dy)
+        if dist == 0:
+            # If sprite is at the center, spawn directly to the right
+            spawn_x = center_x + spawn_radius
+            spawn_y = center_y
+        else:
+            scale = spawn_radius / dist
+            spawn_x = center_x + dx * scale
+            spawn_y = center_y + dy * scale
+        spawn_points.append((spawn_x, spawn_y))
+
+    return spawn_points
+
+
+def _calculate_formation_center(positions: list[tuple[float, float]]) -> tuple[float, float]:
+    """Calculate the center point of a formation.
+
+    Args:
+        positions: List of (x, y) positions
+
+    Returns:
+        (x, y) center point
+    """
+    if not positions:
+        return (0, 0)
+
+    total_x = sum(x for x, y in positions)
+    total_y = sum(y for x, y in positions)
+    count = len(positions)
+
+    return (total_x / count, total_y / count)
+
+
+def _group_sprites_by_distance_waves(
+    target_positions: list[tuple[float, float]],
+    formation_center: tuple[float, float],
+    spawn_radius: float,
+) -> list[list[int]]:
+    """Group sprite indices into waves for collision-free entry from outermost to innermost.
+
+    Each wave contains all sprites whose straight-line path from formation position to spawn point
+    (on a semicircle of given radius from the formation center) does not intersect any other remaining sprite's path.
+    Remove assigned sprites and repeat until all are assigned. Any intersection is a collision.
+
+    Args:
+        target_positions: List of (x, y) formation positions
+        formation_center: (x, y) center of formation and semicircle
+        spawn_radius: Radius from formation center to semicircle for spawn points
+
+    Returns:
+        List of sprite index groups, outermost wave first
+    """
+
+    num_sprites = len(target_positions)
+    if num_sprites == 0:
+        return []
+
+    # Use shared helper function to compute spawn points
+    spawn_points = _calculate_spawn_points_from_formation(target_positions, formation_center, spawn_radius)
+
+    # Helper: check if two line segments intersect
+    def lines_intersect(p1, q1, p2, q2):
+        def ccw(A, B, C):
+            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+
+        return ccw(p1, p2, q2) != ccw(q1, p2, q2) and ccw(p1, q1, p2) != ccw(p1, q1, q2)
+
+    remaining = set(range(num_sprites))
+    waves = []
+
+    while remaining:
+        current_wave = []
+        for idx in list(remaining):
+            p1 = target_positions[idx]
+            q1 = spawn_points[idx]
+            collision = False
+            for other_idx in remaining:
+                if other_idx == idx:
+                    continue
+                p2 = target_positions[other_idx]
+                q2 = spawn_points[other_idx]
+                if lines_intersect(p1, q1, p2, q2):
+                    collision = True
+                    break
+            if not collision:
+                current_wave.append(idx)
+        if not current_wave:
+            # If all remaining paths collide, assign one per wave to break deadlock
+            current_wave.append(next(iter(remaining)))
+        for idx in current_wave:
+            remaining.remove(idx)
+        waves.append(current_wave)
+
+    return waves
+
+
+def _calculate_velocity_to_target(
+    start_pos: tuple[float, float],
+    target_pos: tuple[float, float],
+    speed: float,
+) -> tuple[float, float]:
+    """Calculate velocity vector from start to target position.
+
+    Args:
+        start_pos: (x, y) starting position
+        target_pos: (x, y) target position
+        speed: Movement speed in pixels per frame
+
+    Returns:
+        (dx, dy) velocity vector
+    """
+    dx = target_pos[0] - start_pos[0]
+    dy = target_pos[1] - start_pos[1]
+    distance = math.sqrt(dx * dx + dy * dy)
+
+    if distance == 0:
+        return (0, 0)
+
+    # Normalize and scale to speed
+    dx = (dx / distance) * speed
+    dy = (dy / distance) * speed
+
+    return (dx, dy)
+
+
+def _calculate_movement_duration(
+    start_pos: tuple[float, float],
+    target_pos: tuple[float, float],
+    speed: float,
+) -> float:
+    """Calculate movement duration from start to target position.
+
+    Args:
+        start_pos: (x, y) starting position
+        target_pos: (x, y) target position
+        speed: Movement speed in pixels per frame
+
+    Returns:
+        Duration in seconds
+    """
+    dx = target_pos[0] - start_pos[0]
+    dy = target_pos[1] - start_pos[1]
+    distance = math.sqrt(dx * dx + dy * dy)
+
+    if speed <= 0:
+        return 0
+
+    # Convert from pixels per frame to seconds (assuming 60 FPS)
+    return distance / speed / 60.0
+
+
+def create_formation_entry_from_sprites(
+    target_formation: arcade.SpriteList, **kwargs
+) -> list[tuple[arcade.Sprite, arcade.SpriteList]]:
+    """Create formation entry pattern from a target formation SpriteList.
+
+    This is a convenience function that creates sprites positioned at spawn locations
+    and creates movement actions to move them to the target formation positions.
+
+    Args:
+        target_formation: SpriteList with sprites positioned at target formation locations
+        **kwargs: Additional arguments for create_formation_entry_pattern
+
+    Returns:
+        List of (sprite, action) tuples
+
+    Example:
+        # Create target formation (e.g., circle formation)
+        target_formation = arrange_circle(count=8, center_x=400, center_y=300, radius=100, visible=False)
+
+        # Create entry pattern
+        entry_actions = create_formation_entry_from_sprites(
+            target_formation, speed=150.0, stagger_delay=0.3
+        )
+
+        # Apply actions
+        for sprite, action in entry_actions:
+            action.apply(sprite, tag="formation_entry")
+    """
+    # Extract target positions from the formation
+    target_positions = [(sprite.center_x, sprite.center_y) for sprite in target_formation]
+
+    # Create new sprites for the entry pattern (same number as target formation)
+    sprites = arcade.SpriteList()
+    for i in range(len(target_formation)):
+        # Create a new sprite with the same texture as the target formation sprite
+        target_sprite = target_formation[i]
+        if hasattr(target_sprite, "texture") and target_sprite.texture:
+            new_sprite = arcade.Sprite(target_sprite.texture, scale=getattr(target_sprite, "scale", 1.0))
+        else:
+            # Fallback to default star texture
+            new_sprite = arcade.Sprite(":resources:images/items/star.png", scale=1.0)
+        sprites.append(new_sprite)
+
+    # Position sprites at spawn locations and create final actions
+    spawn_positions = _generate_semicircle_spawn_positions(
+        target_positions,
+        spawn_radius=kwargs.get("spawn_radius", 800.0),
+        spawn_center=kwargs.get("spawn_center", (400, 300)),
+        spawn_angle_range=kwargs.get("spawn_angle_range", (0, math.pi)),
+        window_bounds=kwargs.get("window_bounds"),
+    )
+
+    speed = kwargs.get("speed", 10.0)
+    stagger_delay = kwargs.get("stagger_delay", 0.3)
+    min_spacing = kwargs.get("min_spacing", 30.0)
+
+    # Calculate movement paths and detect potential collisions using line intersection
+    movement_paths = []
+    for i in range(len(sprites)):
+        if i < len(spawn_positions):
+            spawn_pos = spawn_positions[i]
+            target_pos = target_positions[i]
+            velocity = _calculate_velocity_to_target(spawn_pos, target_pos, speed)
+            movement_paths.append((i, spawn_pos, target_pos, velocity))
+
+    # Group sprites to avoid collisions during movement
+    collision_groups = _group_sprites_to_avoid_collisions(movement_paths, min_spacing)
+
+    final_actions = []
+    current_delay = 0.0
+
+    print(f"Formation entry: {len(collision_groups)} groups to avoid path collisions")
+
+    # Process each collision-avoidance group
+    for group_index, sprite_indices in enumerate(collision_groups):
+        print(f"Group {group_index}: {len(sprite_indices)} sprites, delay={current_delay:.1f}s")
+
+        for sprite_idx in sprite_indices:
+            if sprite_idx >= len(sprites) or sprite_idx >= len(spawn_positions):
+                continue
+
+            sprite = sprites[sprite_idx]
+            target_pos = target_positions[sprite_idx]
+            spawn_pos = spawn_positions[sprite_idx]
+
+            # Position sprite at spawn location
+            sprite.center_x, sprite.center_y = spawn_pos
+
+            # Create precision movement action that stops exactly at target
+            def create_precision_condition_and_callback(target_position, sprite_ref):
+                def precision_condition():
+                    # Calculate distance to target
+                    dx = target_position[0] - sprite_ref.center_x
+                    dy = target_position[1] - sprite_ref.center_y
+                    distance = math.sqrt(dx * dx + dy * dy)
+
+                    # If very close, position exactly and stop
+                    if distance <= 2.0:  # Within 2 pixels
+                        sprite_ref.center_x = target_position[0]
+                        sprite_ref.center_y = target_position[1]
+                        sprite_ref.change_x = 0
+                        sprite_ref.change_y = 0
+                        return True
+
+                    # If close, slow down proportionally to prevent overshoot
+                    elif distance <= 20.0:  # Within 20 pixels, start slowing
+                        current_speed = math.sqrt(sprite_ref.change_x**2 + sprite_ref.change_y**2)
+                        if current_speed > 0:
+                            # Scale velocity by distance ratio (closer = slower)
+                            scale_factor = max(0.1, distance / 20.0)  # Minimum 10% speed
+                            direction_x = dx / distance
+                            direction_y = dy / distance
+                            # Set new velocity directly
+                            sprite_ref.change_x = direction_x * current_speed * scale_factor
+                            sprite_ref.change_y = direction_y * current_speed * scale_factor
+
+                    return False  # Continue moving
+
+                return precision_condition
+
+            # Create movement action with wave-based delay
+            velocity = _calculate_velocity_to_target(spawn_pos, target_pos, speed)
+
+            if current_delay > 0.01:  # Add delay for waves after the first
+                from actions.composite import sequence
+                from actions.conditional import DelayUntil
+
+                delay_action = DelayUntil(duration(current_delay))
+                movement_action = MoveUntil(velocity, create_precision_condition_and_callback(target_pos, sprite))
+                combined_action = sequence(delay_action, movement_action)
+            else:
+                movement_action = MoveUntil(velocity, create_precision_condition_and_callback(target_pos, sprite))
+                combined_action = movement_action
+
+            final_actions.append((sprite, combined_action))
+
+        # Add delay only if this group would collide with the next group
+        if group_index < len(collision_groups) - 1:
+            current_delay += stagger_delay
+
+    return final_actions
+
+
+def _group_sprites_to_avoid_collisions(
+    movement_paths: list[tuple[int, tuple[float, float], tuple[float, float], tuple[float, float]]],
+    min_spacing: float,
+) -> list[list[int]]:
+    """Group sprite indices to avoid collisions during movement.
+
+    This function analyzes movement paths and groups sprites so that sprites in the same
+    group can move simultaneously without colliding. Only adds delays when necessary.
+
+    Args:
+        movement_paths: List of (sprite_idx, spawn_pos, target_pos, velocity) tuples
+        min_spacing: Minimum spacing to maintain between sprites during movement
+
+    Returns:
+        List of sprite index groups that can move simultaneously
+    """
+    if not movement_paths:
+        return []
+
+    # For simple formations like circles where all sprites move radially outward from spawn,
+    # they typically won't collide with each other, so they can all move at once
+
+    # Check if any movement paths would intersect
+    groups = []
+    remaining_sprites = list(range(len(movement_paths)))
+
+    while remaining_sprites:
+        current_group = [remaining_sprites[0]]
+        remaining_sprites.remove(remaining_sprites[0])
+
+        # Try to add more sprites to the current group
+        sprites_to_remove = []
+        for sprite_idx in remaining_sprites:
+            can_add_to_group = True
+
+            # Check if this sprite would collide with any sprite already in the group
+            for group_sprite_idx in current_group:
+                if _would_paths_collide(movement_paths[sprite_idx], movement_paths[group_sprite_idx], min_spacing):
+                    can_add_to_group = False
+                    break
+
+            if can_add_to_group:
+                current_group.append(sprite_idx)
+                sprites_to_remove.append(sprite_idx)
+
+        # Remove sprites that were added to the group
+        for sprite_idx in sprites_to_remove:
+            remaining_sprites.remove(sprite_idx)
+
+        groups.append(current_group)
+
+    return groups
+
+
+def _would_paths_collide(
+    path1: tuple[int, tuple[float, float], tuple[float, float], tuple[float, float]],
+    path2: tuple[int, tuple[float, float], tuple[float, float], tuple[float, float]],
+    min_spacing: float,
+) -> bool:
+    """Check if two movement paths would result in sprites getting too close.
+
+    Uses line intersection to detect if movement paths cross, which would cause collisions.
+
+    Args:
+        path1: (sprite_idx, spawn_pos, target_pos, velocity) for first sprite
+        path2: (sprite_idx, spawn_pos, target_pos, velocity) for second sprite
+        min_spacing: Minimum spacing to maintain between sprites
+
+    Returns:
+        True if paths would result in collision, False otherwise
+    """
+    _, spawn1, target1, _ = path1
+    _, spawn2, target2, _ = path2
+
+    # Check if the straight-line paths from spawn to target intersect
+    return _do_line_segments_intersect(spawn1, target1, spawn2, target2, min_spacing)
+
+
+def _do_line_segments_intersect(
+    p1: tuple[float, float],
+    q1: tuple[float, float],
+    p2: tuple[float, float],
+    q2: tuple[float, float],
+    min_spacing: float,
+) -> bool:
+    """Check if two line segments intersect or come within min_spacing of each other.
+
+    Args:
+        p1, q1: Start and end points of first line segment (spawn to target)
+        p2, q2: Start and end points of second line segment (spawn to target)
+        min_spacing: Minimum distance to maintain between paths
+
+    Returns:
+        True if line segments intersect or come too close
+    """
+
+    # First check if the actual lines intersect
+    def ccw(A, B, C):
+        return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+
+    def intersect(A, B, C, D):
+        return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
+    if intersect(p1, q1, p2, q2):
+        return True
+
+    # Check if any point on one line segment is too close to the other line segment
+    def point_to_line_distance(point, line_start, line_end):
+        """Calculate shortest distance from point to line segment."""
+        x0, y0 = point
+        x1, y1 = line_start
+        x2, y2 = line_end
+
+        # Vector from line_start to line_end
+        dx = x2 - x1
+        dy = y2 - y1
+
+        if dx == 0 and dy == 0:
+            # Line segment is actually a point
+            return math.sqrt((x0 - x1) ** 2 + (y0 - y1) ** 2)
+
+        # Parameter t represents position along line segment (0 to 1)
+        t = max(0, min(1, ((x0 - x1) * dx + (y0 - y1) * dy) / (dx**2 + dy**2)))
+
+        # Closest point on line segment
+        closest_x = x1 + t * dx
+        closest_y = y1 + t * dy
+
+        return math.sqrt((x0 - closest_x) ** 2 + (y0 - closest_y) ** 2)
+
+    # Sample points along each path and check distances
+    num_samples = 20  # More samples for better collision detection
+    for i in range(num_samples + 1):
+        t = i / num_samples
+
+        # Point on first path
+        sample1 = (p1[0] + t * (q1[0] - p1[0]), p1[1] + t * (q1[1] - p1[1]))
+
+        # Check distance to second path
+        if point_to_line_distance(sample1, p2, q2) < min_spacing:
+            return True
+
+        # Point on second path
+        sample2 = (p2[0] + t * (q2[0] - p2[0]), p2[1] + t * (q2[1] - p2[1]))
+
+        # Check distance to first path
+        if point_to_line_distance(sample2, p1, q1) < min_spacing:
+            return True
+
+    return False

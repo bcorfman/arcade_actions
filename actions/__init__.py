@@ -68,8 +68,8 @@ from .pattern import (
     create_boid_flock_pattern,
     create_bounce_pattern,
     create_figure_eight_pattern,
+    create_formation_entry_from_sprites,
     create_formation_entry_pattern,
-    create_galaga_style_entry,
     create_orbit_pattern,
     create_patrol_pattern,
     create_smooth_zigzag_pattern,
@@ -108,7 +108,7 @@ __all__ = [
     # Movement patterns
     "create_boid_flock_pattern",
     "create_formation_entry_pattern",
-    "create_galaga_style_entry",
+    "create_formation_entry_from_sprites",
     "create_zigzag_pattern",
     "create_wave_pattern",
     "create_smooth_zigzag_pattern",

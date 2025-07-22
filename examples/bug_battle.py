@@ -17,14 +17,11 @@ import arcade
 
 from actions import (
     Action,
-    DelayUntil,
     arrange_grid,
     blink_until,
-    create_galaga_style_entry,
-    duration,
+    create_formation_entry_from_sprites,
     infinite,
     move_until,
-    sequence,
 )
 
 # ---------------------------------------------------------------------------
@@ -209,8 +206,7 @@ class StarfieldView(arcade.View):
     def __init__(self):
         super().__init__()
 
-        self.enemy_grid = None
-        self.group_sprites = None
+        self.enemy_formation = None
         self.powerup_list = arcade.SpriteList()
         self.shot_list = arcade.SpriteList()
         self.ship_list = arcade.SpriteList()
@@ -234,23 +230,22 @@ class StarfieldView(arcade.View):
         self.ship_list.append(self.ship)
 
     def _setup_enemies(self) -> None:
+        # Clear existing enemies
+        self.enemy_list.clear()
         enemy_list = [
             ":resources:/images/enemies/bee.png",
             ":resources:/images/enemies/fishPink.png",
             ":resources:/images/enemies/fly.png",
             ":resources:/images/enemies/saw.png",
             ":resources:/images/enemies/slimeBlock.png",
-            ":resources:/images/enemies/wormGreen.png",
-            ":resources:/images/enemies/wormPink.png",
             ":resources:/images/enemies/fishGreen.png",
-            ":resources:/images/enemies/ladybug.png",
         ]
 
-        X_OFFSET = 100
+        X_OFFSET = 120
         COLS = 4
         NUM_SPRITES = COLS - 1
         NUM_SPACES = NUM_SPRITES - 1
-        self.enemy_grid: arcade.SpriteList = arrange_grid(
+        self.enemy_formation: arcade.SpriteList = arrange_grid(
             sprites=[arcade.Sprite(random.choice(enemy_list), scale=0.5) for i in range(16)],
             rows=4,
             cols=4,
@@ -260,23 +255,12 @@ class StarfieldView(arcade.View):
             spacing_y=ENEMY_HEIGHT * 1.5,
             visible=False,
         )
-        self.group_sprites = [arcade.SpriteList() for _ in range(COLS)]
-        for i in range(COLS):
-            for j in range(COLS):
-                self.group_sprites[i].append(self.enemy_grid[i * COLS + j])
-        entry_actions = create_galaga_style_entry(
-            formation=self.enemy_grid,
-            groups_per_formation=COLS,
-            sprites_per_group=COLS,
-            player_sprite=self.ship_list,
-            slot_duration=0.25,
-            screen_bounds=(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
-            spawn_areas={"top": False, "bottom": False},  # Disable bottom spawning
+        entry_actions = create_formation_entry_from_sprites(
+            self.enemy_formation, speed=5.0, stagger_delay=1.2, min_spacing=50.0
         )
-        # Apply each group with a delay
-        for i, action in enumerate(entry_actions):
-            delay = DelayUntil(duration(i * 1.5))  # Stagger entries
-            sequence(delay, action).apply(self.group_sprites[i], tag=f"group_{i}")
+        for sprite, action in entry_actions:
+            action.apply(sprite, tag="enemy_formation_entry")
+            self.enemy_list.append(sprite)
 
     def _spawn_powerup(self):
         if len(self.powerup_list) == 0:
@@ -323,8 +307,7 @@ class StarfieldView(arcade.View):
         self.powerup_list.update()
         self.shot_list.update()
         self.ship_list.update()
-        for group in self.group_sprites:
-            group.update()
+        self.enemy_list.update()
 
         # Handle player input
         if self.fire_pressed:
@@ -338,20 +321,18 @@ class StarfieldView(arcade.View):
         """Handle collisions between player shots and enemies."""
         # Check collisions for all enemy groups
         for shot in self.shot_list:
-            for group in self.group_sprites:
-                enemies_hit = arcade.check_for_collision_with_list(shot, group)
-                if enemies_hit:
-                    # Remove the shot
-                    shot.remove_from_sprite_lists()
+            enemies_hit = arcade.check_for_collision_with_list(shot, self.enemy_list)
+            if enemies_hit:
+                # Remove the shot
+                shot.remove_from_sprite_lists()
 
-                    # Remove hit enemies
-                    for enemy in enemies_hit:
-                        enemy.remove_from_sprite_lists()
-                    break  # Shot can only hit one enemy, so break after first collision
+                # Remove hit enemies
+                for enemy in enemies_hit:
+                    enemy.remove_from_sprite_lists()
+                break  # Shot can only hit one enemy, so break after first collision
 
         # Check if all enemies are defeated and restart formation
-        total_enemies = sum(len(group) for group in self.group_sprites)
-        if total_enemies == 0:
+        if len(self.enemy_list) == 0:
             # Wait a moment before spawning new formation
             arcade.schedule_once(self._setup_enemies, 2.0)
 
@@ -362,8 +343,7 @@ class StarfieldView(arcade.View):
         self.powerup_list.draw()
         self.shot_list.draw()
         self.ship_list.draw()
-        for group in self.group_sprites:
-            group.draw()
+        self.enemy_list.draw()
 
     def on_key_press(self, key: int, modifiers: int):
         if key == arcade.key.LEFT:

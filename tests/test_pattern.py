@@ -480,6 +480,8 @@ class TestBoidFormationEntry:
             sprites_per_group=10,
             player_sprite=player,
             screen_bounds=(0, 0, 800, 600),
+            spacing_x=60.0,
+            spacing_y=50.0,
         )
 
         # Should create 4 entry actions (one per group)
