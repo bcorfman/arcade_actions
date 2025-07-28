@@ -13,7 +13,7 @@ from collections.abc import Callable
 import arcade
 from arcade import easing
 
-from actions import Ease, FollowPathUntil, MoveUntil, duration, sequence
+from actions import DelayUntil, Ease, FollowPathUntil, MoveUntil, duration, sequence
 
 # Boid-based formation entry patterns
 
@@ -161,110 +161,6 @@ class BoidMoveUntil:
 
             sprite.change_x = new_vx
             sprite.change_y = new_vy
-
-
-class MoveUntilTowardsTarget:
-    """Move sprites toward a target point until reaching it or condition is met.
-
-    Args:
-        target: (x, y) target position
-        speed: Movement speed in pixels per frame
-        stop_distance: Distance at which to stop (default: 10.0)
-        condition: Optional additional stop condition
-    """
-
-    def __init__(
-        self,
-        target_position: tuple[float, float],
-        speed: float,
-        stop_distance: float = 10.0,
-        condition: Callable[[], bool] | None = None,
-    ):
-        self.target_point = target_position
-        self.speed = speed
-        self.stop_distance = stop_distance
-        self.additional_condition = condition
-
-        # Action state
-        self.target = None
-        self.tag = None
-        self.done = False
-        self._is_active = False
-
-    def apply(self, target: arcade.Sprite | arcade.SpriteList, tag: str | None = None):
-        """Apply this action to a sprite or sprite list."""
-        self.target = target
-        self.tag = tag
-        self._is_active = True
-        # Add to global action manager
-        from actions.base import Action
-
-        Action._active_actions.append(self)
-        return self
-
-    def start(self):
-        """Start the action."""
-        self._is_active = True
-
-    def stop(self) -> None:
-        """Stop the action and clean up."""
-        self.done = True
-        self._is_active = False
-        if self.target:
-            # Stop all sprites
-            if isinstance(self.target, arcade.SpriteList):
-                for sprite in self.target:
-                    sprite.change_x = 0
-                    sprite.change_y = 0
-            else:
-                self.target.change_x = 0
-                self.target.change_y = 0
-        # Remove from global action manager
-        from actions.base import Action
-
-        if self in Action._active_actions:
-            Action._active_actions.remove(self)
-
-    def update(self, delta_time: float) -> None:
-        """Update movement toward target."""
-        if not self._is_active or self.done or not self.target:
-            return
-
-        # Check additional condition
-        if self.additional_condition and self.additional_condition():
-            self.stop()
-            return
-
-        def update_sprite(sprite):
-            # Calculate distance to target
-            dx = self.target_point[0] - sprite.center_x
-            dy = self.target_point[1] - sprite.center_y
-            distance = math.sqrt(dx * dx + dy * dy)
-
-            # Check if close enough to stop
-            if distance <= self.stop_distance:
-                sprite.change_x = 0
-                sprite.change_y = 0
-                return True  # Signal that this sprite has reached target
-
-            # Calculate velocity toward target
-            if distance > 0:
-                sprite.change_x = (dx / distance) * self.speed
-                sprite.change_y = (dy / distance) * self.speed
-
-            return False
-
-        # Apply to all sprites and check if all have reached target
-        all_reached = True
-        if isinstance(self.target, arcade.SpriteList):
-            for sprite in self.target:
-                if not update_sprite(sprite):
-                    all_reached = False
-        else:
-            all_reached = update_sprite(self.target)
-
-        if all_reached:
-            self.stop()
 
 
 def _generate_random_spawn_point(spawn_area: tuple[float, float, float, float]) -> tuple[float, float]:
@@ -729,371 +625,6 @@ def sprite_count(sprite_list: arcade.SpriteList, target_count: int, comparison: 
     return condition
 
 
-# Usage examples and notes:
-#
-# # Create Galaga-style formation entry:
-# from actions.formation import arrange_grid
-# formation = arrange_grid(rows=4, cols=10, start_x=200, start_y=400)
-# entry_actions = create_galaga_style_entry(
-#     formation=formation,
-#     groups_per_formation=4,
-#     sprites_per_group=10,
-#     player_sprite=player
-# )
-#
-# # Apply each group with staggered timing:
-# for i, action in enumerate(entry_actions):
-#     delay = DelayUntil(duration(i * 1.5))
-#     sequence(delay, action).apply(group_sprites[i], tag=f"group_{i}_entry")
-#
-# # Custom formation entry for specific scenarios:
-# custom_entry = create_formation_entry_pattern(
-#     target_formation=circular_formation,
-#     spawn_area=(0, 0, 100, 600),  # Left side spawn
-#     cruise_duration=3.0,
-#     rally_point=(150, 350),
-#     slot_duration=2.0,
-#     avoid_sprite=player
-# )
-# custom_entry.apply(new_enemy_group, tag="custom_formation_entry")
-#
-# # Individual boid flocking:
-# flock_behavior = create_boid_flock_pattern(
-#     max_speed=4.0,
-#     duration_seconds=5.0,
-#     avoid_sprite=player,
-#     cohesion_weight=0.01,
-#     separation_weight=0.08
-# )
-# flock_behavior.apply(wandering_enemies, tag="free_roam")
-
-
-def create_formation_entry_pattern(
-    target_positions: list[tuple[float, float]],
-    *,
-    spawn_radius: float = 800.0,
-    spawn_center: tuple[float, float] = (400, 300),
-    spawn_angle_range: tuple[float, float] = (0, math.pi),  # Semicircle
-    speed: float = 200.0,
-    stagger_delay: float = 0.2,
-    min_spacing: float = 30.0,
-    window_bounds: tuple[float, float, float, float] | None = None,
-) -> list[tuple[arcade.Sprite, arcade.SpriteList]]:
-    """Create a formation entry pattern that moves sprites from spawn to target positions.
-
-    This function creates a sequence of MoveUntil actions that move sprites from
-    semicircle spawn positions outside the window to their target formation positions.
-    Sprites are moved in waves to avoid overlaps, with innermost sprites moving first.
-
-    Args:
-        target_positions: List of (x, y) target positions for each sprite
-        spawn_radius: Distance from spawn center to place sprites (default: 800.0)
-        spawn_center: (x, y) center point for spawn semicircle (default: (400, 300))
-        spawn_angle_range: (start_angle, end_angle) in radians for spawn arc (default: (0, π))
-        speed: Movement speed in pixels per frame (Arcade velocity semantics)
-        stagger_delay: Delay between sprite movement waves in seconds (default: 0.2)
-        min_spacing: Minimum spacing between sprites during movement (default: 30.0)
-        window_bounds: (left, bottom, right, top) window bounds for spawn positioning
-
-    Returns:
-        List of (sprite, action) tuples for each sprite's movement
-
-    Example:
-        # Create a circle formation
-        circle_formation = arrange_circle(count=8, center_x=400, center_y=300, radius=100)
-        target_positions = [(sprite.center_x, sprite.center_y) for sprite in circle_formation]
-
-        # Create entry pattern
-        entry_actions = create_formation_entry_pattern(
-            target_positions=target_positions,
-            speed=150.0,
-            stagger_delay=0.3
-        )
-
-        # Apply to sprites
-        for sprite, action in entry_actions:
-            action.apply(sprite, tag="formation_entry")
-    """
-    if not target_positions:
-        return []
-
-    # Calculate spawn positions along semicircle
-    spawn_positions = _generate_semicircle_spawn_positions(
-        target_positions,
-        spawn_radius=spawn_radius,
-        spawn_center=spawn_center,
-        spawn_angle_range=spawn_angle_range,
-        window_bounds=window_bounds,
-    )
-
-    # Group sprites by distance from formation center for wave entry (innermost first)
-    formation_center = _calculate_formation_center(target_positions)
-    wave_groups = _group_sprites_by_distance_waves(target_positions, formation_center, spawn_radius)
-
-    speed = kwargs.get("speed", 10.0)
-    base_stagger_delay = kwargs.get("stagger_delay", 0.3)
-
-    final_actions = []
-    current_delay = 0.0
-
-    print(f"Formation entry: {len(wave_groups)} waves, center at {formation_center}")
-
-    # Process each wave (innermost to outermost)
-    for wave_index, sprite_indices in enumerate(wave_groups):
-        print(f"Wave {wave_index}: {len(sprite_indices)} sprites, delay={current_delay:.1f}s")
-
-        for sprite_idx in sprite_indices:
-            if sprite_idx >= len(sprites) or sprite_idx >= len(spawn_positions):
-                continue
-
-            sprite = sprites[sprite_idx]
-            target_pos = target_positions[sprite_idx]
-            spawn_pos = spawn_positions[sprite_idx]
-
-            # Position sprite at spawn location
-            sprite.center_x, sprite.center_y = spawn_pos
-
-            # Create precision movement action that stops exactly at target
-            def create_precision_condition_and_callback(target_position, sprite_ref):
-                def precision_condition():
-                    # Calculate distance to target
-                    dx = target_position[0] - sprite_ref.center_x
-                    dy = target_position[1] - sprite_ref.center_y
-                    distance = math.sqrt(dx * dx + dy * dy)
-
-                    # If very close, position exactly and stop
-                    if distance <= 2.0:  # Within 2 pixels
-                        sprite_ref.center_x = target_position[0]
-                        sprite_ref.center_y = target_position[1]
-                        sprite_ref.change_x = 0
-                        sprite_ref.change_y = 0
-                        return True
-
-                    # If close, slow down proportionally to prevent overshoot
-                    elif distance <= 20.0:  # Within 20 pixels, start slowing
-                        current_speed = math.sqrt(sprite_ref.change_x**2 + sprite_ref.change_y**2)
-                        if current_speed > 0:
-                            # Scale velocity by distance ratio (closer = slower)
-                            scale_factor = max(0.1, distance / 20.0)  # Minimum 10% speed
-                            direction_x = dx / distance
-                            direction_y = dy / distance
-                            # Set new velocity directly
-                            sprite_ref.change_x = direction_x * current_speed * scale_factor
-                            sprite_ref.change_y = direction_y * current_speed * scale_factor
-
-                    return False  # Continue moving
-
-                return precision_condition
-
-            # Create movement action with wave-based delay
-            velocity = _calculate_velocity_to_target(spawn_pos, target_pos, speed)
-
-            if current_delay > 0.01:  # Add delay for waves after the first
-                from actions.composite import sequence
-                from actions.conditional import DelayUntil
-
-                delay_action = DelayUntil(duration(current_delay))
-                movement_action = MoveUntil(velocity, create_precision_condition_and_callback(target_pos, sprite))
-                combined_action = sequence(delay_action, movement_action)
-            else:
-                movement_action = MoveUntil(velocity, create_precision_condition_and_callback(target_pos, sprite))
-                combined_action = movement_action
-
-            final_actions.append((sprite, combined_action))
-
-        # Add stagger delay for next wave (ensure previous wave has time to clear paths)
-        # Longer delay for waves that are likely to intersect with the next wave
-        wave_delay = base_stagger_delay * (2.0 if len(sprite_indices) > 4 else 1.5)
-        current_delay += wave_delay
-
-    return final_actions
-
-
-def _generate_semicircle_spawn_positions(
-    target_positions: list[tuple[float, float]],
-    spawn_radius: float,
-    spawn_center: tuple[float, float],
-    spawn_angle_range: tuple[float, float],
-    window_bounds: tuple[float, float, float, float] | None = None,
-) -> list[tuple[float, float]]:
-    """Generate spawn positions along a semicircle outside the window.
-
-    Args:
-        target_positions: List of target positions
-        spawn_radius: Distance from spawn center
-        spawn_center: (x, y) center of spawn semicircle (will be overridden by formation center)
-        spawn_angle_range: (start_angle, end_angle) in radians
-        window_bounds: Optional window bounds for positioning
-
-    Returns:
-        List of (x, y) spawn positions
-    """
-    num_sprites = len(target_positions)
-    if num_sprites == 0:
-        return []
-
-    # Always use the formation center as the spawn center
-    formation_center = _calculate_formation_center(target_positions)
-
-    # Adjust spawn radius if window bounds are provided
-    if window_bounds:
-        left, bottom, right, top = window_bounds
-        # Ensure spawn radius is outside window
-        window_diagonal = math.sqrt((right - left) ** 2 + (top - bottom) ** 2)
-        spawn_radius = max(spawn_radius, window_diagonal * 0.6)
-
-    # Use shared helper function to calculate spawn points
-    return _calculate_spawn_points_from_formation(target_positions, formation_center, spawn_radius)
-
-
-def _calculate_spawn_points_from_formation(
-    target_positions: list[tuple[float, float]],
-    formation_center: tuple[float, float],
-    spawn_radius: float,
-) -> list[tuple[float, float]]:
-    """Calculate spawn points by projecting from formation center through target positions to spawn radius.
-
-    Args:
-        target_positions: List of (x, y) formation positions
-        formation_center: (x, y) center of formation and semicircle
-        spawn_radius: Radius from formation center to semicircle for spawn points
-
-    Returns:
-        List of (x, y) spawn positions
-    """
-    import math
-
-    center_x, center_y = formation_center
-    spawn_points = []
-
-    for x, y in target_positions:
-        dx = x - center_x
-        dy = y - center_y
-        dist = math.hypot(dx, dy)
-        if dist == 0:
-            # If sprite is at the center, spawn directly to the right
-            spawn_x = center_x + spawn_radius
-            spawn_y = center_y
-        else:
-            scale = spawn_radius / dist
-            spawn_x = center_x + dx * scale
-            spawn_y = center_y + dy * scale
-        spawn_points.append((spawn_x, spawn_y))
-
-    return spawn_points
-
-
-def _calculate_formation_center(positions: list[tuple[float, float]]) -> tuple[float, float]:
-    """Calculate the center point of a formation.
-
-    Args:
-        positions: List of (x, y) positions
-
-    Returns:
-        (x, y) center point
-    """
-    if not positions:
-        return (0, 0)
-
-    total_x = sum(x for x, y in positions)
-    total_y = sum(y for x, y in positions)
-    count = len(positions)
-
-    return (total_x / count, total_y / count)
-
-
-def _group_sprites_by_distance_waves(
-    target_positions: list[tuple[float, float]],
-    formation_center: tuple[float, float],
-    spawn_radius: float,
-) -> list[list[int]]:
-    """Group sprite indices into waves for collision-free entry from outermost to innermost.
-
-    Each wave contains all sprites whose straight-line path from formation position to spawn point
-    (on a semicircle of given radius from the formation center) does not intersect any other remaining sprite's path.
-    Remove assigned sprites and repeat until all are assigned. Any intersection is a collision.
-
-    Args:
-        target_positions: List of (x, y) formation positions
-        formation_center: (x, y) center of formation and semicircle
-        spawn_radius: Radius from formation center to semicircle for spawn points
-
-    Returns:
-        List of sprite index groups, outermost wave first
-    """
-
-    num_sprites = len(target_positions)
-    if num_sprites == 0:
-        return []
-
-    # Use shared helper function to compute spawn points
-    spawn_points = _calculate_spawn_points_from_formation(target_positions, formation_center, spawn_radius)
-
-    # Helper: check if two line segments intersect
-    def lines_intersect(p1, q1, p2, q2):
-        def ccw(A, B, C):
-            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
-
-        return ccw(p1, p2, q2) != ccw(q1, p2, q2) and ccw(p1, q1, p2) != ccw(p1, q1, q2)
-
-    remaining = set(range(num_sprites))
-    waves = []
-
-    while remaining:
-        current_wave = []
-        for idx in list(remaining):
-            p1 = target_positions[idx]
-            q1 = spawn_points[idx]
-            collision = False
-            for other_idx in remaining:
-                if other_idx == idx:
-                    continue
-                p2 = target_positions[other_idx]
-                q2 = spawn_points[other_idx]
-                if lines_intersect(p1, q1, p2, q2):
-                    collision = True
-                    break
-            if not collision:
-                current_wave.append(idx)
-        if not current_wave:
-            # If all remaining paths collide, assign one per wave to break deadlock
-            current_wave.append(next(iter(remaining)))
-        for idx in current_wave:
-            remaining.remove(idx)
-        waves.append(current_wave)
-
-    return waves
-
-
-def _calculate_velocity_to_target(
-    start_pos: tuple[float, float],
-    target_pos: tuple[float, float],
-    speed: float,
-) -> tuple[float, float]:
-    """Calculate velocity vector from start to target position.
-
-    Args:
-        start_pos: (x, y) starting position
-        target_pos: (x, y) target position
-        speed: Movement speed in pixels per frame
-
-    Returns:
-        (dx, dy) velocity vector
-    """
-    dx = target_pos[0] - start_pos[0]
-    dy = target_pos[1] - start_pos[1]
-    distance = math.sqrt(dx * dx + dy * dy)
-
-    if distance == 0:
-        return (0, 0)
-
-    # Normalize and scale to speed
-    dx = (dx / distance) * speed
-    dy = (dy / distance) * speed
-
-    return (dx, dy)
-
-
 def _calculate_movement_duration(
     start_pos: tuple[float, float],
     target_pos: tuple[float, float],
@@ -1125,12 +656,19 @@ def create_formation_entry_from_sprites(
 ) -> list[tuple[arcade.Sprite, arcade.SpriteList]]:
     """Create formation entry pattern from a target formation SpriteList.
 
-    This is a convenience function that creates sprites positioned at spawn locations
-    and creates movement actions to move them to the target formation positions.
+    This function creates sprites positioned around the upper half of the window boundary
+    (left side, top, right side) and creates a three-phase movement:
+    1. Invisible movement to target positions
+    2. Return to origin positions
+    3. Visible entry with staggered waves to avoid collisions
 
     Args:
         target_formation: SpriteList with sprites positioned at target formation locations
-        **kwargs: Additional arguments for create_formation_entry_pattern
+        **kwargs: Additional arguments including:
+            - window_bounds: (left, bottom, right, top) window boundaries
+            - speed: Movement speed in pixels per frame
+            - stagger_delay: Delay between waves in seconds
+            - min_spacing: Minimum spacing between sprites during movement
 
     Returns:
         List of (sprite, action) tuples
@@ -1141,15 +679,20 @@ def create_formation_entry_from_sprites(
 
         # Create entry pattern
         entry_actions = create_formation_entry_from_sprites(
-            target_formation, speed=150.0, stagger_delay=0.3
+            target_formation,
+            window_bounds=(0, 0, 800, 600),
+            speed=5.0,
+            stagger_delay=1.0
         )
 
         # Apply actions
         for sprite, action in entry_actions:
             action.apply(sprite, tag="formation_entry")
     """
-    # Extract target positions from the formation
-    target_positions = [(sprite.center_x, sprite.center_y) for sprite in target_formation]
+    # Get window bounds (required for this implementation)
+    window_bounds = kwargs.get("window_bounds")
+    if not window_bounds:
+        raise ValueError("window_bounds is required for create_formation_entry_from_sprites")
 
     # Create new sprites for the entry pattern (same number as target formation)
     sprites = arcade.SpriteList()
@@ -1163,197 +706,220 @@ def create_formation_entry_from_sprites(
             new_sprite = arcade.Sprite(":resources:images/items/star.png", scale=1.0)
         sprites.append(new_sprite)
 
-    # Position sprites at spawn locations and create final actions
-    spawn_positions = _generate_semicircle_spawn_positions(
-        target_positions,
-        spawn_radius=kwargs.get("spawn_radius", 800.0),
-        spawn_center=kwargs.get("spawn_center", (400, 300)),
-        spawn_angle_range=kwargs.get("spawn_angle_range", (0, math.pi)),
-        window_bounds=kwargs.get("window_bounds"),
-    )
+    # Generate spawn positions around the upper half of the window boundary
+    # Extract target positions from the formation
+    spawn_positions = _generate_equally_spaced_spawn_positions(target_formation, window_bounds)
+    target_positions = [(sprite.center_x, sprite.center_y) for sprite in target_formation]
 
-    speed = kwargs.get("speed", 10.0)
-    stagger_delay = kwargs.get("stagger_delay", 0.3)
-    min_spacing = kwargs.get("min_spacing", 30.0)
+    # Pick the nearest spawn position for each target position
+    sprite_distances = find_nearest(spawn_positions, target_positions)
+    sprite_distances.sort()
 
-    # Calculate movement paths and detect potential collisions using line intersection
-    movement_paths = []
-    for i in range(len(sprites)):
-        if i < len(spawn_positions):
-            spawn_pos = spawn_positions[i]
-            target_pos = target_positions[i]
-            velocity = _calculate_velocity_to_target(spawn_pos, target_pos, speed)
-            movement_paths.append((i, spawn_pos, target_pos, velocity))
+    # Get parameters
+    speed = kwargs.get("speed", 5.0)
+    stagger_delay = kwargs.get("stagger_delay", 1.0)
+
+    # Calculate movement paths for collision detection
+    entry_lines = _calculate_sprite_entry_lines(target_formation, spawn_positions, sprite_distances)
 
     # Group sprites to avoid collisions during movement
-    collision_groups = _group_sprites_to_avoid_collisions(movement_paths, min_spacing)
+    tgt_index = [tgt_index for _, tgt_index, _ in sprite_distances]
+    enemy_waves = _group_sprites_to_avoid_collisions(entry_lines, tgt_index)
 
-    final_actions = []
-    current_delay = 0.0
+    entry_actions = []
+    max_idx = len(enemy_waves) - 1
+    for idx, wave in enumerate(enemy_waves):
+        for sprite_idx in wave:
+            sprite = target_formation[sprite_idx]
+            sprite.center_x, sprite.center_y = spawn_positions[sprite_idx]
+            sprite.visible = True
+            sprite.alpha = 0
+            actions = sequence(
+                DelayUntil(duration(stagger_delay * (max_idx - idx))),
+                MoveUntil(
+                    sprite,
+                    _calculate_movement_duration(spawn_positions[sprite_idx], target_positions[sprite_idx], speed),
+                ),
+            )
+            entry_actions.append(sprite, actions)
+    return entry_actions
 
-    print(f"Formation entry: {len(collision_groups)} groups to avoid path collisions")
 
-    # Process each collision-avoidance group
-    for group_index, sprite_indices in enumerate(collision_groups):
-        print(f"Group {group_index}: {len(sprite_indices)} sprites, delay={current_delay:.1f}s")
+def find_nearest(spawn_positions, target_positions):
+    sprite_distances = []
+    for i, target_pos in enumerate(target_positions):
+        min_dist = 999
+        for j, spawn_pos in enumerate(spawn_positions):
+            dist = math.hypot(target_pos[0] - spawn_pos[0], target_pos[1] - spawn_pos[1])
+            if dist < min_dist:
+                min_dist = dist
+                tgt_index = i
+                spawn_index = j
+        sprite_distances.append((min_dist, tgt_index, spawn_index))
+    return sprite_distances
 
-        for sprite_idx in sprite_indices:
-            if sprite_idx >= len(sprites) or sprite_idx >= len(spawn_positions):
-                continue
 
-            sprite = sprites[sprite_idx]
-            target_pos = target_positions[sprite_idx]
-            spawn_pos = spawn_positions[sprite_idx]
+def _generate_equally_spaced_spawn_positions(
+    target_formation: arcade.SpriteList,
+    window_bounds: tuple[float, float, float, float],
+) -> list[tuple[float, float]]:
+    """Generate spawn positions around the upper half of the window boundary.
 
-            # Position sprite at spawn location
-            sprite.center_x, sprite.center_y = spawn_pos
+    Creates spawn positions along:
+    - Upper half of left side
+    - Top side
+    - Upper half of right side
 
-            # Create precision movement action that stops exactly at target
-            def create_precision_condition_and_callback(target_position, sprite_ref):
-                def precision_condition():
-                    # Calculate distance to target
-                    dx = target_position[0] - sprite_ref.center_x
-                    dy = target_position[1] - sprite_ref.center_y
-                    distance = math.sqrt(dx * dx + dy * dy)
+    Args:
+        target_positions: List of target formation positions
+        window_bounds: (left, bottom, right, top) window boundaries
 
-                    # If very close, position exactly and stop
-                    if distance <= 2.0:  # Within 2 pixels
-                        sprite_ref.center_x = target_position[0]
-                        sprite_ref.center_y = target_position[1]
-                        sprite_ref.change_x = 0
-                        sprite_ref.change_y = 0
-                        return True
+    Returns:
+        List of (x, y) spawn positions
+    """
+    left, bottom, right, top = window_bounds
+    num_sprites = len(target_formation)
+    if num_sprites == 0:
+        return []
 
-                    # If close, slow down proportionally to prevent overshoot
-                    elif distance <= 20.0:  # Within 20 pixels, start slowing
-                        current_speed = math.sqrt(sprite_ref.change_x**2 + sprite_ref.change_y**2)
-                        if current_speed > 0:
-                            # Scale velocity by distance ratio (closer = slower)
-                            scale_factor = max(0.1, distance / 20.0)  # Minimum 10% speed
-                            direction_x = dx / distance
-                            direction_y = dy / distance
-                            # Set new velocity directly
-                            sprite_ref.change_x = direction_x * current_speed * scale_factor
-                            sprite_ref.change_y = direction_y * current_speed * scale_factor
+    # Calculate boundary positions
+    # Upper half of left side (from center to top)
+    left_side_y_start = (bottom + top) / 2
+    left_side_y_end = top
+    left_side_x = left - 50  # 50 pixels outside window
 
-                    return False  # Continue moving
+    # Top side (full width)
+    top_side_y = top + 50  # 50 pixels above window
+    top_side_x_start = left - 50
+    top_side_x_end = right + 50
 
-                return precision_condition
+    # Upper half of right side (from center to top)
+    right_side_y_start = (bottom + top) / 2
+    right_side_y_end = top
+    right_side_x = right + 50  # 50 pixels outside window
 
-            # Create movement action with wave-based delay
-            velocity = _calculate_velocity_to_target(spawn_pos, target_pos, speed)
+    # Calculate how many sprites to place on each boundary section
+    # Distribute evenly across the three sections
+    sprites_per_section = num_sprites // 3
+    spawn_positions = []
 
-            if current_delay > 0.01:  # Add delay for waves after the first
-                from actions.composite import sequence
-                from actions.conditional import DelayUntil
+    for i in range(sprites_per_section):
+        if sprites_per_section > 1:
+            t = i / (sprites_per_section - 1)
+        else:
+            t = 0.5
+        left_side_y = left_side_y_start + t * (left_side_y_end - left_side_y_start)
+        spawn_positions.append((left_side_x, left_side_y))
+        top_side_x = top_side_x_start + t * (top_side_x_end - top_side_x_start)
+        spawn_positions.append((top_side_x, top_side_y))
+        right_side_y = right_side_y_start + t * (right_side_y_end - right_side_y_start)
+        spawn_positions.append((right_side_x, right_side_y))
 
-                delay_action = DelayUntil(duration(current_delay))
-                movement_action = MoveUntil(velocity, create_precision_condition_and_callback(target_pos, sprite))
-                combined_action = sequence(delay_action, movement_action)
-            else:
-                movement_action = MoveUntil(velocity, create_precision_condition_and_callback(target_pos, sprite))
-                combined_action = movement_action
+    return spawn_positions
 
-            final_actions.append((sprite, combined_action))
 
-        # Add delay only if this group would collide with the next group
-        if group_index < len(collision_groups) - 1:
-            current_delay += stagger_delay
-
-    return final_actions
+def _calculate_sprite_entry_lines(
+    target_formation: arcade.SpriteList,
+    spawn_positions: list[tuple[float, float]],
+    sprite_distances: list[float, int, int],
+) -> list[
+    tuple[
+        tuple[float, float, float, float],
+        tuple[float, float, float, float],
+        tuple[float, float, float, float],
+        tuple[float, float, float, float],
+    ]
+]:
+    entry_lines = []
+    for _, tgt_index, spawn_index in sorted(sprite_distances):
+        tgt_width, tgt_height = target_formation[tgt_index].width, target_formation[tgt_index].height
+        tgt_cx, tgt_cy = target_formation[tgt_index].center_x, target_formation[tgt_index].center_y
+        spawn_cx, spawn_cy = spawn_positions[spawn_index]
+        half_width, half_height = tgt_width / 2, tgt_height / 2
+        line1 = (tgt_cx - half_width, tgt_cy - half_height, spawn_cx - half_width, spawn_cy - half_height)
+        line2 = (tgt_cx - half_width, tgt_cy + half_height, spawn_cx - half_width, spawn_cy + half_height)
+        line3 = (tgt_cx + half_width, tgt_cy - half_height, spawn_cx + half_width, spawn_cy - half_height)
+        line4 = (tgt_cx + half_width, tgt_cy + half_height, spawn_cx + half_width, spawn_cy + half_height)
+        entry_lines.append((line1, line2, line3, line4))
+    return entry_lines
 
 
 def _group_sprites_to_avoid_collisions(
-    movement_paths: list[tuple[int, tuple[float, float], tuple[float, float], tuple[float, float]]],
-    min_spacing: float,
+    line_groups: list[
+        tuple[
+            tuple[float, float, float, float],
+            tuple[float, float, float, float],
+            tuple[float, float, float, float],
+            tuple[float, float, float, float],
+        ]
+    ],
+    tgt_index: tuple[int],
 ) -> list[list[int]]:
     """Group sprite indices to avoid collisions during movement.
 
-    This function analyzes movement paths and groups sprites so that sprites in the same
+    This function analyzes entry lines and groups sprites so that sprites in the same
     group can move simultaneously without colliding. Only adds delays when necessary.
 
     Args:
-        movement_paths: List of (sprite_idx, spawn_pos, target_pos, velocity) tuples
-        min_spacing: Minimum spacing to maintain between sprites during movement
+        entry_lines: List of lines for each sprite going from spawn point to target position
+        sprite_distances: List of (distance, target_index, spawn_index) tuples
 
     Returns:
         List of sprite index groups that can move simultaneously
     """
-    if not movement_paths:
+    if not tgt_index:
         return []
-
-    # For simple formations like circles where all sprites move radially outward from spawn,
-    # they typically won't collide with each other, so they can all move at once
-
-    # Check if any movement paths would intersect
+    # Check if any entry lines would intersect
     groups = []
-    remaining_sprites = list(range(len(movement_paths)))
-
-    while remaining_sprites:
-        current_group = [remaining_sprites[0]]
-        remaining_sprites.remove(remaining_sprites[0])
-
-        # Try to add more sprites to the current group
-        sprites_to_remove = []
-        for sprite_idx in remaining_sprites:
-            can_add_to_group = True
-
-            # Check if this sprite would collide with any sprite already in the group
-            for group_sprite_idx in current_group:
-                if _would_paths_collide(movement_paths[sprite_idx], movement_paths[group_sprite_idx], min_spacing):
-                    can_add_to_group = False
+    sprites_not_grouped = list(reversed(tgt_index))
+    while sprites_not_grouped:
+        remaining_sprites = sprites_not_grouped[:]
+        sprites_not_grouped = []
+        group = []
+        line_groups_to_check = []
+        while remaining_sprites:
+            idx = remaining_sprites.pop()
+            for line in line_groups[idx]:
+                if _would_lines_collide(line, line_groups_to_check):
+                    sprites_not_grouped.append(idx)
                     break
-
-            if can_add_to_group:
-                current_group.append(sprite_idx)
-                sprites_to_remove.append(sprite_idx)
-
-        # Remove sprites that were added to the group
-        for sprite_idx in sprites_to_remove:
-            remaining_sprites.remove(sprite_idx)
-
-        groups.append(current_group)
-
+            else:
+                # only add the sprite to the group if it doesn't collide with any other sprites
+                group.append(idx)
+                line_groups_to_check.extend(line_groups[idx])
+        groups.append(group)
     return groups
 
 
-def _would_paths_collide(
-    path1: tuple[int, tuple[float, float], tuple[float, float], tuple[float, float]],
-    path2: tuple[int, tuple[float, float], tuple[float, float], tuple[float, float]],
-    min_spacing: float,
+def _would_lines_collide(
+    line1: tuple[float, float, float, float],
+    lines: list[tuple[float, float, float, float]],
 ) -> bool:
     """Check if two movement paths would result in sprites getting too close.
 
     Uses line intersection to detect if movement paths cross, which would cause collisions.
 
     Args:
-        path1: (sprite_idx, spawn_pos, target_pos, velocity) for first sprite
-        path2: (sprite_idx, spawn_pos, target_pos, velocity) for second sprite
-        min_spacing: Minimum spacing to maintain between sprites
-
+        line1: (pt11, pt12, pt13, pt14) for first sprite
+        lines: list of (pt21, pt22, pt23, pt24) for other sprites
     Returns:
         True if paths would result in collision, False otherwise
     """
-    _, spawn1, target1, _ = path1
-    _, spawn2, target2, _ = path2
-
-    # Check if the straight-line paths from spawn to target intersect
-    return _do_line_segments_intersect(spawn1, target1, spawn2, target2, min_spacing)
+    for line2 in lines:
+        if _do_line_segments_intersect(line1, line2):
+            return True
+    return False
 
 
 def _do_line_segments_intersect(
-    p1: tuple[float, float],
-    q1: tuple[float, float],
-    p2: tuple[float, float],
-    q2: tuple[float, float],
-    min_spacing: float,
+    line1: tuple[float, float, float, float],
+    line2: tuple[float, float, float, float],
 ) -> bool:
     """Check if two line segments intersect or come within min_spacing of each other.
 
     Args:
-        p1, q1: Start and end points of first line segment (spawn to target)
-        p2, q2: Start and end points of second line segment (spawn to target)
-        min_spacing: Minimum distance to maintain between paths
+        line1: (x11, y11, x12, y12)
+        line2: (x21, y21, x22, y22)
 
     Returns:
         True if line segments intersect or come too close
@@ -1366,50 +932,6 @@ def _do_line_segments_intersect(
     def intersect(A, B, C, D):
         return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
 
-    if intersect(p1, q1, p2, q2):
-        return True
-
-    # Check if any point on one line segment is too close to the other line segment
-    def point_to_line_distance(point, line_start, line_end):
-        """Calculate shortest distance from point to line segment."""
-        x0, y0 = point
-        x1, y1 = line_start
-        x2, y2 = line_end
-
-        # Vector from line_start to line_end
-        dx = x2 - x1
-        dy = y2 - y1
-
-        if dx == 0 and dy == 0:
-            # Line segment is actually a point
-            return math.sqrt((x0 - x1) ** 2 + (y0 - y1) ** 2)
-
-        # Parameter t represents position along line segment (0 to 1)
-        t = max(0, min(1, ((x0 - x1) * dx + (y0 - y1) * dy) / (dx**2 + dy**2)))
-
-        # Closest point on line segment
-        closest_x = x1 + t * dx
-        closest_y = y1 + t * dy
-
-        return math.sqrt((x0 - closest_x) ** 2 + (y0 - closest_y) ** 2)
-
-    # Sample points along each path and check distances
-    num_samples = 20  # More samples for better collision detection
-    for i in range(num_samples + 1):
-        t = i / num_samples
-
-        # Point on first path
-        sample1 = (p1[0] + t * (q1[0] - p1[0]), p1[1] + t * (q1[1] - p1[1]))
-
-        # Check distance to second path
-        if point_to_line_distance(sample1, p2, q2) < min_spacing:
-            return True
-
-        # Point on second path
-        sample2 = (p2[0] + t * (q2[0] - p2[0]), p2[1] + t * (q2[1] - p2[1]))
-
-        # Check distance to first path
-        if point_to_line_distance(sample2, p1, q1) < min_spacing:
-            return True
-
-    return False
+    x11, y11, x12, y12 = line1
+    x21, y21, x22, y22 = line2
+    return intersect((x11, y11), (x12, y12), (x21, y21), (x22, y22))

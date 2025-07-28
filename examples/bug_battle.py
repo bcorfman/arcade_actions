@@ -245,19 +245,29 @@ class StarfieldView(arcade.View):
         COLS = 4
         NUM_SPRITES = COLS - 1
         NUM_SPACES = NUM_SPRITES - 1
+
+        # Create the target formation sprites (these define the final positions)
+        target_sprites = [arcade.Sprite(random.choice(enemy_list), scale=0.5) for i in range(16)]
         self.enemy_formation: arcade.SpriteList = arrange_grid(
-            sprites=[arcade.Sprite(random.choice(enemy_list), scale=0.5) for i in range(16)],
+            sprites=target_sprites,
             rows=4,
             cols=4,
             start_x=X_OFFSET,
             start_y=WINDOW_HEIGHT - 400,
             spacing_x=(WINDOW_WIDTH - X_OFFSET * 2 - ENEMY_WIDTH * NUM_SPRITES) / NUM_SPACES,
             spacing_y=ENEMY_HEIGHT * 1.5,
-            visible=False,
+            visible=False,  # Target formation is invisible, only used for positioning
         )
+
+        # Create the entry pattern - this returns new sprites with actions
         entry_actions = create_formation_entry_from_sprites(
-            self.enemy_formation, speed=5.0, stagger_delay=1.2, min_spacing=50.0
+            self.enemy_formation,
+            speed=5.0,
+            stagger_delay=1.2,
+            window_bounds=(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
         )
+
+        # Apply actions to the new sprites and add them to the enemy list
         for sprite, action in entry_actions:
             action.apply(sprite, tag="enemy_formation_entry")
             self.enemy_list.append(sprite)
