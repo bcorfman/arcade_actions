@@ -263,12 +263,12 @@ class StarfieldView(arcade.View):
         entry_actions = create_formation_entry_from_sprites(
             self.enemy_formation,
             speed=5.0,
-            stagger_delay=1.2,
+            stagger_delay=0.5,
             window_bounds=(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
         )
 
         # Apply actions to the new sprites and add them to the enemy list
-        for sprite, action in entry_actions:
+        for sprite, action, _ in entry_actions:
             action.apply(sprite, tag="enemy_formation_entry")
             self.enemy_list.append(sprite)
 

@@ -108,11 +108,9 @@ Testing patterns to follow:
 * AttackGroup tests: Test formations, lifecycle management, and breakaway behaviors
 * Boundary actions: Test edge detection, callback coordination, and movement reversal
 * See docs/testing_index.md for complete testing patterns, fixtures, and mock usage guidelines
-* Individual actions: Use arcade.Sprite fixtures, test with action.apply() and Action.update_all()
-* Group actions: Use arcade.SpriteList fixtures, verify actions applied to all sprites in list
-* AttackGroup tests: Test formations, lifecycle management, and breakaway behaviors
-* Boundary actions: Test edge detection, callback coordination, and movement reversal
-* See docs/testing_index.md for complete testing patterns, fixtures, and mock usage guidelines
-* AttackGroup tests: Test formations, lifecycle management, and breakaway behaviors
-* Boundary actions: Test edge detection, callback coordination, and movement reversal
-* See docs/testing_index.md for complete testing patterns, fixtures, and mock usage guidelines
+
+CRITICAL: Python execution rule:
+* ALWAYS use `uv run python` instead of `python` for running Python scripts and tests
+* This project uses uv for dependency management and virtual environment handling
+* NEVER use `python` directly - it will fail because the virtual environment isn't activated
+* Use `uv run python` for all Python execution commands in this project
