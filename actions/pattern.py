@@ -16,285 +16,6 @@ from arcade import easing
 
 from actions import DelayUntil, Ease, FollowPathUntil, MoveUntil, duration, sequence
 
-# Boid-based formation entry patterns
-
-
-class BoidMoveUntil:
-    """Move sprites using boid algorithm until a condition is satisfied.
-
-    This action applies classic boid flocking behavior (cohesion, separation, alignment)
-    to a sprite list, with optional player avoidance and velocity clamping.
-
-    Args:
-        max_speed: Maximum speed in pixels per frame (Arcade velocity semantics)
-        duration_condition: Function that returns True when movement should stop
-        avoid_sprites: Optional SpriteList of sprites to avoid (e.g., player, obstacles)
-        cohesion_weight: Strength of cohesion force (default: 0.005)
-        separation_weight: Strength of separation force (default: 0.05)
-        alignment_weight: Strength of alignment force (default: 0.05)
-        avoid_weight: Strength of avoidance force (default: 0.02)
-        avoid_distance: Distance at which avoidance kicks in (default: 200)
-        separation_distance: Distance for separation behavior (default: 30)
-    """
-
-    def __init__(
-        self,
-        *,
-        max_speed: float,
-        duration_condition: Callable[[], bool],
-        avoid_sprites: arcade.SpriteList | None = None,
-        cohesion_weight: float = 0.005,
-        separation_weight: float = 0.05,
-        alignment_weight: float = 0.05,
-        avoid_weight: float = 0.02,
-        avoid_distance: float = 200.0,
-        separation_distance: float = 30.0,
-    ):
-        self.max_speed = max_speed
-        self.condition = duration_condition
-        self.avoid_sprites = avoid_sprites
-        self.cohesion_weight = cohesion_weight
-        self.separation_weight = separation_weight
-        self.alignment_weight = alignment_weight
-        self.avoid_weight = avoid_weight
-        self.avoid_distance = avoid_distance
-        self.separation_distance = separation_distance
-
-        # Action state
-        self.target = None
-        self.tag = None
-        self.done = False
-        self._is_active = False
-
-    def apply(self, target: arcade.SpriteList, tag: str | None = None):
-        """Apply this action to a sprite list."""
-        self.target = target
-        self.tag = tag
-        self._is_active = True
-        # Add to global action manager
-        from actions.base import Action
-
-        Action._active_actions.append(self)
-        return self
-
-    def start(self):
-        """Start the boid action."""
-        self._is_active = True
-
-    def stop(self) -> None:
-        """Stop the action and clean up."""
-        self.done = True
-        self._is_active = False
-        if self.target:
-            # Stop all sprites
-            for sprite in self.target:
-                sprite.change_x = 0
-                sprite.change_y = 0
-        # Remove from global action manager
-        from actions.base import Action
-
-        if self in Action._active_actions:
-            Action._active_actions.remove(self)
-
-    def update(self, delta_time: float) -> None:
-        """Update boid movement."""
-        if not self._is_active or self.done or not self.target:
-            return
-
-        # Check condition
-        if self.condition():
-            self.stop()
-            return
-
-        if len(self.target) == 0:
-            return
-
-        # Calculate flock center and average velocity for cohesion/alignment
-        center_x = sum(s.center_x for s in self.target) / len(self.target)
-        center_y = sum(s.center_y for s in self.target) / len(self.target)
-        avg_vx = sum(s.change_x for s in self.target) / len(self.target)
-        avg_vy = sum(s.change_y for s in self.target) / len(self.target)
-
-        for sprite in self.target:
-            # Initialize steering forces
-            steer_x = steer_y = 0.0
-
-            # Cohesion: steer toward flock center
-            steer_x += (center_x - sprite.center_x) * self.cohesion_weight
-            steer_y += (center_y - sprite.center_y) * self.cohesion_weight
-
-            # Separation: avoid nearby flockmates
-            for other in self.target:
-                if other is sprite:
-                    continue
-                dx = other.center_x - sprite.center_x
-                dy = other.center_y - sprite.center_y
-                dist_sq = dx * dx + dy * dy
-                if dist_sq < self.separation_distance * self.separation_distance and dist_sq > 0:
-                    # Steer away from other sprite
-                    steer_x -= dx * self.separation_weight
-                    steer_y -= dy * self.separation_weight
-
-            # Alignment: match average flock velocity
-            steer_x += (avg_vx - sprite.change_x) * self.alignment_weight
-            steer_y += (avg_vy - sprite.change_y) * self.alignment_weight
-
-            # Avoidance: steer away from all avoid_sprites
-            if self.avoid_sprites:
-                for avoid_sprite in self.avoid_sprites:
-                    dx = avoid_sprite.center_x - sprite.center_x
-                    dy = avoid_sprite.center_y - sprite.center_y
-                    dist_sq = dx * dx + dy * dy
-                    if dist_sq < self.avoid_distance * self.avoid_distance and dist_sq > 0:
-                        steer_x -= dx * self.avoid_weight
-                        steer_y -= dy * self.avoid_weight
-
-            # Apply steering to current velocity
-            new_vx = sprite.change_x + steer_x
-            new_vy = sprite.change_y + steer_y
-
-            # Clamp to max speed
-            speed = math.sqrt(new_vx * new_vx + new_vy * new_vy)
-            if speed > self.max_speed:
-                scale = self.max_speed / speed
-                new_vx *= scale
-                new_vy *= scale
-
-            sprite.change_x = new_vx
-            sprite.change_y = new_vy
-
-
-def _generate_random_spawn_point(spawn_area: tuple[float, float, float, float]) -> tuple[float, float]:
-    """Generate a random point within the spawn area.
-
-    Args:
-        spawn_area: (left, bottom, right, top) boundary rectangle
-
-    Returns:
-        (x, y) random point within the area
-    """
-    left, bottom, right, top = spawn_area
-    x = random.uniform(left, right) if left != right else left
-    y = random.uniform(bottom, top) if bottom != top else bottom
-    return (x, y)
-
-
-def _generate_spaced_spawn_points(
-    spawn_area: tuple[float, float, float, float], num_sprites: int, min_spacing: float = 30.0
-) -> list[tuple[float, float]]:
-    """Generate spawn points with minimum spacing between sprites.
-
-    Args:
-        spawn_area: (left, bottom, right, top) boundary rectangle
-        num_sprites: Number of sprites to position
-        min_spacing: Minimum distance between sprites
-
-    Returns:
-        List of (x, y) positions with minimum spacing
-    """
-    left, bottom, right, top = spawn_area
-    positions = []
-
-    for _ in range(num_sprites):
-        attempts = 0
-        max_attempts = 100
-
-        while attempts < max_attempts:
-            # Generate random position
-            x = random.uniform(left, right) if left != right else left
-            y = random.uniform(bottom, top) if bottom != top else bottom
-
-            # Check distance from all existing positions
-            too_close = False
-            for existing_x, existing_y in positions:
-                distance = math.sqrt((x - existing_x) ** 2 + (y - existing_y) ** 2)
-                if distance < min_spacing:
-                    too_close = True
-                    break
-
-            if not too_close:
-                positions.append((x, y))
-                break
-
-            attempts += 1
-
-        # If we couldn't find a good position, just use the random one
-        if attempts >= max_attempts:
-            positions.append((x, y))
-
-    return positions
-
-
-def _calculate_adaptive_spacing(sprites: arcade.SpriteList, base_spacing: float = 40.0) -> float:
-    """Calculate adaptive spacing based on sprite sizes.
-
-    Args:
-        sprites: SpriteList to calculate spacing for
-        base_spacing: Base spacing in pixels (default: 40.0)
-
-    Returns:
-        Adaptive spacing value that considers sprite sizes
-    """
-    if not sprites:
-        return base_spacing
-
-    # Calculate average sprite size
-    total_width = 0
-    total_height = 0
-    count = 0
-
-    for sprite in sprites:
-        # Get sprite dimensions
-        if hasattr(sprite, "width") and hasattr(sprite, "height"):
-            total_width += sprite.width
-            total_height += sprite.height
-            count += 1
-        elif hasattr(sprite, "texture") and sprite.texture:
-            # Fallback to texture size
-            total_width += sprite.texture.width
-            total_height += sprite.texture.height
-            count += 1
-
-    if count == 0:
-        return base_spacing
-
-    # Calculate average sprite size
-    avg_width = total_width / count
-    avg_height = total_height / count
-    avg_size = max(avg_width, avg_height)
-
-    # Adaptive spacing: base spacing + 50% of average sprite size
-    # This ensures sprites don't overlap even if they're large
-    adaptive_spacing = base_spacing + (avg_size * 0.5)
-
-    # Clamp to reasonable bounds (20-200 pixels)
-    return max(20.0, min(200.0, adaptive_spacing))
-
-
-def create_boid_flock_pattern(
-    max_speed: float, duration_seconds: float, avoid_sprites: arcade.SpriteList | None = None, **boid_kwargs
-) -> BoidMoveUntil:
-    """Create a boid flocking pattern for a specified duration.
-
-    Args:
-        max_speed: Maximum speed in pixels per frame
-        duration_seconds: How long to run the boid behavior
-        avoid_sprites: Optional SpriteList of sprites to avoid (e.g., player, obstacles)
-        **boid_kwargs: Additional boid parameters (cohesion_weight, etc.)
-
-    Returns:
-        BoidMoveUntil action
-
-    Example:
-        flock_pattern = create_boid_flock_pattern(4.0, 3.0, avoid_sprites=player_sprites)
-        flock_pattern.apply(enemy_sprites, tag="flock_cruise")
-    """
-    from actions.conditional import duration
-
-    return BoidMoveUntil(
-        max_speed=max_speed, duration_condition=duration(duration_seconds), avoid_sprites=avoid_sprites, **boid_kwargs
-    )
-
 
 def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segments: int = 4):
     """Create a zigzag movement pattern using sequences of MoveUntil actions.
@@ -903,12 +624,9 @@ def find_nearest(spawn_positions, target_positions):
     Uses a greedy approach to assign each target position to its nearest
     available spawn position, ensuring no spawn position is used twice.
     """
-    print(f"DEBUG: find_nearest called with {len(spawn_positions)} spawn positions and {len(target_positions)} targets")
-
     # Simple optimization: if we have the same number of spawn positions as targets,
     # we can use a direct assignment without expensive sorting
     if len(spawn_positions) == len(target_positions):
-        print("DEBUG: Using optimized direct assignment")
         # Direct assignment - each target gets its nearest spawn
         sprite_distances = []
         used_spawn_positions = set()
@@ -927,27 +645,21 @@ def find_nearest(spawn_positions, target_positions):
             sprite_distances.append((min_dist, i, best_spawn_idx))
             used_spawn_positions.add(best_spawn_idx)
 
-        print("DEBUG: find_nearest optimized path completed")
         return sprite_distances
 
-    print("DEBUG: Using fallback algorithm with sorting")
     # Fallback to original algorithm for cases where spawn positions != targets
     sprite_distances = []
     used_spawn_positions = set()
 
     # Create list of (distance, target_idx, spawn_idx) for all combinations
-    print("DEBUG: Creating all combinations")
     all_combinations = []
     for i, target_pos in enumerate(target_positions):
         for j, spawn_pos in enumerate(spawn_positions):
             dist = math.hypot(target_pos[0] - spawn_pos[0], target_pos[1] - spawn_pos[1])
             all_combinations.append((dist, i, j))
 
-    print(f"DEBUG: Created {len(all_combinations)} combinations, about to sort")
     # Sort by distance (shortest first)
     all_combinations.sort()
-    print("DEBUG: Sorting completed")
-
     assigned_targets = set()
 
     # Assign targets to nearest available spawn positions
@@ -969,119 +681,7 @@ def find_nearest(spawn_positions, target_positions):
                     min_dist = dist
                     best_spawn_idx = j
             sprite_distances.append((min_dist, i, best_spawn_idx))
-
-    print("DEBUG: find_nearest fallback path completed")
     return sprite_distances
-
-
-def _sprites_would_collide_during_movement(
-    sprite1_idx: int,
-    sprite2_idx: int,
-    target_formation: arcade.SpriteList,
-    spawn_positions: list[tuple[float, float]],
-    spawn_assignments: list[tuple[float, int, int]] | None = None,
-) -> bool:
-    """
-    Check if two sprites would collide during their movement from spawn to target.
-
-    This function uses a practical approach to check if the actual sprite movement
-    paths would intersect, rather than overly strict bounding box corner detection.
-
-    Args:
-        sprite1_idx: Index of first sprite in target_formation
-        sprite2_idx: Index of second sprite in target_formation
-        target_formation: SpriteList containing the target formation
-        spawn_positions: List of (x, y) spawn positions
-        spawn_assignments: Pre-calculated spawn assignments to avoid recalculation
-
-    Returns:
-        True if sprites would collide during movement, False otherwise
-    """
-    # Get the sprites
-    sprite1 = target_formation[sprite1_idx]
-    sprite2 = target_formation[sprite2_idx]
-
-    # Find spawn assignments if not provided
-    if spawn_assignments is None:
-        target_positions = [(sprite.center_x, sprite.center_y) for sprite in target_formation]
-        spawn_assignments = find_nearest(spawn_positions, target_positions)
-
-    # Find the spawn indices for these sprites
-    spawn1_idx = None
-    spawn2_idx = None
-
-    for distance, target_idx, spawn_idx in spawn_assignments:
-        if target_idx == sprite1_idx:
-            spawn1_idx = spawn_idx
-        elif target_idx == sprite2_idx:
-            spawn2_idx = spawn_idx
-
-    # If we can't find spawn assignments, assume no collision
-    if spawn1_idx is None or spawn2_idx is None:
-        return False
-
-    # Get spawn positions
-    spawn1 = spawn_positions[spawn1_idx]
-    spawn2 = spawn_positions[spawn2_idx]
-
-    # Get target positions
-    target1 = (sprite1.center_x, sprite1.center_y)
-    target2 = (sprite2.center_x, sprite2.center_y)
-
-    # Calculate sprite dimensions
-    sprite1_width = sprite1.width
-    sprite1_height = sprite1.height
-    sprite2_width = sprite2.width
-    sprite2_height = sprite2.height
-
-    # Use a more practical collision detection approach
-    # Check if the movement paths would bring the sprites too close together
-
-    # Calculate the minimum safe distance between sprite centers
-    # This should be the sum of the sprite radii (half width/height)
-    min_safe_distance = (sprite1_width + sprite1_height + sprite2_width + sprite2_height) / 2.0
-
-    # Check if the movement paths would bring sprites closer than the safe distance
-    # We'll check multiple points along the movement paths for better accuracy
-
-    # Check start positions
-    start_distance = math.hypot(spawn1[0] - spawn2[0], spawn1[1] - spawn2[1])
-    if start_distance < min_safe_distance:
-        return True
-
-    # Check end positions
-    end_distance = math.hypot(target1[0] - target2[0], target1[1] - target2[1])
-    if end_distance < min_safe_distance:
-        return True
-
-    # Check if the movement paths actually intersect (more accurate than just distance checks)
-    # Convert movement paths to line segments
-    path1 = (spawn1[0], spawn1[1], target1[0], target1[1])
-    path2 = (spawn2[0], spawn2[1], target2[0], target2[1])
-
-    # Check if the line segments intersect
-    if _do_line_segments_intersect(path1, path2):
-        return True
-
-    # If paths don't intersect, check if they get too close at any point
-    # Check multiple points along the movement paths for better collision detection
-    # Check at 25%, 50%, and 75% of the movement
-    for t in [0.25, 0.5, 0.75]:
-        # Calculate position at time t for sprite 1
-        pos1_x = spawn1[0] + t * (target1[0] - spawn1[0])
-        pos1_y = spawn1[1] + t * (target1[1] - spawn1[1])
-
-        # Calculate position at time t for sprite 2
-        pos2_x = spawn2[0] + t * (target2[0] - spawn2[0])
-        pos2_y = spawn2[1] + t * (target2[1] - spawn2[1])
-
-        # Check distance at this point
-        distance = math.hypot(pos2_x - pos1_x, pos2_y - pos1_y)
-        if distance < min_safe_distance:
-            return True
-
-    # If all checks pass, the sprites should be safe to move together
-    return False
 
 
 def _bounding_boxes_overlap(
@@ -1165,7 +765,7 @@ def _min_conflicts_sprite_assignment(
     """Assign sprites to spawn positions using min-conflicts algorithm.
 
     This function implements a min-conflicts approach:
-    1. Start with a random assignment of sprites to spawn positions
+    1. Start with a nearest-neighbor assignment of sprites to spawn positions
     2. Detect all path conflicts between sprites
     3. Iteratively swap conflicting sprite assignments to reduce conflicts
     4. Continue until no conflicts remain or time/iteration limits reached
@@ -1187,7 +787,6 @@ def _min_conflicts_sprite_assignment(
 
     # Ensure we have enough spawn positions
     if num_sprites > num_spawns:
-        print(f"Warning: {num_sprites} sprites but only {num_spawns} spawn positions")
         # Use only the first num_spawns sprites
         num_sprites = num_spawns
 
@@ -1266,7 +865,6 @@ def _min_conflicts_sprite_assignment(
 
     while current_conflicts > 0 and iteration < max_iterations:
         if time.time() - start_time > time_limit:
-            print(f"Min-conflicts: Time limit ({time_limit}s) reached with {current_conflicts} conflicts remaining")
             break
 
         # Get all conflicting pairs
@@ -1297,9 +895,6 @@ def _min_conflicts_sprite_assignment(
                 assignments = temp_assignments
                 current_conflicts = new_conflicts
                 improved = True
-                print(
-                    f"Min-conflicts: Swapped sprites {sprite1_idx} and {sprite2_idx}, conflicts reduced to {current_conflicts}"
-                )
                 break
 
         if not improved:
@@ -1326,20 +921,14 @@ def _min_conflicts_sprite_assignment(
                     assignments = temp_assignments
                     current_conflicts = new_conflicts
                     improved = True
-                    print(
-                        f"Min-conflicts: Random swap sprites {sprite1_idx} and {sprite2_idx}, conflicts: {current_conflicts}"
-                    )
                     break
 
         if not improved:
-            print(f"Min-conflicts: No improvement found after {iteration} iterations, stopping")
             break
 
         iteration += 1
 
     elapsed_time = time.time() - start_time
-    print(f"Min-conflicts: Completed in {elapsed_time:.3f}s with {current_conflicts} conflicts remaining")
-
     return assignments
 
 

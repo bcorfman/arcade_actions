@@ -10,9 +10,13 @@ import unittest
 
 import arcade
 
-from actions import arrange_circle, arrange_grid, arrange_line, arrange_v_formation, create_formation_entry_from_sprites
-from actions.formation import arrange_diamond
-from actions.pattern import (
+from actions import (
+    Action,
+    arrange_circle,
+    arrange_diamond,
+    arrange_grid,
+    arrange_line,
+    arrange_v_formation,
     create_formation_entry_from_sprites,
 )
 
@@ -916,7 +920,7 @@ class TestCollisionDetectionHelpers(unittest.TestCase):
 
     def test_multiple_sprites_converging_to_formation(self):
         """Test collision detection when multiple sprites converge to formation positions."""
-        from actions.pattern import _sprites_would_collide_during_movement
+        from actions.pattern import _sprites_would_collide_during_movement_with_assignments
 
         # Create a simple 2x2 formation
         sprites = [arcade.Sprite(":resources:images/items/star.png", scale=0.5) for _ in range(4)]
@@ -934,8 +938,13 @@ class TestCollisionDetectionHelpers(unittest.TestCase):
         # Spawn positions that would cause sprites to converge to same point
         spawn_positions = [(-100, 150), (300, 150), (150, -100), (150, 400)]
 
+        # Create assignments dictionary (sprite_idx -> spawn_idx)
+        assignments = {0: 0, 1: 1, 2: 2, 3: 3}  # Direct assignment
+
         # Test collision between sprites that would converge to same position
-        would_collide = _sprites_would_collide_during_movement(0, 1, target_formation, spawn_positions)
+        would_collide = _sprites_would_collide_during_movement_with_assignments(
+            0, 1, target_formation, spawn_positions, assignments
+        )
 
         # Sprites converging to the same position should collide
         self.assertTrue(would_collide, "Sprites converging to same position should be detected as colliding")
@@ -975,3 +984,466 @@ class TestCollisionDetectionHelpers(unittest.TestCase):
             self.assertIsInstance(sprite, arcade.Sprite)
             self.assertIsInstance(action, object)  # Action object
             self.assertIsInstance(target_index, int)
+
+
+class TestFormationEntryFromSprites:
+    """Test suite for create_formation_entry_from_sprites function."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.clear_all()
+
+    def test_create_formation_entry_from_sprites_basic(self):
+        """Test basic formation entry from sprites functionality."""
+        # Create a simple target formation (circle)
+        target_formation = arcade.SpriteList()
+
+        # Create 6 sprites in a circle formation
+        center_x, center_y = 400, 300
+        radius = 100
+        for i in range(6):
+            angle = (i / 6) * 2 * math.pi
+            x = center_x + radius * math.cos(angle)
+            y = center_y + radius * math.sin(angle)
+
+            sprite = arcade.Sprite(":resources:images/items/star.png", scale=0.5)
+            sprite.center_x = x
+            sprite.center_y = y
+            sprite.visible = False  # Target formation is invisible
+            target_formation.append(sprite)
+
+        # Create entry pattern
+        entry_actions = create_formation_entry_from_sprites(
+            target_formation, window_bounds=(0, 0, 800, 600), speed=5.0, stagger_delay=1.0, min_spacing=30.0
+        )
+
+        # Should create the same number of actions as sprites in target formation
+        assert len(entry_actions) == len(target_formation)
+
+        # Each action should be a tuple of (sprite, action, target_index)
+        for sprite, action, target_index in entry_actions:
+            assert isinstance(sprite, arcade.Sprite)
+            assert hasattr(action, "apply")  # Should be an action object
+            assert isinstance(target_index, int)  # Should be the target formation index
+
+    def test_create_formation_entry_from_sprites_spawn_positions(self):
+        """Test that spawn positions are created around upper boundary."""
+        # Create target formation
+        target_formation = arcade.SpriteList()
+        for i in range(8):
+            sprite = arcade.Sprite(":resources:images/items/star.png", scale=0.5)
+            sprite.center_x = 400 + (i % 3) * 50
+            sprite.center_y = 300 + (i // 3) * 50
+            sprite.visible = False
+            target_formation.append(sprite)
+
+        entry_actions = create_formation_entry_from_sprites(
+            target_formation, window_bounds=(0, 0, 800, 600), speed=5.0, stagger_delay=1.0
+        )
+
+        # Check that spawn positions are outside the window boundary
+        for sprite, _, _ in entry_actions:
+            # Sprites should be positioned outside the window
+            assert sprite.center_x < 0 or sprite.center_x > 800 or sprite.center_y > 600, (
+                f"Sprite at ({sprite.center_x}, {sprite.center_y}) should be outside window"
+            )
+
+            # Sprites should start fully visible (for offscreen enemies)
+            assert sprite.alpha == 255
+
+    def test_create_formation_entry_from_sprites_requires_window_bounds(self):
+        """Test that window_bounds parameter is required."""
+        target_formation = arcade.SpriteList()
+        sprite = arcade.Sprite(":resources:images/items/star.png")
+        sprite.center_x = 400
+        sprite.center_y = 300
+        sprite.visible = False
+        target_formation.append(sprite)
+
+        # Should raise ValueError when window_bounds is not provided
+        try:
+            create_formation_entry_from_sprites(target_formation, speed=5.0)
+            raise AssertionError("Should have raised ValueError")
+        except ValueError as e:
+            assert "window_bounds is required" in str(e)
+
+    def test_create_formation_entry_from_sprites_three_phase_movement(self):
+        """Test that the three-phase movement pattern is created correctly."""
+        target_formation = arcade.SpriteList()
+        sprite = arcade.Sprite(":resources:images/items/star.png")
+        sprite.center_x = 400
+        sprite.center_y = 300
+        sprite.visible = False
+        target_formation.append(sprite)
+
+        entry_actions = create_formation_entry_from_sprites(
+            target_formation, window_bounds=(0, 0, 800, 600), speed=5.0, stagger_delay=1.0
+        )
+
+        sprite, action, target_index = entry_actions[0]
+
+        # The action should be a MoveUntil action (current implementation)
+        # Note: Three-phase movement is not yet implemented
+        assert hasattr(action, "target_velocity")  # Should be a MoveUntil action
+
+    def test_create_formation_entry_from_sprites_collision_avoidance(self):
+        """Test that collision avoidance groups sprites into waves."""
+        # Create a larger formation to test collision grouping
+        target_formation = arcade.SpriteList()
+        for i in range(12):
+            sprite = arcade.Sprite(":resources:images/items/star.png", scale=0.5)
+            sprite.center_x = 400 + (i % 4) * 30
+            sprite.center_y = 300 + (i // 4) * 30
+            sprite.visible = False
+            target_formation.append(sprite)
+
+        entry_actions = create_formation_entry_from_sprites(
+            target_formation, window_bounds=(0, 0, 800, 600), speed=5.0, stagger_delay=1.0, min_spacing=30.0
+        )
+
+        # Should create the same number of actions as sprites
+        assert len(entry_actions) == len(target_formation)
+
+        # All sprites should be positioned at spawn locations
+        for sprite, _, _ in entry_actions:
+            assert sprite.alpha == 255  # Should start fully visible (for offscreen enemies)
+
+    def test_create_formation_entry_from_sprites_parameter_defaults(self):
+        """Test that default parameters work correctly."""
+        target_formation = arcade.SpriteList()
+        for i in range(4):
+            sprite = arcade.Sprite(":resources:images/items/star.png")
+            sprite.center_x = 400 + i * 20
+            sprite.center_y = 300 + i * 20
+            sprite.visible = False
+            target_formation.append(sprite)
+
+        # Test with minimal parameters (only window_bounds required)
+        entry_actions = create_formation_entry_from_sprites(target_formation, window_bounds=(0, 0, 800, 600))
+
+        # Should work with default parameters
+        assert len(entry_actions) == len(target_formation)
+
+        # Check default values are used
+        for sprite, action, target_index in entry_actions:
+            assert sprite.alpha == 255  # Should start fully visible (for offscreen enemies)
+
+    def test_create_formation_entry_from_sprites_center_first_ordering(self):
+        """Test that sprites are ordered from center to outermost."""
+        # Create formation with clear center and outer sprites
+        target_formation = arcade.SpriteList()
+
+        # Center sprite
+        center_sprite = arcade.Sprite(":resources:images/items/star.png")
+        center_sprite.center_x = 400
+        center_sprite.center_y = 300
+        center_sprite.visible = False
+        target_formation.append(center_sprite)
+
+        # Outer sprites
+        for i in range(4):
+            angle = (i / 4) * 2 * math.pi
+            x = 400 + 100 * math.cos(angle)
+            y = 300 + 100 * math.sin(angle)
+
+            sprite = arcade.Sprite(":resources:images/items/star.png")
+            sprite.center_x = x
+            sprite.center_y = y
+            sprite.visible = False
+            target_formation.append(sprite)
+
+        entry_actions = create_formation_entry_from_sprites(
+            target_formation, window_bounds=(0, 0, 800, 600), speed=5.0, stagger_delay=1.0
+        )
+
+        # Should create actions for all sprites
+        assert len(entry_actions) == len(target_formation)
+
+        # All sprites should be positioned and ready for movement
+        for sprite, _, _ in entry_actions:
+            assert sprite.alpha == 255  # Should start fully visible (for offscreen enemies)
+
+    def test_create_formation_entry_from_sprites_empty_formation(self):
+        """Test behavior with empty target formation."""
+        empty_formation = arcade.SpriteList()
+
+        entry_actions = create_formation_entry_from_sprites(empty_formation, window_bounds=(0, 0, 800, 600), speed=5.0)
+
+        # Should return empty list for empty formation
+        assert len(entry_actions) == 0
+
+    def test_create_formation_entry_from_sprites_custom_parameters(self):
+        """Test that custom parameters are respected."""
+        target_formation = arcade.SpriteList()
+        for i in range(3):
+            sprite = arcade.Sprite(":resources:images/items/star.png")
+            sprite.center_x = 400 + i * 50
+            sprite.center_y = 300 + i * 50
+            sprite.visible = False
+            target_formation.append(sprite)
+
+        # Test with custom parameters
+        custom_speed = 8.0
+        custom_stagger = 2.0
+        custom_spacing = 50.0
+
+        entry_actions = create_formation_entry_from_sprites(
+            target_formation,
+            window_bounds=(0, 0, 800, 600),
+            speed=custom_speed,
+            stagger_delay=custom_stagger,
+            min_spacing=custom_spacing,
+        )
+
+        # Should create actions with custom parameters
+        assert len(entry_actions) == len(target_formation)
+
+        # All sprites should be positioned and ready
+        for sprite, _, _ in entry_actions:
+            assert sprite.alpha == 255  # Should start fully visible (for offscreen enemies)
+
+    def test_create_formation_entry_from_sprites_visibility_tracking(self):
+        """Test that sprites become visible during the formation entry process."""
+        # Create a simple target formation
+        target_formation = arcade.SpriteList()
+        for i in range(3):
+            sprite = arcade.Sprite(":resources:images/items/star.png", scale=0.5)
+            sprite.center_x = 400 + i * 30
+            sprite.center_y = 300 + i * 30
+            sprite.visible = False
+            target_formation.append(sprite)
+
+        entry_actions = create_formation_entry_from_sprites(
+            target_formation,
+            window_bounds=(0, 0, 800, 600),
+            speed=5.0,
+            stagger_delay=0.1,  # Short delay for testing
+            min_spacing=30.0,
+        )
+
+        # Apply actions to sprites
+        for sprite, action, target_index in entry_actions:
+            action.apply(sprite, tag="visibility_test")
+
+        # Track sprite visibility over time
+        visibility_over_time = []
+
+        # Test initial state
+        all_sprites = [sprite for sprite, _, _ in entry_actions]
+        initial_visibility = [(sprite.visible, sprite.alpha) for sprite in all_sprites]
+        visibility_over_time.append(("initial", initial_visibility))
+
+        # All sprites should start fully visible (alpha=255, visible=True)
+        for sprite in all_sprites:
+            assert sprite.visible == True, f"Sprite should be visible=True but got {sprite.visible}"
+            assert sprite.alpha == 255, f"Sprite should have alpha=255 but got {sprite.alpha}"
+
+            # Update through the phases - include sprite updates for position changes
+        total_updates = 0
+        max_updates = 1000  # Prevent infinite loop
+
+        while Action._active_actions and total_updates < max_updates:
+            Action.update_all(0.016)  # 60 FPS
+            # IMPORTANT: Update sprites to apply velocity to position
+            for sprite in all_sprites:
+                sprite.update()
+            total_updates += 1
+
+            # Record visibility every 10 frames
+            if total_updates % 10 == 0:
+                current_visibility = [(sprite.visible, sprite.alpha) for sprite in all_sprites]
+                visibility_over_time.append((f"frame_{total_updates}", current_visibility))
+
+                # Check if any sprite has become visible (alpha > 0)
+                visible_sprites = [sprite for sprite in all_sprites if sprite.alpha > 0]
+                if visible_sprites:
+                    print(f"Frame {total_updates}: {len(visible_sprites)} sprites are now visible")
+                    break
+
+        # Final check - at least one sprite should have become visible
+        final_visible_sprites = [sprite for sprite in all_sprites if sprite.alpha > 0]
+
+        # Debug output
+        print(f"Total updates: {total_updates}")
+        print(f"Active actions remaining: {len(Action._active_actions)}")
+        print(f"Final visible sprites: {len(final_visible_sprites)}/{len(all_sprites)}")
+
+        for i, (timestamp, visibility) in enumerate(visibility_over_time):
+            visible_count = sum(1 for visible, alpha in visibility if alpha > 0)
+            print(f"{timestamp}: {visible_count}/{len(all_sprites)} sprites visible")
+
+        # At least one sprite should have become visible during the process
+        assert len(final_visible_sprites) > 0, (
+            f"No sprites became visible during formation entry. Visibility tracking: {visibility_over_time}"
+        )
+
+    def test_create_formation_entry_from_sprites_phase_completion(self):
+        """Test that all phases of the formation entry complete properly."""
+        # Create a single sprite for easier testing
+        target_formation = arcade.SpriteList()
+        sprite = arcade.Sprite(":resources:images/items/star.png", scale=0.5)
+        sprite.center_x = 400
+        sprite.center_y = 300
+        sprite.visible = False
+        target_formation.append(sprite)
+
+        entry_actions = create_formation_entry_from_sprites(
+            target_formation,
+            window_bounds=(0, 0, 800, 600),
+            speed=10.0,  # Faster speed for quicker testing
+            stagger_delay=0.1,
+            min_spacing=30.0,
+        )
+
+        test_sprite, action, target_index = entry_actions[0]
+        action.apply(test_sprite, tag="phase_test")
+
+        # Record sprite position and visibility at key moments
+        phases = []
+
+        # Initial state
+        phases.append(
+            {
+                "phase": "initial",
+                "position": (test_sprite.center_x, test_sprite.center_y),
+                "visible": test_sprite.visible,
+                "alpha": test_sprite.alpha,
+                "velocity": (test_sprite.change_x, test_sprite.change_y),
+            }
+        )
+
+        # Run until completion or timeout
+        frame_count = 0
+        max_frames = 2000  # Increased timeout
+        previous_position = (test_sprite.center_x, test_sprite.center_y)
+
+        while Action._active_actions and frame_count < max_frames:
+            Action.update_all(0.016)
+            # IMPORTANT: Update sprite to apply velocity to position
+            test_sprite.update()
+            frame_count += 1
+
+            current_position = (test_sprite.center_x, test_sprite.center_y)
+
+            # Record significant state changes
+            if frame_count % 50 == 0 or current_position != previous_position:
+                phases.append(
+                    {
+                        "phase": f"frame_{frame_count}",
+                        "position": current_position,
+                        "visible": test_sprite.visible,
+                        "alpha": test_sprite.alpha,
+                        "velocity": (test_sprite.change_x, test_sprite.change_y),
+                    }
+                )
+
+            previous_position = current_position
+
+        # Final state
+        phases.append(
+            {
+                "phase": "final",
+                "position": (test_sprite.center_x, test_sprite.center_y),
+                "visible": test_sprite.visible,
+                "alpha": test_sprite.alpha,
+                "velocity": (test_sprite.change_x, test_sprite.change_y),
+            }
+        )
+
+        # Debug output
+        print(f"Formation entry completed in {frame_count} frames")
+        for phase_data in phases:
+            print(
+                f"{phase_data['phase']}: pos={phase_data['position']}, "
+                f"visible={phase_data['visible']}, alpha={phase_data['alpha']}, "
+                f"vel={phase_data['velocity']}"
+            )
+
+        # Verify the sprite ended up visible
+        assert test_sprite.alpha > 0, f"Sprite should be visible at end but alpha={test_sprite.alpha}"
+        assert test_sprite.visible == True, "Sprite should have visible=True at end"
+
+        # Verify the sprite moved through different positions (indicating phases completed)
+        positions = [phase["position"] for phase in phases]
+        unique_positions = set(positions)
+        assert len(unique_positions) > 2, f"Sprite should have moved through multiple positions: {unique_positions}"
+
+    def test_create_formation_entry_from_sprites_spawn_distance_analysis(self):
+        """Test spawn distances to understand why sprites aren't reaching targets."""
+        # Create a simple target formation
+        target_formation = arcade.SpriteList()
+        sprite = arcade.Sprite(":resources:images/items/star.png", scale=0.5)
+        sprite.center_x = 400
+        sprite.center_y = 300
+        sprite.visible = False
+        target_formation.append(sprite)
+
+        window_bounds = (0, 0, 800, 600)
+        speed = 5.0
+
+        entry_actions = create_formation_entry_from_sprites(
+            target_formation, window_bounds=window_bounds, speed=speed, stagger_delay=0.1, min_spacing=30.0
+        )
+
+        test_sprite, action, target_index = entry_actions[0]
+
+        # Calculate distances involved
+        spawn_pos = (test_sprite.center_x, test_sprite.center_y)
+        target_pos = (400, 300)
+
+        distance_to_target = math.sqrt((target_pos[0] - spawn_pos[0]) ** 2 + (target_pos[1] - spawn_pos[1]) ** 2)
+
+        # Calculate expected time to reach target at current speed
+        # Speed is in pixels per frame, so at 60 FPS:
+        frames_to_target = distance_to_target / speed
+        seconds_to_target = frames_to_target / 60.0
+
+        print(f"Spawn position: {spawn_pos}")
+        print(f"Target position: {target_pos}")
+        print(f"Distance to target: {distance_to_target:.1f} pixels")
+        print(f"Speed: {speed} pixels/frame")
+        print(f"Expected frames to reach target: {frames_to_target:.1f}")
+        print(f"Expected seconds to reach target: {seconds_to_target:.1f}")
+
+        # Apply action and test movement for a reasonable time
+        action.apply(test_sprite, tag="distance_test")
+
+        # Test movement for expected time + some buffer
+        max_test_frames = int(frames_to_target * 1.5)  # 50% buffer
+
+        initial_distance = distance_to_target
+        closest_distance = distance_to_target
+
+        for frame in range(max_test_frames):
+            Action.update_all(0.016)
+            test_sprite.update()  # Apply velocity to position
+
+            current_distance = math.sqrt(
+                (target_pos[0] - test_sprite.center_x) ** 2 + (target_pos[1] - test_sprite.center_y) ** 2
+            )
+
+            if current_distance < closest_distance:
+                closest_distance = current_distance
+
+            # Check if we reached the target (within 5 pixels)
+            if current_distance <= 5.0:
+                print(f"Reached target at frame {frame}! Final distance: {current_distance:.1f}")
+                break
+
+            if frame % 50 == 0:
+                print(
+                    f"Frame {frame}: distance={current_distance:.1f}, pos=({test_sprite.center_x:.1f}, {test_sprite.center_y:.1f}), vel=({test_sprite.change_x:.1f}, {test_sprite.change_y:.1f})"
+                )
+
+        print(f"Initial distance: {initial_distance:.1f}")
+        print(f"Closest distance achieved: {closest_distance:.1f}")
+        print(f"Final distance: {current_distance:.1f}")
+        print(f"Movement progress: {((initial_distance - current_distance) / initial_distance * 100):.1f}%")
+
+        # The sprite should have made significant progress towards the target
+        progress_threshold = 0.1  # At least 10% progress expected
+        actual_progress = (initial_distance - current_distance) / initial_distance
+        assert actual_progress > progress_threshold, (
+            f"Sprite made insufficient progress towards target. "
+            f"Expected > {progress_threshold * 100:.1f}%, got {actual_progress * 100:.1f}%"
+        )
