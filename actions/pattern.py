@@ -684,18 +684,6 @@ def find_nearest(spawn_positions, target_positions):
     return sprite_distances
 
 
-def _bounding_boxes_overlap(
-    x1: float, y1: float, width1: float, height1: float, x2: float, y2: float, width2: float, height2: float
-) -> bool:
-    """Check if two bounding boxes overlap."""
-    return not (
-        x1 + width1 / 2 < x2 - width2 / 2
-        or x1 - width1 / 2 > x2 + width2 / 2
-        or y1 + height1 / 2 < y2 - height2 / 2
-        or y1 - height1 / 2 > y2 + height2 / 2
-    )
-
-
 def _do_line_segments_intersect(
     line1: tuple[float, float, float, float], line2: tuple[float, float, float, float]
 ) -> bool:
@@ -735,25 +723,6 @@ def _do_line_segments_intersect(
 
     # Check if intersection point is on both line segments
     return -tolerance <= t <= 1 + tolerance and -tolerance <= u <= 1 + tolerance
-
-
-def _would_lines_collide(
-    test_line: tuple[float, float, float, float], lines: list[tuple[float, float, float, float]]
-) -> bool:
-    """
-    Check if a test line intersects with any line in a list of lines.
-
-    Args:
-        test_line: (x1, y1, x2, y2) - the line to test
-        lines: List of (x1, y1, x2, y2) line segments to check against
-
-    Returns:
-        True if test_line intersects with any line in lines, False otherwise
-    """
-    for line in lines:
-        if _do_line_segments_intersect(test_line, line):
-            return True
-    return False
 
 
 def _min_conflicts_sprite_assignment(

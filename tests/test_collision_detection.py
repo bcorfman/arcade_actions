@@ -12,9 +12,27 @@ import arcade
 from actions import Action, arrange_grid
 from actions.pattern import (
     _do_line_segments_intersect,
-    _would_lines_collide,
     create_formation_entry_from_sprites,
 )
+
+
+def _would_lines_collide(
+    test_line: tuple[float, float, float, float], lines: list[tuple[float, float, float, float]]
+) -> bool:
+    """
+    Check if a test line intersects with any line in a list of lines.
+
+    Args:
+        test_line: (x1, y1, x2, y2) - the line to test
+        lines: List of (x1, y1, x2, y2) line segments to check against
+
+    Returns:
+        True if test_line intersects with any line in lines, False otherwise
+    """
+    for line in lines:
+        if _do_line_segments_intersect(test_line, line):
+            return True
+    return False
 
 
 class TestLineIntersectionCollisionDetection(unittest.TestCase):
