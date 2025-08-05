@@ -57,8 +57,39 @@ class MoveUntil(_Action):
         dx, dy = self.current_velocity
 
         def set_velocity(sprite):
-            sprite.change_x = dx
-            sprite.change_y = dy
+            # For limit boundary behavior, check if velocity would cross boundary
+            if self.boundary_behavior == "limit" and self.bounds:
+                left, bottom, right, top = self.bounds
+
+                # Check if applying velocity would cross horizontal boundary
+                if dx > 0 and sprite.center_x + dx > right:
+                    # Would cross right boundary - don't apply velocity
+                    sprite.change_x = 0
+                    sprite.center_x = right  # Set to boundary
+                elif dx < 0 and sprite.center_x + dx < left:
+                    # Would cross left boundary - don't apply velocity
+                    sprite.change_x = 0
+                    sprite.center_x = left  # Set to boundary
+                else:
+                    # Safe to apply velocity
+                    sprite.change_x = dx
+
+                # Check if applying velocity would cross vertical boundary
+                if dy > 0 and sprite.center_y + dy > top:
+                    # Would cross top boundary - don't apply velocity
+                    sprite.change_y = 0
+                    sprite.center_y = top  # Set to boundary
+                elif dy < 0 and sprite.center_y + dy < bottom:
+                    # Would cross bottom boundary - don't apply velocity
+                    sprite.change_y = 0
+                    sprite.center_y = bottom  # Set to boundary
+                else:
+                    # Safe to apply velocity
+                    sprite.change_y = dy
+            else:
+                # Normal behavior for other boundary types or no boundaries
+                sprite.change_x = dx
+                sprite.change_y = dy
 
         self.for_each_sprite(set_velocity)
 
@@ -92,6 +123,17 @@ class MoveUntil(_Action):
                     sprite.center_x = right
                 elif sprite.center_x >= right:
                     sprite.center_x = left
+            elif self.boundary_behavior == "limit":
+                if sprite.center_x < left:
+                    sprite.center_x = left
+                    sprite.change_x = 0
+                    self.current_velocity = (0, self.current_velocity[1])
+                    self.target_velocity = (0, self.target_velocity[1])
+                elif sprite.center_x > right:
+                    sprite.center_x = right
+                    sprite.change_x = 0
+                    self.current_velocity = (0, self.current_velocity[1])
+                    self.target_velocity = (0, self.target_velocity[1])
 
             if self.on_boundary:
                 self.on_boundary(sprite, "x")
@@ -113,6 +155,17 @@ class MoveUntil(_Action):
                     sprite.center_y = top
                 elif sprite.center_y >= top:
                     sprite.center_y = bottom
+            elif self.boundary_behavior == "limit":
+                if sprite.center_y < bottom:
+                    sprite.center_y = bottom
+                    sprite.change_y = 0
+                    self.current_velocity = (self.current_velocity[0], 0)
+                    self.target_velocity = (self.target_velocity[0], 0)
+                elif sprite.center_y > top:
+                    sprite.center_y = top
+                    sprite.change_y = 0
+                    self.current_velocity = (self.current_velocity[0], 0)
+                    self.target_velocity = (self.target_velocity[0], 0)
 
             if self.on_boundary:
                 self.on_boundary(sprite, "y")
@@ -610,6 +663,42 @@ class DelayUntil(_Action):
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     ):
         super().__init__(condition, on_stop)
+        self._elapsed = 0.0
+        self._duration = None
+
+    def apply_effect(self) -> None:
+        """Initialize delay timing."""
+        # Try to extract duration from the condition function if it's from duration() helper
+        self._duration = None
+        try:
+            # Check if condition is from duration() helper by looking for closure
+            if (
+                hasattr(self.condition, "__closure__")
+                and self.condition.__closure__
+                and len(self.condition.__closure__) >= 1
+            ):
+                # Get the seconds value from the closure
+                seconds = self.condition.__closure__[0].cell_contents
+                if isinstance(seconds, (int, float)) and seconds > 0:
+                    self._duration = seconds
+        except (AttributeError, IndexError, TypeError):
+            pass
+
+        self._elapsed = 0.0
+
+    def update_effect(self, delta_time: float) -> None:
+        """Update delay timing using simulation time."""
+        if self._duration is not None:
+            # Use simulation time for duration-based delays
+            self._elapsed += delta_time
+
+            # Check if duration has elapsed
+            if self._elapsed >= self._duration:
+                # Mark as complete by setting the condition as met
+                self._condition_met = True
+                self.done = True
+                if self.on_stop:
+                    self.on_stop()
 
     def clone(self) -> "DelayUntil":
         """Create a copy of this action."""

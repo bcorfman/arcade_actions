@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 import arcade
 
 if TYPE_CHECKING:
-    from actions.types import SpriteTarget
+    from actions.helpers import SpriteTarget
 
 
 _T = TypeVar("_T", bound="Action")

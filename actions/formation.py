@@ -25,6 +25,7 @@ def arrange_line(
     start_y: float = 0,
     spacing: float = 50.0,
     sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
 ) -> arcade.SpriteList:
     """Create or arrange sprites in a horizontal line.
 
@@ -39,6 +40,7 @@ def arrange_line(
         start_y: Y coordinate for all sprites in the line
         spacing: Distance between adjacent sprites
         sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
 
     Returns:
         The arranged sprite list
@@ -51,6 +53,9 @@ def arrange_line(
 
         # Create new sprites in a line
         line = arrange_line(count=5, start_x=0, start_y=300, spacing=50)
+
+        # Create hidden sprites for formation entry
+        hidden_line = arrange_line(count=5, start_x=200, start_y=400, visible=False)
     """
     if sprites is None:
         if count is None or count <= 0:
@@ -59,12 +64,22 @@ def arrange_line(
         sprite_factory = sprite_factory or _default_factory()
         sprites = arcade.SpriteList()
         for _ in range(count):
-            sprites.append(sprite_factory())
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
 
     # Arrange positions
     for i, sprite in enumerate(sprites):
         sprite.center_x = start_x + i * spacing
         sprite.center_y = start_y
+        sprite.visible = visible  # Ensure visibility is set
 
     return sprites
 
@@ -79,6 +94,7 @@ def arrange_grid(
     spacing_x: float = 60.0,
     spacing_y: float = 50.0,
     sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
 ) -> arcade.SpriteList:
     """Create or arrange sprites in a rectangular grid formation.
 
@@ -95,6 +111,7 @@ def arrange_grid(
         spacing_x: Horizontal distance between adjacent sprites
         spacing_y: Vertical distance between adjacent rows
         sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
 
     Returns:
         The arranged sprite list
@@ -105,18 +122,31 @@ def arrange_grid(
 
         # Arrange existing sprites in a grid
         arrange_grid(existing_sprites, rows=2, cols=4, spacing_x=80, spacing_y=60)
+
+        # Create hidden grid for formation entry
+        hidden_grid = arrange_grid(rows=4, cols=10, start_x=200, start_y=400, visible=False)
     """
     if sprites is None:
         sprite_factory = sprite_factory or _default_factory()
         sprites = arcade.SpriteList()
         for _ in range(rows * cols):
-            sprites.append(sprite_factory())
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
 
     for i, sprite in enumerate(sprites):
         row = i // cols
         col = i % cols
         sprite.center_x = start_x + col * spacing_x
         sprite.center_y = start_y + row * spacing_y
+        sprite.visible = visible  # Ensure visibility is set
 
     return sprites
 
@@ -129,6 +159,7 @@ def arrange_circle(
     center_y: float = 300,
     radius: float = 100.0,
     sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
 ) -> arcade.SpriteList:
     """Create or arrange sprites in a circular formation.
 
@@ -149,6 +180,7 @@ def arrange_circle(
         center_y: Y coordinate of the circle center
         radius: Radius of the circle
         sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
 
     Returns:
         The arranged sprite list
@@ -159,6 +191,9 @@ def arrange_circle(
 
         # Arrange existing sprites in a circle
         arrange_circle(existing_sprites, center_x=200, center_y=200, radius=80)
+
+        # Create hidden circle for formation entry
+        hidden_circle = arrange_circle(count=8, center_x=400, center_y=300, radius=100, visible=False)
     """
     if sprites is None:
         if count is None or count <= 0:
@@ -166,7 +201,16 @@ def arrange_circle(
         sprite_factory = sprite_factory or _default_factory()
         sprites = arcade.SpriteList()
         for _ in range(count):
-            sprites.append(sprite_factory())
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
 
     count = len(sprites)
     if count == 0:
@@ -179,6 +223,7 @@ def arrange_circle(
         angle = math.pi / 2 - i * angle_step
         sprite.center_x = center_x + math.cos(angle) * radius
         sprite.center_y = center_y + math.sin(angle) * radius
+        sprite.visible = visible  # Ensure visibility is set
 
     return sprites
 
@@ -192,6 +237,7 @@ def arrange_v_formation(
     angle: float = 45.0,
     spacing: float = 50.0,
     sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
 ) -> arcade.SpriteList:
     """Create or arrange sprites in a V or wedge formation.
 
@@ -206,6 +252,7 @@ def arrange_v_formation(
         angle: Angle of the V formation in degrees (0-90)
         spacing: Distance between adjacent sprites along the V arms
         sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
 
     Returns:
         The arranged sprite list
@@ -216,6 +263,9 @@ def arrange_v_formation(
 
         # Arrange existing sprites in V formation
         arrange_v_formation(flying_birds, angle=30, spacing=40)
+
+        # Create hidden V formation for formation entry
+        hidden_v = arrange_v_formation(count=7, apex_x=400, apex_y=100, angle=60, visible=False)
     """
     if sprites is None:
         if count is None or count <= 0:
@@ -223,7 +273,16 @@ def arrange_v_formation(
         sprite_factory = sprite_factory or _default_factory()
         sprites = arcade.SpriteList()
         for _ in range(count):
-            sprites.append(sprite_factory())
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
 
     count = len(sprites)
     if count == 0:
@@ -234,6 +293,7 @@ def arrange_v_formation(
     # Place the first sprite at the apex
     sprites[0].center_x = apex_x
     sprites[0].center_y = apex_y
+    sprites[0].visible = visible
 
     for i in range(1, count):
         side = 1 if i % 2 == 1 else -1
@@ -244,6 +304,7 @@ def arrange_v_formation(
 
         sprites[i].center_x = apex_x + offset_x
         sprites[i].center_y = apex_y + offset_y
+        sprites[i].visible = visible  # Ensure visibility is set
 
     return sprites
 
@@ -257,6 +318,7 @@ def arrange_diamond(
     spacing: float = 50.0,
     include_center: bool = True,
     sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
 ) -> arcade.SpriteList:
     """Create or arrange sprites in a diamond formation.
 
@@ -283,6 +345,7 @@ def arrange_diamond(
         spacing: Distance between adjacent layer rings
         include_center: Whether to place a sprite at the center (default: True)
         sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
 
     Returns:
         The arranged sprite list
@@ -299,6 +362,9 @@ def arrange_diamond(
         # Arrange existing sprites in diamond formation
         arrange_diamond(existing_sprites, center_x=200, center_y=200, spacing=40)
 
+        # Create hidden diamond for formation entry
+        hidden_diamond = arrange_diamond(count=13, center_x=400, center_y=300, spacing=60, visible=False)
+
         # Diamond formations work well for:
         # - Enemy attack patterns (solid for boss, hollow for minions)
         # - Defensive formations (hollow allows protected units inside)
@@ -311,7 +377,16 @@ def arrange_diamond(
         sprite_factory = sprite_factory or _default_factory()
         sprites = arcade.SpriteList()
         for _ in range(count):
-            sprites.append(sprite_factory())
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
 
     count = len(sprites)
     if count == 0:
@@ -327,6 +402,7 @@ def arrange_diamond(
             if sprite_index < count:
                 sprites[sprite_index].center_x = center_x
                 sprites[sprite_index].center_y = center_y
+                sprites[sprite_index].visible = visible
                 sprite_index += 1
         else:
             # Diamond layer at distance layer * spacing from center
@@ -366,6 +442,7 @@ def arrange_diamond(
 
                 sprites[sprite_index].center_x = center_x + offset_x
                 sprites[sprite_index].center_y = center_y + offset_y
+                sprites[sprite_index].visible = visible  # Ensure visibility is set
                 sprite_index += 1
 
         layer += 1
