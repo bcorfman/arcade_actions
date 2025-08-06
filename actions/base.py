@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 import arcade
 
 if TYPE_CHECKING:
-    from actions.helpers import SpriteTarget
+    import arcade
+
+    SpriteTarget = arcade.Sprite | arcade.SpriteList
 
 
 _T = TypeVar("_T", bound="Action")
@@ -42,7 +44,7 @@ class Action(ABC, Generic[_T]):
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
         tag: str | None = None,
     ):
-        self.target: SpriteTarget | None = None
+        self.target: arcade.Sprite | arcade.SpriteList | None = None
         self.condition = condition
         self.on_stop = on_stop
         self.tag = tag
@@ -76,7 +78,7 @@ class Action(ABC, Generic[_T]):
         # this will be parallel(other, self)
         return other.__or__(self)
 
-    def apply(self, target: SpriteTarget, tag: str | None = None) -> Action:
+    def apply(self, target: arcade.Sprite | arcade.SpriteList, tag: str | None = None) -> Action:
         """
         Apply this action to a sprite or sprite list.
 
@@ -147,14 +149,14 @@ class Action(ABC, Generic[_T]):
         self.remove_effect()
 
     @staticmethod
-    def get_actions_for_target(target: SpriteTarget, tag: str | None = None) -> list[Action]:
+    def get_actions_for_target(target: arcade.Sprite | arcade.SpriteList, tag: str | None = None) -> list[Action]:
         """Get all actions for a given target, optionally filtered by tag."""
         if tag:
             return [action for action in Action._active_actions if action.target == target and action.tag == tag]
         return [action for action in Action._active_actions if action.target == target]
 
     @staticmethod
-    def stop_actions_for_target(target: SpriteTarget, tag: str | None = None) -> None:
+    def stop_actions_for_target(target: arcade.Sprite | arcade.SpriteList, tag: str | None = None) -> None:
         """Stop all actions for a given target, optionally filtered by tag."""
         for action in Action.get_actions_for_target(target, tag):
             action.stop()

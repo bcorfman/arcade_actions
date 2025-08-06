@@ -16,7 +16,7 @@ potential chaining or modification.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, overload
+from typing import Any
 
 import arcade
 from arcade import easing
@@ -37,267 +37,116 @@ from actions import (
 SpriteTarget = arcade.Sprite | arcade.SpriteList
 
 
-@overload
 def move_until(
+    target: arcade.Sprite | arcade.SpriteList,
     velocity: tuple[float, float],
     condition: Callable[[], Any],
-    *,
-    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-    tag: str | None = None,
-    **kwargs,
-) -> MoveUntil: ...
-
-
-@overload
-def move_until(
-    target: SpriteTarget,
-    velocity: tuple[float, float],
-    condition: Callable[[], Any],
-    *,
-    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-    tag: str | None = None,
-    **kwargs,
-) -> MoveUntil: ...
-
-
-def move_until(
-    target: SpriteTarget | tuple[float, float],
-    velocity: tuple[float, float] | Callable[[], Any],
-    condition: Callable[[], Any] | None = None,
     *,
     on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     tag: str | None = None,
     **kwargs,
 ) -> MoveUntil:
     """
-    Creates and optionally applies a MoveUntil action.
+    Creates and applies a MoveUntil action to the target.
 
-    This is a convenience wrapper for the MoveUntil class. It can be used in two ways:
-
-    1. With a target: Creates a MoveUntil action and immediately applies it to the
-       target sprite or sprite list. This is the recommended, more readable usage.
-
-       move_until(sprite, velocity=(5, 0), condition=lambda: sprite.center_x > 500)
-
-    2. Without a target: Creates a "raw" MoveUntil action that is not yet applied
-       to any target. This is useful for creating reusable action templates.
-
-       template_move = move_until(velocity=(10, 0), condition=some_condition)
-       template_move.apply(enemy1)
-       template_move.clone().apply(enemy2)
+    This is a convenience wrapper for the MoveUntil class that immediately applies
+    the action to the target sprite or sprite list.
 
     Args:
-        target: The sprite or sprite list to move, or the velocity if used w/o a target.
-        velocity: The (dx, dy) velocity, or the condition if used w/o a target.
+        target: The sprite (arcade.Sprite) or sprite list (arcade.SpriteList) to move.
+        velocity: The (dx, dy) velocity.
         condition: The condition to stop moving.
         on_stop: An optional callback to run when the condition is met.
         tag: An optional tag for the action.
 
     Returns:
         The created MoveUntil action instance.
+
+    Example:
+        move_until(sprite, velocity=(5, 0), condition=lambda: sprite.center_x > 500)
     """
-    final_target: SpriteTarget | None = None
-    final_velocity: tuple[float, float]
-    final_condition: Callable[[], Any]
-
-    if callable(velocity):
-        # Overload 1: move_until(velocity, condition, ...)
-        if not isinstance(target, tuple):
-            raise TypeError("Expected velocity as the first argument (a tuple) when no target is provided.")
-        final_velocity = target
-        final_condition = velocity
-    else:
-        # Overload 2: move_until(target, velocity, condition, ...)
-        if not condition:
-            raise TypeError("A condition function must be provided.")
-        if not isinstance(target, (arcade.Sprite, arcade.SpriteList)):
-            raise TypeError("Expected a Sprite or SpriteList as the first argument.")
-        if not isinstance(velocity, tuple):
-            raise TypeError("Expected velocity as the second argument (a tuple).")
-
-        final_target = target
-        final_velocity = velocity
-        final_condition = condition
-
-    action = MoveUntil(velocity=final_velocity, condition=final_condition, on_stop=on_stop, **kwargs)
-
-    if final_target:
-        action.apply(final_target, tag=tag)
-
+    action = MoveUntil(velocity=velocity, condition=condition, on_stop=on_stop, **kwargs)
+    action.apply(target, tag=tag)
     return action
 
 
-@overload
 def rotate_until(
-    velocity: float,
+    target: arcade.Sprite | arcade.SpriteList,
+    angular_velocity: float,
     condition: Callable[[], Any],
-    *,
-    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-    tag: str | None = None,
-    **kwargs,
-) -> RotateUntil: ...
-
-
-@overload
-def rotate_until(
-    target: SpriteTarget,
-    velocity: float,
-    condition: Callable[[], Any],
-    *,
-    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-    tag: str | None = None,
-    **kwargs,
-) -> RotateUntil: ...
-
-
-def rotate_until(
-    target: SpriteTarget | float,
-    velocity: float | Callable[[], Any],
-    condition: Callable[[], Any] | None = None,
     *,
     on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     tag: str | None = None,
     **kwargs,
 ) -> RotateUntil:
     """
-    Creates and optionally applies a RotateUntil action.
+    Creates and applies a RotateUntil action to the target.
 
-    See `move_until` for detailed usage patterns.
+    This is a convenience wrapper for the RotateUntil class that immediately applies
+    the action to the target sprite or sprite list.
 
     Args:
-        target: The sprite/list to rotate, or the velocity if used w/o a target.
-        velocity: The angular velocity, or the condition if used w/o a target.
+        target: The sprite (arcade.Sprite) or sprite list (arcade.SpriteList) to rotate.
+        angular_velocity: The angular velocity.
         condition: The condition to stop rotating.
         on_stop: An optional callback.
         tag: An optional tag.
 
     Returns:
         The created RotateUntil action instance.
+
+    Example:
+        rotate_until(sprite, angular_velocity=180, condition=duration(1.0))
     """
-    final_target: SpriteTarget | None = None
-    final_velocity: float
-    final_condition: Callable[[], Any]
-
-    if callable(velocity):
-        # Overload 1: rotate_until(velocity, condition, ...)
-        if not isinstance(target, (int, float)):
-            raise TypeError("Expected velocity as the first argument when no target is provided.")
-        final_velocity = target
-        final_condition = velocity
-    else:
-        # Overload 2: rotate_until(target, velocity, condition, ...)
-        if not condition:
-            raise TypeError("A condition function must be provided.")
-        if not isinstance(target, (arcade.Sprite, arcade.SpriteList)):
-            raise TypeError("Expected a Sprite or SpriteList as the first argument.")
-        if not isinstance(velocity, (int, float)):
-            raise TypeError("Expected velocity as the second argument.")
-
-        final_target = target
-        final_velocity = velocity
-        final_condition = condition
-
-    action = RotateUntil(angular_velocity=final_velocity, condition=final_condition, on_stop=on_stop, **kwargs)
-
-    if final_target:
-        action.apply(final_target, tag=tag)
-
+    action = RotateUntil(angular_velocity=angular_velocity, condition=condition, on_stop=on_stop, **kwargs)
+    action.apply(target, tag=tag)
     return action
 
 
-@overload
 def follow_path_until(
+    target: arcade.Sprite | arcade.SpriteList,
     control_points: list[tuple[float, float]],
     velocity: float,
     condition: Callable[[], Any],
-    *,
-    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-    tag: str | None = None,
-    **kwargs,
-) -> FollowPathUntil: ...
-
-
-@overload
-def follow_path_until(
-    target: SpriteTarget,
-    control_points: list[tuple[float, float]],
-    velocity: float,
-    condition: Callable[[], Any],
-    *,
-    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
-    tag: str | None = None,
-    **kwargs,
-) -> FollowPathUntil: ...
-
-
-def follow_path_until(
-    target: SpriteTarget | list[tuple[float, float]],
-    control_points: list[tuple[float, float]] | float | Callable[[], Any],
-    velocity: float | Callable[[], Any] | None = None,
-    condition: Callable[[], Any] | None = None,
     *,
     on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     tag: str | None = None,
     **kwargs,
 ) -> FollowPathUntil:
     """
-    Creates and optionally applies a FollowPathUntil action.
+    Creates and applies a FollowPathUntil action to the target.
 
-    See `move_until` for detailed usage patterns.
+    This is a convenience wrapper for the FollowPathUntil class that immediately applies
+    the action to the target sprite or sprite list.
 
     Args:
-        target: The sprite/list, or the control points if used w/o a target.
-        control_points: The control points, or velocity if used w/o a target.
-        velocity: The velocity, or condition if used w/o a target.
-        condition: The condition to stop.
+        target: The sprite (arcade.Sprite) or sprite list (arcade.SpriteList) to follow the path.
+        control_points: The control points defining the path.
+        velocity: The velocity along the path.
+        condition: The condition to stop following the path.
         on_stop: An optional callback.
         tag: An optional tag.
 
     Returns:
         The created FollowPathUntil action instance.
+
+    Example:
+        path_points = [(100, 100), (200, 200), (300, 100)]
+        follow_path_until(sprite, path_points, velocity=200, condition=duration(3.0))
     """
-    final_target: SpriteTarget | None = None
-    final_control_points: list[tuple[float, float]]
-    final_velocity: float
-    final_condition: Callable[[], Any]
-
-    if isinstance(target, list) and isinstance(control_points, (int, float)) and callable(velocity):
-        # Overload 1: follow_path_until(control_points, velocity, condition, ...)
-        final_control_points = target
-        final_velocity = control_points
-        final_condition = velocity
-    else:
-        # Overload 2: follow_path_until(target, control_points, velocity, condition, ...)
-        if not condition or not velocity:
-            raise TypeError("A velocity and condition function must be provided.")
-        if not isinstance(target, (arcade.Sprite, arcade.SpriteList)):
-            raise TypeError("Expected a Sprite or SpriteList as the first argument.")
-        if not isinstance(control_points, list):
-            raise TypeError("Expected control_points as the second argument.")
-        if not isinstance(velocity, (int, float)):
-            raise TypeError("Expected velocity as the third argument.")
-
-        final_target = target
-        final_control_points = control_points
-        final_velocity = velocity
-        final_condition = condition
-
     action = FollowPathUntil(
-        control_points=final_control_points,
-        velocity=final_velocity,
-        condition=final_condition,
+        control_points=control_points,
+        velocity=velocity,
+        condition=condition,
         on_stop=on_stop,
         **kwargs,
     )
-
-    if final_target:
-        action.apply(final_target, tag=tag)
-
+    action.apply(target, tag=tag)
     return action
 
 
 def blink_until(
-    target: SpriteTarget,
+    target: arcade.Sprite | arcade.SpriteList,
     time: float,
     condition: Callable[[], Any],
     *,
@@ -311,7 +160,7 @@ def blink_until(
 
 
 def delay_until(
-    target: SpriteTarget,
+    target: arcade.Sprite | arcade.SpriteList,
     condition: Callable[[], Any],
     *,
     on_stop: Callable = None,
@@ -324,7 +173,7 @@ def delay_until(
 
 
 def tween_until(
-    target: SpriteTarget,
+    target: arcade.Sprite | arcade.SpriteList,
     start_value: float,
     end_value: float,
     property_name: str,
@@ -348,7 +197,7 @@ def tween_until(
 
 
 def scale_until(
-    target: SpriteTarget,
+    target: arcade.Sprite | arcade.SpriteList,
     velocity: tuple[float, float] | float,
     condition: Callable[[], Any],
     *,
@@ -362,7 +211,7 @@ def scale_until(
 
 
 def fade_until(
-    target: SpriteTarget,
+    target: arcade.Sprite | arcade.SpriteList,
     velocity: float,
     condition: Callable[[], Any],
     *,
@@ -376,7 +225,7 @@ def fade_until(
 
 
 def ease(
-    target: SpriteTarget,
+    target: arcade.Sprite | arcade.SpriteList,
     action: Action,
     duration: float,
     *,

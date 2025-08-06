@@ -42,10 +42,6 @@ complex_behavior.apply(sprite, tag="complex_movement")
 **Helper functions** immediately apply actions when called, which conflicts with sequence construction. **Direct classes** create actions without applying them, allowing proper sequence composition.
 
 ```python
-# ❌ PROBLEMATIC: Helper functions + operators
-# This creates conflicts because helpers apply immediately
-(delay_until(sprite, condition=duration(1.0)) + move_until(sprite, velocity=(5, 0), condition=duration(2.0)))
-
 # ✅ CORRECT: Direct classes + sequence()
 # This works perfectly because actions aren't applied until the sequence is
 sequence(
@@ -87,7 +83,23 @@ def update(self, delta_time):
     Action.update_all(delta_time)  # Updates all active actions
 ```
 
-### 3. Condition-Based Actions
+### 3. Target Types: arcade.Sprite and arcade.SpriteList
+All action functions accept either a single sprite or a sprite list as their target:
+
+```python
+# Single sprite target
+player = arcade.Sprite(":resources:images/player.png")
+move_until(player, velocity=(100, 0), condition=duration(2.0))
+
+# Sprite list target (all sprites move together)
+enemies = arcade.SpriteList()
+for i in range(5):
+    enemy = arcade.Sprite(":resources:images/enemy.png")
+    enemies.append(enemy)
+move_until(enemies, velocity=(0, -50), condition=duration(3.0))
+```
+
+### 4. Condition-Based Actions
 Actions run until conditions are met, not for fixed durations:
 
 ```python
@@ -106,7 +118,7 @@ rotate_until(sprite, angular_velocity=1.5, condition=lambda: sprite.angle >= 45)
 fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 ```
 
-### 4. Clear Separation of Use Cases
+### 5. Clear Separation of Use Cases
 
 | Use Case | Pattern | Example |
 |----------|---------|---------|
