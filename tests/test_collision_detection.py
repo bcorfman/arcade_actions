@@ -117,11 +117,11 @@ class TestFormationEntryCollisionIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        Action.clear_all()
+        Action.stop_all()
 
     def tearDown(self):
         """Clean up after tests."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_formation_entry_creates_collision_free_waves(self):
         """Test that create_formation_entry_from_sprites creates collision-free waves."""

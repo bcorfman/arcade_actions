@@ -199,6 +199,71 @@ def test_attack_pattern():
     assert sprite.change_y < 0  # Moving down
 ```
 
+## Testing Formation Functions
+
+Test formation functions for proper sprite positioning:
+
+```python
+from actions import arrange_triangle, arrange_hexagonal_grid, arrange_arc, arrange_concentric_rings, arrange_cross, arrange_arrow
+
+def test_formation_positioning():
+    # Test triangle formation
+    triangle = arrange_triangle(count=6, apex_x=400, apex_y=500, row_spacing=50, lateral_spacing=60)
+    assert len(triangle) == 6
+    assert triangle[0].center_x == 400  # Apex
+    assert triangle[0].center_y == 500
+    
+    # Test hexagonal grid
+    hex_grid = arrange_hexagonal_grid(rows=2, cols=3, start_x=100, start_y=200, spacing=50)
+    assert len(hex_grid) == 6
+    assert hex_grid[0].center_x == 100  # First sprite
+    
+    # Test arc formation
+    arc = arrange_arc(count=5, center_x=400, center_y=300, radius=100, start_angle=0, end_angle=180)
+    assert len(arc) == 5
+    # Verify sprites are at correct distance from center
+    for sprite in arc:
+        distance = math.hypot(sprite.center_x - 400, sprite.center_y - 300)
+        assert abs(distance - 100) < 0.1
+    
+    # Test concentric rings
+    rings = arrange_concentric_rings(radii=[50, 100], sprites_per_ring=[4, 8], center_x=300, center_y=300)
+    assert len(rings) == 12  # 4 + 8
+    
+    # Test cross formation
+    cross = arrange_cross(count=9, center_x=400, center_y=300, arm_length=80, spacing=40)
+    assert len(cross) == 9
+    assert cross[0].center_x == 400  # Center sprite
+    assert cross[0].center_y == 300
+    
+    # Test arrow formation
+    arrow = arrange_arrow(count=7, tip_x=400, tip_y=500, rows=3, spacing_along=50, spacing_outward=40)
+    assert len(arrow) == 7
+    assert arrow[0].center_x == 400  # Tip sprite
+    assert arrow[0].center_y == 500
+
+def test_formation_visibility():
+    # Test that formations respect visibility parameter
+    invisible_triangle = arrange_triangle(count=6, apex_x=100, apex_y=100, visible=False)
+    for sprite in invisible_triangle:
+        assert not sprite.visible
+    
+    visible_triangle = arrange_triangle(count=6, apex_x=100, apex_y=100, visible=True)
+    for sprite in visible_triangle:
+        assert sprite.visible
+
+def test_formation_parameter_validation():
+    # Test parameter validation
+    with pytest.raises(ValueError):
+        arrange_triangle(count=-1, apex_x=100, apex_y=100)
+    
+    with pytest.raises(ValueError):
+        arrange_arc(count=5, center_x=100, center_y=100, radius=50, start_angle=180, end_angle=90)
+    
+    with pytest.raises(ValueError):
+        arrange_concentric_rings(radii=[50, 100], sprites_per_ring=[4])  # Mismatched lengths
+```
+
 ## Testing Best Practices
 
 1. Use test fixtures for sprite creation:
@@ -390,7 +455,7 @@ def test_action_tags():
     rotate_until(sprite, velocity=180, condition=duration(1.0), tag="rotation")
     
     # Stop specific action
-    Action.stop_all(tag="movement")
+    Action.stop_actions_for_target(sprite, tag="movement")
     assert sprite.change_x == 0
     assert sprite.change_angle == 180
 ``` 

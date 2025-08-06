@@ -42,10 +42,6 @@ complex_behavior.apply(sprite, tag="complex_movement")
 **Helper functions** immediately apply actions when called, which conflicts with sequence construction. **Direct classes** create actions without applying them, allowing proper sequence composition.
 
 ```python
-# ❌ PROBLEMATIC: Helper functions + operators
-# This creates conflicts because helpers apply immediately
-(delay_until(sprite, condition=duration(1.0)) + move_until(sprite, velocity=(5, 0), condition=duration(2.0)))
-
 # ✅ CORRECT: Direct classes + sequence()
 # This works perfectly because actions aren't applied until the sequence is
 sequence(
@@ -87,7 +83,23 @@ def update(self, delta_time):
     Action.update_all(delta_time)  # Updates all active actions
 ```
 
-### 3. Condition-Based Actions
+### 3. Target Types: arcade.Sprite and arcade.SpriteList
+All action functions accept either a single sprite or a sprite list as their target:
+
+```python
+# Single sprite target
+player = arcade.Sprite(":resources:images/player.png")
+move_until(player, velocity=(100, 0), condition=duration(2.0))
+
+# Sprite list target (all sprites move together)
+enemies = arcade.SpriteList()
+for i in range(5):
+    enemy = arcade.Sprite(":resources:images/enemy.png")
+    enemies.append(enemy)
+move_until(enemies, velocity=(0, -50), condition=duration(3.0))
+```
+
+### 4. Condition-Based Actions
 Actions run until conditions are met, not for fixed durations:
 
 ```python
@@ -106,7 +118,7 @@ rotate_until(sprite, angular_velocity=1.5, condition=lambda: sprite.angle >= 45)
 fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 ```
 
-### 4. Clear Separation of Use Cases
+### 5. Clear Separation of Use Cases
 
 | Use Case | Pattern | Example |
 |----------|---------|---------|
@@ -135,7 +147,7 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
 
 #### Formation Management (actions/formation.py)
-- **Formation functions** - Grid, line, circle, diamond, and V-formation positioning patterns
+- **Formation functions** - Grid, line, circle, diamond, V-formation, triangle, hexagonal grid, arc, concentric rings, cross, and arrow positioning patterns
 
 #### Movement Patterns (actions/pattern.py)
 - **Movement pattern functions** - Zigzag, wave, spiral, figure-8, orbit, bounce, and patrol movement patterns
@@ -340,12 +352,17 @@ for enemy in enemy_list:
 For complex game scenarios with formation positioning:
 
 ```python
-from actions import arrange_grid, arrange_circle, arrange_diamond
+from actions import (
+    arrange_grid, arrange_circle, arrange_diamond, arrange_triangle, 
+    arrange_hexagonal_grid, arrange_arc, arrange_concentric_rings, 
+    arrange_cross, arrange_arrow
+)
 from functools import partial
 
 # Define how each enemy sprite should be built
 enemy_factory = partial(arcade.Sprite, ":resources:images/enemy.png")
 
+# Classic grid formation
 enemies = arrange_grid(
     rows=3,
     cols=5,
@@ -356,7 +373,37 @@ enemies = arrange_grid(
     sprite_factory=enemy_factory,
 )
 
-# Apply simple movement to the formation
+# Triangle formation for attack patterns
+attack_formation = arrange_triangle(
+    count=10, apex_x=400, apex_y=500, row_spacing=50, lateral_spacing=60
+)
+
+# Hexagonal grid for defensive formations
+defensive_grid = arrange_hexagonal_grid(
+    rows=4, cols=6, start_x=100, start_y=400, spacing=50
+)
+
+# Arc formation for firing patterns
+firing_arc = arrange_arc(
+    count=8, center_x=400, center_y=300, radius=120, start_angle=45, end_angle=135
+)
+
+# Concentric rings for boss battle patterns
+boss_pattern = arrange_concentric_rings(
+    radii=[80, 140, 200], sprites_per_ring=[6, 12, 18], center_x=400, center_y=300
+)
+
+# Cross formation for power-ups or obstacles
+power_up_cross = arrange_cross(
+    count=9, center_x=400, center_y=300, arm_length=100, spacing=40
+)
+
+# Arrow formation for escort patterns
+escort_arrow = arrange_arrow(
+    count=7, tip_x=400, tip_y=500, rows=3, spacing_along=50, spacing_outward=40
+)
+
+# Apply simple movement to any formation
 move_until(enemies, velocity=(0, -50), condition=duration(3.0), tag="formation_move")
 ```
 
@@ -589,7 +636,7 @@ active_count = len(Action._active_actions)
 movement_actions = Action.get_actions_for_target(sprite, "movement")
 
 # Global cleanup
-Action.clear_all()
+Action.stop_all()
 ```
 
 ## Complete Game Example
@@ -717,6 +764,12 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 | Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
 | Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), FadeUntil(...))` |
 | Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
+| Triangle formations | `arrange_triangle` | `arrange_triangle(count=10, apex_x=400, apex_y=500)` |
+| Hexagonal grids | `arrange_hexagonal_grid` | `arrange_hexagonal_grid(rows=4, cols=6)` |
+| Arc formations | `arrange_arc` | `arrange_arc(count=8, center_x=400, radius=120, start_angle=0, end_angle=180)` |
+| Concentric patterns | `arrange_concentric_rings` | `arrange_concentric_rings(radii=[50, 100], sprites_per_ring=[6, 12])` |
+| Cross patterns | `arrange_cross` | `arrange_cross(count=9, center_x=400, arm_length=100)` |
+| Arrow formations | `arrange_arrow` | `arrange_arrow(count=7, tip_x=400, rows=3)` |
 | Movement patterns | Pattern functions | `create_zigzag_pattern(100, 50, 150)` |
 | Path following | `follow_path_until` helper | `follow_path_until(sprite, points, velocity=200, condition=cond)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, velocity=vel, condition=cond, bounds=b)` |

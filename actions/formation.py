@@ -448,3 +448,554 @@ def arrange_diamond(
         layer += 1
 
     return sprites
+
+
+def arrange_triangle(
+    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
+    *,
+    count: int | None = None,
+    apex_x: float = 400,
+    apex_y: float = 500,
+    row_spacing: float = 50.0,
+    lateral_spacing: float = 60.0,
+    invert: bool = False,
+    sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
+) -> arcade.SpriteList:
+    """Create or arrange sprites in a triangular formation.
+
+    Sprites are arranged in successive rows (1, 2, 3, ...) forming a triangle.
+    The first sprite is placed at the apex, then subsequent rows spread outward.
+
+    Args:
+        sprites: Existing sprites to arrange, or None to create new ones
+        count: Number of sprites to create (required if sprites is None)
+        apex_x: X coordinate of the triangle apex (tip)
+        apex_y: Y coordinate of the triangle apex (tip)
+        row_spacing: Vertical distance between rows
+        lateral_spacing: Horizontal distance between sprites in same row
+        invert: If True, triangle grows upward; if False, grows downward
+        sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
+
+    Returns:
+        The arranged sprite list
+
+    Example:
+        # Create downward triangle with 6 sprites (1+2+3)
+        triangle = arrange_triangle(count=6, apex_x=400, apex_y=500, row_spacing=50)
+
+        # Create upward triangle
+        up_triangle = arrange_triangle(count=10, apex_x=300, apex_y=200, invert=True)
+
+        # Arrange existing sprites in triangle
+        arrange_triangle(existing_sprites, apex_x=200, apex_y=300, lateral_spacing=40)
+    """
+    if sprites is None:
+        if count is None or count <= 0:
+            raise ValueError("When *sprites* is None you must supply a positive *count*.")
+        sprite_factory = sprite_factory or _default_factory()
+        sprites = arcade.SpriteList()
+        for _ in range(count):
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
+
+    sprite_index = 0
+    row = 0
+    total_sprites = len(sprites)
+
+    while sprite_index < total_sprites:
+        sprites_in_row = row + 1  # Row 0 has 1 sprite, row 1 has 2, etc.
+        sprites_to_place = min(sprites_in_row, total_sprites - sprite_index)
+
+        # Calculate Y position for this row
+        if invert:
+            y_pos = apex_y + row * row_spacing  # Grow upward
+        else:
+            y_pos = apex_y - row * row_spacing  # Grow downward
+
+        # Calculate starting X position to center the row
+        if sprites_to_place == 1:
+            start_x = apex_x
+        else:
+            total_width = (sprites_to_place - 1) * lateral_spacing
+            start_x = apex_x - total_width / 2
+
+        # Place sprites in this row
+        for i in range(sprites_to_place):
+            if sprite_index >= total_sprites:
+                break
+            sprites[sprite_index].center_x = start_x + i * lateral_spacing
+            sprites[sprite_index].center_y = y_pos
+            sprites[sprite_index].visible = visible
+            sprite_index += 1
+
+        row += 1
+
+    return sprites
+
+
+def arrange_hexagonal_grid(
+    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
+    *,
+    rows: int = 5,
+    cols: int = 10,
+    start_x: float = 100,
+    start_y: float = 500,
+    spacing: float = 60.0,
+    orientation: str = "pointy",
+    sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
+) -> arcade.SpriteList:
+    """Create or arrange sprites in a hexagonal grid formation.
+
+    Creates an offset grid where every other row is shifted to create
+    a honeycomb-like hexagonal pattern.
+
+    Args:
+        sprites: Existing sprites to arrange, or None to create new ones
+        rows: Number of rows in the grid
+        cols: Number of columns in the grid
+        start_x: X coordinate of the top-left sprite
+        start_y: Y coordinate of the top-left sprite
+        spacing: Distance between adjacent sprites
+        orientation: "pointy" (default) or "flat" for hexagon orientation
+        sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
+
+    Returns:
+        The arranged sprite list
+
+    Example:
+        # Create a 4x6 hexagonal grid
+        hex_grid = arrange_hexagonal_grid(rows=4, cols=6, start_x=100, start_y=400)
+
+        # Arrange existing sprites in hexagonal pattern
+        arrange_hexagonal_grid(existing_sprites, rows=3, cols=5, spacing=50)
+    """
+    if sprites is None:
+        sprite_factory = sprite_factory or _default_factory()
+        sprites = arcade.SpriteList()
+        for _ in range(rows * cols):
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
+
+    # Calculate offset and spacing based on orientation
+    if orientation == "pointy":
+        row_offset_x = spacing / 2
+        row_spacing_y = spacing * math.sqrt(3) / 2
+    else:  # flat
+        row_offset_x = spacing * math.sqrt(3) / 2
+        row_spacing_y = spacing / 2
+
+    for i, sprite in enumerate(sprites):
+        row = i // cols
+        col = i % cols
+
+        # Calculate base position
+        x = start_x + col * spacing
+        y = start_y + row * row_spacing_y
+
+        # Offset every other row for hexagonal pattern
+        if row % 2 == 1:
+            x += row_offset_x
+
+        sprite.center_x = x
+        sprite.center_y = y
+        sprite.visible = visible
+
+    return sprites
+
+
+def arrange_arc(
+    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
+    *,
+    count: int | None = None,
+    center_x: float = 400,
+    center_y: float = 300,
+    radius: float = 100.0,
+    start_angle: float = 0.0,
+    end_angle: float = 180.0,
+    sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
+) -> arcade.SpriteList:
+    """Create or arrange sprites in an arc formation.
+
+    Sprites are arranged along a circular arc between two angles.
+    Angles are in degrees, with 0° pointing right and increasing counterclockwise.
+
+    Args:
+        sprites: Existing sprites to arrange, or None to create new ones
+        count: Number of sprites to create (required if sprites is None)
+        center_x: X coordinate of the arc center
+        center_y: Y coordinate of the arc center
+        radius: Radius of the arc
+        start_angle: Starting angle in degrees (0° = right)
+        end_angle: Ending angle in degrees
+        sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
+
+    Returns:
+        The arranged sprite list
+
+    Example:
+        # Create a semicircle arc
+        arc = arrange_arc(count=8, center_x=400, center_y=300, radius=120,
+                         start_angle=0, end_angle=180)
+
+        # Create a fan pattern
+        fan = arrange_arc(count=5, center_x=200, center_y=200, radius=80,
+                         start_angle=45, end_angle=135)
+    """
+    if sprites is None:
+        if count is None or count <= 0:
+            raise ValueError("When *sprites* is None you must supply a positive *count*.")
+        sprite_factory = sprite_factory or _default_factory()
+        sprites = arcade.SpriteList()
+        for _ in range(count):
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
+
+    count = len(sprites)
+    if count == 0:
+        return sprites
+
+    # Validate angle range
+    if start_angle >= end_angle:
+        raise ValueError("start_angle must be less than end_angle")
+
+    # Convert angles to radians
+    start_rad = math.radians(start_angle)
+    end_rad = math.radians(end_angle)
+
+    # Calculate angle step
+    if count == 1:
+        angle_step = 0
+        current_angle = (start_rad + end_rad) / 2  # Place single sprite in middle
+    else:
+        angle_step = (end_rad - start_rad) / (count - 1)
+        current_angle = start_rad
+
+    for sprite in sprites:
+        sprite.center_x = center_x + math.cos(current_angle) * radius
+        sprite.center_y = center_y + math.sin(current_angle) * radius
+        sprite.visible = visible
+        current_angle += angle_step
+
+    return sprites
+
+
+def arrange_concentric_rings(
+    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
+    *,
+    radii: list[float] | None = None,
+    sprites_per_ring: list[int] | None = None,
+    center_x: float = 400,
+    center_y: float = 300,
+    sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
+) -> arcade.SpriteList:
+    """Create or arrange sprites in concentric rings formation.
+
+    Creates multiple circular rings at different radii from a center point.
+    Each ring can have a different number of sprites.
+
+    Args:
+        sprites: Existing sprites to arrange, or None to create new ones
+        radii: List of radii for each ring
+        sprites_per_ring: List of sprite counts for each ring
+        center_x: X coordinate of the center
+        center_y: Y coordinate of the center
+        sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
+
+    Returns:
+        The arranged sprite list
+
+    Example:
+        # Create bull's-eye pattern
+        rings = arrange_concentric_rings(
+            radii=[50, 100, 150],
+            sprites_per_ring=[6, 12, 18],
+            center_x=400, center_y=300
+        )
+
+        # Arrange existing sprites in rings
+        arrange_concentric_rings(
+            existing_sprites,
+            radii=[40, 80],
+            sprites_per_ring=[4, 8],
+            center_x=200, center_y=200
+        )
+    """
+    if radii is None:
+        radii = [50, 100]
+    if sprites_per_ring is None:
+        sprites_per_ring = [6, 12]
+
+    # Validate parameters
+    if len(radii) != len(sprites_per_ring):
+        raise ValueError("radii and sprites_per_ring lists must have the same length")
+
+    total_sprites_needed = sum(sprites_per_ring)
+
+    if sprites is None:
+        sprite_factory = sprite_factory or _default_factory()
+        sprites = arcade.SpriteList()
+        for _ in range(total_sprites_needed):
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
+
+    sprite_index = 0
+    for ring_idx, (radius, sprite_count) in enumerate(zip(radii, sprites_per_ring, strict=False)):
+        if sprite_index >= len(sprites):
+            break
+
+        # Calculate how many sprites to actually place in this ring
+        sprites_to_place = min(sprite_count, len(sprites) - sprite_index)
+
+        if sprites_to_place == 0:
+            continue
+
+        # Calculate angle step for even distribution
+        angle_step = 2 * math.pi / sprites_to_place
+
+        for i in range(sprites_to_place):
+            if sprite_index >= len(sprites):
+                break
+
+            angle = i * angle_step
+            sprite = sprites[sprite_index]
+            sprite.center_x = center_x + math.cos(angle) * radius
+            sprite.center_y = center_y + math.sin(angle) * radius
+            sprite.visible = visible
+            sprite_index += 1
+
+    return sprites
+
+
+def arrange_cross(
+    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
+    *,
+    count: int | None = None,
+    center_x: float = 400,
+    center_y: float = 300,
+    arm_length: float = 100.0,
+    spacing: float = 50.0,
+    include_center: bool = True,
+    sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
+) -> arcade.SpriteList:
+    """Create or arrange sprites in a cross or plus formation.
+
+    Creates a cross pattern with equal-length arms extending up, down, left, and right
+    from a center point. Optionally includes a center sprite.
+
+    Args:
+        sprites: Existing sprites to arrange, or None to create new ones
+        count: Number of sprites to create (required if sprites is None)
+        center_x: X coordinate of the cross center
+        center_y: Y coordinate of the cross center
+        arm_length: Length of each arm from center
+        spacing: Distance between sprites along arms
+        include_center: Whether to place a sprite at the center (default: True)
+        sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
+
+    Returns:
+        The arranged sprite list
+
+    Example:
+        # Create cross with center sprite
+        cross = arrange_cross(count=9, center_x=400, center_y=300, arm_length=100)
+
+        # Create hollow cross (no center)
+        hollow_cross = arrange_cross(count=8, center_x=200, center_y=200,
+                                   arm_length=80, include_center=False)
+    """
+    if sprites is None:
+        if count is None or count <= 0:
+            raise ValueError("When *sprites* is None you must supply a positive *count*.")
+        sprite_factory = sprite_factory or _default_factory()
+        sprites = arcade.SpriteList()
+        for _ in range(count):
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
+
+    sprite_index = 0
+    total_sprites = len(sprites)
+
+    # Place center sprite if requested
+    if include_center and sprite_index < total_sprites:
+        sprites[sprite_index].center_x = center_x
+        sprites[sprite_index].center_y = center_y
+        sprites[sprite_index].visible = visible
+        sprite_index += 1
+
+    # Calculate sprites per arm
+    remaining_sprites = total_sprites - sprite_index
+    sprites_per_arm = remaining_sprites // 4
+    extra_sprites = remaining_sprites % 4
+
+    # Define arm directions: right, up, left, down
+    directions = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+
+    for arm_idx, (dx, dy) in enumerate(directions):
+        arm_sprite_count = sprites_per_arm + (1 if arm_idx < extra_sprites else 0)
+
+        for step in range(1, arm_sprite_count + 1):
+            if sprite_index >= total_sprites:
+                break
+
+            x = center_x + dx * step * spacing
+            y = center_y + dy * step * spacing
+
+            sprites[sprite_index].center_x = x
+            sprites[sprite_index].center_y = y
+            sprites[sprite_index].visible = visible
+            sprite_index += 1
+
+    return sprites
+
+
+def arrange_arrow(
+    sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
+    *,
+    count: int | None = None,
+    tip_x: float = 400,
+    tip_y: float = 500,
+    rows: int = 3,
+    spacing_along: float = 50.0,
+    spacing_outward: float = 40.0,
+    invert: bool = False,
+    sprite_factory: Callable[[], arcade.Sprite] | None = None,
+    visible: bool = True,
+) -> arcade.SpriteList:
+    """Create or arrange sprites in an arrow or spear-head formation.
+
+    Creates an arrow pattern with a tip sprite and symmetric wings extending
+    backward and outward from the tip.
+
+    Args:
+        sprites: Existing sprites to arrange, or None to create new ones
+        count: Number of sprites to create (required if sprites is None)
+        tip_x: X coordinate of the arrow tip
+        tip_y: Y coordinate of the arrow tip
+        rows: Number of rows of wings behind the tip
+        spacing_along: Distance between rows along the arrow shaft
+        spacing_outward: Distance outward from center for each row of wings
+        invert: If True, arrow points upward; if False, points downward
+        sprite_factory: Function to create new sprites (if sprites is None)
+        visible: Whether sprites should be visible (default: True)
+
+    Returns:
+        The arranged sprite list
+
+    Example:
+        # Create downward-pointing arrow
+        arrow = arrange_arrow(count=7, tip_x=400, tip_y=500, rows=3)
+
+        # Create upward-pointing arrow
+        up_arrow = arrange_arrow(count=9, tip_x=300, tip_y=200, rows=4, invert=True)
+
+        # Arrange existing sprites in arrow formation
+        arrange_arrow(existing_sprites, tip_x=200, tip_y=300, spacing_along=40)
+    """
+    if sprites is None:
+        if count is None or count <= 0:
+            raise ValueError("When *sprites* is None you must supply a positive *count*.")
+        sprite_factory = sprite_factory or _default_factory()
+        sprites = arcade.SpriteList()
+        for _ in range(count):
+            sprite = sprite_factory()
+            sprite.visible = visible
+            sprites.append(sprite)
+    else:
+        # Convert list to SpriteList if needed
+        if isinstance(sprites, list):
+            sprite_list = arcade.SpriteList()
+            for sprite in sprites:
+                sprite_list.append(sprite)
+            sprites = sprite_list
+
+    sprite_index = 0
+    total_sprites = len(sprites)
+
+    if total_sprites == 0:
+        return sprites
+
+    # Place tip sprite
+    sprites[sprite_index].center_x = tip_x
+    sprites[sprite_index].center_y = tip_y
+    sprites[sprite_index].visible = visible
+    sprite_index += 1
+
+    # Calculate direction multiplier
+    direction = 1 if invert else -1
+
+    # Place wing rows
+    for row in range(1, rows + 1):
+        if sprite_index >= total_sprites:
+            break
+
+        # Calculate Y position for this row
+        y_pos = tip_y + direction * row * spacing_along
+
+        # Calculate wing spread for this row
+        wing_spread = row * spacing_outward
+
+        # Place left wing if sprite available
+        if sprite_index < total_sprites:
+            sprites[sprite_index].center_x = tip_x - wing_spread
+            sprites[sprite_index].center_y = y_pos
+            sprites[sprite_index].visible = visible
+            sprite_index += 1
+
+        # Place right wing if sprite available
+        if sprite_index < total_sprites:
+            sprites[sprite_index].center_x = tip_x + wing_spread
+            sprites[sprite_index].center_y = y_pos
+            sprites[sprite_index].visible = visible
+            sprite_index += 1
+
+    return sprites

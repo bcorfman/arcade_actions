@@ -25,7 +25,7 @@ class TestHelperFunctions:
     """Tests for thin wrapper helper functions."""
 
     def teardown_method(self):
-        Action.clear_all()
+        Action.stop_all()
 
     def test_move_until_helper_applies_action(self, sprite):
         """Test move_until helper creates and applies a MoveUntil action."""
@@ -47,9 +47,9 @@ class TestHelperFunctions:
         assert move_action.current_velocity == (2.5, 0.0)
 
     def test_helper_unbound_action_creation(self):
-        """Test that calling a helper without a target returns a raw, unapplied action."""
-        # No target provided - should return a raw action instance, not applied
-        raw_action = move_until((10, 0), lambda: False)
+        """Test that creating unbound actions uses the Action classes directly."""
+        # For unbound actions, use the Action classes directly
+        raw_action = MoveUntil((10, 0), lambda: False)
 
         assert isinstance(raw_action, MoveUntil)
         assert not raw_action.target  # Not bound to any sprite
@@ -60,7 +60,7 @@ class TestOperatorOverloading:
     """Tests for operator-based composition (+ for sequence, | for parallel)."""
 
     def teardown_method(self):
-        Action.clear_all()
+        Action.stop_all()
 
     def test_add_operator_for_sequence(self):
         """Test that the '+' operator creates a sequential action."""

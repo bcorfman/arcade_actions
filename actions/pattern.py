@@ -245,6 +245,7 @@ def create_bounce_pattern(velocity: tuple[float, float], bounds: tuple[float, fl
         bounce = create_bounce_pattern((150, 100), bounds=(0, 0, 800, 600))
         bounce.apply(sprite, tag="bouncing")
     """
+    # Local import to avoid potential circular dependency with main actions module
     from .conditional import infinite
 
     return MoveUntil(
@@ -377,7 +378,7 @@ def _calculate_velocity_to_target(
 
 
 # Create precision movement action that stops exactly at target
-def create_precision_condition_and_callback(target_position, sprite_ref):
+def _create_precision_condition_and_callback(target_position, sprite_ref):
     def precision_condition():
         # Calculate distance to target
         dx = target_position[0] - sprite_ref.center_x
@@ -519,7 +520,7 @@ def create_formation_entry_from_sprites(
         return []
 
     # Pick the nearest spawn position for each target position
-    sprite_distances = find_nearest(spawn_positions, target_positions)
+    sprite_distances = _find_nearest(spawn_positions, target_positions)
     center_x = sum(pos[0] for pos in target_positions) / len(target_positions)
     center_y = sum(pos[1] for pos in target_positions) / len(target_positions)
 
@@ -604,7 +605,7 @@ def create_formation_entry_from_sprites(
             )
 
             movement_action = MoveUntil(
-                velocity, create_precision_condition_and_callback(target_positions[sprite_idx], sprite)
+                velocity, _create_precision_condition_and_callback(target_positions[sprite_idx], sprite)
             )
 
             if wave_delay > 0.01:  # Add delay for waves after the first
@@ -618,7 +619,7 @@ def create_formation_entry_from_sprites(
     return entry_actions
 
 
-def find_nearest(spawn_positions, target_positions):
+def _find_nearest(spawn_positions, target_positions):
     """Find the optimal assignment of spawn positions to target positions.
 
     Uses a greedy approach to assign each target position to its nearest

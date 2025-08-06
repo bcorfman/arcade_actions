@@ -112,7 +112,7 @@ class GameView(arcade.View):
         self.game_state = PLAY_GAME
 
         # Clear everything
-        Action.clear_all()
+        Action.stop_all()
         for sprite_list in [self.enemy_list, self.player_bullet_list, self.enemy_bullet_list, self.shield_list]:
             sprite_list.clear()
 

@@ -11,7 +11,9 @@ Actions available:
 - Easing: Ease wrapper for smooth acceleration/deceleration effects
 - Interpolation: TweenUntil for direct property animation from start to end value
 - Composition: sequence() and parallel() functions for combining actions
-- Formation: arrange_line, arrange_grid, arrange_circle, arrange_v_formation functions
+- Formation: arrange_line, arrange_grid, arrange_circle, arrange_v_formation, arrange_diamond,
+            arrange_triangle, arrange_hexagonal_grid, arrange_arc, arrange_concentric_rings,
+            arrange_cross, arrange_arrow functions
 - Movement Patterns: create_zigzag_pattern, create_wave_pattern, create_spiral_pattern, etc.
 - Condition helpers: sprite_count, time_elapsed
 """
@@ -43,10 +45,16 @@ from .easing import (
 
 # Formation arrangement functions
 from .formation import (
+    arrange_arc,
+    arrange_arrow,
     arrange_circle,
+    arrange_concentric_rings,
+    arrange_cross,
     arrange_diamond,
     arrange_grid,
+    arrange_hexagonal_grid,
     arrange_line,
+    arrange_triangle,
     arrange_v_formation,
 )
 
@@ -98,10 +106,16 @@ __all__ = [
     "sequence",
     "parallel",
     # Formation arrangement functions
-    "arrange_line",
-    "arrange_grid",
+    "arrange_arc",
+    "arrange_arrow",
     "arrange_circle",
+    "arrange_concentric_rings",
+    "arrange_cross",
     "arrange_diamond",
+    "arrange_grid",
+    "arrange_hexagonal_grid",
+    "arrange_line",
+    "arrange_triangle",
     "arrange_v_formation",
     # Movement patterns
     "create_formation_entry_from_sprites",
