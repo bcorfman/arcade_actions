@@ -390,7 +390,7 @@ def test_action_tags():
     rotate_until(sprite, velocity=180, condition=duration(1.0), tag="rotation")
     
     # Stop specific action
-    Action.stop_all(tag="movement")
+    Action.stop_actions_for_target(sprite, tag="movement")
     assert sprite.change_x == 0
     assert sprite.change_angle == 180
 ``` 

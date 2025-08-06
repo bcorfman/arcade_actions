@@ -170,7 +170,7 @@ class Action(ABC, Generic[_T]):
         cls._active_actions[:] = [action for action in cls._active_actions if not action.done]
 
     @classmethod
-    def clear_all(cls) -> None:
+    def stop_all(cls) -> None:
         """Stop and remove all active actions."""
         for action in list(cls._active_actions):
             action.stop()

@@ -46,7 +46,7 @@ class TestMoveUntil:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_move_until_basic(self):
         """Test basic MoveUntil functionality."""
@@ -114,7 +114,7 @@ class TestMoveUntil:
         ]
 
         for input_velocity in test_cases:
-            Action.clear_all()
+            Action.stop_all()
             sprite.change_x = 0
             sprite.change_y = 0
 
@@ -500,7 +500,7 @@ class TestFollowPathUntil:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_follow_path_until_basic(self):
         """Test basic FollowPathUntil functionality."""
@@ -754,7 +754,7 @@ class TestRotateUntil:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_rotate_until_basic(self):
         """Test basic RotateUntil functionality."""
@@ -810,7 +810,7 @@ class TestRotateUntil:
         ]
 
         for input_angular_velocity in test_cases:
-            Action.clear_all()
+            Action.stop_all()
             sprite.change_angle = 0
 
             action = rotate_until(sprite, input_angular_velocity, infinite, tag="test_velocity")
@@ -824,7 +824,7 @@ class TestScaleUntil:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_scale_until_basic(self):
         """Test basic ScaleUntil functionality."""
@@ -855,7 +855,7 @@ class TestFadeUntil:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_fade_until_basic(self):
         """Test basic FadeUntil functionality."""
@@ -886,7 +886,7 @@ class TestBlinkUntil:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_blink_until_basic(self):
         """Test basic BlinkUntil functionality."""
@@ -917,7 +917,7 @@ class TestDelayUntil:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_delay_until_basic(self):
         """Test basic DelayUntil functionality."""
@@ -972,7 +972,7 @@ class TestTweenUntil:
     """Test suite for TweenUntil action - Direct property animation from start to end value."""
 
     def teardown_method(self):
-        Action.clear_all()
+        Action.stop_all()
 
     def test_tween_until_basic_property_animation(self):
         """Test TweenUntil for precise A-to-B property animation."""

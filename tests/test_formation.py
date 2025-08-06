@@ -26,7 +26,7 @@ from actions.pattern import create_formation_entry_from_sprites
 def cleanup_actions():
     """Clean up actions after each test."""
     yield
-    Action.clear_all()
+    Action.stop_all()
 
 
 def create_test_sprite() -> arcade.Sprite:

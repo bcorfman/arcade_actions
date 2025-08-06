@@ -60,7 +60,7 @@ class TestAction:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_action_initialization(self):
         """Test basic action initialization."""
@@ -179,7 +179,7 @@ class TestAction:
         assert not action1._is_active
         assert not action2._is_active
 
-    def test_action_clear_all(self):
+    def test_action_stop_all(self):
         """Test clearing all active actions."""
         sprite1 = create_test_sprite()
         sprite2 = create_test_sprite()
@@ -191,7 +191,7 @@ class TestAction:
 
         assert len(Action._active_actions) == 2
 
-        Action.clear_all()
+        Action.stop_all()
 
         assert len(Action._active_actions) == 0
 

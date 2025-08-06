@@ -589,7 +589,7 @@ active_count = len(Action._active_actions)
 movement_actions = Action.get_actions_for_target(sprite, "movement")
 
 # Global cleanup
-Action.clear_all()
+Action.stop_all()
 ```
 
 ## Complete Game Example

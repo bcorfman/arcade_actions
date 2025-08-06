@@ -20,7 +20,7 @@ class TestMoveUntilBoundaries:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_move_until_with_bounce_boundaries(self):
         """Test MoveUntil with bouncing boundaries."""

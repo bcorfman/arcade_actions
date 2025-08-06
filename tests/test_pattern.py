@@ -96,7 +96,7 @@ class TestZigzagPattern:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_create_zigzag_pattern_basic(self):
         """Test basic zigzag pattern creation."""
@@ -134,7 +134,7 @@ class TestWavePattern:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_create_wave_pattern_basic(self):
         """Test basic wave pattern creation."""
@@ -168,7 +168,7 @@ class TestSpiralPattern:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_create_spiral_pattern_outward(self):
         """Test outward spiral pattern creation."""
@@ -217,7 +217,7 @@ class TestFigureEightPattern:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_create_figure_eight_pattern_basic(self):
         """Test basic figure-8 pattern creation."""
@@ -244,7 +244,7 @@ class TestOrbitPattern:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_create_orbit_pattern_clockwise(self):
         """Test clockwise orbit pattern."""
@@ -272,7 +272,7 @@ class TestBouncePattern:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_create_bounce_pattern_basic(self):
         """Test basic bounce pattern creation."""
@@ -305,7 +305,7 @@ class TestPatrolPattern:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_create_patrol_pattern_basic(self):
         """Test basic patrol pattern creation."""
@@ -346,7 +346,7 @@ class TestSmoothZigzagPattern:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_create_smooth_zigzag_pattern_basic(self):
         """Test smooth zigzag pattern creation."""
@@ -372,7 +372,7 @@ class TestPatternIntegration:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_pattern_with_sprite_list(self):
         """Test applying patterns to sprite lists."""

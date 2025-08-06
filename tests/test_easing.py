@@ -53,7 +53,7 @@ class TestSetFactor:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_move_until_set_factor(self):
         """Test MoveUntil set_factor functionality."""
@@ -203,7 +203,7 @@ class TestEase:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_ease_initialization_for_continuous_actions(self):
         """Test Ease wrapper initialization for continuous movement actions."""
@@ -320,7 +320,7 @@ class TestEase:
         expected_angular_velocity = 90.0 * expected_factor
         assert abs(sprite.change_angle - expected_angular_velocity) < 0.1
 
-        Action.clear_all()
+        Action.stop_all()
         sprite.change_angle = 0
 
         # Test with FadeUntil
@@ -696,7 +696,7 @@ class TestSetFactorEdgeCases:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_base_action_set_factor_no_op(self):
         """Test base Action set_factor is a no-op."""
@@ -761,7 +761,7 @@ class TestSetFactorEdgeCases:
         action1.set_factor(0.5)
         assert action1.current_scale_velocity == (0.25, 0.25)
 
-        Action.clear_all()
+        Action.stop_all()
 
         # Test with tuple scale velocity
         action2 = ScaleUntil((0.5, 0.3), lambda: False)

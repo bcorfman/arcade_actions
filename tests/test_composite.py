@@ -61,7 +61,7 @@ class TestSequenceFunction:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_sequence_empty_initialization(self):
         """Test empty sequence initialization."""
@@ -177,7 +177,7 @@ class TestParallelFunction:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_parallel_empty_initialization(self):
         """Test empty parallel initialization."""
@@ -271,7 +271,7 @@ class TestOperatorOverloading:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_plus_operator_creates_sequence(self):
         """Test that the '+' operator creates a sequential action."""
@@ -357,7 +357,7 @@ class TestNestedComposites:
 
     def teardown_method(self):
         """Clean up after each test."""
-        Action.clear_all()
+        Action.stop_all()
 
     def test_sequence_of_parallels_with_operators(self):
         """Test sequence containing parallel actions using operators."""

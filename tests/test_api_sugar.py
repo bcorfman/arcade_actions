@@ -25,7 +25,7 @@ class TestHelperFunctions:
     """Tests for thin wrapper helper functions."""
 
     def teardown_method(self):
-        Action.clear_all()
+        Action.stop_all()
 
     def test_move_until_helper_applies_action(self, sprite):
         """Test move_until helper creates and applies a MoveUntil action."""
@@ -60,7 +60,7 @@ class TestOperatorOverloading:
     """Tests for operator-based composition (+ for sequence, | for parallel)."""
 
     def teardown_method(self):
-        Action.clear_all()
+        Action.stop_all()
 
     def test_add_operator_for_sequence(self):
         """Test that the '+' operator creates a sequential action."""
