@@ -84,7 +84,7 @@ docs/
 - **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
 
 #### Formation Management (actions/formation.py)
-- **Formation functions** - Grid, line, circle, diamond, and V-formation positioning
+- **Formation functions** - Grid, line, circle, diamond, V-formation, triangle, hexagonal grid, arc, concentric rings, cross, and arrow positioning
 
 #### Movement Patterns (actions/pattern.py)
 - **Movement pattern functions** - Zigzag, wave, spiral, figure-8, orbit, bounce, and patrol patterns
@@ -104,6 +104,12 @@ docs/
 | Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
 | Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), RotateUntil(...))` |
 | Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
+| Triangle formations | `arrange_triangle` | `arrange_triangle(count=10, apex_x=400, apex_y=500)` |
+| Hexagonal grids | `arrange_hexagonal_grid` | `arrange_hexagonal_grid(rows=4, cols=6)` |
+| Arc formations | `arrange_arc` | `arrange_arc(count=8, radius=120, start_angle=0, end_angle=180)` |
+| Concentric patterns | `arrange_concentric_rings` | `arrange_concentric_rings(radii=[50, 100])` |
+| Cross patterns | `arrange_cross` | `arrange_cross(count=9, arm_length=100)` |
+| Arrow formations | `arrange_arrow` | `arrange_arrow(count=7, rows=3)` |
 | Curved path movement | `follow_path_until` helper | `follow_path_until(sprite, points, ...)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, ..., bounds=bounds, boundary_behavior="bounce")` |
 | Smooth acceleration | `ease()` helper | `ease(sprite, action, ...)` |

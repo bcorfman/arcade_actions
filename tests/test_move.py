@@ -2,7 +2,7 @@
 
 import arcade
 
-from actions import move_until
+from actions import MoveUntil, move_until
 from actions.base import Action
 from actions.pattern import time_elapsed
 
@@ -142,7 +142,7 @@ class TestMoveUntilBoundaries:
             pass
 
         # Create unbound action for cloning test
-        original = move_until(
+        original = MoveUntil(
             (50, 25), time_elapsed(2.0), bounds=bounds, boundary_behavior="wrap", on_boundary=on_boundary
         )
 

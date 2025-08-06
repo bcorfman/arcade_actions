@@ -1,6 +1,5 @@
 """Test suite for condition_actions.py - Conditional actions."""
 
-import arcade
 import pytest
 
 from actions import (
@@ -16,41 +15,15 @@ from actions import (
     scale_until,
     tween_until,
 )
+from tests.conftest import ActionTestBase
 
 
-def create_test_sprite() -> arcade.Sprite:
-    """Create a sprite with texture for testing."""
-    sprite = arcade.Sprite(":resources:images/items/star.png")
-    sprite.center_x = 100
-    sprite.center_y = 100
-    sprite.angle = 0
-    sprite.scale = 1.0
-    sprite.alpha = 255
-    return sprite
-
-
-def create_test_sprite_list():
-    """Create a SpriteList with test sprites."""
-    sprite_list = arcade.SpriteList()
-    sprite1 = create_test_sprite()
-    sprite2 = create_test_sprite()
-    sprite1.center_x = 50
-    sprite2.center_x = 150
-    sprite_list.append(sprite1)
-    sprite_list.append(sprite2)
-    return sprite_list
-
-
-class TestMoveUntil:
+class TestMoveUntil(ActionTestBase):
     """Test suite for MoveUntil action."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_move_until_basic(self):
+    def test_move_until_basic(self, test_sprite):
         """Test basic MoveUntil functionality."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         start_x = sprite.center_x
 
         condition_met = False
@@ -82,9 +55,9 @@ class TestMoveUntil:
         assert sprite.change_y == 0
         assert action.done
 
-    def test_move_until_frame_based_semantics(self):
+    def test_move_until_frame_based_semantics(self, test_sprite):
         """Test that MoveUntil uses pixels per frame at 60 FPS semantics."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # 5 pixels per frame should move 5 pixels when sprite.update() is called
         action = move_until(sprite, (5, 0), infinite, tag="test_frame_semantics")
@@ -101,9 +74,9 @@ class TestMoveUntil:
         distance_moved = sprite.center_x - start_x
         assert distance_moved == 5.0
 
-    def test_move_until_velocity_values(self):
+    def test_move_until_velocity_values(self, test_sprite):
         """Test that MoveUntil sets velocity values directly (pixels per frame at 60 FPS)."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Test various velocity values
         test_cases = [
@@ -124,9 +97,9 @@ class TestMoveUntil:
             assert sprite.change_x == input_velocity[0], f"Failed for input {input_velocity}"
             assert sprite.change_y == input_velocity[1], f"Failed for input {input_velocity}"
 
-    def test_move_until_callback(self):
+    def test_move_until_callback(self, test_sprite):
         """Test MoveUntil with callback."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         callback_called = False
         callback_data = None
 
@@ -145,9 +118,9 @@ class TestMoveUntil:
         assert callback_called
         assert callback_data == {"reason": "collision", "damage": 10}
 
-    def test_move_until_sprite_list(self):
+    def test_move_until_sprite_list(self, test_sprite_list):
         """Test MoveUntil with SpriteList."""
-        sprite_list = create_test_sprite_list()
+        sprite_list = test_sprite_list
 
         action = move_until(sprite_list, (50, 25), infinite, tag="test_sprite_list")
 
@@ -158,9 +131,9 @@ class TestMoveUntil:
             assert sprite.change_x == 50
             assert sprite.change_y == 25
 
-    def test_move_until_set_current_velocity(self):
+    def test_move_until_set_current_velocity(self, test_sprite):
         """Test MoveUntil set_current_velocity method."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         action = move_until(sprite, (100, 0), infinite, tag="test_set_velocity")
 
         # Initial velocity should be set
@@ -172,123 +145,105 @@ class TestMoveUntil:
         assert sprite.change_x == 50
         assert sprite.change_y == 25
 
-    def test_move_until_limit_boundary_basic(self):
-        """Test basic limit boundary behavior - sprite stops exactly at boundary."""
-        sprite = create_test_sprite()
-        sprite.center_x = 50
-        sprite.center_y = 100
+    @pytest.mark.parametrize(
+        "test_case",
+        [
+            {
+                "name": "right_boundary",
+                "start_pos": (50, 100),
+                "velocity": (100, 0),
+                "bounds": (0, 0, 200, 200),
+                "expected_final_pos": (200, 100),
+                "expected_velocity": (0, 0),
+                "description": "Test basic limit boundary behavior - sprite stops exactly at boundary",
+            },
+            {
+                "name": "left_boundary",
+                "start_pos": (150, 100),
+                "velocity": (-100, 0),
+                "bounds": (0, 0, 200, 200),
+                "expected_final_pos": (0, 100),
+                "expected_velocity": (0, 0),
+                "description": "Test limit boundary behavior when moving left",
+            },
+            {
+                "name": "vertical_boundary",
+                "start_pos": (100, 50),
+                "velocity": (0, 100),
+                "bounds": (0, 0, 200, 200),
+                "expected_final_pos": (100, 200),
+                "expected_velocity": (0, 0),
+                "description": "Test limit boundary behavior for vertical movement",
+            },
+            {
+                "name": "diagonal_boundary",
+                "start_pos": (50, 50),
+                "velocity": (100, 100),
+                "bounds": (0, 0, 200, 200),
+                "expected_final_pos": (200, 200),
+                "expected_velocity": (0, 0),
+                "description": "Test limit boundary behavior for diagonal movement",
+            },
+            {
+                "name": "negative_bounds",
+                "start_pos": (-50, 100),
+                "velocity": (-10, 0),
+                "bounds": (-100, 0, 100, 200),
+                "expected_final_pos": (-100, 100),
+                "expected_velocity": (0, 0),
+                "description": "Test limit boundary behavior with negative bounds",
+            },
+            {
+                "name": "multiple_axes",
+                "start_pos": (199, 199),
+                "velocity": (10, 10),
+                "bounds": (0, 0, 200, 200),
+                "expected_final_pos": (200, 200),
+                "expected_velocity": (0, 0),
+                "description": "Test limit boundary behavior when hitting multiple boundaries",
+            },
+            {
+                "name": "velocity_clearing",
+                "start_pos": (50, 100),
+                "velocity": (100, 50),
+                "bounds": (0, 0, 200, 200),
+                "expected_final_pos": (200, 200),
+                "expected_velocity": (0, 0),
+                "description": "Test that limit boundary properly clears velocity when stopping",
+            },
+        ],
+    )
+    def test_move_until_limit_boundaries(self, test_case, test_sprite):
+        """Test limit boundary behavior for various directions and scenarios."""
+        sprite = test_sprite
+        sprite.center_x, sprite.center_y = test_case["start_pos"]
 
-        # Set bounds and limit behavior
-        bounds = (0, 0, 200, 200)  # left, bottom, right, top
         action = move_until(
-            sprite, (100, 0), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_basic"
+            sprite,
+            test_case["velocity"],
+            infinite,
+            bounds=test_case["bounds"],
+            boundary_behavior="limit",
+            tag=f"test_limit_{test_case['name']}",
         )
 
         # Apply velocity
         Action.update_all(0.016)
-        assert sprite.change_x == 100
 
-        # Move sprite - should stop exactly at right boundary (200)
-        sprite.update()  # Apply velocity to position
-        assert sprite.center_x == 150  # 50 + 100
-
-        # Continue moving - should stop at boundary
+        # Move sprite and continue until boundary is hit
         for _ in range(10):
             sprite.update()
             Action.update_all(0.016)
 
-        # Should be stopped exactly at the right boundary
-        assert sprite.center_x == 200
-        assert sprite.change_x == 0  # Velocity should be zeroed
+        # Verify final position and velocity
+        assert sprite.center_x == test_case["expected_final_pos"][0]
+        assert sprite.center_y == test_case["expected_final_pos"][1]
+        assert sprite.change_x == test_case["expected_velocity"][0]
+        assert sprite.change_y == test_case["expected_velocity"][1]
 
-    def test_move_until_limit_boundary_left(self):
-        """Test limit boundary behavior when moving left."""
-        sprite = create_test_sprite()
-        sprite.center_x = 150
-        sprite.center_y = 100
-
-        bounds = (0, 0, 200, 200)
-        action = move_until(
-            sprite, (-100, 0), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_left"
-        )
-
-        Action.update_all(0.016)
-        assert sprite.change_x == -100
-
-        # Move sprite - should stop exactly at left boundary (0)
-        sprite.update()
-        assert sprite.center_x == 50  # 150 - 100
-
-        # Continue moving - should stop at boundary
-        for _ in range(10):
-            sprite.update()
-            Action.update_all(0.016)
-
-        # Should be stopped exactly at the left boundary
-        assert sprite.center_x == 0
-        assert sprite.change_x == 0
-
-    def test_move_until_limit_boundary_vertical(self):
-        """Test limit boundary behavior for vertical movement."""
-        sprite = create_test_sprite()
-        sprite.center_x = 100
-        sprite.center_y = 50
-
-        bounds = (0, 0, 200, 200)
-        action = move_until(
-            sprite, (0, 100), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_vertical"
-        )
-
-        Action.update_all(0.016)
-        assert sprite.change_y == 100
-
-        # Move sprite - should stop exactly at top boundary (200)
-        sprite.update()
-        assert sprite.center_y == 150  # 50 + 100
-
-        # Continue moving - should stop at boundary
-        for _ in range(10):
-            sprite.update()
-            Action.update_all(0.016)
-
-        # Should be stopped exactly at the top boundary
-        assert sprite.center_y == 200
-        assert sprite.change_y == 0
-
-    def test_move_until_limit_boundary_diagonal(self):
-        """Test limit boundary behavior for diagonal movement."""
-        sprite = create_test_sprite()
-        sprite.center_x = 50
-        sprite.center_y = 50
-
-        bounds = (0, 0, 200, 200)
-        action = move_until(
-            sprite, (100, 100), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_diagonal"
-        )
-
-        Action.update_all(0.016)
-        assert sprite.change_x == 100
-        assert sprite.change_y == 100
-
-        # Move sprite - should stop at whichever boundary is hit first
-        sprite.update()
-        assert sprite.center_x == 150  # 50 + 100
-        assert sprite.center_y == 150  # 50 + 100
-
-        # Continue moving - should stop at boundary
-        for _ in range(10):
-            sprite.update()
-            Action.update_all(0.016)
-
-        # Should be stopped at the boundary (both x and y should be at limits)
-        assert sprite.center_x == 200
-        assert sprite.center_y == 200
-        assert sprite.change_x == 0
-        assert sprite.change_y == 0
-
-    def test_move_until_limit_boundary_no_wiggling(self):
+    def test_move_until_limit_boundary_no_wiggling(self, test_sprite):
         """Test that limit boundary prevents wiggling across boundary."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         sprite.center_x = 199  # Very close to right boundary
         sprite.center_y = 100
 
@@ -308,9 +263,9 @@ class TestMoveUntil:
         assert sprite.center_x == 200
         assert sprite.change_x == 0
 
-    def test_move_until_limit_boundary_callback(self):
+    def test_move_until_limit_boundary_callback(self, test_sprite):
         """Test limit boundary behavior with callback."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         sprite.center_x = 50
         sprite.center_y = 100
 
@@ -348,9 +303,9 @@ class TestMoveUntil:
         assert boundary_sprite == sprite
         assert boundary_axis == "x"
 
-    def test_move_until_limit_boundary_sprite_list(self):
+    def test_move_until_limit_boundary_sprite_list(self, test_sprite_list):
         """Test limit boundary behavior with SpriteList."""
-        sprite_list = create_test_sprite_list()
+        sprite_list = test_sprite_list
         sprite_list[0].center_x = 50
         sprite_list[1].center_x = 150
 
@@ -380,9 +335,9 @@ class TestMoveUntil:
         assert sprite_list[0].change_x == 0
         assert sprite_list[1].change_x == 0
 
-    def test_move_until_limit_boundary_already_at_boundary(self):
+    def test_move_until_limit_boundary_already_at_boundary(self, test_sprite):
         """Test limit boundary behavior when sprite starts at boundary."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         sprite.center_x = 200  # Start at right boundary
         sprite.center_y = 100
 
@@ -400,9 +355,9 @@ class TestMoveUntil:
         assert sprite.center_x == 200  # Should stay at boundary
         assert sprite.change_x == 0
 
-    def test_move_until_limit_boundary_multiple_axes(self):
+    def test_move_until_limit_boundary_multiple_axes(self, test_sprite):
         """Test limit boundary behavior when hitting multiple boundaries."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         sprite.center_x = 199
         sprite.center_y = 199
 
@@ -420,91 +375,13 @@ class TestMoveUntil:
         assert sprite.change_x == 0
         assert sprite.change_y == 0
 
-    def test_move_until_limit_boundary_negative_bounds(self):
-        """Test limit boundary behavior with negative bounds."""
-        sprite = create_test_sprite()
-        sprite.center_x = -50
-        sprite.center_y = 100
 
-        bounds = (-100, 0, 100, 200)  # Negative left bound
-        action = move_until(
-            sprite, (-10, 0), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_negative_bounds"
-        )
-
-        Action.update_all(0.016)
-        assert sprite.change_x == -10
-
-        # Move sprite - should stop at left boundary (-100)
-        sprite.update()
-        assert sprite.center_x == -60
-
-        # Continue moving
-        for _ in range(10):
-            sprite.update()
-            Action.update_all(0.016)
-
-        # Should be stopped at the left boundary
-        assert sprite.center_x == -100
-        assert sprite.change_x == 0
-
-    def test_move_until_limit_boundary_precise_stopping(self):
-        """Test that limit boundary stops sprite precisely without overshooting."""
-        sprite = create_test_sprite()
-        sprite.center_x = 195
-        sprite.center_y = 100
-
-        bounds = (0, 0, 200, 200)
-        action = move_until(
-            sprite, (10, 0), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_precise"
-        )
-
-        Action.update_all(0.016)
-        # For limit behavior, velocity should not be set if it would cross boundary
-        assert sprite.change_x == 0
-
-        # Move sprite - should stop exactly at 200, not overshoot
-        sprite.update()
-        assert sprite.center_x == 200
-        assert sprite.change_x == 0
-
-        # Verify no overshooting occurred
-        assert sprite.center_x <= 200
-
-    def test_move_until_limit_boundary_velocity_clearing(self):
-        """Test that limit boundary properly clears velocity when stopping."""
-        sprite = create_test_sprite()
-        sprite.center_x = 50
-        sprite.center_y = 100
-
-        bounds = (0, 0, 200, 200)
-        action = move_until(
-            sprite, (100, 50), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_velocity_clearing"
-        )
-
-        Action.update_all(0.016)
-        assert sprite.change_x == 100
-        assert sprite.change_y == 50
-
-        # Move until boundary is hit
-        for _ in range(10):
-            sprite.update()
-            Action.update_all(0.016)
-
-        # Both velocities should be cleared when stopped at boundary
-        assert sprite.change_x == 0
-        assert sprite.change_y == 0
-
-
-class TestFollowPathUntil:
+class TestFollowPathUntil(ActionTestBase):
     """Test suite for FollowPathUntil action."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_follow_path_until_basic(self):
+    def test_follow_path_until_basic(self, test_sprite):
         """Test basic FollowPathUntil functionality."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         start_pos = sprite.position
 
         control_points = [(100, 100), (200, 200), (300, 100)]
@@ -521,9 +398,9 @@ class TestFollowPathUntil:
         # Sprite should start moving along the path
         assert sprite.position != start_pos
 
-    def test_follow_path_until_completion(self):
+    def test_follow_path_until_completion(self, test_sprite):
         """Test FollowPathUntil completes when reaching end of path."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         control_points = [(100, 100), (200, 100)]  # Simple straight line
 
         action = follow_path_until(sprite, control_points, 1000, infinite, tag="test_path_completion")  # High velocity
@@ -536,15 +413,15 @@ class TestFollowPathUntil:
 
         assert action.done
 
-    def test_follow_path_until_requires_points(self):
+    def test_follow_path_until_requires_points(self, test_sprite):
         """Test FollowPathUntil requires at least 2 control points."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         with pytest.raises(ValueError):
             follow_path_until(sprite, [(100, 100)], 100, infinite)
 
-    def test_follow_path_until_no_rotation_by_default(self):
+    def test_follow_path_until_no_rotation_by_default(self, test_sprite):
         """Test FollowPathUntil doesn't rotate sprite by default."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         original_angle = sprite.angle
 
         # Horizontal path from left to right
@@ -558,9 +435,9 @@ class TestFollowPathUntil:
         # Sprite angle should not have changed
         assert sprite.angle == original_angle
 
-    def test_follow_path_until_rotation_horizontal_path(self):
+    def test_follow_path_until_rotation_horizontal_path(self, test_sprite):
         """Test sprite rotation follows horizontal path correctly."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         sprite.angle = 45  # Start with non-zero angle
 
         # Horizontal path from left to right
@@ -577,9 +454,9 @@ class TestFollowPathUntil:
         # Allow small tolerance for floating point math
         assert abs(sprite.angle) < 1.0
 
-    def test_follow_path_until_rotation_vertical_path(self):
+    def test_follow_path_until_rotation_vertical_path(self, test_sprite):
         """Test sprite rotation follows vertical path correctly."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Vertical path from bottom to top
         control_points = [(100, 100), (100, 200)]
@@ -594,9 +471,9 @@ class TestFollowPathUntil:
         # Sprite should be pointing up (90 degrees)
         assert abs(sprite.angle - 90) < 1.0
 
-    def test_follow_path_until_rotation_diagonal_path(self):
+    def test_follow_path_until_rotation_diagonal_path(self, test_sprite):
         """Test sprite rotation follows diagonal path correctly."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Diagonal path from bottom-left to top-right (45 degrees)
         control_points = [(100, 100), (200, 200)]
@@ -611,9 +488,9 @@ class TestFollowPathUntil:
         # Sprite should be pointing at 45 degrees
         assert abs(sprite.angle - 45) < 1.0
 
-    def test_follow_path_until_rotation_with_offset(self):
+    def test_follow_path_until_rotation_with_offset(self, test_sprite):
         """Test sprite rotation with calibration offset."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Horizontal path from left to right
         control_points = [(100, 100), (200, 100)]
@@ -636,9 +513,9 @@ class TestFollowPathUntil:
         # Expected angle: 0 (right direction) + (-90 offset) = -90
         assert abs(sprite.angle - (-90)) < 1.0
 
-    def test_follow_path_until_rotation_offset_only_when_rotating(self):
+    def test_follow_path_until_rotation_offset_only_when_rotating(self, test_sprite):
         """Test rotation offset is only applied when rotate_with_path is True."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         original_angle = sprite.angle
 
         # Horizontal path with offset but rotation disabled
@@ -660,9 +537,9 @@ class TestFollowPathUntil:
         # Sprite angle should not have changed (rotation disabled)
         assert sprite.angle == original_angle
 
-    def test_follow_path_until_rotation_curved_path(self):
+    def test_follow_path_until_rotation_curved_path(self, test_sprite):
         """Test sprite rotation follows curved path correctly."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Curved path - quadratic Bezier curve
         control_points = [(100, 100), (150, 200), (200, 100)]
@@ -682,9 +559,9 @@ class TestFollowPathUntil:
         # Angle should have changed as we follow the curve
         assert sprite.angle != initial_angle
 
-    def test_follow_path_until_rotation_large_offset(self):
+    def test_follow_path_until_rotation_large_offset(self, test_sprite):
         """Test sprite rotation with large offset values."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Horizontal path with large offset
         control_points = [(100, 100), (200, 100)]
@@ -706,9 +583,9 @@ class TestFollowPathUntil:
         # Expected: 0 (right direction) + 450 (offset) = 450 degrees
         assert abs(sprite.angle - 450) < 1.0
 
-    def test_follow_path_until_rotation_negative_offset(self):
+    def test_follow_path_until_rotation_negative_offset(self, test_sprite):
         """Test sprite rotation with negative offset values."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Vertical path with negative offset
         control_points = [(100, 100), (100, 200)]
@@ -729,9 +606,9 @@ class TestFollowPathUntil:
         # Expected: 90 (up direction) + (-45 offset) = 45 degrees
         assert abs(sprite.angle - 45) < 1.0
 
-    def test_follow_path_until_clone_preserves_rotation_params(self):
+    def test_follow_path_until_clone_preserves_rotation_params(self, test_sprite):
         """Test cloning preserves rotation parameters."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         control_points = [(100, 100), (200, 100)]
         original = follow_path_until(
             sprite,
@@ -749,16 +626,12 @@ class TestFollowPathUntil:
         assert cloned.rotation_offset == -90
 
 
-class TestRotateUntil:
+class TestRotateUntil(ActionTestBase):
     """Test suite for RotateUntil action."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_rotate_until_basic(self):
+    def test_rotate_until_basic(self, test_sprite):
         """Test basic RotateUntil functionality."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         target_reached = False
 
@@ -778,9 +651,9 @@ class TestRotateUntil:
 
         assert action.done
 
-    def test_rotate_until_frame_based_semantics(self):
+    def test_rotate_until_frame_based_semantics(self, test_sprite):
         """Test that RotateUntil uses degrees per frame at 60 FPS semantics."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # 3 degrees per frame should rotate 3 degrees when sprite.update() is called
         action = rotate_until(sprite, 3, infinite, tag="test_frame_semantics")
@@ -797,9 +670,9 @@ class TestRotateUntil:
         angle_rotated = sprite.angle - start_angle
         assert angle_rotated == 3.0
 
-    def test_rotate_until_angular_velocity_values(self):
+    def test_rotate_until_angular_velocity_values(self, test_sprite):
         """Test that RotateUntil sets angular velocity values directly (degrees per frame at 60 FPS)."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Test various angular velocity values
         test_cases = [
@@ -819,16 +692,12 @@ class TestRotateUntil:
             assert sprite.change_angle == input_angular_velocity, f"Failed for input {input_angular_velocity}"
 
 
-class TestScaleUntil:
+class TestScaleUntil(ActionTestBase):
     """Test suite for ScaleUntil action."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_scale_until_basic(self):
+    def test_scale_until_basic(self, test_sprite):
         """Test basic ScaleUntil functionality."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         start_scale = sprite.scale
 
         target_reached = False
@@ -850,16 +719,12 @@ class TestScaleUntil:
         assert action.done
 
 
-class TestFadeUntil:
+class TestFadeUntil(ActionTestBase):
     """Test suite for FadeUntil action."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_fade_until_basic(self):
+    def test_fade_until_basic(self, test_sprite):
         """Test basic FadeUntil functionality."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         start_alpha = sprite.alpha
 
         target_reached = False
@@ -881,16 +746,12 @@ class TestFadeUntil:
         assert action.done
 
 
-class TestBlinkUntil:
+class TestBlinkUntil(ActionTestBase):
     """Test suite for BlinkUntil action."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_blink_until_basic(self):
+    def test_blink_until_basic(self, test_sprite):
         """Test basic BlinkUntil functionality."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         target_reached = False
 
@@ -912,16 +773,12 @@ class TestBlinkUntil:
         assert action.done
 
 
-class TestDelayUntil:
+class TestDelayUntil(ActionTestBase):
     """Test suite for DelayUntil action."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_delay_until_basic(self):
+    def test_delay_until_basic(self, test_sprite):
         """Test basic DelayUntil functionality."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         condition_met = False
 
@@ -968,15 +825,12 @@ class TestDuration:
         assert condition()
 
 
-class TestTweenUntil:
+class TestTweenUntil(ActionTestBase):
     """Test suite for TweenUntil action - Direct property animation from start to end value."""
 
-    def teardown_method(self):
-        Action.stop_all()
-
-    def test_tween_until_basic_property_animation(self):
+    def test_tween_until_basic_property_animation(self, test_sprite):
         """Test TweenUntil for precise A-to-B property animation."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         sprite.center_x = 0
 
         # Direct property animation from 0 to 100 over 1 second
@@ -991,8 +845,8 @@ class TestTweenUntil:
         assert sprite.center_x == 100
         assert action.done
 
-    def test_tween_until_custom_easing(self):
-        sprite = create_test_sprite()
+    def test_tween_until_custom_easing(self, test_sprite):
+        sprite = test_sprite
         sprite.center_x = 0
 
         def ease_quad(t):
@@ -1007,9 +861,9 @@ class TestTweenUntil:
         Action.update_all(0.5)
         assert sprite.center_x == 100
 
-    def test_tween_until_ui_and_effect_animations(self):
+    def test_tween_until_ui_and_effect_animations(self, test_sprite):
         """Test TweenUntil for typical UI and visual effect use cases."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Button rotation feedback animation
         sprite.angle = 0
@@ -1023,8 +877,8 @@ class TestTweenUntil:
         Action.update_all(1.0)
         assert sprite.alpha == 255
 
-    def test_tween_until_sprite_list(self):
-        sprites = create_test_sprite_list()
+    def test_tween_until_sprite_list(self, test_sprite_list):
+        sprites = test_sprite_list
         for s in sprites:
             s.center_x = 0
         action = tween_until(sprites, 0, 100, "center_x", duration(1.0), tag="test_sprite_list")
@@ -1032,8 +886,8 @@ class TestTweenUntil:
         for s in sprites:
             assert s.center_x == 100
 
-    def test_tween_until_set_factor(self):
-        sprite = create_test_sprite()
+    def test_tween_until_set_factor(self, test_sprite):
+        sprite = test_sprite
         sprite.center_x = 0
         action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_set_factor")
         action.set_factor(0.0)  # Pause
@@ -1047,8 +901,8 @@ class TestTweenUntil:
         Action.update_all(0.5)
         assert sprite.center_x == 100
 
-    def test_tween_until_completion_and_callback(self):
-        sprite = create_test_sprite()
+    def test_tween_until_completion_and_callback(self, test_sprite):
+        sprite = test_sprite
         sprite.center_x = 0
         called = {}
 
@@ -1066,9 +920,9 @@ class TestTweenUntil:
         assert sprite.center_x == 100
         assert called["done"]
 
-    def test_tween_until_invalid_property(self):
+    def test_tween_until_invalid_property(self, test_sprite):
         """Test TweenUntil behavior with invalid property names."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Arcade sprites are permissive and allow setting arbitrary attributes
         # so this test demonstrates that TweenUntil can work with any property name
@@ -1079,17 +933,21 @@ class TestTweenUntil:
         assert sprite.custom_property == 100
         assert action.done
 
-    def test_tween_until_negative_duration(self):
-        sprite = create_test_sprite()
+    def test_tween_until_negative_duration(self, test_sprite):
+        sprite = test_sprite
         with pytest.raises(ValueError):
             action = tween_until(sprite, 0, 100, "center_x", duration(-1.0), tag="test_negative_duration")
 
-    def test_tween_until_vs_ease_comparison(self):
+    def test_tween_until_vs_ease_comparison(self, test_sprite):
         """Test demonstrating when to use TweenUntil vs Ease."""
-        sprite1 = create_test_sprite()
-        sprite2 = create_test_sprite()
-        sprite1.center_x = 0
+        sprite1 = test_sprite
+        # Create a second sprite for comparison
+        import arcade
+
+        sprite2 = arcade.Sprite(":resources:images/items/star.png")
         sprite2.center_x = 0
+        sprite2.center_y = 100  # Offset to avoid overlap
+        sprite1.center_x = 0
 
         # TweenUntil: Perfect for UI panel slide-in (precise A-to-B movement)
         ui_slide = tween_until(sprite1, 0, 200, "center_x", duration(1.0), tag="test_ui_animation")
@@ -1117,16 +975,16 @@ class TestTweenUntil:
 
         # Key difference: TweenUntil stops, Ease transitions to continuous action
 
-    def test_tween_until_start_equals_end(self):
-        sprite = create_test_sprite()
+    def test_tween_until_start_equals_end(self, test_sprite):
+        sprite = test_sprite
         sprite.center_x = 42
         action = tween_until(sprite, 42, 42, "center_x", duration(1.0), tag="test_start_equals_end")
         Action.update_all(1.0)
         assert sprite.center_x == 42
         assert action.done
 
-    def test_tween_until_clone(self):
-        sprite = create_test_sprite()
+    def test_tween_until_clone(self, test_sprite):
+        sprite = test_sprite
         action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_clone")
         clone = action.clone()
         assert isinstance(clone, type(action))
@@ -1134,8 +992,8 @@ class TestTweenUntil:
         assert clone.end_value == 100
         assert clone.property_name == "center_x"
 
-    def test_tween_until_zero_duration(self):
-        sprite = create_test_sprite()
+    def test_tween_until_zero_duration(self, test_sprite):
+        sprite = test_sprite
         sprite.center_x = 0
         action = tween_until(sprite, 0, 100, "center_x", duration(0.0), tag="test_zero_duration")
         assert sprite.center_x == 100

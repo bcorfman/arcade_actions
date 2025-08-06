@@ -56,6 +56,12 @@ class Action(ABC, Generic[_T]):
         self._elapsed = 0.0
         self.condition_data: Any = None
 
+    # Note on local imports in operator overloads:
+    # These imports are done locally (not at module level) to avoid circular
+    # dependencies. Since composite.py imports Action from this module (base.py),
+    # we cannot import from composite.py at the top level without creating a
+    # circular import that would fail at module load time.
+
     def __add__(self, other: Action) -> Action:
         """Create a sequence of actions using the '+' operator."""
         from actions.composite import sequence

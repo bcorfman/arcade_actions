@@ -2,15 +2,12 @@
 
 import math
 
-import arcade
 import pytest
 from arcade import easing
 
 from actions import (
     Action,
     ease,
-    move_until,
-    rotate_until,
 )
 from actions.conditional import (
     BlinkUntil,
@@ -22,172 +19,106 @@ from actions.conditional import (
     duration,
 )
 from actions.easing import Ease
+from tests.conftest import ActionTestBase
 from tests.test_base import MockAction
 
 
-def create_test_sprite() -> arcade.Sprite:
-    """Create a sprite with texture for testing."""
-    sprite = arcade.Sprite(":resources:images/items/star.png")
-    sprite.center_x = 100
-    sprite.center_y = 100
-    sprite.angle = 0
-    sprite.scale = 1.0
-    sprite.alpha = 255
-    return sprite
-
-
-def create_test_sprite_list():
-    """Create a SpriteList with test sprites."""
-    sprite_list = arcade.SpriteList()
-    sprite1 = create_test_sprite()
-    sprite2 = create_test_sprite()
-    sprite1.center_x = 50
-    sprite2.center_x = 150
-    sprite_list.append(sprite1)
-    sprite_list.append(sprite2)
-    return sprite_list
-
-
-class TestSetFactor:
+class TestSetFactor(ActionTestBase):
     """Test suite for set_factor functionality on all conditional actions."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_move_until_set_factor(self):
-        """Test MoveUntil set_factor functionality."""
-        sprite = create_test_sprite()
-        action = MoveUntil((100, 50), lambda: False)
+    @pytest.mark.parametrize(
+        "test_case",
+        [
+            {
+                "name": "move_until",
+                "action_class": MoveUntil,
+                "action_args": ((100, 50), lambda: False),
+                "velocity_property": "current_velocity",
+                "sprite_property": "change_x",
+                "expected_values": {0.5: (50.0, 25.0), 0.0: (0.0, 0.0), 2.0: (200.0, 100.0), -1.0: (-100.0, -50.0)},
+                "sprite_assertions": {
+                    0.5: {"change_x": 50.0, "change_y": 25.0},
+                    0.0: {"change_x": 0.0, "change_y": 0.0},
+                    2.0: {"change_x": 200.0, "change_y": 100.0},
+                    -1.0: {"change_x": -100.0, "change_y": -50.0},
+                },
+            },
+            {
+                "name": "rotate_until",
+                "action_class": RotateUntil,
+                "action_args": (90, lambda: False),
+                "velocity_property": "current_angular_velocity",
+                "sprite_property": "change_angle",
+                "expected_values": {0.5: 45.0, 0.0: 0.0, 2.0: 180.0},
+                "sprite_assertions": {
+                    0.5: {"change_angle": 45.0},
+                    0.0: {"change_angle": 0.0},
+                    2.0: {"change_angle": 180.0},
+                },
+            },
+            {
+                "name": "scale_until",
+                "action_class": ScaleUntil,
+                "action_args": ((0.5, 0.3), lambda: False),
+                "velocity_property": "current_scale_velocity",
+                "sprite_property": None,  # Scale doesn't set sprite properties directly
+                "expected_values": {0.5: (0.25, 0.15), 0.0: (0.0, 0.0), 2.0: (1.0, 0.6)},
+                "sprite_assertions": {},
+            },
+            {
+                "name": "fade_until",
+                "action_class": FadeUntil,
+                "action_args": (-100, lambda: False),
+                "velocity_property": "current_fade_velocity",
+                "sprite_property": None,  # Fade doesn't set sprite properties directly
+                "expected_values": {0.5: -50.0, 0.0: 0.0, 2.0: -200.0},
+                "sprite_assertions": {},
+            },
+            {
+                "name": "blink_until",
+                "action_class": BlinkUntil,
+                "action_args": (1.0, lambda: False),
+                "velocity_property": "current_seconds_until_change",
+                "sprite_property": None,  # Blink doesn't set sprite properties directly
+                "expected_values": {2.0: 0.5, 0.5: 2.0, 0.0: float("inf"), -1.0: float("inf")},
+                "sprite_assertions": {},
+            },
+            {
+                "name": "follow_path_until",
+                "action_class": FollowPathUntil,
+                "action_args": ([(100, 100), (200, 200), (300, 100)], 150, lambda: False),
+                "velocity_property": "current_velocity",
+                "sprite_property": None,  # Path doesn't set sprite properties directly
+                "expected_values": {0.5: 75.0, 0.0: 0.0, 2.0: 300.0},
+                "sprite_assertions": {},
+            },
+        ],
+    )
+    def test_set_factor_functionality(self, test_case, test_sprite):
+        """Test set_factor functionality for all action types."""
+        sprite = test_sprite
+        action = test_case["action_class"](*test_case["action_args"])
         action.apply(sprite)
 
-        # Test factor scaling
-        action.set_factor(0.5)
-        assert action.current_velocity == (50.0, 25.0)
-        # MoveUntil uses pixels per frame at 60 FPS semantics
-        assert abs(sprite.change_x - 50.0) < 0.01
-        assert abs(sprite.change_y - 25.0) < 0.01
+        # Test various factor values
+        for factor, expected_value in test_case["expected_values"].items():
+            action.set_factor(factor)
+            actual_value = getattr(action, test_case["velocity_property"])
 
-        # Test zero factor
-        action.set_factor(0.0)
-        assert action.current_velocity == (0.0, 0.0)
-        assert sprite.change_x == 0.0
-        assert sprite.change_y == 0.0
+            if isinstance(expected_value, tuple):
+                assert actual_value == expected_value
+            else:
+                assert actual_value == expected_value
 
-        # Test factor > 1
-        action.set_factor(2.0)
-        assert action.current_velocity == (200.0, 100.0)
-        assert abs(sprite.change_x - 200.0) < 0.01
-        assert abs(sprite.change_y - 100.0) < 0.01
+            # Test sprite property assertions if they exist
+            if test_case["sprite_property"] and factor in test_case["sprite_assertions"]:
+                for prop, expected_val in test_case["sprite_assertions"][factor].items():
+                    actual_val = getattr(sprite, prop)
+                    assert abs(actual_val - expected_val) < 0.01
 
-        # Test negative factor
-        action.set_factor(-1.0)
-        assert action.current_velocity == (-100.0, -50.0)
-        assert abs(sprite.change_x - (-100.0)) < 0.01
-        assert abs(sprite.change_y - (-50.0)) < 0.01
-
-    def test_rotate_until_set_factor(self):
-        """Test RotateUntil set_factor functionality."""
-        sprite = create_test_sprite()
-        action = RotateUntil(90, lambda: False)
-        action.apply(sprite)
-
-        # Test factor scaling
-        action.set_factor(0.5)
-        assert action.current_angular_velocity == 45.0
-        # RotateUntil uses degrees per frame at 60 FPS semantics
-        assert abs(sprite.change_angle - 45.0) < 0.01
-
-        # Test zero factor
-        action.set_factor(0.0)
-        assert action.current_angular_velocity == 0.0
-        assert sprite.change_angle == 0.0
-
-        # Test factor > 1
-        action.set_factor(2.0)
-        assert action.current_angular_velocity == 180.0
-        assert abs(sprite.change_angle - 180.0) < 0.01
-
-    def test_scale_until_set_factor(self):
-        """Test ScaleUntil set_factor functionality."""
-        sprite = create_test_sprite()
-        action = ScaleUntil((0.5, 0.3), lambda: False)
-        action.apply(sprite)
-
-        # Test factor scaling
-        action.set_factor(0.5)
-        assert action.current_scale_velocity == (0.25, 0.15)
-
-        # Test zero factor
-        action.set_factor(0.0)
-        assert action.current_scale_velocity == (0.0, 0.0)
-
-        # Test factor > 1
-        action.set_factor(2.0)
-        assert action.current_scale_velocity == (1.0, 0.6)
-
-    def test_fade_until_set_factor(self):
-        """Test FadeUntil set_factor functionality."""
-        sprite = create_test_sprite()
-        action = FadeUntil(-100, lambda: False)
-        action.apply(sprite)
-
-        # Test factor scaling
-        action.set_factor(0.5)
-        assert action.current_fade_velocity == -50.0
-
-        # Test zero factor
-        action.set_factor(0.0)
-        assert action.current_fade_velocity == 0.0
-
-        # Test factor > 1
-        action.set_factor(2.0)
-        assert action.current_fade_velocity == -200.0
-
-    def test_blink_until_set_factor(self):
-        """Test BlinkUntil set_factor functionality."""
-        sprite = create_test_sprite()
-        action = BlinkUntil(1.0, lambda: False)
-        action.apply(sprite)
-
-        # Test factor scaling (higher factor = faster blinking)
-        action.set_factor(2.0)
-        assert action.current_seconds_until_change == 0.5
-
-        # Test factor < 1 (slower blinking)
-        action.set_factor(0.5)
-        assert action.current_seconds_until_change == 2.0
-
-        # Test zero factor (stops blinking)
-        action.set_factor(0.0)
-        assert action.current_seconds_until_change == float("inf")
-
-        # Test negative factor (should stop blinking)
-        action.set_factor(-1.0)
-        assert action.current_seconds_until_change == float("inf")
-
-    def test_follow_path_until_set_factor(self):
-        """Test FollowPathUntil set_factor functionality."""
-        sprite = create_test_sprite()
-        control_points = [(100, 100), (200, 200), (300, 100)]
-        action = FollowPathUntil(control_points, 150, lambda: False)
-        action.apply(sprite)
-
-        # Test factor scaling
-        action.set_factor(0.5)
-        assert action.current_velocity == 75.0
-
-        # Test zero factor
-        action.set_factor(0.0)
-        assert action.current_velocity == 0.0
-
-        # Test factor > 1
-        action.set_factor(2.0)
-        assert action.current_velocity == 300.0
-
-    def test_set_factor_with_sprite_list(self):
+    def test_set_factor_with_sprite_list(self, test_sprite_list):
         """Test set_factor works with sprite lists."""
-        sprite_list = create_test_sprite_list()
+        sprite_list = test_sprite_list
         action = MoveUntil((100, 0), lambda: False)
         action.apply(sprite_list)
 
@@ -198,14 +129,10 @@ class TestSetFactor:
             assert sprite.change_y == 0.0
 
 
-class TestEase:
+class TestEase(ActionTestBase):
     """Test suite for Ease wrapper - Smooth acceleration/deceleration for continuous actions."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_ease_initialization_for_continuous_actions(self):
+    def test_ease_initialization_for_continuous_actions(self, test_sprite):
         """Test Ease wrapper initialization for continuous movement actions."""
         # Ease wraps continuous actions like MoveUntil that run indefinitely
         continuous_move = MoveUntil((100, 0), lambda: False)  # Never stops on its own
@@ -217,7 +144,7 @@ class TestEase:
         assert easing_wrapper._elapsed == 0.0
         assert not easing_wrapper._easing_complete
 
-    def test_ease_invalid_duration(self):
+    def test_ease_invalid_duration(self, test_sprite):
         """Test Ease with invalid duration raises error."""
         move = MoveUntil((100, 0), lambda: False)
 
@@ -227,9 +154,9 @@ class TestEase:
         with pytest.raises(ValueError, match="duration must be positive"):
             Ease(move, duration=-1.0)
 
-    def test_ease_apply(self):
+    def test_ease_apply(self, test_sprite):
         """Test Ease apply method applies both wrapper and wrapped action."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=1.0)
 
@@ -241,13 +168,13 @@ class TestEase:
         assert ease_action in active_actions
         assert move in active_actions
 
-    def test_ease_smooth_acceleration_for_missile_launch(self):
+    def test_ease_smooth_acceleration_for_missile_launch(self, test_sprite):
         """Test Ease for realistic missile launch - smooth acceleration to cruise speed."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Using the new ease() helper for clean API demonstration
         # Creates continuous movement and applies smooth acceleration
-        missile_movement = move_until((100, 0), lambda: False)  # Unbound continuous movement
+        missile_movement = MoveUntil((100, 0), lambda: False)  # Unbound continuous movement
         smooth_launch = ease(
             sprite, missile_movement, duration=1.0, ease_function=easing.ease_in_out, tag="missile_launch"
         )
@@ -277,9 +204,9 @@ class TestEase:
         # Missile continues at cruise speed after easing completes
         assert not missile_movement.done  # Underlying action continues
 
-    def test_ease_execution_ease_in(self):
+    def test_ease_execution_ease_in(self, test_sprite):
         """Test Ease execution with ease_in function."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=1.0, ease_function=easing.ease_in)
         ease_action.apply(sprite, tag="test")
@@ -291,9 +218,9 @@ class TestEase:
         expected_velocity = 100.0 * expected_factor
         assert abs(sprite.change_x - expected_velocity) < 0.1
 
-    def test_ease_execution_ease_out(self):
+    def test_ease_execution_ease_out(self, test_sprite):
         """Test Ease execution with ease_out function."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=1.0, ease_function=easing.ease_out)
         ease_action.apply(sprite, tag="test")
@@ -305,9 +232,9 @@ class TestEase:
         expected_velocity = 100.0 * expected_factor
         assert abs(sprite.change_x - expected_velocity) < 0.1
 
-    def test_ease_with_different_actions(self):
+    def test_ease_with_different_actions(self, test_sprite):
         """Test Easing wrapper with different action types."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Test with RotateUntil
         rotate = RotateUntil(90, lambda: False)
@@ -335,9 +262,9 @@ class TestEase:
         expected_fade_velocity = -100.0 * expected_factor
         assert abs(fade.current_fade_velocity - expected_fade_velocity) < 0.1
 
-    def test_ease_completion_callback(self):
+    def test_ease_completion_callback(self, test_sprite):
         """Test Easing completion callback."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
 
         callback_called = False
@@ -355,9 +282,9 @@ class TestEase:
         assert ease_action.done
         assert callback_called
 
-    def test_ease_stop(self):
+    def test_ease_stop(self, test_sprite):
         """Test Easing stop method stops both wrapper and wrapped action."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite, tag="test")
@@ -373,9 +300,9 @@ class TestEase:
         assert ease_action.done
         assert len(Action._active_actions) == 0
 
-    def test_ease_nested_factors(self):
+    def test_ease_nested_factors(self, test_sprite):
         """Test Easing can forward set_factor calls for nesting."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite, tag="test")
@@ -388,7 +315,7 @@ class TestEase:
         # MoveUntil uses pixels per frame at 60 FPS semantics
         assert abs(sprite.change_x - 50.0) < 0.01
 
-    def test_ease_clone(self):
+    def test_ease_clone(self, test_sprite):
         """Test Easing clone functionality."""
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=2.0, ease_function=easing.ease_in)
@@ -400,7 +327,7 @@ class TestEase:
         assert cloned.wrapped_action is not move  # Should be a clone
         assert cloned.wrapped_action.target_velocity == (100, 0)
 
-    def test_ease_repr(self):
+    def test_ease_repr(self, test_sprite):
         """Test Easing string representation."""
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=2.0, ease_function=easing.ease_in_out)
@@ -410,9 +337,9 @@ class TestEase:
         assert "ease_function=ease_in_out" in repr_str
         assert "wrapped=" in repr_str
 
-    def test_ease_with_sprite_list(self):
+    def test_ease_with_sprite_list(self, test_sprite_list):
         """Test Easing wrapper with sprite lists."""
-        sprite_list = create_test_sprite_list()
+        sprite_list = test_sprite_list
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite_list, tag="test")
@@ -426,9 +353,9 @@ class TestEase:
         for sprite in sprite_list:
             assert abs(sprite.change_x - expected_velocity) < 0.1
 
-    def test_ease_after_completion(self):
+    def test_ease_after_completion(self, test_sprite):
         """Test wrapped action continues after easing completes."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)  # Never stops on its own
         ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite, tag="test")
@@ -445,9 +372,9 @@ class TestEase:
         Action.update_all(0.1)
         assert abs(sprite.change_x - 100.0) < 0.01
 
-    def test_ease_with_follow_path_until_rotation(self):
+    def test_ease_with_follow_path_until_rotation(self, test_sprite):
         """Test Easing wrapper with FollowPathUntil rotation functionality."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         sprite.angle = 45  # Start with non-zero angle
 
         # Create path following action with rotation
@@ -477,11 +404,18 @@ class TestEase:
         assert not path_action.done
         assert path_action.current_velocity == 200.0
 
-    def test_ease_multiple_concurrent_actions(self):
+    def test_ease_multiple_concurrent_actions(self, test_sprite):
         """Test multiple concurrent eased actions on different sprites."""
-        sprite1 = create_test_sprite()
-        sprite2 = create_test_sprite()
-        sprite3 = create_test_sprite()
+        sprite1 = test_sprite
+        # Create additional sprites for comparison
+        import arcade
+
+        sprite2 = arcade.Sprite(":resources:images/items/star.png")
+        sprite2.center_x = 0
+        sprite2.center_y = 100  # Offset to avoid overlap
+        sprite3 = arcade.Sprite(":resources:images/items/star.png")
+        sprite3.center_x = 0
+        sprite3.center_y = 200  # Offset to avoid overlap
 
         # Demonstrate different approaches: traditional and new helper API
         # Traditional approach for comparison
@@ -492,14 +426,14 @@ class TestEase:
         # New helper API approach - more concise
         ease(
             sprite2,
-            move_until((0, 100), lambda: False),
+            MoveUntil((0, 100), lambda: False),
             duration=1.0,
             ease_function=easing.ease_out,
             tag="move_ease_out",
         )
         ease(
             sprite3,
-            rotate_until(180, lambda: False),
+            RotateUntil(180, lambda: False),
             duration=1.0,
             ease_function=easing.ease_in_out,
             tag="rotate_ease_in_out",
@@ -515,23 +449,23 @@ class TestEase:
         assert abs(sprite2.change_y - 75.0) < 1.0  # ease_out faster start
         assert abs(sprite3.change_angle - 90.0) < 1.0  # ease_in_out mid-speed
 
-    def test_ease_with_zero_duration(self):
+    def test_ease_with_zero_duration(self, test_sprite):
         """Test Easing with zero duration raises appropriate error."""
         move = MoveUntil((100, 0), lambda: False)
 
         with pytest.raises(ValueError, match="duration must be positive"):
             Ease(move, duration=0.0)
 
-    def test_ease_with_negative_duration(self):
+    def test_ease_with_negative_duration(self, test_sprite):
         """Test Easing with negative duration raises appropriate error."""
         move = MoveUntil((100, 0), lambda: False)
 
         with pytest.raises(ValueError, match="duration must be positive"):
             Ease(move, duration=-1.0)
 
-    def test_ease_with_very_small_duration(self):
+    def test_ease_with_very_small_duration(self, test_sprite):
         """Test Easing with very small but positive duration."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=0.001)  # 1 millisecond
         ease_action.apply(sprite, tag="test_tiny_duration")
@@ -542,9 +476,9 @@ class TestEase:
         # MoveUntil uses pixels per frame at 60 FPS semantics
         assert abs(sprite.change_x - 100.0) < 0.01  # Should reach full velocity
 
-    def test_ease_with_custom_ease_function(self):
+    def test_ease_with_custom_ease_function(self, test_sprite):
         """Test Easing with custom ease function."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
 
         # Custom ease function that always returns 0.7
@@ -562,9 +496,9 @@ class TestEase:
         Action.update_all(0.4)
         assert abs(sprite.change_x - 70.0) < 0.1
 
-    def test_ease_invalid_ease_function(self):
+    def test_ease_invalid_ease_function(self, test_sprite):
         """Test Easing behavior with ease function that returns invalid values."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
 
         # Ease function that returns negative values
@@ -579,9 +513,9 @@ class TestEase:
         # MoveUntil uses pixels per frame at 60 FPS semantics
         assert abs(sprite.change_x - (-50.0)) < 0.01  # Should accept negative factor
 
-    def test_ease_rapid_completion_callback(self):
+    def test_ease_rapid_completion_callback(self, test_sprite):
         """Test completion callback is called correctly for rapid easing."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
 
         callback_count = 0
@@ -599,9 +533,9 @@ class TestEase:
         assert ease_action.done
         assert callback_count == 1  # Should only be called once
 
-    def test_ease_nested_easing(self):
+    def test_ease_nested_easing(self, test_sprite):
         """Test easing wrapped in another easing (nested easing)."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
 
         # First level easing
@@ -624,9 +558,9 @@ class TestEase:
         Action.update_all(1.0)
         assert outer_easing.done
 
-    def test_ease_stop_mid_execution(self):
+    def test_ease_stop_mid_execution(self, test_sprite):
         """Test stopping easing action mid-execution."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=2.0)
         ease_action.apply(sprite, tag="test_stop_mid_execution")
@@ -644,9 +578,9 @@ class TestEase:
         assert move.done
         assert len(Action.get_actions_for_target(sprite, "test_stop_mid_execution")) == 0
 
-    def test_ease_with_complex_path_following(self):
+    def test_ease_with_complex_path_following(self, test_sprite):
         """Test easing with complex FollowPathUntil scenarios."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Complex curved path
         control_points = [(100, 100), (150, 200), (250, 180), (300, 120), (350, 150), (400, 100)]
@@ -691,14 +625,10 @@ class TestEase:
         assert path_action.current_velocity == 300.0
 
 
-class TestSetFactorEdgeCases:
+class TestSetFactorEdgeCases(ActionTestBase):
     """Test edge cases for set_factor, including no-op on base Action."""
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_base_action_set_factor_no_op(self):
+    def test_base_action_set_factor_no_op(self, test_sprite):
         """Test base Action set_factor is a no-op."""
         action = MockAction(condition=lambda: False)
 
@@ -707,7 +637,7 @@ class TestSetFactorEdgeCases:
         action.set_factor(-1.0)
         action.set_factor(1000.0)
 
-    def test_set_factor_before_apply(self):
+    def test_set_factor_before_apply(self, test_sprite):
         """Test set_factor works before action is applied."""
         action = MoveUntil((100, 0), lambda: False)
 
@@ -715,9 +645,9 @@ class TestSetFactorEdgeCases:
         action.set_factor(0.5)
         assert action.current_velocity == (50.0, 0.0)
 
-    def test_set_factor_after_done(self):
+    def test_set_factor_after_done(self, test_sprite):
         """Test set_factor on completed action."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         condition_met = False
 
         def condition():
@@ -737,9 +667,9 @@ class TestSetFactorEdgeCases:
         # Sprite velocity should be cleared (action is done)
         assert sprite.change_x == 0.0
 
-    def test_blink_until_set_factor_edge_cases(self):
+    def test_blink_until_set_factor_edge_cases(self, test_sprite):
         """Test BlinkUntil set_factor edge cases."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         action = BlinkUntil(1.0, lambda: False)
         action.apply(sprite)
 
@@ -751,9 +681,9 @@ class TestSetFactorEdgeCases:
         action.set_factor(1000.0)
         assert action.current_seconds_until_change == 0.001
 
-    def test_scale_until_uniform_vs_tuple(self):
+    def test_scale_until_uniform_vs_tuple(self, test_sprite):
         """Test ScaleUntil set_factor with uniform vs tuple scale velocity."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Test with uniform scale velocity
         action1 = ScaleUntil(0.5, lambda: False)
@@ -769,9 +699,9 @@ class TestSetFactorEdgeCases:
         action2.set_factor(0.5)
         assert action2.current_scale_velocity == (0.25, 0.15)
 
-    def test_move_until_boundary_with_factor(self):
+    def test_move_until_boundary_with_factor(self, test_sprite):
         """Test MoveUntil boundary behavior preserves factor scaling."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         sprite.center_x = 750  # Near right boundary
 
         bounds = (0, 0, 800, 600)
@@ -792,9 +722,9 @@ class TestSetFactorEdgeCases:
             assert action.current_velocity[0] < 0  # Should be negative (bounced)
             assert abs(action.current_velocity[0]) == 50.0  # Should maintain factor scaling
 
-    def test_ease_with_nan_ease_function(self):
+    def test_ease_with_nan_ease_function(self, test_sprite):
         """Test Easing behavior with ease function that returns NaN."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
 
         def nan_ease(t):
@@ -808,9 +738,9 @@ class TestSetFactorEdgeCases:
         # NaN factor should result in NaN velocity, but sprite should handle it
         assert math.isnan(sprite.change_x) or sprite.change_x == 0.0
 
-    def test_ease_with_infinity_ease_function(self):
+    def test_ease_with_infinity_ease_function(self, test_sprite):
         """Test Easing behavior with ease function that returns infinity."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
 
         def infinity_ease(t):
@@ -824,9 +754,9 @@ class TestSetFactorEdgeCases:
         # Infinity factor should result in infinity velocity
         assert math.isinf(sprite.change_x)
 
-    def test_ease_exception_in_ease_function(self):
+    def test_ease_exception_in_ease_function(self, test_sprite):
         """Test Easing behavior when ease function raises exception."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
 
         def exception_ease(t):
@@ -839,13 +769,13 @@ class TestSetFactorEdgeCases:
         with pytest.raises(ValueError, match="Test exception in ease function"):
             Action.update_all(0.5)
 
-    def test_ease_with_none_ease_function(self):
+    def test_ease_with_none_ease_function(self, test_sprite):
         """Test Easing behavior with None ease function."""
         move = MoveUntil((100, 0), lambda: False)
 
         # Should use default easing function when None is provided
         ease_action = Ease(move, duration=1.0, ease_function=None)
-        sprite = create_test_sprite()
+        sprite = test_sprite
         ease_action.apply(sprite, tag="test_none_ease")
 
         # Should work normally with default easing function
@@ -853,9 +783,9 @@ class TestSetFactorEdgeCases:
         # Should have some movement (default is ease_in_out)
         assert sprite.change_x > 0
 
-    def test_ease_extremely_large_duration(self):
+    def test_ease_extremely_large_duration(self, test_sprite):
         """Test Easing with extremely large duration."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
 
         # Very large duration
@@ -868,10 +798,15 @@ class TestSetFactorEdgeCases:
         # t = 1.0 / 1e10 = 1e-10, ease_in_out of very small value ≈ 0
         assert abs(sprite.change_x) < 1.0  # Should be very small
 
-    def test_ease_vs_tween_until_comparison(self):
+    def test_ease_vs_tween_until_comparison(self, test_sprite):
         """Test demonstrating the key difference between Easing and TweenUntil."""
-        sprite1 = create_test_sprite()
-        sprite2 = create_test_sprite()
+        sprite1 = test_sprite
+        # Create a second sprite for comparison
+        import arcade
+
+        sprite2 = arcade.Sprite(":resources:images/items/star.png")
+        sprite2.center_x = 0
+        sprite2.center_y = 100  # Offset to avoid overlap
         sprite1.center_x = 0
         sprite2.center_x = 0
 
@@ -901,9 +836,9 @@ class TestSetFactorEdgeCases:
         assert sprite2.center_x == 100  # At exact target position
         # Note: TweenUntil doesn't use velocity, it sets position directly
 
-    def test_ease_multiple_stops(self):
+    def test_ease_multiple_stops(self, test_sprite):
         """Test calling stop multiple times on easing action."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite, tag="test_multiple_stops")
@@ -916,9 +851,9 @@ class TestSetFactorEdgeCases:
         assert ease_action.done
         assert move.done
 
-    def test_ease_completion_callback_exception(self):
+    def test_ease_completion_callback_exception(self, test_sprite):
         """Test easing behavior when completion callback raises exception."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
 
         def error_callback():
@@ -931,9 +866,9 @@ class TestSetFactorEdgeCases:
         with pytest.raises(RuntimeError, match="Test callback error"):
             Action.update_all(0.2)  # Complete the easing
 
-    def test_ease_set_factor_extreme_values(self):
+    def test_ease_set_factor_extreme_values(self, test_sprite):
         """Test Easing set_factor with extreme values."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
         move = MoveUntil((100, 0), lambda: False)
         ease_action = Ease(move, duration=1.0)
         ease_action.apply(sprite, tag="test_extreme_factors")
@@ -946,9 +881,9 @@ class TestSetFactorEdgeCases:
         ease_action.set_factor(1e-10)
         assert abs(move.current_velocity[0] - 1e-8) < 1e-15  # 100 * 1e-10
 
-    def test_follow_path_until_rotation_with_ease_edge_cases(self):
+    def test_follow_path_until_rotation_with_ease_edge_cases(self, test_sprite):
         """Test FollowPathUntil rotation with easing edge cases."""
-        sprite = create_test_sprite()
+        sprite = test_sprite
 
         # Path with sharp turns to test rotation handling
         control_points = [(100, 100), (200, 100), (200, 200), (100, 200), (100, 100)]
