@@ -28,7 +28,7 @@ from actions import (
 # Window configuration
 # ---------------------------------------------------------------------------
 WINDOW_WIDTH = 720
-WINDOW_HEIGHT = 1280
+WINDOW_HEIGHT = 720
 WINDOW_TITLE = "Bug Battle"
 
 # ---------------------------------------------------------------------------
@@ -57,6 +57,10 @@ DOUBLE_FIRE = 1
 THREE_WAY = 2
 SHIELD = 3
 BOMB = 4
+
+# Powerup constants
+POWERUP_SPAWN_INTERVAL = 20.0
+POWERUP_SPAWN_VARIANCE = 5.0
 
 
 def _random_star_position() -> tuple[float, float]:
@@ -213,12 +217,12 @@ class StarfieldView(arcade.View):
         self.enemy_list = arcade.SpriteList()
         self.starfield = Starfield()
         self._setup_ship()
-        self._setup_enemies()
+        self._setup_enemies(0)
         self.left_pressed = False
         self.right_pressed = False
         self.fire_pressed = False
         self.background_color = arcade.color.BLACK
-        arcade.schedule_once(self._spawn_powerup, random.gauss(20, 5))
+        arcade.schedule_once(self._spawn_powerup, random.gauss(POWERUP_SPAWN_INTERVAL, POWERUP_SPAWN_VARIANCE))
 
     # ---------------------------------------------------------------------
     # Setup helpers
@@ -229,7 +233,7 @@ class StarfieldView(arcade.View):
         self.ship = PlayerShip(self.shot_list)
         self.ship_list.append(self.ship)
 
-    def _setup_enemies(self) -> None:
+    def _setup_enemies(self, delta_time) -> None:
         # Clear existing enemies
         self.enemy_list.clear()
         enemy_list = [
@@ -272,11 +276,11 @@ class StarfieldView(arcade.View):
             action.apply(sprite, tag="enemy_formation_entry")
             self.enemy_list.append(sprite)
 
-    def _spawn_powerup(self):
+    def _spawn_powerup(self, delta_time):
         if len(self.powerup_list) == 0:
             powerup = Powerup()
 
-            def powerup_collision_check():
+            def powerup_condition():
                 shots_colliding = arcade.check_for_collision_with_list(powerup, self.shot_list)
                 offscreen = powerup.top < -30
                 if shots_colliding or offscreen:
@@ -286,7 +290,7 @@ class StarfieldView(arcade.View):
                     }
                 return None
 
-            def handle_powerup_collision(collision_data):
+            def handle_powerup(collision_data):
                 if collision_data["powerup_hit"]:
                     powerup.remove_from_sprite_lists()
                     shots_colliding = collision_data["powerup_hit"]
@@ -296,13 +300,14 @@ class StarfieldView(arcade.View):
                         self.ship.powerup_hit()
                 if collision_data["offscreen"]:
                     powerup.remove_from_sprite_lists()
+                arcade.schedule_once(self._spawn_powerup, random.gauss(POWERUP_SPAWN_INTERVAL, POWERUP_SPAWN_VARIANCE))
 
             self.powerup_list.append(powerup)
             move_until(
                 self.powerup_list,
                 velocity=(0, -5),
-                condition=powerup_collision_check,
-                on_stop=handle_powerup_collision,
+                condition=powerup_condition,
+                on_stop=handle_powerup,
             )
 
     # ---------------------------------------------------------------------

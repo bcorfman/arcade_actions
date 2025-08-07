@@ -453,7 +453,6 @@ def create_formation_entry_from_sprites(
     if not window_bounds:
         raise ValueError("window_bounds is required for create_formation_entry_from_sprites")
 
-    print(f"Target formation: {target_formation}")
     # Create new sprites for the entry pattern (same number as target formation)
     sprites = arcade.SpriteList()
     for i in range(len(target_formation)):
@@ -499,7 +498,6 @@ def create_formation_entry_from_sprites(
         if num_sprites > max_spawn_points:
             # Recalculate spacing to fit all sprites
             min_spacing = arc_length / num_sprites
-            print(f"Warning: Reduced spawn spacing to {min_spacing:.1f}px to fit {num_sprites} sprites on arc")
 
         # Distribute sprites equally along the arc from left (180°) to right (0°)
         for i in range(num_sprites):
@@ -541,7 +539,6 @@ def create_formation_entry_from_sprites(
     stagger_delay = max(stagger_delay, 0.1)  # Minimum 0.1 second delay
 
     # Use min-conflicts algorithm for optimal sprite-to-spawn assignment
-    print("Using min-conflicts algorithm for sprite assignment...")
     optimal_assignments = _min_conflicts_sprite_assignment(
         target_formation, spawn_positions, max_iterations=1000, time_limit=0.1
     )
@@ -572,7 +569,6 @@ def create_formation_entry_from_sprites(
 
     for wave_idx, wave_assignments in enumerate(enemy_waves_with_assignments):
         wave_delay = wave_idx * wave_separation_time
-        print(f"Wave {wave_idx}: {len(wave_assignments)} sprites, delay={wave_delay:.1f}s")
 
         # Calculate the longest distance in this wave to determine target arrival time
         max_distance_in_wave = 0.0
