@@ -2,14 +2,17 @@
 
 ## 🚀 Quick Appeal
 
-So much of building an arcade game is a cluttered way of saying "animate this sprite until something happens", like colliding with another sprite, reaching a boundary, or an event response. Most of us manage this complexity in the game loop, using low-level movement of game objects and complex chains of `if`-statements. But what if you could write a command like "keep moving this sprite, wrap it the other side of the window if it hits a boundary, and raise an event when it collides with another sprite" ... and have it be clear and concise? 
+So much of building an arcade game is a cluttered way of saying "animate this sprite until something happens", like colliding with another sprite, reaching a boundary, or an event response. Most of us manage this complexity in the game loop, using low-level movement of game objects and complex chains of `if`-statements. But what if you could write a concise command like "keep moving this sprite, wrap it the other side of the window if it hits a boundary, and raise an event when it collides with another sprite"? 
 
 ```python 
 import arcade
-from actions import infinite, move_until, parallel
+from actions import move_until
+
+# Overview: This example shows how to set up an asteroid that moves continuously,
+# wraps around screen boundaries, and stops when it collides with the player or other asteroids.
+# The collision data is passed from the condition function to the callback function.
 
 # assume player and asteroid are arcade.Sprites, and other_asteroids is a arcade.SpriteList
-move_until(asteroid, velocity=(5, 4), condition=infinite, bounds=(-64, -64, 864, 664), boundary_behavior="wrap")
 
 def asteroid_collision_check():
     player_hit = arcade.check_for_collision(player, asteroid)
@@ -22,12 +25,22 @@ def asteroid_collision_check():
         }
     return None  # Continue moving
 
-# The callback receives the collision data from the condition function
 def handle_asteroid_collision(collision_data):
     if collision_data["player_hit"]:
         print("Player destroyed!")
     for asteroid in collision_data["asteroid_hits"]:
         print("Asteroid collisions!")
+
+# Start the asteroid moving with collision detection
+# bounds are slightly outside the viewing area, so asteroids go offscreen before wrapping
+move_until(
+    asteroid, 
+    velocity=(5, 4), 
+    condition=asteroid_collision_check, 
+    on_stop=handle_asteroid_collision,
+    bounds=(-64, -64, 864, 664), 
+    boundary_behavior="wrap"
+)
 ```
 This example shows how animation actions can be logically separated from collision responses, making your code simple and appealing. 
 If writing high-level game code appeals to you ... it's why you chose Python in the first place ... read on!
@@ -116,53 +129,3 @@ docs/
 | Complex curved movement | `ease()` + `follow_path_until` | `ease(sprite, follow_path_until(...), ...)` |
 | Property animation | `tween_until` helper | `tween_until(sprite, 0, 100, "center_x", ...)` |
 | Standard sprites (no actions) | arcade.Sprite + arcade.SpriteList | Regular Arcade usage |
-
-
-## 🎮 Example: Space Invaders Pattern
-
-```python
-import arcade
-from actions import Action, arrange_grid, duration, move_until
-
-
-class SpaceInvadersGame(arcade.Window):
-    def __init__(self):
-        super().__init__(800, 600, "Space Invaders")
-
-        # Create 5×10 grid of enemies with a single call
-        enemies = arrange_grid(
-            rows=5,
-            cols=10,
-            start_x=100,
-            start_y=500,
-            spacing_x=60,
-            spacing_y=40,
-            sprite_factory=lambda: arcade.Sprite(":resources:images/enemy.png"),
-        )
-
-        # Store enemies for movement management
-        self.enemies = enemies
-        self._setup_movement_pattern()
-
-    def _setup_movement_pattern(self):
-        # Create formation movement with boundary bouncing
-        def on_boundary_hit(sprite, axis):
-            if axis == "x":
-                # Move entire formation down and change direction
-                move_until(self.enemies, velocity=(0, -30), condition=duration(0.3))
-
-        # Create continuous horizontal movement with boundary detection
-        bounds = (50, 0, 750, 600)  # left, bottom, right, top
-        move_until(
-            self.enemies,
-            velocity=(50, 0),
-            condition=infinite,
-            bounds=bounds,
-            boundary_behavior="bounce",
-            on_boundary=on_boundary_hit
-        )
-
-    def on_update(self, delta_time):
-        # Single line handles all action updates
-        Action.update_all(delta_time)
-```

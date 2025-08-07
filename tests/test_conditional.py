@@ -32,7 +32,7 @@ class TestMoveUntil(ActionTestBase):
             nonlocal condition_met
             return condition_met
 
-        action = move_until(sprite, (100, 0), condition, tag="test_basic")
+        action = move_until(sprite, velocity=(100, 0), condition=condition, tag="test_basic")
 
         # Update for one frame - sprite should have velocity applied
         Action.update_all(0.016)
@@ -60,7 +60,7 @@ class TestMoveUntil(ActionTestBase):
         sprite = test_sprite
 
         # 5 pixels per frame should move 5 pixels when sprite.update() is called
-        action = move_until(sprite, (5, 0), infinite, tag="test_frame_semantics")
+        action = move_until(sprite, velocity=(5, 0), condition=infinite, tag="test_frame_semantics")
 
         # Update action to apply velocity
         Action.update_all(0.016)
@@ -91,7 +91,7 @@ class TestMoveUntil(ActionTestBase):
             sprite.change_x = 0
             sprite.change_y = 0
 
-            action = move_until(sprite, input_velocity, infinite, tag="test_velocity")
+            action = move_until(sprite, velocity=input_velocity, condition=infinite, tag="test_velocity")
             Action.update_all(0.016)
 
             assert sprite.change_x == input_velocity[0], f"Failed for input {input_velocity}"
@@ -111,7 +111,7 @@ class TestMoveUntil(ActionTestBase):
         def condition():
             return {"reason": "collision", "damage": 10}
 
-        action = move_until(sprite, (100, 0), condition, on_stop=on_stop, tag="test_callback")
+        action = move_until(sprite, velocity=(100, 0), condition=condition, on_stop=on_stop, tag="test_callback")
 
         Action.update_all(0.016)
 
@@ -122,7 +122,7 @@ class TestMoveUntil(ActionTestBase):
         """Test MoveUntil with SpriteList."""
         sprite_list = test_sprite_list
 
-        action = move_until(sprite_list, (50, 25), infinite, tag="test_sprite_list")
+        action = move_until(sprite_list, velocity=(50, 25), condition=infinite, tag="test_sprite_list")
 
         Action.update_all(0.016)
 
@@ -134,7 +134,7 @@ class TestMoveUntil(ActionTestBase):
     def test_move_until_set_current_velocity(self, test_sprite):
         """Test MoveUntil set_current_velocity method."""
         sprite = test_sprite
-        action = move_until(sprite, (100, 0), infinite, tag="test_set_velocity")
+        action = move_until(sprite, velocity=(100, 0), condition=infinite, tag="test_set_velocity")
 
         # Initial velocity should be set
         Action.update_all(0.016)
@@ -220,8 +220,8 @@ class TestMoveUntil(ActionTestBase):
 
         action = move_until(
             sprite,
-            test_case["velocity"],
-            infinite,
+            velocity=test_case["velocity"],
+            condition=infinite,
             bounds=test_case["bounds"],
             boundary_behavior="limit",
             tag=f"test_limit_{test_case['name']}",
@@ -249,7 +249,12 @@ class TestMoveUntil(ActionTestBase):
 
         bounds = (0, 0, 200, 200)
         action = move_until(
-            sprite, (10, 0), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_no_wiggling"
+            sprite,
+            velocity=(10, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+            tag="test_limit_no_wiggling",
         )
 
         Action.update_all(0.016)
@@ -282,8 +287,8 @@ class TestMoveUntil(ActionTestBase):
         bounds = (0, 0, 200, 200)
         action = move_until(
             sprite,
-            (100, 0),
-            infinite,
+            velocity=(100, 0),
+            condition=infinite,
             bounds=bounds,
             boundary_behavior="limit",
             on_boundary=on_boundary,
@@ -311,7 +316,12 @@ class TestMoveUntil(ActionTestBase):
 
         bounds = (0, 0, 200, 200)
         action = move_until(
-            sprite_list, (100, 0), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_sprite_list"
+            sprite_list,
+            velocity=(100, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+            tag="test_limit_sprite_list",
         )
 
         Action.update_all(0.016)
@@ -343,7 +353,12 @@ class TestMoveUntil(ActionTestBase):
 
         bounds = (0, 0, 200, 200)
         action = move_until(
-            sprite, (10, 0), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_at_boundary"
+            sprite,
+            velocity=(10, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+            tag="test_limit_at_boundary",
         )
 
         Action.update_all(0.016)
@@ -363,7 +378,12 @@ class TestMoveUntil(ActionTestBase):
 
         bounds = (0, 0, 200, 200)
         action = move_until(
-            sprite, (10, 10), infinite, bounds=bounds, boundary_behavior="limit", tag="test_limit_multiple_axes"
+            sprite,
+            velocity=(10, 10),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+            tag="test_limit_multiple_axes",
         )
 
         Action.update_all(0.016)
@@ -391,7 +411,9 @@ class TestFollowPathUntil(ActionTestBase):
             nonlocal condition_met
             return condition_met
 
-        action = follow_path_until(sprite, control_points, 100, condition, tag="test_basic_path")
+        action = follow_path_until(
+            sprite, control_points=control_points, velocity=100, condition=condition, tag="test_basic_path"
+        )
 
         Action.update_all(0.016)
 
@@ -403,7 +425,9 @@ class TestFollowPathUntil(ActionTestBase):
         sprite = test_sprite
         control_points = [(100, 100), (200, 100)]  # Simple straight line
 
-        action = follow_path_until(sprite, control_points, 1000, infinite, tag="test_path_completion")  # High velocity
+        action = follow_path_until(
+            sprite, control_points=control_points, velocity=1000, condition=infinite, tag="test_path_completion"
+        )  # High velocity
 
         # Update until path is complete
         for _ in range(100):
@@ -417,7 +441,7 @@ class TestFollowPathUntil(ActionTestBase):
         """Test FollowPathUntil requires at least 2 control points."""
         sprite = test_sprite
         with pytest.raises(ValueError):
-            follow_path_until(sprite, [(100, 100)], 100, infinite)
+            follow_path_until(sprite, control_points=[(100, 100)], velocity=100, condition=infinite)
 
     def test_follow_path_until_no_rotation_by_default(self, test_sprite):
         """Test FollowPathUntil doesn't rotate sprite by default."""
@@ -426,7 +450,9 @@ class TestFollowPathUntil(ActionTestBase):
 
         # Horizontal path from left to right
         control_points = [(100, 100), (200, 100)]
-        action = follow_path_until(sprite, control_points, 100, infinite, tag="test_no_rotation")
+        action = follow_path_until(
+            sprite, control_points=control_points, velocity=100, condition=infinite, tag="test_no_rotation"
+        )
 
         # Update several frames
         for _ in range(10):
@@ -443,7 +469,12 @@ class TestFollowPathUntil(ActionTestBase):
         # Horizontal path from left to right
         control_points = [(100, 100), (200, 100)]
         action = follow_path_until(
-            sprite, control_points, 100, infinite, rotate_with_path=True, tag="test_horizontal_rotation"
+            sprite,
+            control_points=control_points,
+            velocity=100,
+            condition=infinite,
+            rotate_with_path=True,
+            tag="test_horizontal_rotation",
         )
 
         # Update a few frames to get movement
@@ -461,7 +492,12 @@ class TestFollowPathUntil(ActionTestBase):
         # Vertical path from bottom to top
         control_points = [(100, 100), (100, 200)]
         action = follow_path_until(
-            sprite, control_points, 100, infinite, rotate_with_path=True, tag="test_vertical_rotation"
+            sprite,
+            control_points=control_points,
+            velocity=100,
+            condition=infinite,
+            rotate_with_path=True,
+            tag="test_vertical_rotation",
         )
 
         # Update a few frames to get movement
@@ -478,7 +514,12 @@ class TestFollowPathUntil(ActionTestBase):
         # Diagonal path from bottom-left to top-right (45 degrees)
         control_points = [(100, 100), (200, 200)]
         action = follow_path_until(
-            sprite, control_points, 100, infinite, rotate_with_path=True, tag="test_diagonal_rotation"
+            sprite,
+            control_points=control_points,
+            velocity=100,
+            condition=infinite,
+            rotate_with_path=True,
+            tag="test_diagonal_rotation",
         )
 
         # Update a few frames to get movement
@@ -497,9 +538,9 @@ class TestFollowPathUntil(ActionTestBase):
         # Use -90 offset (sprite artwork points up by default)
         action = follow_path_until(
             sprite,
-            control_points,
-            100,
-            infinite,
+            control_points=control_points,
+            velocity=100,
+            condition=infinite,
             rotate_with_path=True,
             rotation_offset=-90,
             tag="test_rotation_offset",
@@ -522,9 +563,9 @@ class TestFollowPathUntil(ActionTestBase):
         control_points = [(100, 100), (200, 100)]
         action = follow_path_until(
             sprite,
-            control_points,
-            100,
-            infinite,
+            control_points=control_points,
+            velocity=100,
+            condition=infinite,
             rotate_with_path=False,
             rotation_offset=-90,
             tag="test_no_rotation_with_offset",
@@ -544,7 +585,12 @@ class TestFollowPathUntil(ActionTestBase):
         # Curved path - quadratic Bezier curve
         control_points = [(100, 100), (150, 200), (200, 100)]
         action = follow_path_until(
-            sprite, control_points, 100, infinite, rotate_with_path=True, tag="test_curved_rotation"
+            sprite,
+            control_points=control_points,
+            velocity=100,
+            condition=infinite,
+            rotate_with_path=True,
+            tag="test_curved_rotation",
         )
 
         # Store initial angle after first update
@@ -567,9 +613,9 @@ class TestFollowPathUntil(ActionTestBase):
         control_points = [(100, 100), (200, 100)]
         action = follow_path_until(
             sprite,
-            control_points,
-            100,
-            infinite,
+            control_points=control_points,
+            velocity=100,
+            condition=infinite,
             rotate_with_path=True,
             rotation_offset=450,
             tag="test_large_offset",
@@ -591,9 +637,9 @@ class TestFollowPathUntil(ActionTestBase):
         control_points = [(100, 100), (100, 200)]
         action = follow_path_until(
             sprite,
-            control_points,
-            100,
-            infinite,
+            control_points=control_points,
+            velocity=100,
+            condition=infinite,
             rotate_with_path=True,
             rotation_offset=-45,
             tag="test_negative_offset",
@@ -612,9 +658,9 @@ class TestFollowPathUntil(ActionTestBase):
         control_points = [(100, 100), (200, 100)]
         original = follow_path_until(
             sprite,
-            control_points,
-            100,
-            infinite,
+            control_points=control_points,
+            velocity=100,
+            condition=infinite,
             rotate_with_path=True,
             rotation_offset=-90,
             tag="test_rotation_params",
@@ -638,7 +684,7 @@ class TestRotateUntil(ActionTestBase):
         def condition():
             return target_reached
 
-        action = rotate_until(sprite, 90, condition, tag="test_basic")
+        action = rotate_until(sprite, angular_velocity=90, condition=condition, tag="test_basic")
 
         Action.update_all(0.016)
 
@@ -656,7 +702,7 @@ class TestRotateUntil(ActionTestBase):
         sprite = test_sprite
 
         # 3 degrees per frame should rotate 3 degrees when sprite.update() is called
-        action = rotate_until(sprite, 3, infinite, tag="test_frame_semantics")
+        action = rotate_until(sprite, angular_velocity=3, condition=infinite, tag="test_frame_semantics")
 
         # Update action to apply angular velocity
         Action.update_all(0.016)
@@ -686,7 +732,9 @@ class TestRotateUntil(ActionTestBase):
             Action.stop_all()
             sprite.change_angle = 0
 
-            action = rotate_until(sprite, input_angular_velocity, infinite, tag="test_velocity")
+            action = rotate_until(
+                sprite, angular_velocity=input_angular_velocity, condition=infinite, tag="test_velocity"
+            )
             Action.update_all(0.016)
 
             assert sprite.change_angle == input_angular_velocity, f"Failed for input {input_angular_velocity}"
@@ -705,7 +753,7 @@ class TestScaleUntil(ActionTestBase):
         def condition():
             return target_reached
 
-        action = scale_until(sprite, 0.5, condition, tag="test_basic")
+        action = scale_until(sprite, velocity=0.5, condition=condition, tag="test_basic")
 
         Action.update_all(0.016)
 
@@ -732,7 +780,7 @@ class TestFadeUntil(ActionTestBase):
         def condition():
             return target_reached
 
-        action = fade_until(sprite, -100, condition, tag="test_basic")
+        action = fade_until(sprite, velocity=-100, condition=condition, tag="test_basic")
 
         Action.update_all(0.016)
 
@@ -758,7 +806,7 @@ class TestBlinkUntil(ActionTestBase):
         def condition():
             return target_reached
 
-        action = blink_until(sprite, 0.05, condition, tag="test_basic")
+        action = blink_until(sprite, seconds_until_change=0.05, condition=condition, tag="test_basic")
 
         Action.update_all(0.016)
 
@@ -786,7 +834,7 @@ class TestDelayUntil(ActionTestBase):
             nonlocal condition_met
             return condition_met
 
-        action = delay_until(sprite, condition, tag="test_basic")
+        action = delay_until(sprite, condition=condition, tag="test_basic")
 
         Action.update_all(0.016)
         assert not action.done
@@ -834,7 +882,9 @@ class TestTweenUntil(ActionTestBase):
         sprite.center_x = 0
 
         # Direct property animation from 0 to 100 over 1 second
-        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_basic")
+        action = tween_until(
+            sprite, start_value=0, end_value=100, property_name="center_x", condition=duration(1.0), tag="test_basic"
+        )
 
         # At halfway point, should be partway through
         Action.update_all(0.5)
@@ -853,7 +903,13 @@ class TestTweenUntil(ActionTestBase):
             return t * t
 
         action = tween_until(
-            sprite, 0, 100, "center_x", duration(1.0), ease_function=ease_quad, tag="test_custom_easing"
+            sprite,
+            start_value=0,
+            end_value=100,
+            property_name="center_x",
+            condition=duration(1.0),
+            ease_function=ease_quad,
+            tag="test_custom_easing",
         )
         Action.update_all(0.5)
         # Should be less than linear at t=0.5
@@ -867,13 +923,17 @@ class TestTweenUntil(ActionTestBase):
 
         # Button rotation feedback animation
         sprite.angle = 0
-        rotation_feedback = tween_until(sprite, 0, 90, "angle", duration(1.0), tag="test_ui_animation")
+        rotation_feedback = tween_until(
+            sprite, start_value=0, end_value=90, property_name="angle", condition=duration(1.0), tag="test_ui_animation"
+        )
         Action.update_all(1.0)
         assert sprite.angle == 90
 
         # Fade-in effect animation
         sprite.alpha = 0
-        fade_in = tween_until(sprite, 0, 255, "alpha", duration(1.0), tag="test_fade_in")
+        fade_in = tween_until(
+            sprite, start_value=0, end_value=255, property_name="alpha", condition=duration(1.0), tag="test_fade_in"
+        )
         Action.update_all(1.0)
         assert sprite.alpha == 255
 
@@ -881,7 +941,14 @@ class TestTweenUntil(ActionTestBase):
         sprites = test_sprite_list
         for s in sprites:
             s.center_x = 0
-        action = tween_until(sprites, 0, 100, "center_x", duration(1.0), tag="test_sprite_list")
+        action = tween_until(
+            sprites,
+            start_value=0,
+            end_value=100,
+            property_name="center_x",
+            condition=duration(1.0),
+            tag="test_sprite_list",
+        )
         Action.update_all(1.0)
         for s in sprites:
             assert s.center_x == 100
@@ -889,14 +956,28 @@ class TestTweenUntil(ActionTestBase):
     def test_tween_until_set_factor(self, test_sprite):
         sprite = test_sprite
         sprite.center_x = 0
-        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_set_factor")
+        action = tween_until(
+            sprite,
+            start_value=0,
+            end_value=100,
+            property_name="center_x",
+            condition=duration(1.0),
+            tag="test_set_factor",
+        )
         action.set_factor(0.0)  # Pause
         Action.update_all(0.5)
         assert sprite.center_x == 0
         action.set_factor(1.0)  # Resume
         Action.update_all(1.0)
         assert sprite.center_x == 100
-        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_set_factor_again")
+        action = tween_until(
+            sprite,
+            start_value=0,
+            end_value=100,
+            property_name="center_x",
+            condition=duration(1.0),
+            tag="test_set_factor_again",
+        )
         action.set_factor(2.0)  # Double speed
         Action.update_all(0.5)
         assert sprite.center_x == 100
@@ -909,7 +990,15 @@ class TestTweenUntil(ActionTestBase):
         def on_complete(data=None):
             called["done"] = True
 
-        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), on_stop=on_complete, tag="test_on_complete")
+        action = tween_until(
+            sprite,
+            start_value=0,
+            end_value=100,
+            property_name="center_x",
+            condition=duration(1.0),
+            on_stop=on_complete,
+            tag="test_on_complete",
+        )
 
         # At halfway point, should be partway through
         Action.update_all(0.5)
@@ -926,7 +1015,14 @@ class TestTweenUntil(ActionTestBase):
 
         # Arcade sprites are permissive and allow setting arbitrary attributes
         # so this test demonstrates that TweenUntil can work with any property name
-        action = tween_until(sprite, 0, 100, "custom_property", duration(1.0), tag="test_invalid_property")
+        action = tween_until(
+            sprite,
+            start_value=0,
+            end_value=100,
+            property_name="custom_property",
+            condition=duration(1.0),
+            tag="test_invalid_property",
+        )
         Action.update_all(1.0)
 
         # The sprite should now have the custom property set to the end value
@@ -936,7 +1032,14 @@ class TestTweenUntil(ActionTestBase):
     def test_tween_until_negative_duration(self, test_sprite):
         sprite = test_sprite
         with pytest.raises(ValueError):
-            action = tween_until(sprite, 0, 100, "center_x", duration(-1.0), tag="test_negative_duration")
+            action = tween_until(
+                sprite,
+                start_value=0,
+                end_value=100,
+                property_name="center_x",
+                condition=duration(-1.0),
+                tag="test_negative_duration",
+            )
 
     def test_tween_until_vs_ease_comparison(self, test_sprite):
         """Test demonstrating when to use TweenUntil vs Ease."""
@@ -950,12 +1053,19 @@ class TestTweenUntil(ActionTestBase):
         sprite1.center_x = 0
 
         # TweenUntil: Perfect for UI panel slide-in (precise A-to-B movement)
-        ui_slide = tween_until(sprite1, 0, 200, "center_x", duration(1.0), tag="test_ui_animation")
+        ui_slide = tween_until(
+            sprite1,
+            start_value=0,
+            end_value=200,
+            property_name="center_x",
+            condition=duration(1.0),
+            tag="test_ui_animation",
+        )
 
         # Ease: Perfect for missile launch (smooth acceleration to cruise speed)
         from actions.easing import Ease
 
-        missile_move = move_until(sprite2, (200, 0), infinite, tag="test_missile_move")
+        missile_move = move_until(sprite2, velocity=(200, 0), condition=infinite, tag="test_missile_move")
         missile_launch = Ease(missile_move, duration=1.0)
         missile_launch.apply(sprite2, tag="test_missile_launch")
 
@@ -978,14 +1088,23 @@ class TestTweenUntil(ActionTestBase):
     def test_tween_until_start_equals_end(self, test_sprite):
         sprite = test_sprite
         sprite.center_x = 42
-        action = tween_until(sprite, 42, 42, "center_x", duration(1.0), tag="test_start_equals_end")
+        action = tween_until(
+            sprite,
+            start_value=42,
+            end_value=42,
+            property_name="center_x",
+            condition=duration(1.0),
+            tag="test_start_equals_end",
+        )
         Action.update_all(1.0)
         assert sprite.center_x == 42
         assert action.done
 
     def test_tween_until_clone(self, test_sprite):
         sprite = test_sprite
-        action = tween_until(sprite, 0, 100, "center_x", duration(1.0), tag="test_clone")
+        action = tween_until(
+            sprite, start_value=0, end_value=100, property_name="center_x", condition=duration(1.0), tag="test_clone"
+        )
         clone = action.clone()
         assert isinstance(clone, type(action))
         assert clone.start_value == 0
@@ -995,6 +1114,13 @@ class TestTweenUntil(ActionTestBase):
     def test_tween_until_zero_duration(self, test_sprite):
         sprite = test_sprite
         sprite.center_x = 0
-        action = tween_until(sprite, 0, 100, "center_x", duration(0.0), tag="test_zero_duration")
+        action = tween_until(
+            sprite,
+            start_value=0,
+            end_value=100,
+            property_name="center_x",
+            condition=duration(0.0),
+            tag="test_zero_duration",
+        )
         assert sprite.center_x == 100
         assert action.done
