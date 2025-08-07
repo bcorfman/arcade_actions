@@ -39,9 +39,9 @@ SpriteTarget = arcade.Sprite | arcade.SpriteList
 
 def move_until(
     target: arcade.Sprite | arcade.SpriteList,
+    *,
     velocity: tuple[float, float],
     condition: Callable[[], Any],
-    *,
     on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     tag: str | None = None,
     **kwargs,
@@ -72,9 +72,9 @@ def move_until(
 
 def rotate_until(
     target: arcade.Sprite | arcade.SpriteList,
+    *,
     angular_velocity: float,
     condition: Callable[[], Any],
-    *,
     on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     tag: str | None = None,
     **kwargs,
@@ -105,10 +105,10 @@ def rotate_until(
 
 def follow_path_until(
     target: arcade.Sprite | arcade.SpriteList,
+    *,
     control_points: list[tuple[float, float]],
     velocity: float,
     condition: Callable[[], Any],
-    *,
     on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     tag: str | None = None,
     **kwargs,
@@ -147,9 +147,9 @@ def follow_path_until(
 
 def blink_until(
     target: arcade.Sprite | arcade.SpriteList,
+    *,
     time: float,
     condition: Callable[[], Any],
-    *,
     on_stop: Callable = None,
     tag: str | None = None,
 ) -> BlinkUntil:
@@ -161,8 +161,8 @@ def blink_until(
 
 def delay_until(
     target: arcade.Sprite | arcade.SpriteList,
-    condition: Callable[[], Any],
     *,
+    condition: Callable[[], Any],
     on_stop: Callable = None,
     tag: str | None = None,
 ) -> DelayUntil:
@@ -174,11 +174,11 @@ def delay_until(
 
 def tween_until(
     target: arcade.Sprite | arcade.SpriteList,
+    *,
     start_value: float,
     end_value: float,
     property_name: str,
     condition: Callable[[], Any],
-    *,
     on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     tag: str | None = None,
     **kwargs,
@@ -198,9 +198,9 @@ def tween_until(
 
 def scale_until(
     target: arcade.Sprite | arcade.SpriteList,
+    *,
     velocity: tuple[float, float] | float,
     condition: Callable[[], Any],
-    *,
     on_stop: Callable = None,
     tag: str | None = None,
 ) -> ScaleUntil:
@@ -212,9 +212,9 @@ def scale_until(
 
 def fade_until(
     target: arcade.Sprite | arcade.SpriteList,
+    *,
     velocity: float,
     condition: Callable[[], Any],
-    *,
     on_stop: Callable = None,
     tag: str | None = None,
 ) -> FadeUntil:

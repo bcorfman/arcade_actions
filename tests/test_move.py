@@ -31,7 +31,14 @@ class TestMoveUntilBoundaries:
         bounds = (0, 0, 800, 600)
 
         # Move right - should hit boundary and bounce
-        move_until(sprite, (100, 0), time_elapsed(2.0), bounds=bounds, boundary_behavior="bounce", tag="movement")
+        move_until(
+            sprite,
+            velocity=(100, 0),
+            condition=time_elapsed(2.0),
+            bounds=bounds,
+            boundary_behavior="bounce",
+            tag="movement",
+        )
 
         # Update action to set velocity
         Action.update_all(0.1)
@@ -52,7 +59,14 @@ class TestMoveUntilBoundaries:
         bounds = (0, 0, 800, 600)
 
         # Move right - should wrap to left side
-        move_until(sprite, (100, 0), time_elapsed(2.0), bounds=bounds, boundary_behavior="wrap", tag="movement")
+        move_until(
+            sprite,
+            velocity=(100, 0),
+            condition=time_elapsed(2.0),
+            bounds=bounds,
+            boundary_behavior="wrap",
+            tag="movement",
+        )
 
         # Update action to set velocity
         Action.update_all(0.1)
@@ -77,8 +91,8 @@ class TestMoveUntilBoundaries:
         bounds = (0, 0, 800, 600)
         move_until(
             sprite,
-            (100, 0),
-            time_elapsed(2.0),
+            velocity=(100, 0),
+            condition=time_elapsed(2.0),
             bounds=bounds,
             boundary_behavior="bounce",
             on_boundary=on_boundary_hit,
@@ -105,7 +119,14 @@ class TestMoveUntilBoundaries:
         bounds = (0, 0, 800, 600)
 
         # Move up - should hit top boundary and bounce
-        move_until(sprite, (0, 100), time_elapsed(2.0), bounds=bounds, boundary_behavior="bounce", tag="movement")
+        move_until(
+            sprite,
+            velocity=(0, 100),
+            condition=time_elapsed(2.0),
+            bounds=bounds,
+            boundary_behavior="bounce",
+            tag="movement",
+        )
 
         # Update action to set velocity
         Action.update_all(0.1)
@@ -124,7 +145,7 @@ class TestMoveUntilBoundaries:
         initial_x = sprite.center_x
 
         # No bounds specified - should move normally
-        move_until(sprite, (100, 0), time_elapsed(1.0), tag="movement")
+        move_until(sprite, velocity=(100, 0), condition=time_elapsed(1.0), tag="movement")
 
         Action.update_all(0.5)
         sprite.update()  # Apply velocity to position
@@ -164,7 +185,12 @@ class TestMoveUntilBoundaries:
         bounds = (0, 0, 800, 600)
 
         move_until(
-            sprites, (100, 0), time_elapsed(2.0), bounds=bounds, boundary_behavior="bounce", tag="group_movement"
+            sprites,
+            velocity=(100, 0),
+            condition=time_elapsed(2.0),
+            bounds=bounds,
+            boundary_behavior="bounce",
+            tag="group_movement",
         )
 
         # Update action to set velocity

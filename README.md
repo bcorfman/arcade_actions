@@ -122,7 +122,7 @@ docs/
 
 ```python
 import arcade
-from actions import Action, arrange_grid, duration, move_until
+from actions import Action, arrange_grid, duration, move_until, infinite
 
 
 class SpaceInvadersGame(arcade.Window):
