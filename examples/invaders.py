@@ -166,7 +166,7 @@ class GameView(arcade.View):
 
         velocity = (ENEMY_SPEED * self.enemy_direction, 0)
         self.enemy_move_action = move_until(
-            self.enemy_list, velocity, condition=enemies_hit_boundary, on_stop=on_boundary_hit
+            self.enemy_list, velocity=velocity, condition=enemies_hit_boundary, on_stop=on_boundary_hit
         )
 
     def reverse_enemy_direction(self):
