@@ -806,7 +806,7 @@ class TestBlinkUntil(ActionTestBase):
         def condition():
             return target_reached
 
-        action = blink_until(sprite, time=0.05, condition=condition, tag="test_basic")
+        action = blink_until(sprite, seconds_until_change=0.05, condition=condition, tag="test_basic")
 
         Action.update_all(0.016)
 

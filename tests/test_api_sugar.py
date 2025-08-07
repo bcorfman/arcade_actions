@@ -141,7 +141,7 @@ class TestKeywordParameterSupport:
         """Test blink_until with keyword parameters."""
         from actions import blink_until
 
-        action = blink_until(sprite, time=0.5, condition=duration(2.0))
+        action = blink_until(sprite, seconds_until_change=0.5, condition=duration(2.0))
 
         assert isinstance(action, BlinkUntil)
         assert action.target == sprite

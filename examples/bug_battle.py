@@ -83,7 +83,7 @@ class Starfield:
         for _ in range(MAX_STARS):
             color = (random.randint(20, 255), random.randint(20, 255), random.randint(20, 255))
             star = _create_star_sprite(color, size=3)
-            blink_until(star, random.randint(200, 400) / 1000.0, condition=infinite)
+            blink_until(star, seconds_until_change=random.randint(200, 400) / 1000.0, condition=infinite)
             self.star_list.append(star)
 
         move_until(

@@ -148,13 +148,13 @@ def follow_path_until(
 def blink_until(
     target: arcade.Sprite | arcade.SpriteList,
     *,
-    time: float,
+    seconds_until_change: float,
     condition: Callable[[], Any],
     on_stop: Callable = None,
     tag: str | None = None,
 ) -> BlinkUntil:
     """Creates and applies a BlinkUntil action."""
-    action = BlinkUntil(seconds_until_change=time, condition=condition, on_stop=on_stop)
+    action = BlinkUntil(seconds_until_change=seconds_until_change, condition=condition, on_stop=on_stop)
     action.apply(target, tag=tag)
     return action
 
