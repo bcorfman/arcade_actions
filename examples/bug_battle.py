@@ -11,6 +11,7 @@ following the project design guidelines (see docs/api_usage_guide.md).
 
 from __future__ import annotations
 
+import math
 import random
 
 import arcade
@@ -52,15 +53,28 @@ LEFT_BOUND = 40
 RIGHT_BOUND = WINDOW_WIDTH - 40
 COOLDOWN_NORMAL = 30
 COOLDOWN_POWERUP = 15
-NORMAL = 0
-DOUBLE_FIRE = 1
-THREE_WAY = 2
-SHIELD = 3
-BOMB = 4
+DOUBLE_FIRE = 0
+THREE_WAY = 1
+SHIELD = 2
+BOMB = 3
 
 # Powerup constants
-POWERUP_SPAWN_INTERVAL = 20.0
+POWERUP_SPAWN_INTERVAL = 10.0
 POWERUP_SPAWN_VARIANCE = 5.0
+
+# Sprite constants
+PLAYER_SHIP = ":resources:/images/space_shooter/playerShip1_green.png"
+PLAYER_SHOT = ":resources:/images/space_shooter/laserRed01.png"
+BEE = ":resources:/images/enemies/bee.png"
+FISH_PINK = ":resources:/images/enemies/fishPink.png"
+FISH_GREEN = ":resources:/images/enemies/fishGreen.png"
+FLY = ":resources:/images/enemies/fly.png"
+SAW = ":resources:/images/enemies/saw.png"
+SLIME_BLOCK = ":resources:/images/enemies/slimeBlock.png"
+GEM_GREEN = ":resources:/images/items/gemGreen.png"
+GEM_RED = ":resources:/images/items/gemRed.png"
+GEM_YELLOW = ":resources:/images/items/gemYellow.png"
+GEM_BLUE = ":resources:/images/items/gemBlue.png"
 
 
 def _random_star_position() -> tuple[float, float]:
@@ -119,16 +133,17 @@ class Starfield:
 class Powerup(arcade.Sprite):
     def __init__(self):
         self.gem_textures = [
-            arcade.load_texture(":resources:/images/items/gemBlue.png"),
-            arcade.load_texture(":resources:/images/items/gemGreen.png"),
-            arcade.load_texture(":resources:/images/items/gemRed.png"),
-            arcade.load_texture(":resources:/images/items/gemYellow.png"),
+            arcade.load_texture(GEM_BLUE),
+            arcade.load_texture(GEM_GREEN),
+            arcade.load_texture(GEM_RED),
+            arcade.load_texture(GEM_YELLOW),
         ]
         self.texture_index = random.randint(0, 3)
         super().__init__(self.gem_textures[self.texture_index])
         self.textures = self.gem_textures
         self.center_x = random.uniform(LEFT_BOUND + self.width / 2, RIGHT_BOUND - self.width / 2)
         self.center_y = WINDOW_HEIGHT + 30
+        # update the powerup animation/type every second
         arcade.schedule(self.update_animation, 1)
 
     def update_animation(self, delta_time: float = 1 / 60, *args, **kwargs) -> None:
@@ -138,43 +153,56 @@ class Powerup(arcade.Sprite):
 
 class PlayerShip(arcade.Sprite):
     def __init__(self, shot_list):
-        super().__init__(":resources:/images/space_shooter/playerShip1_green.png")
+        super().__init__(PLAYER_SHIP)
         self.center_x = WINDOW_WIDTH / 2
         self.center_y = 100
-        self.current_powerup = 0
+        self.current_powerup = None
         self.cooldown_normal = 30
         self.cooldown_max = COOLDOWN_NORMAL
         self.fire_cooldown = self.cooldown_max
         self.shot_list = shot_list
 
     def fire_when_ready(self):
-        if self.fire_cooldown == 0:
+        can_fire = self.fire_cooldown == 0
+        if can_fire:
+            self.setup_shot()
+            if self.current_powerup == THREE_WAY:
+                self.setup_shot(-10)
+                self.setup_shot(10)
             self.fire_cooldown = self.cooldown_max
-            shot = arcade.Sprite(":resources:/images/space_shooter/laserRed01.png")
-            shot.center_x = self.center_x
-            shot.center_y = self.center_y + 10
+        return can_fire
 
-            move_until(
-                shot,
-                velocity=(0, PLAYER_SHIP_FIRE_SPEED),
-                condition=lambda: shot.top > WINDOW_HEIGHT,
-                on_stop=lambda: shot.remove_from_sprite_lists(),
-            )
-            self.shot_list.append(shot)
-            self.fire_cooldown = self.cooldown_max
-            return True
-        return False
+    def setup_shot(self, angle=0):
+        shot = arcade.Sprite(PLAYER_SHOT)
+        shot.center_x = self.center_x
+        shot.center_y = self.center_y + 10
+        if angle == 0:
+            shot_vel_x = 0
+            shot_vel_y = PLAYER_SHIP_FIRE_SPEED
+        else:
+            shot.angle = angle
+            angle_rad = math.radians(angle)
+            shot_vel_x = PLAYER_SHIP_FIRE_SPEED * math.sin(angle_rad)
+            shot_vel_y = PLAYER_SHIP_FIRE_SPEED * math.cos(angle_rad)
+
+        move_until(
+            shot,
+            velocity=(shot_vel_x, shot_vel_y),
+            condition=lambda: shot.top > WINDOW_HEIGHT,
+            on_stop=lambda: shot.remove_from_sprite_lists(),
+        )
+        self.shot_list.append(shot)
 
     def reset_cooldown(self, delta_time):
+        self.current_powerup = None
         self.cooldown_max = COOLDOWN_NORMAL
         self.player_fire_cooldown = self.cooldown_max
 
     def powerup_hit(self):
-        self.current_powerup |= DOUBLE_FIRE
         self.cooldown_max = COOLDOWN_POWERUP
         self.player_fire_cooldown = self.cooldown_max
         arcade.unschedule(self.reset_cooldown)
-        arcade.schedule_once(self.reset_cooldown, 5)
+        arcade.schedule_once(self.reset_cooldown, COOLDOWN_POWERUP)
 
     def move(self, left_pressed, right_pressed):
         direction = 0
@@ -236,14 +264,7 @@ class StarfieldView(arcade.View):
     def _setup_enemies(self, delta_time) -> None:
         # Clear existing enemies
         self.enemy_list.clear()
-        enemy_list = [
-            ":resources:/images/enemies/bee.png",
-            ":resources:/images/enemies/fishPink.png",
-            ":resources:/images/enemies/fly.png",
-            ":resources:/images/enemies/saw.png",
-            ":resources:/images/enemies/slimeBlock.png",
-            ":resources:/images/enemies/fishGreen.png",
-        ]
+        enemy_list = [BEE, FISH_PINK, FLY, SAW, SLIME_BLOCK, FISH_GREEN]
 
         X_OFFSET = 120
         COLS = 4
@@ -292,6 +313,7 @@ class StarfieldView(arcade.View):
 
             def handle_powerup(collision_data):
                 if collision_data["powerup_hit"]:
+                    self.ship.current_powerup = powerup.texture_index
                     powerup.remove_from_sprite_lists()
                     shots_colliding = collision_data["powerup_hit"]
                     if shots_colliding:
@@ -344,7 +366,7 @@ class StarfieldView(arcade.View):
                 # Remove hit enemies
                 for enemy in enemies_hit:
                     enemy.remove_from_sprite_lists()
-                break  # Shot can only hit one enemy, so break after first collision
+                    break  # Shot can only hit one enemy, so break after first collision
 
         # Check if all enemies are defeated and restart formation
         if len(self.enemy_list) == 0:
