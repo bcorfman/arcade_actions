@@ -75,6 +75,7 @@ GEM_GREEN = ":resources:/images/items/gemGreen.png"
 GEM_RED = ":resources:/images/items/gemRed.png"
 GEM_YELLOW = ":resources:/images/items/gemYellow.png"
 GEM_BLUE = ":resources:/images/items/gemBlue.png"
+EXPLOSION_TEXTURE_COUNT = 60
 
 
 def _random_star_position() -> tuple[float, float]:
@@ -149,6 +150,56 @@ class Powerup(arcade.Sprite):
     def update_animation(self, delta_time: float = 1 / 60, *args, **kwargs) -> None:
         self.texture_index = (self.texture_index + 1) % len(self.textures)
         self.texture = self.textures[self.texture_index]
+
+
+class Explosion(arcade.Sprite):
+    """This class creates an explosion animation"""
+
+    # Class variable to store shared textures
+    _texture_list = None
+
+    @classmethod
+    def _load_textures(cls):
+        """Load the explosion textures from spritesheet (done only once)"""
+        if cls._texture_list is None:
+            # Load the explosion from a sprite sheet
+            columns = 16
+            count = 60
+            sprite_width = 256
+            sprite_height = 256
+            file_name = ":resources:images/spritesheets/explosion.png"
+
+            # Load the explosions from a sprite sheet
+            spritesheet = arcade.load_spritesheet(file_name)
+            cls._texture_list = spritesheet.get_texture_grid(
+                size=(sprite_width, sprite_height),
+                columns=columns,
+                count=count,
+            )
+
+    def __init__(self):
+        # Ensure textures are loaded
+        self._load_textures()
+
+        # Initialize with first texture
+        super().__init__(self._texture_list[0])
+
+        # How long the explosion has been around
+        self.time_elapsed = 0
+
+        # Start at the first frame
+        self.current_texture = 0
+        self.textures = self._texture_list
+
+    def update(self, delta_time=1 / 60):
+        self.time_elapsed += delta_time
+        # Update to the next frame of the animation. If we are at the end
+        # of our frames, then delete this sprite.
+        self.current_texture = int(self.time_elapsed * 60)
+        if self.current_texture < len(self.textures):
+            self.set_texture(self.current_texture)
+        else:
+            self.remove_from_sprite_lists()
 
 
 class PlayerShip(arcade.Sprite):
