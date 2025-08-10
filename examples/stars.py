@@ -23,6 +23,7 @@ from actions import (
     TweenUntil,
     duration,
     infinite,
+    repeat,
     sequence,
 )
 
@@ -112,20 +113,14 @@ class StarfieldView(arcade.View):
         )
         wrapping_action.apply(self.star_list)
 
-        # Action 2: A recursive function that creates and applies the main animation loop.
-        def create_main_loop():
-            """Build and apply the full, looping animation sequence."""
-
-            def on_loop_complete(data=None):
-                # When the full sequence is done, call this function again to restart.
-                create_main_loop()
-
-            # The sequence of actions that control the starfield's velocity.
-            # Uses TweenUntil to directly set velocity values (change_y property)
-            # This is correct because we need precise velocity transitions, not smooth
-            # acceleration into continuous movement (which would use Ease wrapper)
-            control_sequence = sequence(
-                # 1. Start at 0 speed for 2 seconds.
+        # Action 2: The main animation loop using repeat action.
+        # The sequence of actions that control the starfield's velocity.
+        # Uses TweenUntil to directly set velocity values (change_y property)
+        # This is correct because we need precise velocity transitions, not smooth
+        # acceleration into continuous movement (which would use Ease wrapper)
+        control_sequence = repeat(
+            sequence(
+                # 1. Start at 0 speed for 1 second.
                 DelayUntil(duration(1.0)),
                 # 2. Accelerate to forward speed (-4) over 2 seconds.
                 TweenUntil(
@@ -135,9 +130,9 @@ class StarfieldView(arcade.View):
                     condition=duration(2.0),
                     ease_function=arcade.easing.ease_in,
                 ),
-                # 3. Hold forward speed for 10 seconds.
+                # 3. Hold forward speed for 5 seconds.
                 DelayUntil(duration(5.0)),
-                # 4. Accelerate to reverse speed (20, which is 5x forward) over 0.5s.
+                # 4. Accelerate to reverse speed (14, which is 3.5x forward) over 0.5s.
                 TweenUntil(
                     start_value=-4,
                     end_value=14,
@@ -145,23 +140,20 @@ class StarfieldView(arcade.View):
                     condition=duration(0.5),
                     ease_function=arcade.easing.ease_out,
                 ),
-                # 5. Hold reverse speed for 2.5 seconds.
+                # 5. Hold reverse speed for 1.5 seconds.
                 DelayUntil(duration(1.5)),
                 # 6. Decelerate from reverse speed back to 0 over 2 seconds.
                 #    When this action completes, it will trigger the callback to loop.
                 TweenUntil(
-                    start_value=20,
+                    start_value=14,
                     end_value=0,
                     property_name="change_y",
                     condition=duration(2.0),
                     ease_function=arcade.easing.ease_out,
-                    on_stop=on_loop_complete,
                 ),
             )
-            control_sequence.apply(self.star_list)
-
-        # Kick off the first iteration of the animation loop.
-        create_main_loop()
+        )
+        control_sequence.apply(self.star_list)
 
     # ---------------------------------------------------------------------
     # Arcade callbacks

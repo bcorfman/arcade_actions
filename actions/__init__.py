@@ -22,7 +22,7 @@ Actions available:
 from .base import Action
 
 # Composition functions
-from .composite import parallel, sequence
+from .composite import parallel, repeat, sequence
 
 # Conditional actions
 from .conditional import (
@@ -78,7 +78,6 @@ from .pattern import (
     create_formation_entry_from_sprites,
     create_orbit_pattern,
     create_patrol_pattern,
-    create_smooth_zigzag_pattern,
     create_spiral_pattern,
     create_wave_pattern,
     create_zigzag_pattern,
@@ -105,6 +104,7 @@ __all__ = [
     # Composition functions
     "sequence",
     "parallel",
+    "repeat",
     # Formation arrangement functions
     "arrange_arc",
     "arrange_arrow",
@@ -121,7 +121,6 @@ __all__ = [
     "create_formation_entry_from_sprites",
     "create_zigzag_pattern",
     "create_wave_pattern",
-    "create_smooth_zigzag_pattern",
     "create_spiral_pattern",
     "create_figure_eight_pattern",
     "create_orbit_pattern",

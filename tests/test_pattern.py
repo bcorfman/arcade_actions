@@ -6,14 +6,13 @@ import arcade
 
 from actions.base import Action
 from actions.composite import sequence
-from actions.conditional import DelayUntil, FadeUntil, duration
+from actions.conditional import DelayUntil, FadeUntil, ParametricMotionUntil, duration
 from actions.formation import arrange_circle, arrange_grid, arrange_line
 from actions.pattern import (
     create_bounce_pattern,
     create_figure_eight_pattern,
     create_orbit_pattern,
     create_patrol_pattern,
-    create_smooth_zigzag_pattern,
     create_spiral_pattern,
     create_wave_pattern,
     create_zigzag_pattern,
@@ -127,40 +126,6 @@ class TestZigzagPattern:
 
         assert len(pattern_2.actions) == 2
         assert len(pattern_6.actions) == 6
-
-
-class TestWavePattern:
-    """Test suite for wave movement pattern."""
-
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_create_wave_pattern_basic(self):
-        """Test basic wave pattern creation."""
-        pattern = create_wave_pattern(amplitude=50, frequency=2, length=400, speed=200)
-
-        # Should return a FollowPathUntil action
-        assert hasattr(pattern, "control_points")
-        assert len(pattern.control_points) >= 8  # Should have multiple points
-
-    def test_create_wave_pattern_application(self):
-        """Test applying wave pattern to sprite."""
-        sprite = create_test_sprite()
-
-        pattern = create_wave_pattern(amplitude=30, frequency=1, length=200, speed=100)
-        pattern.apply(sprite, tag="wave_test")
-
-        # Verify pattern was applied
-        assert pattern.target == sprite
-        assert pattern.tag == "wave_test"
-
-    def test_create_wave_pattern_frequency_affects_points(self):
-        """Test that higher frequency creates more control points."""
-        low_freq = create_wave_pattern(amplitude=50, frequency=1, length=400, speed=200)
-        high_freq = create_wave_pattern(amplitude=50, frequency=3, length=400, speed=200)
-
-        assert len(high_freq.control_points) > len(low_freq.control_points)
 
 
 class TestSpiralPattern:
@@ -341,32 +306,6 @@ class TestPatrolPattern:
         assert len(pattern.actions) == 2
 
 
-class TestSmoothZigzagPattern:
-    """Test suite for smooth zigzag movement pattern."""
-
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_create_smooth_zigzag_pattern_basic(self):
-        """Test smooth zigzag pattern creation."""
-        pattern = create_smooth_zigzag_pattern(dimensions=(100, 50), speed=150, ease_duration=1.0)
-
-        # Should return an Ease action wrapping a zigzag
-        assert hasattr(pattern, "wrapped_action")
-        assert hasattr(pattern, "easing_duration")
-        assert pattern.easing_duration == 1.0
-
-    def test_create_smooth_zigzag_pattern_application(self):
-        """Test applying smooth zigzag pattern to sprite."""
-        sprite = create_test_sprite()
-
-        pattern = create_smooth_zigzag_pattern(dimensions=(80, 40), speed=120, ease_duration=0.5)
-        pattern.apply(sprite, tag="smooth_zigzag_test")
-
-        assert pattern.target == sprite
-
-
 class TestPatternIntegration:
     """Test suite for integration between patterns and other actions."""
 
@@ -381,7 +320,7 @@ class TestPatternIntegration:
         sprites = arrange_line(count=3, start_x=100, start_y=200, spacing=50)
 
         # Apply wave pattern to entire formation
-        wave = create_wave_pattern(amplitude=30, frequency=1, length=300, speed=150)
+        wave = create_wave_pattern(amplitude=30, length=300, speed=150)
         wave.apply(sprites, tag="formation_wave")
 
         assert wave.target == sprites
@@ -427,7 +366,7 @@ class TestPatternIntegration:
         sprite = create_test_sprite()
 
         # Apply different patterns with different tags (this would conflict in real usage)
-        wave = create_wave_pattern(amplitude=20, frequency=1, length=200, speed=100)
+        wave = create_wave_pattern(amplitude=20, length=200, speed=100)
         spiral = create_spiral_pattern(center=(300, 300), max_radius=80, revolutions=1, speed=120)
 
         wave.apply(sprite, tag="wave_movement")
@@ -458,3 +397,71 @@ class TestPatternIntegration:
         circle_hidden = arrange_circle(count=4, center_x=200, center_y=200, radius=50, visible=False)
         for sprite in circle_hidden:
             assert not sprite.visible
+
+
+# ------------------ ParametricMotionUntil & Wave pattern (new API) ------------------
+
+import pytest
+
+try:
+    import arcade
+except ImportError:  # pragma: no cover
+    arcade = None  # Skip tests if arcade unavailable
+
+pytestmark = pytest.mark.skipif(arcade is None, reason="arcade library not available")
+
+
+def _simulate_until_done(action, max_steps=300, dt=1 / 60):
+    steps = 0
+    while not action.done and steps < max_steps:
+        Action.update_all(dt)
+        steps += 1
+    assert action.done
+
+
+def test_parametric_motion_single_sprite_new():
+    sprite = arcade.Sprite()
+    sprite.center_x = 20
+    sprite.center_y = 30
+    dx, dy = 100, 50
+
+    def offset(t):
+        return dx * t, dy * t
+
+    act = ParametricMotionUntil(offset, duration(1.0)).apply(sprite)
+    _simulate_until_done(act, max_steps=65)
+    assert math.isclose(sprite.center_x, 20 + dx, abs_tol=1e-3)
+    assert math.isclose(sprite.center_y, 30 + dy, abs_tol=1e-3)
+
+
+def test_wave_pattern_sprite_list_new():
+    sprites = arcade.SpriteList()
+    originals = [(0, 0), (50, 25), (-80, -30)]
+    for x, y in originals:
+        s = arcade.Sprite()
+        s.center_x, s.center_y = x, y
+        sprites.append(s)
+
+    amplitude, length, speed = 10, 60, 60
+    act = create_wave_pattern(amplitude, length, speed).apply(sprites)
+    # Wave pattern timing: half wave (length/2/speed) + full wave (2*length/speed) = 2.5*length/speed
+    total_time = 2.5 * length / speed
+    _simulate_until_done(act, max_steps=int(total_time * 60 + 5))
+
+    for (ox, oy), spr in zip(originals, sprites, strict=False):
+        assert math.isclose(spr.center_x, ox, abs_tol=1e-3)
+        assert math.isclose(spr.center_y, oy, abs_tol=1e-3)
+
+
+def test_wave_sequence_returns_origin():
+    sprite = arcade.Sprite()
+    sprite.center_x, sprite.center_y = 100, 200
+    wave = create_wave_pattern(15, 40, 40)
+    from actions.composite import sequence
+
+    seq = sequence(wave.clone(), wave.clone()).apply(sprite)
+    # Two wave patterns: each takes 2.5*length/speed time
+    total_time = 2 * 2.5 * 40 / 40
+    _simulate_until_done(seq, max_steps=int(total_time * 60 + 5))
+    assert math.isclose(sprite.center_x, 100, abs_tol=1e-3)
+    assert math.isclose(sprite.center_y, 200, abs_tol=1e-3)

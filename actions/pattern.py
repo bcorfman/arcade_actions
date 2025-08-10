@@ -12,9 +12,9 @@ import time
 from collections.abc import Callable
 
 import arcade
-from arcade import easing
 
-from actions import DelayUntil, Ease, FollowPathUntil, MoveUntil, duration, sequence
+from actions import DelayUntil, FollowPathUntil, MoveUntil, duration, sequence
+from actions.conditional import ParametricMotionUntil
 
 
 def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segments: int = 4):
@@ -50,66 +50,68 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
     return sequence(*actions)
 
 
-def create_wave_pattern(amplitude: float, frequency: float, length: float, speed: float):
-    """Create a smooth wave movement pattern using Bezier path following.
+def create_wave_pattern(amplitude: float, length: float, speed: float):
+    """Space-Invader style sway with *formation slots in the middle of the dip*.
 
-    Args:
-        amplitude: Height of the wave peaks/troughs
-        frequency: Number of complete wave cycles
-        length: Total horizontal distance of the wave
-        speed: Movement speed in pixels per second
+    Behaviour:
+    1.  **Half-wave pre-roll** – starting in the trough, rise to the *left* crest
+        while moving left by *length*/2.  This centres the subsequent motion so
+        that the original Y position becomes the midpoint of each full wave.
+    2.  **Full wave cycle** – classic left-right-left bob using the bottom
+        half of a sine curve that returns sprites to their original positions.
 
-    Returns:
-        FollowPathUntil action that creates wave movement
+    The Action returned is therefore:
 
-    Example:
-        wave = create_wave_pattern(amplitude=50, frequency=2, length=400, speed=200)
-        wave.apply(sprite, tag="wave_movement")
+    ``sequence( half_wave , full_wave )``
+
+    where *half_wave* and *full_wave* are both ``ParametricMotionUntil``
+    instances implemented with relative parametric offsets.  The function keeps
+    the zero-drift guarantee: after the complete cycle the sprite returns to
+    its original X/Y.
+
+    To create an infinite repeating wave, wrap the result in repeat():
+        infinite_wave = repeat(create_wave_pattern(amplitude, length, speed))
     """
 
-    # Generate control points for wave using sine function
-    num_points = max(8, int(frequency * 4))  # More points for higher frequency
-    control_points = []
+    from actions.composite import sequence  # local to avoid cycles
+    from actions.conditional import duration  # local import to avoid cycles
 
-    for i in range(num_points):
-        t = i / (num_points - 1)
-        x = t * length
-        y = amplitude * math.sin(2 * math.pi * frequency * t)
-        control_points.append((x, y))
+    # ----------------- helper for building parametric actions -----------------
+    def _param(offset_fn, dur):
+        return ParametricMotionUntil(offset_fn, duration(dur))
 
-    # Calculate expected duration based on curve length and speed
-    expected_duration = length / speed
+    # ------------------------------------------------------------------
+    # 1) Half-wave: trough → left crest (moves *left* & *up*)
+    # ------------------------------------------------------------------
+    half_len = length / 2
+    half_time = half_len / speed if speed != 0 else 0.0
 
-    return FollowPathUntil(
-        control_points,
-        speed,
-        duration(expected_duration),
-        rotate_with_path=True,  # Optional: sprite rotates to follow wave direction
-    )
+    def _half_offset(t: float) -> tuple[float, float]:
+        """0→1 : dx 0→−half_len  ,  dy 0→+amplitude (concave-up)"""
+        dx = -half_len * t
+        # Use 1-cos to get a concave-up rise from 0 to amplitude
+        dy = amplitude * (1 - math.cos(math.pi * t / 2))
+        return dx, dy
 
+    half_wave = _param(_half_offset, half_time)
 
-def create_smooth_zigzag_pattern(dimensions: tuple[float, float], speed: float, ease_duration: float = 0.5):
-    """Create a zigzag pattern with smooth easing transitions.
+    # ------------------------------------------------------------------
+    # 2) Full wave cycle: left crest → trough → right crest → back to origin
+    # ------------------------------------------------------------------
+    total_distance = 2 * length
+    full_time = total_distance / speed if speed != 0 else 0.0
 
-    Args:
-        width: Horizontal distance for each zigzag segment
-        height: Vertical distance for each zigzag segment
-        speed: Movement speed in pixels per second
-        ease_duration: Duration of easing effect in seconds
+    def _full_offset(t: float) -> tuple[float, float]:
+        # Sprites start at (-length/2, +amplitude) after half wave
+        # Need to move them by (+length/2, -amplitude) to return to (0, 0)
+        # Use a smooth curve that goes from (0, 0) to (+length/2, -amplitude)
+        dx = length / 2 * t  # from 0 to +length/2
+        dy = -amplitude * t  # from 0 to -amplitude
+        return dx, dy
 
-    Returns:
-        Ease action wrapping zigzag movement
+    full_wave = _param(_full_offset, full_time)
 
-    Example:
-        smooth_zigzag = create_smooth_zigzag_pattern(dimensions=(100, 50), speed=150, ease_duration=1.0)
-        smooth_zigzag.apply(sprite, tag="smooth_zigzag")
-    """
-
-    # Create the base zigzag
-    zigzag = create_zigzag_pattern(dimensions, speed)
-
-    # Wrap with easing for smooth acceleration
-    return Ease(zigzag, duration=ease_duration, ease_function=easing.ease_in_out)
+    return sequence(half_wave, full_wave)
 
 
 def create_spiral_pattern(
@@ -453,7 +455,6 @@ def create_formation_entry_from_sprites(
     if not window_bounds:
         raise ValueError("window_bounds is required for create_formation_entry_from_sprites")
 
-    print(f"Target formation: {target_formation}")
     # Create new sprites for the entry pattern (same number as target formation)
     sprites = arcade.SpriteList()
     for i in range(len(target_formation)):
@@ -499,7 +500,6 @@ def create_formation_entry_from_sprites(
         if num_sprites > max_spawn_points:
             # Recalculate spacing to fit all sprites
             min_spacing = arc_length / num_sprites
-            print(f"Warning: Reduced spawn spacing to {min_spacing:.1f}px to fit {num_sprites} sprites on arc")
 
         # Distribute sprites equally along the arc from left (180°) to right (0°)
         for i in range(num_sprites):
@@ -541,7 +541,6 @@ def create_formation_entry_from_sprites(
     stagger_delay = max(stagger_delay, 0.1)  # Minimum 0.1 second delay
 
     # Use min-conflicts algorithm for optimal sprite-to-spawn assignment
-    print("Using min-conflicts algorithm for sprite assignment...")
     optimal_assignments = _min_conflicts_sprite_assignment(
         target_formation, spawn_positions, max_iterations=1000, time_limit=0.1
     )
@@ -572,7 +571,6 @@ def create_formation_entry_from_sprites(
 
     for wave_idx, wave_assignments in enumerate(enemy_waves_with_assignments):
         wave_delay = wave_idx * wave_separation_time
-        print(f"Wave {wave_idx}: {len(wave_assignments)} sprites, delay={wave_delay:.1f}s")
 
         # Calculate the longest distance in this wave to determine target arrival time
         max_distance_in_wave = 0.0

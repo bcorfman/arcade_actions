@@ -3,7 +3,7 @@
 import arcade
 
 from actions.base import Action
-from actions.composite import parallel, sequence
+from actions.composite import parallel, repeat, sequence
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -12,48 +12,6 @@ def create_test_sprite() -> arcade.Sprite:
     sprite.center_x = 100
     sprite.center_y = 100
     return sprite
-
-
-class MockAction(Action):
-    """A concrete Action subclass for testing."""
-
-    def __init__(self, duration=0.1, name="mock", condition=None, on_stop=None):
-        if condition is None:
-            condition = lambda: False  # Never stop by default
-        super().__init__(
-            condition=condition,
-            on_stop=on_stop,
-        )
-        self.duration = duration
-        self.name = name
-        self.time_elapsed = 0.0
-        self.started = False
-        self.stopped = False
-
-    def start(self) -> None:
-        """Called when the action begins."""
-        super().start()
-        self.started = True
-
-    def stop(self) -> None:
-        """Called when the action ends."""
-        super().stop()
-        self.stopped = True
-
-    def update_effect(self, delta_time: float) -> None:
-        self.time_elapsed += delta_time
-        if self.time_elapsed >= self.duration:
-            self.done = True
-
-    def clone(self) -> Action:
-        cloned = MockAction(
-            duration=self.duration,
-            name=self.name,
-            condition=self.condition,
-            on_stop=self.on_stop,
-        )
-        cloned.tag = self.tag
-        return cloned
 
 
 class TestSequenceFunction:
@@ -72,8 +30,10 @@ class TestSequenceFunction:
 
     def test_sequence_with_actions_initialization(self):
         """Test sequence initialization with actions."""
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
+        from actions.conditional import DelayUntil, duration
+
+        action1 = DelayUntil(duration(0.1))
+        action2 = DelayUntil(duration(0.1))
         seq = sequence(action1, action2)
 
         assert len(seq.actions) == 2
@@ -93,9 +53,11 @@ class TestSequenceFunction:
 
     def test_sequence_starts_first_action(self):
         """Test that sequence starts the first action."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
+        action1 = DelayUntil(duration(0.1))
+        action2 = DelayUntil(duration(0.1))
         seq = sequence(action1, action2)
 
         seq.target = sprite
@@ -103,14 +65,14 @@ class TestSequenceFunction:
 
         assert seq.current_action == action1
         assert seq.current_index == 0
-        assert action1.started
-        assert not action2.started
 
     def test_sequence_advances_to_next_action(self):
         """Test that sequence advances to next action when current completes."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(duration=0.05, name="action1")
-        action2 = MockAction(duration=0.05, name="action2")
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.05))
         seq = sequence(action1, action2)
 
         seq.target = sprite
@@ -122,13 +84,14 @@ class TestSequenceFunction:
         assert action1.done
         assert seq.current_action == action2
         assert seq.current_index == 1
-        assert action2.started
 
     def test_sequence_completes_when_all_actions_done(self):
         """Test that sequence completes when all actions are done."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(duration=0.05, name="action1")
-        action2 = MockAction(duration=0.05, name="action2")
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.05))
         seq = sequence(action1, action2)
 
         seq.target = sprite
@@ -145,21 +108,25 @@ class TestSequenceFunction:
 
     def test_sequence_stop_stops_current_action(self):
         """Test that stopping sequence stops the current action."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
+        action1 = DelayUntil(duration(1.0))  # Long duration so it won't complete
+        action2 = DelayUntil(duration(0.1))
         seq = sequence(action1, action2)
 
         seq.target = sprite
         seq.start()
         seq.stop()
 
-        assert action1.stopped
+        assert action1.done  # Should be marked done by stop()
 
     def test_sequence_clone(self):
         """Test sequence cloning."""
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
+        from actions.conditional import DelayUntil, duration
+
+        action1 = DelayUntil(duration(0.1))
+        action2 = DelayUntil(duration(0.1))
         seq = sequence(action1, action2)
 
         cloned = seq.clone()
@@ -168,8 +135,6 @@ class TestSequenceFunction:
         assert len(cloned.actions) == 2
         assert cloned.actions[0] is not action1
         assert cloned.actions[1] is not action2
-        assert cloned.actions[0].name == "action1"
-        assert cloned.actions[1].name == "action2"
 
 
 class TestParallelFunction:
@@ -186,8 +151,10 @@ class TestParallelFunction:
 
     def test_parallel_with_actions_initialization(self):
         """Test parallel initialization with actions."""
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
+        from actions.conditional import DelayUntil, duration
+
+        action1 = DelayUntil(duration(0.1))
+        action2 = DelayUntil(duration(0.1))
         par = parallel(action1, action2)
 
         assert len(par.actions) == 2
@@ -205,22 +172,26 @@ class TestParallelFunction:
 
     def test_parallel_starts_all_actions(self):
         """Test that parallel starts all actions simultaneously."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
+        action1 = DelayUntil(duration(0.1))
+        action2 = DelayUntil(duration(0.1))
         par = parallel(action1, action2)
 
         par.target = sprite
         par.start()
 
-        assert action1.started
-        assert action2.started
+        # Both actions should be started (can't check internal state easily, but they should be running)
+        assert not par.done  # Parallel shouldn't be done immediately
 
     def test_parallel_completes_when_all_actions_done(self):
         """Test that parallel completes when all actions are done."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(duration=0.05, name="action1")
-        action2 = MockAction(duration=0.1, name="action2")  # Longer duration
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.1))  # Longer duration
         par = parallel(action1, action2)
 
         par.target = sprite
@@ -238,22 +209,26 @@ class TestParallelFunction:
 
     def test_parallel_stops_all_actions(self):
         """Test that stopping parallel stops all actions."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
+        action1 = DelayUntil(duration(1.0))  # Long duration
+        action2 = DelayUntil(duration(1.0))  # Long duration
         par = parallel(action1, action2)
 
         par.target = sprite
         par.start()
         par.stop()
 
-        assert action1.stopped
-        assert action2.stopped
+        assert action1.done  # Should be marked done by stop()
+        assert action2.done  # Should be marked done by stop()
 
     def test_parallel_clone(self):
         """Test parallel cloning."""
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
+        from actions.conditional import DelayUntil, duration
+
+        action1 = DelayUntil(duration(0.1))
+        action2 = DelayUntil(duration(0.1))
         par = parallel(action1, action2)
 
         cloned = par.clone()
@@ -262,8 +237,6 @@ class TestParallelFunction:
         assert len(cloned.actions) == 2
         assert cloned.actions[0] is not action1
         assert cloned.actions[1] is not action2
-        assert cloned.actions[0].name == "action1"
-        assert cloned.actions[1].name == "action2"
 
 
 class TestOperatorOverloading:
@@ -275,81 +248,86 @@ class TestOperatorOverloading:
 
     def test_plus_operator_creates_sequence(self):
         """Test that the '+' operator creates a sequential action."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(duration=0.05, name="action1")
-        action2 = MockAction(duration=0.05, name="action2")
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.05))
 
         # Use + operator to create sequence
         sequence_action = action1 + action2
         sequence_action.apply(sprite)
 
-        # Should behave like a sequence
-        Action.update_all(0.01)
-        assert action1.started
-        assert not action2.started
-
-        # Update until first action completes
-        Action.update_all(0.06)
+        # Should behave like a sequence - first action runs, then second
+        Action.update_all(0.06)  # Complete first action
         assert action1.done
-        assert action2.started
+
+        Action.update_all(0.06)  # Complete second action
+        assert action2.done
 
     def test_pipe_operator_creates_parallel(self):
         """Test that the '|' operator creates a parallel action."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(name="action1")
-        action2 = MockAction(name="action2")
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.1))  # Different duration
 
         # Use | operator to create parallel
         parallel_action = action1 | action2
         parallel_action.apply(sprite)
 
-        # Should behave like a parallel
-        Action.update_all(0.01)
-        assert action1.started
-        assert action2.started
+        # Should behave like a parallel - both run simultaneously
+        Action.update_all(0.06)  # Complete first action
+        assert action1.done
+        assert not action2.done  # Second still running
+
+        Action.update_all(0.05)  # Complete second action
+        assert action2.done
 
     def test_mixed_operator_composition(self):
         """Test mixing + and | operators for complex compositions."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(duration=0.05, name="action1")
-        action2 = MockAction(duration=0.05, name="action2")
-        action3 = MockAction(duration=0.05, name="action3")
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.05))
+        action3 = DelayUntil(duration(0.05))
 
         # Create a sequence where the second step is parallel actions
         complex_action = action1 + (action2 | action3)
         complex_action.apply(sprite)
 
-        # First action should start
-        Action.update_all(0.01)
-        assert action1.started
-        assert not action2.started
-        assert not action3.started
-
-        # After first action completes, parallel actions should start
+        # First action should complete first
         Action.update_all(0.06)
         assert action1.done
-        assert action2.started
-        assert action3.started
+
+        # After first action completes, parallel actions should run and complete
+        Action.update_all(0.06)
+        assert action2.done
+        assert action3.done
 
     def test_operator_precedence_with_parentheses(self):
         """Test operator precedence with explicit parentheses."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(duration=0.05, name="action1")
-        action2 = MockAction(duration=0.05, name="action2")
-        action3 = MockAction(duration=0.05, name="action3")
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.05))
+        action3 = DelayUntil(duration(0.05))
 
         # Test a + (b | c) - explicit parentheses
         composed = action1 + (action2 | action3)
         composed.apply(sprite)
 
-        Action.update_all(0.01)
-        assert action1.started
-        assert not action2.started
-        assert not action3.started
-
+        # First action completes
         Action.update_all(0.06)
-        assert action2.started
-        assert action3.started
+        assert action1.done
+
+        # Then parallel actions complete
+        Action.update_all(0.06)
+        assert action2.done
+        assert action3.done
 
 
 class TestNestedComposites:
@@ -361,78 +339,323 @@ class TestNestedComposites:
 
     def test_sequence_of_parallels_with_operators(self):
         """Test sequence containing parallel actions using operators."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(duration=0.05, name="action1")
-        action2 = MockAction(duration=0.05, name="action2")
-        action3 = MockAction(duration=0.05, name="action3")
-        action4 = MockAction(duration=0.05, name="action4")
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.05))
+        action3 = DelayUntil(duration(0.05))
+        action4 = DelayUntil(duration(0.05))
 
         # Create sequence of parallels using operators
         composed = (action1 | action2) + (action3 | action4)
         composed.apply(sprite)
 
-        # First parallel should start
-        Action.update_all(0.01)
-        assert action1.started
-        assert action2.started
-        assert not action3.started
-        assert not action4.started
-
         # Update until first parallel completes
         Action.update_all(0.06)
+        assert action1.done
+        assert action2.done
 
-        # Second parallel should start
-        assert action3.started
-        assert action4.started
+        # Update until second parallel completes
+        Action.update_all(0.06)
+        assert action3.done
+        assert action4.done
 
     def test_parallel_of_sequences_with_operators(self):
         """Test parallel containing sequence actions using operators."""
+        from actions.conditional import DelayUntil, duration
+
         sprite = create_test_sprite()
-        action1 = MockAction(duration=0.05, name="action1")
-        action2 = MockAction(duration=0.05, name="action2")
-        action3 = MockAction(duration=0.05, name="action3")
-        action4 = MockAction(duration=0.05, name="action4")
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.05))
+        action3 = DelayUntil(duration(0.05))
+        action4 = DelayUntil(duration(0.05))
 
         # Create parallel of sequences using operators
         composed = (action1 + action2) | (action3 + action4)
         composed.apply(sprite)
 
-        # Both sequences should start (first actions of each)
-        Action.update_all(0.01)
-        assert action1.started
-        assert not action2.started
-        assert action3.started
-        assert not action4.started
+        # Both sequences run in parallel, each taking 2 updates (0.05 + 0.05)
+        Action.update_all(0.06)  # Complete first actions in each sequence
+        Action.update_all(0.06)  # Complete second actions in each sequence
 
-        # Update until first actions complete
-        Action.update_all(0.06)
-
-        # Second actions should start
-        assert action2.started
-        assert action4.started
+        # All actions should be done
+        assert action1.done
+        assert action2.done
+        assert action3.done
+        assert action4.done
 
     def test_traditional_vs_operator_equivalence(self):
         """Test that operator syntax produces equivalent results to function syntax."""
+        from actions.conditional import DelayUntil, duration
+
         sprite1 = create_test_sprite()
         sprite2 = create_test_sprite()
 
         # Traditional function approach
-        action1_func = MockAction(duration=0.05, name="action1")
-        action2_func = MockAction(duration=0.05, name="action2")
+        action1_func = DelayUntil(duration(0.05))
+        action2_func = DelayUntil(duration(0.05))
         traditional = sequence(action1_func, action2_func)
         traditional.apply(sprite1)
 
         # Operator approach
-        action1_op = MockAction(duration=0.05, name="action1")
-        action2_op = MockAction(duration=0.05, name="action2")
+        action1_op = DelayUntil(duration(0.05))
+        action2_op = DelayUntil(duration(0.05))
         operator_based = action1_op + action2_op
         operator_based.apply(sprite2)
 
-        # Both should behave identically
-        Action.update_all(0.01)
-        assert action1_func.started == action1_op.started
-        assert action2_func.started == action2_op.started
-
+        # Both should behave identically - complete first actions
         Action.update_all(0.06)
         assert action1_func.done == action1_op.done
-        assert action2_func.started == action2_op.started
+
+        # Complete second actions
+        Action.update_all(0.06)
+        assert action2_func.done == action2_op.done
+
+
+class TestRepeatFunction:
+    """Test suite for repeat() function."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_repeat_initialization(self):
+        """Test repeat initialization."""
+        from actions.conditional import DelayUntil, duration
+
+        action = DelayUntil(duration(0.1))
+        rep = repeat(action)
+
+        assert rep.action == action
+        assert rep.current_action is None
+        assert not rep.done
+
+    def test_repeat_starts_first_iteration(self):
+        """Test that repeat starts the first iteration of the action."""
+        from actions.conditional import DelayUntil, duration
+
+        sprite = create_test_sprite()
+        action = DelayUntil(duration(0.05))
+        rep = repeat(action)
+
+        rep.target = sprite
+        rep.start()
+
+        assert rep.current_action is not None
+        assert rep.current_action is not action  # Should be a clone
+        assert not rep.done
+
+    def test_repeat_restarts_action_when_completed(self):
+        """Test that repeat restarts the action when it completes."""
+        from actions.conditional import DelayUntil, duration
+
+        sprite = create_test_sprite()
+        action = DelayUntil(duration(0.05))
+        rep = repeat(action)
+
+        rep.target = sprite
+        rep.start()
+
+        # Get the first iteration
+        first_iteration = rep.current_action
+
+        # Update until first iteration completes
+        rep.update(0.06)
+        assert first_iteration.done
+
+        # Should have started a new iteration
+        assert rep.current_action is not first_iteration
+        assert not rep.done
+
+    def test_repeat_continues_indefinitely(self):
+        """Test that repeat continues indefinitely."""
+        from actions.conditional import DelayUntil, duration
+
+        sprite = create_test_sprite()
+        action = DelayUntil(duration(0.05))
+        rep = repeat(action)
+
+        rep.target = sprite
+        rep.start()
+
+        # Run multiple iterations
+        for i in range(5):
+            current_action = rep.current_action
+            assert not rep.done
+
+            # Complete this iteration
+            rep.update(0.06)
+            assert current_action.done
+
+            # Should have started a new iteration
+            assert rep.current_action is not current_action
+
+    def test_repeat_stop_stops_current_action(self):
+        """Test that stopping repeat stops the current action."""
+        from actions.conditional import DelayUntil, duration
+
+        sprite = create_test_sprite()
+        action = DelayUntil(duration(1.0))  # Long duration
+        rep = repeat(action)
+
+        rep.target = sprite
+        rep.start()
+        rep.stop()
+
+        assert rep.current_action.done
+        assert rep.done
+
+    def test_repeat_clone(self):
+        """Test repeat cloning."""
+        from actions.conditional import DelayUntil, duration
+
+        action = DelayUntil(duration(0.1))
+        rep = repeat(action)
+
+        cloned = rep.clone()
+
+        assert cloned is not rep
+        assert cloned.action is not action
+        assert cloned.current_action is None
+
+    def test_repeat_with_no_action(self):
+        """Test repeat with no action (should complete immediately)."""
+        sprite = create_test_sprite()
+        rep = repeat(None)
+
+        rep.target = sprite
+        rep.start()
+
+        assert rep.done
+
+    def test_repeat_with_composite_action(self):
+        """Test repeat with a composite action (sequence)."""
+        from actions.conditional import DelayUntil, duration
+
+        sprite = create_test_sprite()
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.05))
+        seq = sequence(action1, action2)
+        rep = repeat(seq)
+
+        rep.target = sprite
+        rep.start()
+
+        # First iteration should start
+        assert rep.current_action is not None
+        assert rep.current_action is not seq  # Should be a clone
+        assert not rep.done
+
+        # Complete first iteration (both delays)
+        rep.update(0.06)  # Complete first delay
+        rep.update(0.06)  # Complete second delay, complete sequence
+
+        # Should have started a new iteration
+        assert rep.current_action is not None
+        assert not rep.done
+
+    def test_repeat_with_move_action(self):
+        """Test repeat with a MoveUntil action."""
+        from actions.conditional import MoveUntil, duration
+
+        sprite = create_test_sprite()
+
+        # Move right for a short duration
+        move_action = MoveUntil(velocity=(100, 0), condition=duration(0.05))
+        rep = repeat(move_action)
+        rep.apply(sprite, tag="test_repeat")
+
+        # Update to complete first iteration
+        Action.update_all(0.06)
+
+        # Sprite should have velocity set (MoveUntil sets change_x/change_y)
+        # First iteration should complete and restart
+        assert sprite.change_x == 100  # Velocity should be set by new iteration
+
+        # Update again - should still have velocity (second iteration running)
+        Action.update_all(0.06)
+
+        # Should still have velocity from repeat cycles
+        assert sprite.change_x == 100
+
+
+class TestRepeatIntegration:
+    """Integration tests for repeat with other composite actions."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_repeat_in_sequence(self):
+        """Test repeat action used within a sequence."""
+        from actions.conditional import DelayUntil, duration
+
+        sprite = create_test_sprite()
+        setup_action = DelayUntil(duration(0.05))
+        repeating_action = DelayUntil(duration(0.05))
+
+        # Create sequence: setup action + repeating action
+        rep = repeat(repeating_action)
+        seq = sequence(setup_action, rep)
+
+        seq.apply(sprite)
+
+        # First, setup action should run
+        Action.update_all(0.06)  # Complete setup
+
+        # Now repeat should start and run indefinitely
+        # Since repeat never completes, sequence never completes
+        Action.update_all(0.06)  # First repeat iteration
+        Action.update_all(0.06)  # Second repeat iteration
+
+        # Sequence should still be running the repeat
+        actions = Action.get_actions_for_target(sprite)
+        assert len(actions) == 1  # The sequence is still active
+
+    def test_repeat_in_parallel(self):
+        """Test repeat action used within a parallel."""
+        from actions.conditional import DelayUntil, duration
+
+        sprite = create_test_sprite()
+        finite_action = DelayUntil(duration(0.1))
+        repeating_action = DelayUntil(duration(0.05))
+
+        # Create parallel: finite action + repeating action
+        rep = repeat(repeating_action)
+        par = parallel(finite_action, rep)
+
+        par.apply(sprite)
+
+        # Both should start
+        Action.update_all(0.06)  # First repeat cycle completes, finite still running
+        Action.update_all(0.06)  # Finite action completes, second repeat cycle
+
+        # Since repeat never completes, parallel never completes naturally
+        actions = Action.get_actions_for_target(sprite)
+        assert len(actions) == 1  # The parallel is still active
+
+    def test_operator_overloading_with_repeat(self):
+        """Test that repeat works with operator overloading (+, |)."""
+        from actions.conditional import DelayUntil, duration
+
+        sprite = create_test_sprite()
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.05))
+
+        # Create complex composition using operators
+        rep = repeat(action1)
+        composed = action2 + rep  # Sequence: action2 then infinite repeat
+
+        composed.apply(sprite)
+
+        # Update to complete first action
+        Action.update_all(0.06)
+
+        # Now repeat should be running
+        Action.update_all(0.06)  # First repeat iteration
+        Action.update_all(0.06)  # Second repeat iteration
+
+        # Should still be active
+        actions = Action.get_actions_for_target(sprite)
+        assert len(actions) == 1

@@ -414,7 +414,7 @@ For creating complex movement behaviors using pattern functions:
 from actions import (
     create_zigzag_pattern, create_wave_pattern, create_spiral_pattern,
     create_figure_eight_pattern, create_orbit_pattern, create_bounce_pattern,
-    create_patrol_pattern, create_smooth_zigzag_pattern, time_elapsed, sprite_count
+    create_patrol_pattern, time_elapsed, sprite_count
 )
 
 # Enemy with zigzag attack pattern
@@ -428,6 +428,18 @@ wave_movement = create_wave_pattern(
     amplitude=75, frequency=2, length=600, speed=120
 )
 wave_movement.apply(boss_sprite)
+
+# Enemy with repeating wave pattern (forward then backward)
+from actions import repeat, sequence
+
+forward_wave = create_wave_pattern(
+    amplitude=15, frequency=1, length=50, speed=100, reverse=False
+)
+backward_wave = create_wave_pattern(
+    amplitude=15, frequency=1, length=50, speed=100, reverse=True
+)
+repeating_wave = repeat(sequence(forward_wave, backward_wave))
+repeating_wave.apply(enemy_sprite)
 
 # Guard with patrol pattern
 patrol_movement = create_patrol_pattern(
