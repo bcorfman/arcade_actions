@@ -12,9 +12,8 @@ import time
 from collections.abc import Callable
 
 import arcade
-from arcade import easing
 
-from actions import DelayUntil, Ease, FollowPathUntil, MoveUntil, duration, sequence
+from actions import DelayUntil, FollowPathUntil, MoveUntil, duration, sequence
 from actions.conditional import ParametricMotionUntil
 
 
@@ -109,30 +108,6 @@ def create_wave_pattern(amplitude: float, length: float, speed: float):
     full_wave = _param(_full_offset, full_time)
 
     return sequence(half_wave, repeat(full_wave))
-
-
-def create_smooth_zigzag_pattern(dimensions: tuple[float, float], speed: float, ease_duration: float = 0.5):
-    """Create a zigzag pattern with smooth easing transitions.
-
-    Args:
-        width: Horizontal distance for each zigzag segment
-        height: Vertical distance for each zigzag segment
-        speed: Movement speed in pixels per second
-        ease_duration: Duration of easing effect in seconds
-
-    Returns:
-        Ease action wrapping zigzag movement
-
-    Example:
-        smooth_zigzag = create_smooth_zigzag_pattern(dimensions=(100, 50), speed=150, ease_duration=1.0)
-        smooth_zigzag.apply(sprite, tag="smooth_zigzag")
-    """
-
-    # Create the base zigzag
-    zigzag = create_zigzag_pattern(dimensions, speed)
-
-    # Wrap with easing for smooth acceleration
-    return Ease(zigzag, duration=ease_duration, ease_function=easing.ease_in_out)
 
 
 def create_spiral_pattern(

@@ -414,7 +414,7 @@ For creating complex movement behaviors using pattern functions:
 from actions import (
     create_zigzag_pattern, create_wave_pattern, create_spiral_pattern,
     create_figure_eight_pattern, create_orbit_pattern, create_bounce_pattern,
-    create_patrol_pattern, create_smooth_zigzag_pattern, time_elapsed, sprite_count
+    create_patrol_pattern, time_elapsed, sprite_count
 )
 
 # Enemy with zigzag attack pattern

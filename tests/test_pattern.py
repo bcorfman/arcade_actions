@@ -13,7 +13,6 @@ from actions.pattern import (
     create_figure_eight_pattern,
     create_orbit_pattern,
     create_patrol_pattern,
-    create_smooth_zigzag_pattern,
     create_spiral_pattern,
     create_wave_pattern,
     create_zigzag_pattern,
@@ -305,32 +304,6 @@ class TestPatrolPattern:
         # Should still create a valid sequence
         assert hasattr(pattern, "actions")
         assert len(pattern.actions) == 2
-
-
-class TestSmoothZigzagPattern:
-    """Test suite for smooth zigzag movement pattern."""
-
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_create_smooth_zigzag_pattern_basic(self):
-        """Test smooth zigzag pattern creation."""
-        pattern = create_smooth_zigzag_pattern(dimensions=(100, 50), speed=150, ease_duration=1.0)
-
-        # Should return an Ease action wrapping a zigzag
-        assert hasattr(pattern, "wrapped_action")
-        assert hasattr(pattern, "easing_duration")
-        assert pattern.easing_duration == 1.0
-
-    def test_create_smooth_zigzag_pattern_application(self):
-        """Test applying smooth zigzag pattern to sprite."""
-        sprite = create_test_sprite()
-
-        pattern = create_smooth_zigzag_pattern(dimensions=(80, 40), speed=120, ease_duration=0.5)
-        pattern.apply(sprite, tag="smooth_zigzag_test")
-
-        assert pattern.target == sprite
 
 
 class TestPatternIntegration:

@@ -369,14 +369,10 @@ class StarfieldView(arcade.View):
 
             # All sprites stationary this frame → increment stability counter
             all_enemies_arrived._stable = getattr(all_enemies_arrived, "_stable", 0) + 1
-
-            if all_enemies_arrived._stable == stable_frames_required:
-                print("[DEBUG] Enemy grid stationary – starting wave motion")
             return all_enemies_arrived._stable >= stable_frames_required
 
         def start_wave_motion():
             """Start repeating wave motion for the entire enemy formation."""
-            print("[DEBUG] Starting repeating wave motion for enemy grid")
             AMP = 30  # desired half-wave dip depth
 
             single_wave = create_wave_pattern(
@@ -390,7 +386,6 @@ class StarfieldView(arcade.View):
 
             # Apply to the whole enemy list (grid moves as one unit)
             repeating_wave.apply(self.enemy_list, tag="enemy_wave")
-            print("[DEBUG] Wave action applied – grid should now be moving.")
 
         # Create and apply the DelayUntil action
         delay_action = DelayUntil(condition=all_enemies_arrived, on_stop=start_wave_motion)
