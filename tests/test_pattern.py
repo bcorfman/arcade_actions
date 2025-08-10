@@ -444,7 +444,9 @@ def test_wave_pattern_sprite_list_new():
 
     amplitude, length, speed = 10, 60, 60
     act = create_wave_pattern(amplitude, length, speed).apply(sprites)
-    _simulate_until_done(act, max_steps=int((2 * length / speed) * 60 + 5))
+    # Wave pattern timing: half wave (length/2/speed) + full wave (2*length/speed) = 2.5*length/speed
+    total_time = 2.5 * length / speed
+    _simulate_until_done(act, max_steps=int(total_time * 60 + 5))
 
     for (ox, oy), spr in zip(originals, sprites, strict=False):
         assert math.isclose(spr.center_x, ox, abs_tol=1e-3)
@@ -458,6 +460,8 @@ def test_wave_sequence_returns_origin():
     from actions.composite import sequence
 
     seq = sequence(wave.clone(), wave.clone()).apply(sprite)
-    _simulate_until_done(seq, max_steps=int((2 * 40 / 40) * 2 * 60 + 5))
+    # Two wave patterns: each takes 2.5*length/speed time
+    total_time = 2 * 2.5 * 40 / 40
+    _simulate_until_done(seq, max_steps=int(total_time * 60 + 5))
     assert math.isclose(sprite.center_x, 100, abs_tol=1e-3)
     assert math.isclose(sprite.center_y, 200, abs_tol=1e-3)

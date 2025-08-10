@@ -1085,7 +1085,24 @@ class ParametricMotionUntil(_Action):
         self.for_each_sprite(lambda s: self._origins.__setitem__(id(s), (s.center_x, s.center_y)))
 
         if self._duration is None:
-            self._duration = _extract_duration_seconds(self.condition) or 0.0
+            # Try to extract duration from the condition function if it's from duration() helper
+            try:
+                # Check if condition is from duration() helper by looking for closure
+                if (
+                    hasattr(self.condition, "__closure__")
+                    and self.condition.__closure__
+                    and len(self.condition.__closure__) >= 1
+                ):
+                    # Get the seconds value from the closure
+                    seconds = self.condition.__closure__[0].cell_contents
+                    if isinstance(seconds, (int, float)) and seconds > 0:
+                        self._duration = seconds
+            except (AttributeError, IndexError, TypeError):
+                pass
+
+            # Fallback to the helper function if the above didn't work
+            if self._duration is None:
+                self._duration = _extract_duration_seconds(self.condition) or 0.0
 
     def update_effect(self, delta_time: float) -> None:  # noqa: D401
         self._elapsed += delta_time * self._factor

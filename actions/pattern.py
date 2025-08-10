@@ -57,20 +57,23 @@ def create_wave_pattern(amplitude: float, length: float, speed: float):
     1.  **Half-wave pre-roll** – starting in the trough, rise to the *left* crest
         while moving left by *length*/2.  This centres the subsequent motion so
         that the original Y position becomes the midpoint of each full wave.
-    2.  **Repeating full waves** – classic left-right-left bob using the bottom
-        half of a sine curve (unchanged from the original implementation).
+    2.  **Full wave cycle** – classic left-right-left bob using the bottom
+        half of a sine curve that returns sprites to their original positions.
 
     The Action returned is therefore:
 
-    ``sequence( half_wave , repeat(full_wave) )``
+    ``sequence( half_wave , full_wave )``
 
     where *half_wave* and *full_wave* are both ``ParametricMotionUntil``
     instances implemented with relative parametric offsets.  The function keeps
-    the zero-drift guarantee: after every complete cycle the sprite returns to
+    the zero-drift guarantee: after the complete cycle the sprite returns to
     its original X/Y.
+
+    To create an infinite repeating wave, wrap the result in repeat():
+        infinite_wave = repeat(create_wave_pattern(amplitude, length, speed))
     """
 
-    from actions.composite import repeat, sequence  # local to avoid cycles
+    from actions.composite import sequence  # local to avoid cycles
     from actions.conditional import duration  # local import to avoid cycles
 
     # ----------------- helper for building parametric actions -----------------
@@ -93,21 +96,22 @@ def create_wave_pattern(amplitude: float, length: float, speed: float):
     half_wave = _param(_half_offset, half_time)
 
     # ------------------------------------------------------------------
-    # 2) Full repeating wave: left crest → trough → right crest → back
+    # 2) Full wave cycle: left crest → trough → right crest → back to origin
     # ------------------------------------------------------------------
     total_distance = 2 * length
     full_time = total_distance / speed if speed != 0 else 0.0
 
     def _full_offset(t: float) -> tuple[float, float]:
-        # Triangular time-base 0→1→0 to make sure we return to origin in X
-        tri = 1 - abs(1 - 2 * t)
-        dx = length * tri  # right then back left
-        dy = -amplitude * math.sin(math.pi * tri)  # dip (trough at centre)
+        # Sprites start at (-length/2, +amplitude) after half wave
+        # Need to move them by (+length/2, -amplitude) to return to (0, 0)
+        # Use a smooth curve that goes from (0, 0) to (+length/2, -amplitude)
+        dx = length / 2 * t  # from 0 to +length/2
+        dy = -amplitude * t  # from 0 to -amplitude
         return dx, dy
 
     full_wave = _param(_full_offset, full_time)
 
-    return sequence(half_wave, repeat(full_wave))
+    return sequence(half_wave, full_wave)
 
 
 def create_spiral_pattern(
