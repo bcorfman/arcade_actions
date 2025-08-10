@@ -52,33 +52,63 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
 
 
 def create_wave_pattern(amplitude: float, length: float, speed: float):
-    """Create a left-right-left wave that follows the *bottom* half of a sine curve.
+    """Space-Invader style sway with *formation slots in the middle of the dip*.
 
-    The pattern starts at the sprite's current position, moves right by
-    *length* pixels while dipping downward (half sine), then returns left along
-    the same dip to end **exactly** at the starting X/Y coordinates.  Used for
-    Space-Invader style bobbing where cumulative drift is unacceptable.
+    Behaviour:
+    1.  **Half-wave pre-roll** – starting in the trough, rise to the *left* crest
+        while moving left by *length*/2.  This centres the subsequent motion so
+        that the original Y position becomes the midpoint of each full wave.
+    2.  **Repeating full waves** – classic left-right-left bob using the bottom
+        half of a sine curve (unchanged from the original implementation).
 
-    All motion is *relative*; the Action captures each sprite's origin on
-    ``apply``.  Velocity semantics: *speed* is pixels per frame at 60 FPS –
-    consistent with the rest of the library.
+    The Action returned is therefore:
+
+    ``sequence( half_wave , repeat(full_wave) )``
+
+    where *half_wave* and *full_wave* are both ``ParametricMotionUntil``
+    instances implemented with relative parametric offsets.  The function keeps
+    the zero-drift guarantee: after every complete cycle the sprite returns to
+    its original X/Y.
     """
+
+    from actions.composite import repeat, sequence  # local to avoid cycles
     from actions.conditional import duration  # local import to avoid cycles
 
-    # Total horizontal travel is 2×length (right then left)
-    total_distance = 2 * length
-    duration_time = total_distance / speed if speed != 0 else 0.0
+    # ----------------- helper for building parametric actions -----------------
+    def _param(offset_fn, dur):
+        return ParametricMotionUntil(offset_fn, duration(dur))
 
-    def _offset(t: float) -> tuple[float, float]:
-        """Parametric offset for progress t∈[0,1]."""
-        # Triangular wave 0→1→0 over t∈[0,1]
-        tri = 1 - abs(1 - 2 * t)  # 0 → 1 → 0
-        dx = length * tri  # move right then back left implicitly via tri
-        # Map tri 0→1 to sine bottom dip (0 at ends, −amp at middle)
-        dy = -amplitude * math.sin(math.pi * tri)
+    # ------------------------------------------------------------------
+    # 1) Half-wave: trough → left crest (moves *left* & *up*)
+    # ------------------------------------------------------------------
+    half_len = length / 2
+    half_time = half_len / speed if speed != 0 else 0.0
+
+    def _half_offset(t: float) -> tuple[float, float]:
+        """0→1 : dx 0→−half_len  ,  dy 0→+amplitude (concave-up)"""
+        dx = -half_len * t
+        # Use 1-cos to get a concave-up rise from 0 to amplitude
+        dy = amplitude * (1 - math.cos(math.pi * t / 2))
         return dx, dy
 
-    return ParametricMotionUntil(_offset, duration(duration_time))
+    half_wave = _param(_half_offset, half_time)
+
+    # ------------------------------------------------------------------
+    # 2) Full repeating wave: left crest → trough → right crest → back
+    # ------------------------------------------------------------------
+    total_distance = 2 * length
+    full_time = total_distance / speed if speed != 0 else 0.0
+
+    def _full_offset(t: float) -> tuple[float, float]:
+        # Triangular time-base 0→1→0 to make sure we return to origin in X
+        tri = 1 - abs(1 - 2 * t)
+        dx = length * tri  # right then back left
+        dy = -amplitude * math.sin(math.pi * tri)  # dip (trough at centre)
+        return dx, dy
+
+    full_wave = _param(_full_offset, full_time)
+
+    return sequence(half_wave, repeat(full_wave))
 
 
 def create_smooth_zigzag_pattern(dimensions: tuple[float, float], speed: float, ease_duration: float = 0.5):

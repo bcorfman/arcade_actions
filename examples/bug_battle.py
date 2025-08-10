@@ -18,11 +18,14 @@ import arcade
 
 from actions import (
     Action,
+    DelayUntil,
     arrange_grid,
     blink_until,
     create_formation_entry_from_sprites,
+    create_wave_pattern,
     infinite,
     move_until,
+    repeat,
 )
 
 # ---------------------------------------------------------------------------
@@ -57,6 +60,9 @@ DOUBLE_FIRE = 0
 THREE_WAY = 1
 SHIELD = 2
 BOMB = 3
+
+# Grid configuration
+ENEMY_GRID_MARGIN = 80.0  # Desired left and right margin for enemy grid
 
 # Powerup constants
 POWERUP_SPAWN_INTERVAL = 10.0
@@ -317,10 +323,8 @@ class StarfieldView(arcade.View):
         self.enemy_list.clear()
         enemy_list = [BEE, FISH_PINK, FLY, SAW, SLIME_BLOCK, FISH_GREEN]
 
-        X_OFFSET = 120
-        COLS = 4
-        NUM_SPRITES = COLS - 1
-        NUM_SPACES = NUM_SPRITES - 1
+        # Calculate centered grid layout using the new function
+        start_x, spacing_x = get_centered_grid_spacing(ENEMY_GRID_MARGIN)
 
         # Create the target formation sprites (these define the final positions)
         target_sprites = [arcade.Sprite(random.choice(enemy_list), scale=0.5) for i in range(16)]
@@ -328,11 +332,11 @@ class StarfieldView(arcade.View):
             sprites=target_sprites,
             rows=4,
             cols=4,
-            start_x=X_OFFSET,
+            start_x=start_x,  # Use calculated centered position
             start_y=WINDOW_HEIGHT - 400,
-            spacing_x=(WINDOW_WIDTH - X_OFFSET * 2 - ENEMY_WIDTH * NUM_SPRITES) / NUM_SPACES,
+            spacing_x=spacing_x,  # Use calculated spacing
             spacing_y=ENEMY_HEIGHT * 1.5,
-            visible=False,  # Target formation is invisible, only used for positioning
+            visible=False,
         )
 
         # Create the entry pattern - this returns new sprites with actions
@@ -347,6 +351,54 @@ class StarfieldView(arcade.View):
         for sprite, action, _ in entry_actions:
             action.apply(sprite, tag="enemy_formation_entry")
             self.enemy_list.append(sprite)
+
+        # Create a DelayUntil action that waits for all formation entry actions to complete,
+        # then starts a wave pattern motion for the entire enemy formation
+        def all_enemies_arrived() -> bool:
+            """Return True after the entire grid has been motionless for ~0.5 s."""
+
+            # Thresholds
+            vel_eps = 0.05  # pixels / frame considered stationary
+            stable_frames_required = 30  # ≈0.5 s at 60 FPS
+
+            moving = any(abs(s.change_x) > vel_eps or abs(s.change_y) > vel_eps for s in self.enemy_list)
+
+            if moving:
+                all_enemies_arrived._stable = 0  # reset counter
+                return False
+
+            # All sprites stationary this frame → increment stability counter
+            all_enemies_arrived._stable = getattr(all_enemies_arrived, "_stable", 0) + 1
+
+            if all_enemies_arrived._stable == stable_frames_required:
+                print("[DEBUG] Enemy grid stationary – starting wave motion")
+            return all_enemies_arrived._stable >= stable_frames_required
+
+        def start_wave_motion():
+            """Start repeating wave motion for the entire enemy formation."""
+            print("[DEBUG] Starting repeating wave motion for enemy grid")
+            AMP = 30  # desired half-wave dip depth
+
+            single_wave = create_wave_pattern(
+                amplitude=AMP,
+                length=80,
+                speed=100.0,
+            )
+
+            # Repeat the wave forever so enemies keep swaying
+            repeating_wave = repeat(single_wave)
+
+            # Apply to the whole enemy list (grid moves as one unit)
+            repeating_wave.apply(self.enemy_list, tag="enemy_wave")
+            print("[DEBUG] Wave action applied – grid should now be moving.")
+
+        # Create and apply the DelayUntil action
+        delay_action = DelayUntil(condition=all_enemies_arrived, on_stop=start_wave_motion)
+
+        # Apply the delay action to any sprite (it just waits, doesn't move anything)
+        # We'll use the first enemy sprite as the target, but it could be any sprite
+        if self.enemy_list:
+            delay_action.apply(self.enemy_list[0], tag="formation_completion_watcher")
 
     def _spawn_powerup(self, delta_time):
         if len(self.powerup_list) == 0:
@@ -454,9 +506,131 @@ class StarfieldView(arcade.View):
             self.fire_pressed = False
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+def calculate_centered_grid_layout(
+    window_width: float, cols: int, sprite_width: float, desired_margin: float = 0.0
+) -> tuple[float, float]:
+    """Calculate start_x and spacing_x to center a grid with specified margins.
+    Args:
+        window_width: Total window width
+        cols: Number of columns in the grid
+        sprite_width: Width of each sprite
+        desired_margin: Desired left and right margin (default: 0.0 for auto-centering)
+    Returns:
+        Tuple of (start_x, spacing_x) for centered grid
+    """
+    if desired_margin > 0:
+        # Calculate spacing needed to achieve equal margins
+        # The grid spans from left_margin to (window_width - right_margin)
+        # where left_margin = right_margin = desired_margin
+
+        # The leftmost sprite center is at: desired_margin + sprite_width/2
+        # The rightmost sprite center is at: window_width - desired_margin - sprite_width/2
+
+        # Total distance between centers = rightmost_center - leftmost_center
+        leftmost_center = desired_margin + sprite_width / 2
+        rightmost_center = window_width - desired_margin - sprite_width / 2
+        total_center_distance = rightmost_center - leftmost_center
+
+        # Divide this distance into (cols - 1) equal gaps
+        spacing_x = total_center_distance / (cols - 1)
+
+        # Ensure spacing is not negative
+        if spacing_x < 0:
+            # Grid too wide for specified margin, reduce spacing to fit
+            spacing_x = (window_width - sprite_width) / (cols - 1)
+            print(f"[WARNING] Grid too wide for margin {desired_margin}, using minimum spacing {spacing_x}")
+
+        start_x = leftmost_center
+
+        return start_x, spacing_x
+    else:
+        # Equal margins on both sides (original behavior)
+        # Use a reasonable default spacing and calculate margins
+        default_spacing = 80.0
+        total_sprite_width = sprite_width * cols
+        total_spacing_width = default_spacing * (cols - 1)
+        total_grid_width = total_sprite_width + total_spacing_width
+        total_margin = window_width - total_grid_width
+        left_margin = total_margin / 2
+        start_x = left_margin + sprite_width / 2
+        return start_x, default_spacing
+
+
+def test_grid_centering():
+    """Unit test to verify grid centering calculation with configurable margins."""
+    # Test with zero margin (current behavior)
+    start_x, spacing_x = get_centered_grid_spacing(desired_margin=0.0)
+
+    # Calculate margins
+    left_margin = start_x - ENEMY_WIDTH / 2
+    rightmost_sprite_center = start_x + 3 * spacing_x  # 4 columns = 3 gaps
+    rightmost_sprite_right = rightmost_sprite_center + ENEMY_WIDTH / 2
+    right_margin = WINDOW_WIDTH - rightmost_sprite_right
+
+    # Verify margins are equal (both should be 0.0)
+    margins_equal = abs(left_margin - right_margin) < 0.01
+    left_correct = abs(left_margin - 0.0) < 0.01
+    right_correct = abs(right_margin - 0.0) < 0.01
+
+    print("Grid centering test (zero margin):")
+    print(f"  Left margin: {left_margin}")
+    print(f"  Right margin: {right_margin}")
+    print(f"  Margins equal: {margins_equal}")
+    print(f"  Left margin correct (0.0): {left_correct}")
+    print(f"  Right margin correct (0.0): {right_correct}")
+
+    # Test with non-zero margin
+    test_margin = 80.0
+    start_x2, spacing_x2 = get_centered_grid_spacing(desired_margin=test_margin)
+
+    # Calculate margins for non-zero case
+    left_margin2 = start_x2 - ENEMY_WIDTH / 2
+    rightmost_sprite_center2 = start_x2 + 3 * spacing_x2  # 4 columns = 3 gaps
+    rightmost_sprite_right2 = rightmost_sprite_center2 + ENEMY_WIDTH / 2
+    right_margin2 = WINDOW_WIDTH - rightmost_sprite_right2
+
+    # Verify margins are equal and match desired margin
+    margins_equal2 = abs(left_margin2 - right_margin2) < 0.01
+    left_correct2 = abs(left_margin2 - test_margin) < 0.01
+    right_correct2 = abs(right_margin2 - test_margin) < 0.01
+
+    print(f"\nGrid centering test (margin={test_margin}):")
+    print(f"  Left margin: {left_margin2}")
+    print(f"  Right margin: {right_margin2}")
+    print(f"  Margins equal: {margins_equal2}")
+    print(f"  Left margin correct ({test_margin}): {left_correct2}")
+    print(f"  Right margin correct ({test_margin}): {right_correct2}")
+
+    return margins_equal and left_correct and right_correct and margins_equal2 and left_correct2 and right_correct2
+
+
+def get_centered_grid_spacing(desired_margin: float = 0.0):
+    """Calculate centered spacing for the enemy grid with configurable margins.
+    Args:
+        desired_margin: Desired left and right margin (default: 0.0 for full-width grid)
+    Returns:
+        Tuple of (start_x, spacing_x) for centered grid
+    """
+    if desired_margin == 0.0:
+        # Full-width grid (current behavior)
+        # The sprites are positioned by their centers
+        # Leftmost sprite center: ENEMY_WIDTH/2
+        # Rightmost sprite center: WINDOW_WIDTH - ENEMY_WIDTH/2
+        # Total distance between centers: (WINDOW_WIDTH - ENEMY_WIDTH/2) - ENEMY_WIDTH/2 = WINDOW_WIDTH - ENEMY_WIDTH
+
+        total_center_distance = WINDOW_WIDTH - ENEMY_WIDTH
+        spacing_x = total_center_distance / 3  # 3 gaps for 4 columns
+        start_x = ENEMY_WIDTH / 2  # Center of the first sprite
+
+        return start_x, spacing_x
+    else:
+        # Use configurable margin
+        return calculate_centered_grid_layout(
+            window_width=WINDOW_WIDTH,
+            cols=4,
+            sprite_width=ENEMY_WIDTH,
+            desired_margin=desired_margin,
+        )
 
 
 def main() -> None:
