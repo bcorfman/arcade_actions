@@ -1,0 +1,5 @@
+# ArcadeActions Project Meta Rules
+
+*Always prefer the modern Arcade 3.x API.*
+
+- **Text rendering:** Use `arcade.Text` objects that are created once (e.g. in `__init__`) and drawn with `.draw()`. Avoid `arcade.draw_text` in the render loop – it incurs a high per-frame CPU cost and triggers performance warnings.

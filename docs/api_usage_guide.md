@@ -429,6 +429,18 @@ wave_movement = create_wave_pattern(
 )
 wave_movement.apply(boss_sprite)
 
+# Enemy with repeating wave pattern (forward then backward)
+from actions import repeat, sequence
+
+forward_wave = create_wave_pattern(
+    amplitude=15, frequency=1, length=50, speed=100, reverse=False
+)
+backward_wave = create_wave_pattern(
+    amplitude=15, frequency=1, length=50, speed=100, reverse=True
+)
+repeating_wave = repeat(sequence(forward_wave, backward_wave))
+repeating_wave.apply(enemy_sprite)
+
 # Guard with patrol pattern
 patrol_movement = create_patrol_pattern(
     start_pos=(100, 200), end_pos=(500, 200), speed=80

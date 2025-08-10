@@ -15,6 +15,7 @@ import arcade
 from arcade import easing
 
 from actions import DelayUntil, Ease, FollowPathUntil, MoveUntil, duration, sequence
+from actions.conditional import ParametricMotionUntil
 
 
 def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segments: int = 4):
@@ -50,42 +51,34 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
     return sequence(*actions)
 
 
-def create_wave_pattern(amplitude: float, frequency: float, length: float, speed: float):
-    """Create a smooth wave movement pattern using Bezier path following.
+def create_wave_pattern(amplitude: float, length: float, speed: float):
+    """Create a left-right-left wave that follows the *bottom* half of a sine curve.
 
-    Args:
-        amplitude: Height of the wave peaks/troughs
-        frequency: Number of complete wave cycles
-        length: Total horizontal distance of the wave
-        speed: Movement speed in pixels per second
+    The pattern starts at the sprite's current position, moves right by
+    *length* pixels while dipping downward (half sine), then returns left along
+    the same dip to end **exactly** at the starting X/Y coordinates.  Used for
+    Space-Invader style bobbing where cumulative drift is unacceptable.
 
-    Returns:
-        FollowPathUntil action that creates wave movement
-
-    Example:
-        wave = create_wave_pattern(amplitude=50, frequency=2, length=400, speed=200)
-        wave.apply(sprite, tag="wave_movement")
+    All motion is *relative*; the Action captures each sprite's origin on
+    ``apply``.  Velocity semantics: *speed* is pixels per frame at 60 FPS –
+    consistent with the rest of the library.
     """
+    from actions.conditional import duration  # local import to avoid cycles
 
-    # Generate control points for wave using sine function
-    num_points = max(8, int(frequency * 4))  # More points for higher frequency
-    control_points = []
+    # Total horizontal travel is 2×length (right then left)
+    total_distance = 2 * length
+    duration_time = total_distance / speed if speed != 0 else 0.0
 
-    for i in range(num_points):
-        t = i / (num_points - 1)
-        x = t * length
-        y = amplitude * math.sin(2 * math.pi * frequency * t)
-        control_points.append((x, y))
+    def _offset(t: float) -> tuple[float, float]:
+        """Parametric offset for progress t∈[0,1]."""
+        # Triangular wave 0→1→0 over t∈[0,1]
+        tri = 1 - abs(1 - 2 * t)  # 0 → 1 → 0
+        dx = length * tri  # move right then back left implicitly via tri
+        # Map tri 0→1 to sine bottom dip (0 at ends, −amp at middle)
+        dy = -amplitude * math.sin(math.pi * tri)
+        return dx, dy
 
-    # Calculate expected duration based on curve length and speed
-    expected_duration = length / speed
-
-    return FollowPathUntil(
-        control_points,
-        speed,
-        duration(expected_duration),
-        rotate_with_path=True,  # Optional: sprite rotates to follow wave direction
-    )
+    return ParametricMotionUntil(_offset, duration(duration_time))
 
 
 def create_smooth_zigzag_pattern(dimensions: tuple[float, float], speed: float, ease_duration: float = 0.5):

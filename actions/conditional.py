@@ -41,6 +41,10 @@ class MoveUntil(_Action):
         self.boundary_behavior = boundary_behavior
         self.on_boundary = on_boundary
 
+        # Duration tracking for simulation time compatibility
+        self._elapsed = 0.0
+        self._duration = None
+
     def set_factor(self, factor: float) -> None:
         """Scale the velocity by the given factor.
 
@@ -54,6 +58,25 @@ class MoveUntil(_Action):
 
     def apply_effect(self) -> None:
         """Apply velocity to all sprites."""
+
+        # Try to extract duration from the condition function if it's from duration() helper
+        self._duration = None
+        try:
+            # Check if condition is from duration() helper by looking for closure
+            if (
+                hasattr(self.condition, "__closure__")
+                and self.condition.__closure__
+                and len(self.condition.__closure__) >= 1
+            ):
+                # Get the seconds value from the closure
+                seconds = self.condition.__closure__[0].cell_contents
+                if isinstance(seconds, (int, float)) and seconds > 0:
+                    self._duration = seconds
+        except (AttributeError, IndexError, TypeError):
+            pass
+
+        self._elapsed = 0.0
+
         dx, dy = self.current_velocity
 
         def set_velocity(sprite):
@@ -95,6 +118,19 @@ class MoveUntil(_Action):
 
     def update_effect(self, delta_time: float) -> None:
         """Update movement and handle boundary checking if enabled."""
+        # Handle duration-based conditions using simulation time
+        if self._duration is not None:
+            self._elapsed += delta_time
+
+            # Check if duration has elapsed
+            if self._elapsed >= self._duration:
+                # Mark as complete by setting the condition as met
+                self._condition_met = True
+                self.done = True
+                if self.on_stop:
+                    self.on_stop()
+                return
+
         # Check boundaries if configured
         if self.bounds and self.boundary_behavior:
             self.for_each_sprite(self._check_boundaries)
@@ -217,7 +253,7 @@ class MoveUntil(_Action):
         """Create a copy of this MoveUntil action."""
         return MoveUntil(
             self.target_velocity,  # Use target_velocity for cloning
-            self.condition,
+            _clone_condition(self.condition),
             self.on_stop,
             self.bounds,
             self.boundary_behavior,
@@ -399,7 +435,7 @@ class FollowPathUntil(_Action):
         return FollowPathUntil(
             self.control_points.copy(),
             self.target_velocity,
-            self.condition,
+            _clone_condition(self.condition),
             self.on_stop,
             self.rotate_with_path,
             self.rotation_offset,
@@ -454,7 +490,7 @@ class RotateUntil(_Action):
 
     def clone(self) -> "RotateUntil":
         """Create a copy of this RotateUntil action."""
-        return RotateUntil(self.target_angular_velocity, self.condition, self.on_stop)
+        return RotateUntil(self.target_angular_velocity, _clone_condition(self.condition), self.on_stop)
 
 
 class ScaleUntil(_Action):
@@ -522,7 +558,7 @@ class ScaleUntil(_Action):
 
     def clone(self) -> "ScaleUntil":
         """Create a copy of this action."""
-        return ScaleUntil(self.target_scale_velocity, self.condition, self.on_stop)
+        return ScaleUntil(self.target_scale_velocity, _clone_condition(self.condition), self.on_stop)
 
 
 class FadeUntil(_Action):
@@ -565,7 +601,7 @@ class FadeUntil(_Action):
 
     def clone(self) -> "FadeUntil":
         """Create a copy of this action."""
-        return FadeUntil(self.target_fade_velocity, self.condition, self.on_stop)
+        return FadeUntil(self.target_fade_velocity, _clone_condition(self.condition), self.on_stop)
 
 
 class BlinkUntil(_Action):
@@ -643,7 +679,7 @@ class BlinkUntil(_Action):
 
     def clone(self) -> "BlinkUntil":
         """Create a copy of this action."""
-        return BlinkUntil(self.target_seconds_until_change, self.condition, self.on_stop)
+        return BlinkUntil(self.target_seconds_until_change, _clone_condition(self.condition), self.on_stop)
 
 
 class DelayUntil(_Action):
@@ -700,9 +736,14 @@ class DelayUntil(_Action):
                 if self.on_stop:
                     self.on_stop()
 
+    def reset(self) -> None:
+        """Reset the action to its initial state."""
+        self._elapsed = 0.0
+        self._duration = None
+
     def clone(self) -> "DelayUntil":
         """Create a copy of this action."""
-        return DelayUntil(self.condition, self.on_stop)
+        return DelayUntil(_clone_condition(self.condition), self.on_stop)
 
 
 class TweenUntil(_Action):
@@ -765,6 +806,37 @@ class TweenUntil(_Action):
         self.ease_function = ease_function or (lambda t: t)
         self._duration = None
         self._tween_elapsed = 0.0
+        self._completed_naturally = False  # Track if action completed vs was stopped
+
+    def update(self, delta_time: float) -> None:
+        """
+        Override update to ensure tween logic runs before condition check.
+        This prevents race conditions where condition is met before _completed_naturally is set.
+        """
+        if not self._is_active or self.done or self._paused:
+            return
+
+        # Update the tween effect first - this may set _completed_naturally and self.done
+        self.update_effect(delta_time)
+
+        # If tween completed naturally during update_effect, we're done
+        if self.done:
+            return
+
+        # Now check external condition
+        if self.condition and not self._condition_met:
+            condition_result = self.condition()
+            if condition_result:
+                self._condition_met = True
+                self.condition_data = condition_result
+
+                self.remove_effect()
+                self.done = True
+                if self.on_stop:
+                    if condition_result is not True:
+                        self.on_stop(condition_result)
+                    else:
+                        self.on_stop()
 
     def set_factor(self, factor: float) -> None:
         """Scale the tween speed by the given factor.
@@ -834,20 +906,40 @@ class TweenUntil(_Action):
         # Check for completion
         if t >= 1.0:
             # Ensure we set the exact end value
+
             self.for_each_sprite(lambda sprite: setattr(sprite, self.property_name, self.end_value))
+            self._completed_naturally = True  # Mark as naturally completed
             self.done = True
+
             if self.on_stop:
                 self.on_stop(None)
 
     def remove_effect(self) -> None:
-        pass
+        """Clean up the tween effect.
+
+        If the action completed naturally or reached its full duration, leave the property at its final value.
+        If the action was stopped prematurely, reset to start value.
+        """
+        # Check if tween reached its natural end, even if condition was met first
+        reached_natural_end = self._duration is not None and self._tween_elapsed >= self._duration
+
+        if not self._completed_naturally and not reached_natural_end:
+            # Action was stopped before completion - reset to start value
+            self.for_each_sprite(lambda sprite: setattr(sprite, self.property_name, self.start_value))
+        # If action completed naturally or reached full duration, leave property at end value
+
+    def reset(self) -> None:
+        """Reset the action to its initial state."""
+        self._tween_elapsed = 0.0
+        self._duration = None
+        self._completed_naturally = False
 
     def clone(self) -> "TweenUntil":
         return TweenUntil(
             self.start_value,
             self.end_value,
             self.property_name,
-            self.condition,
+            _clone_condition(self.condition),
             self.on_stop,
             self.ease_function,
         )
@@ -885,9 +977,20 @@ class CallbackUntil(_Action):
         """Create a copy of this action."""
         return CallbackUntil(
             self.callback,
-            self.condition,
+            _clone_condition(self.condition),
             self.on_stop,
         )
+
+
+# Helper function for cloning conditions
+def _clone_condition(condition):
+    """Create a fresh copy of a condition, especially for duration conditions."""
+    if hasattr(condition, "_is_duration_condition") and condition._is_duration_condition:
+        # Create a fresh duration condition
+        return duration(condition._duration_seconds)
+    else:
+        # For non-duration conditions, return as-is
+        return condition
 
 
 # Common condition functions
@@ -917,6 +1020,16 @@ def duration(seconds: float):
             start_time = time.time()
         return time.time() - start_time >= seconds
 
+    # Mark this as a duration condition for cloning purposes
+    condition._is_duration_condition = True
+    condition._duration_seconds = seconds
+
+    def reset_duration():
+        nonlocal start_time
+        start_time = None
+
+    condition._reset_duration = reset_duration
+
     return condition
 
 
@@ -934,3 +1047,81 @@ def infinite() -> Callable[[], bool]:
     """
 
     return False
+
+
+# =========================
+# Relative parametric motion
+# =========================
+from collections.abc import Callable as _Callable
+from typing import Any as _Any
+
+
+class ParametricMotionUntil(_Action):
+    """Move sprites along a relative parametric curve.
+
+    The *offset_fn* receives progress *t* (0→1) and returns (dx, dy) offsets that
+    are **added** to each sprite's origin captured at *apply* time.  Completion is
+    governed by the same *condition* mechanism used elsewhere (typically the
+    ``duration()`` helper).
+    """
+
+    def __init__(
+        self,
+        offset_fn: _Callable[[float], tuple[float, float]],
+        condition: _Callable[[], _Any],
+        on_stop: _Callable[[_Any], None] | _Callable[[], None] | None = None,
+        *,
+        explicit_duration: float | None = None,
+    ):
+        super().__init__(condition=condition, on_stop=on_stop)
+        self._offset_fn = offset_fn
+        self._origins: dict[int, tuple[float, float]] = {}
+        self._elapsed = 0.0
+        self._duration = explicit_duration  # May be filled in apply_effect
+
+    # --------------------- Action hooks --------------------
+    def apply_effect(self) -> None:  # noqa: D401 – imperative style
+        """Memorise origins and determine duration."""
+        self.for_each_sprite(lambda s: self._origins.__setitem__(id(s), (s.center_x, s.center_y)))
+
+        if self._duration is None:
+            self._duration = _extract_duration_seconds(self.condition) or 0.0
+
+    def update_effect(self, delta_time: float) -> None:  # noqa: D401
+        self._elapsed += delta_time * self._factor
+        progress = min(1.0, self._elapsed / self._duration) if self._duration > 0 else 1.0
+
+        dx, dy = self._offset_fn(progress)
+        self.for_each_sprite(lambda s: _apply_offset(s, dx, dy, self._origins))
+
+        if progress >= 1.0 and not self.done:
+            self._condition_met = True
+            self.done = True
+            if self.on_stop:
+                self.on_stop(None)
+
+    def clone(self) -> "ParametricMotionUntil":  # type: ignore[name-defined]
+        return ParametricMotionUntil(
+            self._offset_fn,
+            _clone_condition(self.condition),
+            self.on_stop,
+            explicit_duration=self._duration,
+        )
+
+
+# ------------------ helpers ------------------
+
+
+def _apply_offset(sprite, dx: float, dy: float, origins: dict[int, tuple[float, float]]):
+    ox, oy = origins[id(sprite)]
+    sprite.center_x = ox + dx
+    sprite.center_y = oy + dy
+
+
+def _extract_duration_seconds(cond: _Callable[[], _Any]) -> float | None:
+    try:
+        if cond.__name__ == "condition":
+            return cond.__closure__[0].cell_contents  # type: ignore[index]
+    except Exception:
+        pass
+    return None

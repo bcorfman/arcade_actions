@@ -22,7 +22,7 @@ Actions available:
 from .base import Action
 
 # Composition functions
-from .composite import parallel, sequence
+from .composite import parallel, repeat, sequence
 
 # Conditional actions
 from .conditional import (
@@ -105,6 +105,7 @@ __all__ = [
     # Composition functions
     "sequence",
     "parallel",
+    "repeat",
     # Formation arrangement functions
     "arrange_arc",
     "arrange_arrow",
