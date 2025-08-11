@@ -97,33 +97,23 @@ class PatternDemo(arcade.Window):
         # Create a zigzag that moves in a small area
         # Since zigzag moves in one direction, we'll create a pattern that zigzags up and then down
         forward = create_zigzag_pattern(dimensions=(30, 20), speed=100, segments=3)
-        
+
         # To create the reverse, we need to create a zigzag that goes in the opposite direction
         # We'll create another zigzag with negative height to go back down
         backward = create_zigzag_pattern(dimensions=(30, -20), speed=100, segments=3)
-        
+
         # Combine forward and backward into a sequence, then repeat
         zigzag_cycle = sequence(forward, backward)
         repeat(zigzag_cycle).apply(sprite, tag="zigzag_pattern")
 
     def _create_figure8_demo(self, sprite: arcade.Sprite):
         """Create repeating figure-8 pattern."""
-        figure8 = create_figure_eight_pattern(
-            center=(sprite.center_x, sprite.center_y),
-            width=80,
-            height=60,
-            speed=100
-        )
+        figure8 = create_figure_eight_pattern(center=(sprite.center_x, sprite.center_y), width=80, height=60, speed=100)
         repeat(figure8).apply(sprite, tag="figure8_pattern")
 
     def _create_orbit_demo(self, sprite: arcade.Sprite):
         """Create repeating circular orbit pattern."""
-        orbit = create_orbit_pattern(
-            center=(sprite.center_x, sprite.center_y),
-            radius=50,
-            speed=100,
-            clockwise=True
-        )
+        orbit = create_orbit_pattern(center=(sprite.center_x, sprite.center_y), radius=50, speed=100, clockwise=True)
         repeat(orbit).apply(sprite, tag="orbit_pattern")
 
     def _create_spiral_demo(self, sprite: arcade.Sprite):
@@ -169,7 +159,6 @@ class PatternDemo(arcade.Window):
         """Create repeating patrol pattern."""
         start_pos = (sprite.center_x - 50, sprite.center_y)
         end_pos = (sprite.center_x + 50, sprite.center_y)
-        
         patrol = create_patrol_pattern(start_pos, end_pos, speed=80)
         repeat(patrol).apply(sprite, tag="patrol_pattern")
 
@@ -200,14 +189,9 @@ class PatternDemo(arcade.Window):
                 bounds_right = sprite.center_x + 60
                 bounds_bottom = sprite.center_y - 40
                 bounds_top = sprite.center_y + 40
-                
-                arcade.draw_lrtb_rectangle_outline(
-                    bounds_left,
-                    bounds_right,
-                    bounds_top,
-                    bounds_bottom,
-                    arcade.color.GRAY,
-                    1
+
+                arcade.draw_lrbt_rectangle_outline(
+                    bounds_left, bounds_right, bounds_bottom, bounds_top, arcade.color.GRAY, 1
                 )
 
         # Draw UI elements
