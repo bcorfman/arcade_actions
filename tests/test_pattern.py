@@ -98,34 +98,29 @@ class TestZigzagPattern:
         Action.stop_all()
 
     def test_create_zigzag_pattern_basic(self):
-        """Test basic zigzag pattern creation."""
+        """Zig-zag factory should return a single ParametricMotionUntil action."""
         pattern = create_zigzag_pattern(dimensions=(100, 50), speed=150, segments=4)
 
-        # Should return a sequence action
-        assert hasattr(pattern, "actions")
-        assert len(pattern.actions) == 4
+        from actions.conditional import ParametricMotionUntil
+
+        assert isinstance(pattern, ParametricMotionUntil)
 
     def test_create_zigzag_pattern_application(self):
         """Test applying zigzag pattern to sprite."""
         sprite = create_test_sprite()
-        initial_x = sprite.center_x
+        initial_pos = (sprite.center_x, sprite.center_y)
 
         pattern = create_zigzag_pattern(dimensions=(100, 50), speed=150, segments=2)
         pattern.apply(sprite, tag="zigzag_test")
 
-        # Start the action and update
+        # Start the action and update a few frames
         Action.update_all(0.1)
 
-        # Sprite should be moving
-        assert sprite.change_x != 0 or sprite.change_y != 0
+        # Sprite position should have changed (relative motion)
+        assert (sprite.center_x, sprite.center_y) != initial_pos
 
-    def test_create_zigzag_pattern_segments(self):
-        """Test zigzag pattern with different segment counts."""
-        pattern_2 = create_zigzag_pattern(dimensions=(100, 50), speed=150, segments=2)
-        pattern_6 = create_zigzag_pattern(dimensions=(100, 50), speed=150, segments=6)
-
-        assert len(pattern_2.actions) == 2
-        assert len(pattern_6.actions) == 6
+    # Segment-count specific tests are no longer required because the factory
+    # now produces a single parametric action regardless of segment count.
 
 
 class TestSpiralPattern:

@@ -120,13 +120,21 @@ class PatternDemo(arcade.Window):
         """Create spiral pattern that alternates between outward and inward."""
         # Create outward spiral
         outward = create_spiral_pattern(
-            center=(sprite.center_x, sprite.center_y), max_radius=60, revolutions=2, speed=80, direction="outward"
+            center=(sprite.center_x, sprite.center_y),
+            max_radius=60,
+            revolutions=2,
+            speed=80,
+            direction="outward"
         )
         # Create inward spiral
         inward = create_spiral_pattern(
-            center=(sprite.center_x, sprite.center_y), max_radius=60, revolutions=2, speed=80, direction="inward"
+            center=(sprite.center_x, sprite.center_y),
+            max_radius=60,
+            revolutions=2,
+            speed=80,
+            direction="inward"
         )
-
+        
         # Combine into a sequence and repeat
         spiral_cycle = sequence(outward, inward)
         repeat(spiral_cycle).apply(sprite, tag="spiral_pattern")
@@ -138,17 +146,19 @@ class PatternDemo(arcade.Window):
             sprite.center_x - 60,  # left
             sprite.center_y - 40,  # bottom
             sprite.center_x + 60,  # right
-            sprite.center_y + 40,  # top
+            sprite.center_y + 40   # top
         )
-
-        bounce = create_bounce_pattern(velocity=(80, 60), bounds=bounds)
+        
+        bounce = create_bounce_pattern(
+            velocity=(80, 60),
+            bounds=bounds
+        )
         bounce.apply(sprite, tag="bounce_pattern")
 
     def _create_patrol_demo(self, sprite: arcade.Sprite):
         """Create repeating patrol pattern."""
         start_pos = (sprite.center_x - 50, sprite.center_y)
         end_pos = (sprite.center_x + 50, sprite.center_y)
-
         patrol = create_patrol_pattern(start_pos, end_pos, speed=80)
         repeat(patrol).apply(sprite, tag="patrol_pattern")
 
@@ -161,7 +171,15 @@ class PatternDemo(arcade.Window):
 
         # Draw labels
         for label, x, y in self.labels:
-            arcade.draw_text(label, x, y, arcade.color.WHITE, 14, anchor_x="center", font_name="Kenney Future")
+            arcade.draw_text(
+                label,
+                x,
+                y,
+                arcade.color.WHITE,
+                14,
+                anchor_x="center",
+                font_name="Kenney Future"
+            )
 
         # Draw boundary boxes for bounce pattern
         for i, sprite in enumerate(self.pattern_sprites):

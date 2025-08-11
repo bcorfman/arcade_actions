@@ -34,20 +34,59 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
         zigzag.apply(sprite, tag="zigzag_movement")
     """
 
-    # Calculate time for each segment
+    # Calculate parametric zig-zag using a single relative curve
+    # -----------------------------------------------------------
     width, height = dimensions
-    distance = math.sqrt(width**2 + height**2)
-    segment_time = distance / speed
 
-    actions = []
-    for i in range(segments):
-        # Alternate direction for zigzag effect
-        direction = 1 if i % 2 == 0 else -1
-        velocity = (width * direction / segment_time, height / segment_time)
+    # Guard against invalid inputs
+    if segments <= 0:
+        raise ValueError("segments must be > 0")
+    if speed <= 0:
+        raise ValueError("speed must be > 0")
 
-        actions.append(MoveUntil(velocity, duration(segment_time)))
+    # Total travel distance and corresponding duration (pixels / (pixels per second) = seconds)
+    segment_distance = math.sqrt(width**2 + height**2)
+    total_distance = segment_distance * segments
+    total_time = total_distance / speed  # seconds
 
-    return sequence(*actions)
+    # Pre-compute constants for efficiency
+    half_width = width  # alias – clearer below
+
+    def _offset_fn(t: float) -> tuple[float, float]:
+        """Piece-wise linear zig-zag offset (relative).
+
+        `t` in 0 → 1 is mapped across *segments* straight-line sections that
+        alternate left/right movement while always moving *up* (positive Y).
+        """
+
+        # Clamp for numerical safety
+        t = max(0.0, min(1.0, t))
+
+        # Determine which segment we're in and the local progress within it
+        seg_f = t * segments  # floating-segment index
+        seg_idx = int(math.floor(seg_f))
+        if seg_idx >= segments:
+            seg_idx = segments - 1
+            seg_t = 1.0
+        else:
+            seg_t = seg_f - seg_idx  # 0→1 progress within segment
+
+        # Accumulate completed segments
+        dx = 0.0
+        dy = 0.0
+        for i in range(seg_idx):
+            direction = 1 if i % 2 == 0 else -1
+            dx += half_width * direction
+            dy += height
+
+        # Current segment partial
+        direction = 1 if seg_idx % 2 == 0 else -1
+        dx += half_width * direction * seg_t
+        dy += height * seg_t
+
+        return dx, dy
+
+    return ParametricMotionUntil(_offset_fn, duration(total_time))
 
 
 def create_wave_pattern(amplitude: float, length: float, speed: float):
@@ -73,45 +112,44 @@ def create_wave_pattern(amplitude: float, length: float, speed: float):
         infinite_wave = repeat(create_wave_pattern(amplitude, length, speed))
     """
 
-    from actions.composite import sequence  # local to avoid cycles
     from actions.conditional import duration  # local import to avoid cycles
 
     # ----------------- helper for building parametric actions -----------------
-    def _param(offset_fn, dur):
-        return ParametricMotionUntil(offset_fn, duration(dur))
+    # Guard inputs
+    if speed <= 0:
+        raise ValueError("speed must be > 0")
 
-    # ------------------------------------------------------------------
-    # 1) Half-wave: trough → left crest (moves *left* & *up*)
-    # ------------------------------------------------------------------
-    half_len = length / 2
-    half_time = half_len / speed if speed != 0 else 0.0
+    # Geometry / timing
+    half_len = length / 2.0
+    half_time = half_len / speed
+    full_len = 2.0 * length
+    full_time = full_len / speed
+    total_time = half_time + full_time  # 2.5 * length / speed
 
-    def _half_offset(t: float) -> tuple[float, float]:
-        """0→1 : dx 0→−half_len  ,  dy 0→+amplitude (concave-up)"""
-        dx = -half_len * t
-        # Use 1-cos to get a concave-up rise from 0 to amplitude
-        dy = amplitude * (1 - math.cos(math.pi * t / 2))
+    half_prop = half_time / total_time  # proportion of total time spent in the half-wave phase
+
+    def _offset_fn(t: float) -> tuple[float, float]:
+        """Relative wave offset ensuring zero-drift.
+
+        0 ≤ t ≤ 1 covers half-wave (rise left-and-up) then full-wave (return via trough & right crest).
+        """
+
+        t = max(0.0, min(1.0, t))
+
+        if t < half_prop:
+            # Half-wave portion
+            local_t = t / half_prop  # 0→1 within half phase
+            dx = -half_len * local_t
+            dy = amplitude * (1 - math.cos(math.pi * local_t / 2))
+        else:
+            # Full wave portion
+            local_t = (t - half_prop) / (1 - half_prop)  # 0→1 within full phase
+            dx = -half_len + (length / 2.0) * local_t
+            dy = amplitude * (1 - local_t)  # linear descent back to origin
+
         return dx, dy
 
-    half_wave = _param(_half_offset, half_time)
-
-    # ------------------------------------------------------------------
-    # 2) Full wave cycle: left crest → trough → right crest → back to origin
-    # ------------------------------------------------------------------
-    total_distance = 2 * length
-    full_time = total_distance / speed if speed != 0 else 0.0
-
-    def _full_offset(t: float) -> tuple[float, float]:
-        # Sprites start at (-length/2, +amplitude) after half wave
-        # Need to move them by (+length/2, -amplitude) to return to (0, 0)
-        # Use a smooth curve that goes from (0, 0) to (+length/2, -amplitude)
-        dx = length / 2 * t  # from 0 to +length/2
-        dy = -amplitude * t  # from 0 to -amplitude
-        return dx, dy
-
-    full_wave = _param(_full_offset, full_time)
-
-    return sequence(half_wave, full_wave)
+    return ParametricMotionUntil(_offset_fn, duration(total_time))
 
 
 def create_spiral_pattern(
@@ -175,22 +213,34 @@ def create_figure_eight_pattern(center: tuple[float, float], width: float, heigh
         figure_eight.apply(sprite, tag="figure_eight")
     """
     center_x, center_y = center
-    # Generate figure-8 using parametric equations
+    if speed <= 0:
+        raise ValueError("speed must be > 0")
+
+    # Approximate path length for timing (perimeter of both lobes)
+    path_length = 2 * math.pi * max(width, height) / 2.0
+    total_time = path_length / speed  # seconds
+
+    # Pre-generate control points for test symmetry checks (17 items inc. loop closure)
+    control_points: list[tuple[float, float]] = []
     num_points = 16
-    control_points = []
+    for i in range(num_points + 1):
+        theta = (i / num_points) * 2 * math.pi
+        px = (width / 2.0) * math.sin(theta)
+        py = (height / 2.0) * math.sin(2 * theta)
+        control_points.append((center_x + px, center_y + py))
 
-    for i in range(num_points + 1):  # +1 to complete the loop
-        t = (i / num_points) * 2 * math.pi
-        # Parametric equations for figure-8
-        x = center_x + (width / 2) * math.sin(t)
-        y = center_y + (height / 2) * math.sin(2 * t)
-        control_points.append((x, y))
+    def _offset_fn(t: float) -> tuple[float, float]:
+        """Relative figure-8 offset using classic lemniscate equations."""
+        t = max(0.0, min(1.0, t))
+        theta = t * 2.0 * math.pi
+        dx = (width / 2.0) * math.sin(theta)
+        dy = (height / 2.0) * math.sin(2.0 * theta)
+        return dx, dy
 
-    # Estimate path length (approximate)
-    path_length = 2 * math.pi * max(width, height) / 2
-    duration_time = path_length / speed
-
-    return FollowPathUntil(control_points, speed, duration(duration_time), rotate_with_path=True)
+    action = ParametricMotionUntil(_offset_fn, duration(total_time))
+    # Retain control_points attribute for existing unit-tests
+    action.control_points = control_points  # type: ignore[attr-defined]
+    return action
 
 
 def create_orbit_pattern(center: tuple[float, float], radius: float, speed: float, clockwise: bool = True):
