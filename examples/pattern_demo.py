@@ -41,7 +41,7 @@ class PatternDemo(arcade.Window):
 
         # Sprite lists
         self.pattern_sprites = arcade.SpriteList()
-        self.labels = []
+        self.text_labels = []
 
         # UI Manager for text
         self.ui_manager = arcade.gui.UIManager()
@@ -63,7 +63,12 @@ class PatternDemo(arcade.Window):
             sprite = self._create_sprite(x, y)
             self.pattern_sprites.append(sprite)
             create_func(sprite)
-            self.labels.append((label, x, y + 80))
+
+            # Create Text object for label
+            text_label = arcade.Text(
+                label, x, y + 80, arcade.color.WHITE, 14, anchor_x="center", font_name="Kenney Future"
+            )
+            self.text_labels.append(text_label)
 
         # Create sprites and patterns for bottom row
         patterns_bottom = [
@@ -78,7 +83,12 @@ class PatternDemo(arcade.Window):
             sprite = self._create_sprite(x, y)
             self.pattern_sprites.append(sprite)
             create_func(sprite)
-            self.labels.append((label, x, y + 80))
+
+            # Create Text object for label
+            text_label = arcade.Text(
+                label, x, y + 80, arcade.color.WHITE, 14, anchor_x="center", font_name="Kenney Future"
+            )
+            self.text_labels.append(text_label)
 
     def _create_sprite(self, x: float, y: float) -> arcade.Sprite:
         """Create a sprite at the given position."""
@@ -120,21 +130,13 @@ class PatternDemo(arcade.Window):
         """Create spiral pattern that alternates between outward and inward."""
         # Create outward spiral
         outward = create_spiral_pattern(
-            center=(sprite.center_x, sprite.center_y),
-            max_radius=60,
-            revolutions=2,
-            speed=80,
-            direction="outward"
+            center=(sprite.center_x, sprite.center_y), max_radius=60, revolutions=2, speed=80, direction="outward"
         )
         # Create inward spiral
         inward = create_spiral_pattern(
-            center=(sprite.center_x, sprite.center_y),
-            max_radius=60,
-            revolutions=2,
-            speed=80,
-            direction="inward"
+            center=(sprite.center_x, sprite.center_y), max_radius=60, revolutions=2, speed=80, direction="inward"
         )
-        
+
         # Combine into a sequence and repeat
         spiral_cycle = sequence(outward, inward)
         repeat(spiral_cycle).apply(sprite, tag="spiral_pattern")
@@ -146,13 +148,10 @@ class PatternDemo(arcade.Window):
             sprite.center_x - 60,  # left
             sprite.center_y - 40,  # bottom
             sprite.center_x + 60,  # right
-            sprite.center_y + 40   # top
+            sprite.center_y + 40,  # top
         )
-        
-        bounce = create_bounce_pattern(
-            velocity=(80, 60),
-            bounds=bounds
-        )
+
+        bounce = create_bounce_pattern(velocity=(80, 60), bounds=bounds)
         bounce.apply(sprite, tag="bounce_pattern")
 
     def _create_patrol_demo(self, sprite: arcade.Sprite):
@@ -169,17 +168,9 @@ class PatternDemo(arcade.Window):
         # Draw pattern sprites
         self.pattern_sprites.draw()
 
-        # Draw labels
-        for label, x, y in self.labels:
-            arcade.draw_text(
-                label,
-                x,
-                y,
-                arcade.color.WHITE,
-                14,
-                anchor_x="center",
-                font_name="Kenney Future"
-            )
+        # Draw text labels using Text objects
+        for text_label in self.text_labels:
+            text_label.draw()
 
         # Draw boundary boxes for bounce pattern
         for i, sprite in enumerate(self.pattern_sprites):
