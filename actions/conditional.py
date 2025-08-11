@@ -327,6 +327,11 @@ class FollowPathUntil(_Action):
         self.rotate_with_path = rotate_with_path  # Enable automatic sprite rotation
         self.rotation_offset = rotation_offset  # Degrees to offset for sprite artwork orientation
 
+        # Track last applied movement angle to smooth out rotations when
+        # the incremental movement vector becomes (nearly) zero – e.g. when
+        # a path repeats and the sprite is momentarily stationary.
+        self._prev_movement_angle: float | None = None
+
         # Path traversal state
         self._curve_progress = 0.0  # Progress along curve: 0.0 (start) to 1.0 (end)
         self._curve_length = 0.0  # Total length of the curve in pixels
@@ -396,19 +401,19 @@ class FollowPathUntil(_Action):
             dy = current_point[1] - self._last_position[1]
 
             # Calculate sprite rotation angle to face movement direction
-            movement_angle = None
-            if self.rotate_with_path and (dx != 0 or dy != 0):
-                # Calculate movement direction angle using atan2 for proper quadrant handling
-                # atan2(dy, dx) returns angle in radians where:
-                #   - 0 radians (0°) = moving right (+x direction)
-                #   - π/2 radians (90°) = moving up (+y direction)
-                #   - π radians (180°) = moving left (-x direction)
-                #   - 3π/2 radians (270°) = moving down (-y direction)
-                direction_angle = math.degrees(math.atan2(dy, dx))
-
-                # Apply rotation offset to compensate for sprite artwork orientation
-                # If sprite artwork points up by default, use offset=-90 to correct
-                movement_angle = direction_angle + self.rotation_offset
+            movement_angle: float | None = None
+            if self.rotate_with_path:
+                # Determine if the incremental vector is significant.  Very small
+                # vectors occur when a closed path repeats and the sprite is
+                # effectively stationary for one frame; using such a vector for
+                # direction calculation causes a visible rotation jump.
+                if abs(dx) > 1e-6 or abs(dy) > 1e-6:
+                    direction_angle = math.degrees(math.atan2(dy, dx))
+                    movement_angle = direction_angle + self.rotation_offset
+                    self._prev_movement_angle = movement_angle
+                else:
+                    # Re-use the previous angle to maintain continuity
+                    movement_angle = self._prev_movement_angle
 
             def apply_movement(sprite):
                 # Move sprite along the path
@@ -1072,12 +1077,17 @@ class ParametricMotionUntil(_Action):
         on_stop: _Callable[[_Any], None] | _Callable[[], None] | None = None,
         *,
         explicit_duration: float | None = None,
+        rotate_with_path: bool = False,
+        rotation_offset: float = 0.0,
     ):
         super().__init__(condition=condition, on_stop=on_stop)
         self._offset_fn = offset_fn
         self._origins: dict[int, tuple[float, float]] = {}
         self._elapsed = 0.0
         self._duration = explicit_duration  # May be filled in apply_effect
+        self.rotate_with_path = rotate_with_path
+        self.rotation_offset = rotation_offset
+        self._prev_offset = None  # Track previous offset for rotation calculation
 
     # --------------------- Action hooks --------------------
     def apply_effect(self) -> None:  # noqa: D401 – imperative style
@@ -1108,8 +1118,31 @@ class ParametricMotionUntil(_Action):
         self._elapsed += delta_time * self._factor
         progress = min(1.0, self._elapsed / self._duration) if self._duration > 0 else 1.0
 
-        dx, dy = self._offset_fn(progress)
-        self.for_each_sprite(lambda s: _apply_offset(s, dx, dy, self._origins))
+        current_offset = self._offset_fn(progress)
+        dx, dy = current_offset
+
+        # Calculate rotation if enabled
+        sprite_angle = None
+        if self.rotate_with_path and self._prev_offset is not None:
+            # Calculate movement vector from previous to current offset
+            movement_dx = dx - self._prev_offset[0]
+            movement_dy = dy - self._prev_offset[1]
+
+            # Only calculate angle if there's significant movement
+            if abs(movement_dx) > 1e-6 or abs(movement_dy) > 1e-6:
+                angle = math.degrees(math.atan2(movement_dy, movement_dx))
+                sprite_angle = angle + self.rotation_offset
+
+        # Apply movement and rotation
+        def apply_transform(sprite):
+            _apply_offset(sprite, dx, dy, self._origins)
+            if sprite_angle is not None:
+                sprite.angle = sprite_angle
+
+        self.for_each_sprite(apply_transform)
+
+        # Store current offset for next frame's rotation calculation
+        self._prev_offset = current_offset
 
         if progress >= 1.0 and not self.done:
             self._condition_met = True
@@ -1123,6 +1156,8 @@ class ParametricMotionUntil(_Action):
             _clone_condition(self.condition),
             self.on_stop,
             explicit_duration=self._duration,
+            rotate_with_path=self.rotate_with_path,
+            rotation_offset=self.rotation_offset,
         )
 
 

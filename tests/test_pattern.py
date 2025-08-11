@@ -206,25 +206,114 @@ class TestOrbitPattern:
         """Clean up after each test."""
         Action.stop_all()
 
-    def test_create_orbit_pattern_clockwise(self):
-        """Test clockwise orbit pattern."""
+    def test_create_orbit_pattern_basic(self):
+        """Test basic orbit pattern creation."""
         pattern = create_orbit_pattern(center=(400, 300), radius=120, speed=150, clockwise=True)
 
-        assert hasattr(pattern, "control_points")
-        points = pattern.control_points
+        # The new orbit pattern returns an InfiniteOrbitAction, not a path-based action
+        assert hasattr(pattern, "center_x")
+        assert hasattr(pattern, "center_y")
+        assert hasattr(pattern, "radius")
+        assert pattern.center_x == 400
+        assert pattern.center_y == 300
+        assert pattern.radius == 120
 
-        # All points should be approximately the same distance from center
-        for point in points:
-            distance = math.sqrt((point[0] - 400) ** 2 + (point[1] - 300) ** 2)
-            assert abs(distance - 120) < 1.0
+    def test_orbit_pattern_rotation_continuity(self):
+        """Test that orbit pattern rotation is continuous without sudden angle jumps.
 
-    def test_create_orbit_pattern_counter_clockwise(self):
-        """Test counter-clockwise orbit pattern."""
-        cw_pattern = create_orbit_pattern(center=(400, 300), radius=120, speed=150, clockwise=True)
-        ccw_pattern = create_orbit_pattern(center=(400, 300), radius=120, speed=150, clockwise=False)
+        This test specifically checks for rotation discontinuities that cause visual
+        stutter when rotate_with_path=True.
+        """
+        import statistics
 
-        # Patterns should have same number of points but different order
-        assert len(cw_pattern.control_points) == len(ccw_pattern.control_points)
+        sprite = create_test_sprite()
+        center = (0.0, 0.0)
+        radius = 50.0
+
+        # Start the sprite on the right-most point of the circle
+        sprite.center_x = center[0] + radius
+        sprite.center_y = center[1]
+        sprite.angle = 0.0  # Start with known angle
+
+        # Apply infinite orbit with rotation enabled
+        orbit = create_orbit_pattern(center=center, radius=radius, speed=120.0, clockwise=True)
+        orbit.apply(sprite)
+
+        dt = 1 / 60  # 60 FPS simulation step
+        angles = []
+
+        # Capture data for multiple revolutions
+        for _ in range(300):  # ~5 seconds at 60fps
+            Action.update_all(dt)
+            angles.append(sprite.angle)
+
+        # Check for sudden angle changes (discontinuities)
+        angle_changes = []
+        for i in range(1, len(angles)):
+            # Calculate smallest angle difference (accounting for wrap-around)
+            diff = angles[i] - angles[i - 1]
+            # Normalize to [-180, 180] range
+            while diff > 180:
+                diff -= 360
+            while diff < -180:
+                diff += 360
+            angle_changes.append(abs(diff))
+
+        max_angle_change = max(angle_changes)
+        median_angle_change = statistics.median(angle_changes)
+
+        # A sudden rotation discontinuity would show as a large angle change
+        # For a smooth orbit, the maximum change should be small (< 1 degree)
+        assert max_angle_change < 1.0, (
+            f"Rotation discontinuity detected: max angle change {max_angle_change:.4f}° > 1.0°"
+        )
+
+        # Additional check: if we have meaningful rotation, changes should be reasonably consistent
+        if median_angle_change > 0.01:  # Only check ratio if median is significant
+            assert max_angle_change < median_angle_change * 5.0, (
+                f"Rotation inconsistency: max change {max_angle_change:.4f}° is "
+                f"{max_angle_change / median_angle_change:.1f}x the median {median_angle_change:.4f}°"
+            )
+
+    def test_orbit_pattern_position_continuity(self):
+        """Test that orbit pattern position movement is continuous without stutters."""
+        import statistics
+
+        sprite = create_test_sprite()
+        center = (0.0, 0.0)
+        radius = 50.0
+
+        # Start the sprite on the right-most point of the circle
+        sprite.center_x = center[0] + radius
+        sprite.center_y = center[1]
+
+        # Apply infinite orbit
+        orbit = create_orbit_pattern(center=center, radius=radius, speed=120.0, clockwise=True)
+        orbit.apply(sprite)
+
+        dt = 1 / 60  # 60 FPS simulation step
+        step_sizes = []
+        prev_pos = (sprite.center_x, sprite.center_y)
+
+        # Capture movement data for multiple revolutions
+        for _ in range(300):  # ~5 seconds at 60fps
+            Action.update_all(dt)
+            cur_pos = (sprite.center_x, sprite.center_y)
+            dx = cur_pos[0] - prev_pos[0]
+            dy = cur_pos[1] - prev_pos[1]
+            step_sizes.append(math.hypot(dx, dy))
+            prev_pos = cur_pos
+
+        # Remove first frame (initialization)
+        step_sizes = step_sizes[1:]
+
+        median_step = statistics.median(step_sizes)
+        min_step = min(step_sizes)
+
+        # Very strict continuity check - any frame with <80% of median step indicates stutter
+        assert min_step > median_step * 0.8, (
+            f"Position stutter detected: min step {min_step:.4f} < 80% of median {median_step:.4f}"
+        )
 
 
 class TestBouncePattern:
