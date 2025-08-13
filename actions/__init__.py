@@ -71,6 +71,9 @@ from .helpers import (
     tween_until,
 )
 
+# Instant actions
+from .instant import MoveBy, MoveTo
+
 # Movement patterns and condition helpers
 from .pattern import (
     create_bounce_pattern,
@@ -99,6 +102,9 @@ __all__ = [
     "TweenUntil",
     "duration",
     "infinite",
+    # Instant actions
+    "MoveTo",
+    "MoveBy",
     # Easing wrappers
     "Ease",
     # Composition functions

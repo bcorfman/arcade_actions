@@ -10,6 +10,7 @@ import arcade.gui
 
 from actions import (
     Action,
+    MoveBy,
     create_bounce_pattern,
     create_figure_eight_pattern,
     create_orbit_pattern,
@@ -99,8 +100,9 @@ class PatternDemo(arcade.Window):
 
     def _create_wave_demo(self, sprite: arcade.Sprite):
         """Create repeating wave pattern."""
+        move_by = MoveBy(-30, 30)
         wave = create_wave_pattern(amplitude=30, length=60, speed=80)
-        repeat(wave).apply(sprite)
+        sequence(move_by, repeat(wave)).apply(sprite)
 
     def _create_zigzag_demo(self, sprite: arcade.Sprite):
         """Create zigzag pattern that reverses to return to start."""
@@ -166,9 +168,9 @@ class PatternDemo(arcade.Window):
 
     def _create_patrol_demo(self, sprite: arcade.Sprite):
         """Create repeating patrol pattern."""
-        start_pos = (sprite.center_x - 50, sprite.center_y)
-        end_pos = (sprite.center_x + 50, sprite.center_y)
-        patrol = create_patrol_pattern(start_pos, end_pos, speed=4)
+        start_pos = (sprite.center_x - 30, sprite.center_y)
+        end_pos = (sprite.center_x + 30, sprite.center_y)
+        patrol = create_patrol_pattern(start_pos, end_pos, speed=2)
         repeat(patrol).apply(sprite)
 
     def on_draw(self):
@@ -181,19 +183,6 @@ class PatternDemo(arcade.Window):
         # Draw text labels using Text objects
         for text_label in self.text_labels:
             text_label.draw()
-
-        # Draw boundary boxes for bounce pattern
-        for i, sprite in enumerate(self.pattern_sprites):
-            if i == 5:  # Bounce pattern sprite (6th sprite, index 5)
-                # Draw the boundary box
-                bounds_left = sprite.center_x - 60
-                bounds_right = sprite.center_x + 60
-                bounds_bottom = sprite.center_y - 40
-                bounds_top = sprite.center_y + 40
-
-                arcade.draw_lrbt_rectangle_outline(
-                    bounds_left, bounds_right, bounds_bottom, bounds_top, arcade.color.GRAY, 1
-                )
 
         # Draw UI elements
         self.ui_manager.draw()

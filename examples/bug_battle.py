@@ -19,6 +19,7 @@ import arcade
 from actions import (
     Action,
     DelayUntil,
+    MoveBy,
     arrange_grid,
     blink_until,
     create_formation_entry_from_sprites,
@@ -26,6 +27,7 @@ from actions import (
     infinite,
     move_until,
     repeat,
+    sequence,
 )
 
 # ---------------------------------------------------------------------------
@@ -375,14 +377,15 @@ class StarfieldView(arcade.View):
             """Start repeating wave motion for the entire enemy formation."""
             AMP = 30  # desired half-wave dip depth
 
+            move_by = MoveBy(-AMP, AMP)
             single_wave = create_wave_pattern(
                 amplitude=AMP,
-                length=80,
-                speed=100.0,
+                length=100,
+                speed=150.0,
             )
 
             # Repeat the wave forever so enemies keep swaying
-            repeating_wave = repeat(single_wave)
+            repeating_wave = sequence(move_by, repeat(single_wave))
 
             # Apply to the whole enemy list (grid moves as one unit)
             repeating_wave.apply(self.enemy_list, tag="enemy_wave")
