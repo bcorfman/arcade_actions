@@ -3,9 +3,10 @@
 import math
 
 import arcade
+import pytest
 
 from actions.base import Action
-from actions.composite import sequence
+from actions.composite import repeat, sequence
 from actions.conditional import DelayUntil, FadeUntil, ParametricMotionUntil, duration
 from actions.formation import arrange_circle, arrange_grid, arrange_line
 from actions.pattern import (
@@ -126,6 +127,14 @@ class TestZigzagPattern:
 class TestSpiralPattern:
     """Test suite for spiral movement pattern."""
 
+    @pytest.fixture
+    def sprite(self):
+        """Create a test sprite."""
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+        return sprite
+
     def teardown_method(self):
         """Clean up after each test."""
         Action.stop_all()
@@ -171,6 +180,192 @@ class TestSpiralPattern:
 
         assert pattern.target == sprite
 
+    def test_outward_spiral_endpoints(self, sprite):
+        """Test that outward spiral starts at center and ends at max radius."""
+        center = (100, 100)
+        max_radius = 50
+        revolutions = 2
+        speed = 100
+
+        # Create outward spiral
+        outward = create_spiral_pattern(center, max_radius, revolutions, speed, "outward")
+        outward.apply(sprite)
+
+        # Record initial position (should be at center)
+        initial_x = sprite.center_x
+        initial_y = sprite.center_y
+
+        # Simulate until spiral completes
+        while not outward.done:
+            Action.update_all(1 / 60)  # 60 FPS
+
+        # Final position should be at max radius from center
+        final_x = sprite.center_x
+        final_y = sprite.center_y
+        final_distance = math.sqrt((final_x - center[0]) ** 2 + (final_y - center[1]) ** 2)
+
+        # Check that we started at center
+        assert abs(initial_x - center[0]) < 1.0
+        assert abs(initial_y - center[1]) < 1.0
+
+        # Check that we ended near max radius
+        assert abs(final_distance - max_radius) < 5.0  # Allow some tolerance
+
+    def test_inward_spiral_endpoints(self, sprite):
+        """Test that inward spiral should start at max radius and end at center."""
+        center = (100, 100)
+        max_radius = 50
+        revolutions = 2
+        speed = 100
+
+        # Position sprite at max radius (where outward spiral would end)
+        sprite.center_x = center[0] + max_radius
+        sprite.center_y = center[1]
+
+        # Create inward spiral
+        inward = create_spiral_pattern(center, max_radius, revolutions, speed, "inward")
+        inward.apply(sprite)
+
+        # Record initial position (should be at max radius)
+        initial_x = sprite.center_x
+        initial_y = sprite.center_y
+        initial_distance = math.sqrt((initial_x - center[0]) ** 2 + (initial_y - center[1]) ** 2)
+
+        # Simulate until spiral completes
+        while not inward.done:
+            Action.update_all(1 / 60)  # 60 FPS
+
+        # Final position should be at center
+        final_x = sprite.center_x
+        final_y = sprite.center_y
+
+        # Check that we started at max radius
+        assert abs(initial_distance - max_radius) < 1.0
+
+        # Check that we ended at center
+        assert abs(final_x - center[0]) < 1.0
+        assert abs(final_y - center[1]) < 1.0
+
+    def test_spiral_sequence_position_continuity(self, sprite):
+        """Test that position is continuous between outward and inward spirals."""
+        center = (100, 100)
+        max_radius = 50
+        revolutions = 2
+        speed = 100
+
+        # Create spiral sequence
+        outward = create_spiral_pattern(center, max_radius, revolutions, speed, "outward")
+        inward = create_spiral_pattern(center, max_radius, revolutions, speed, "inward")
+        spiral_cycle = sequence(outward, inward)
+        spiral_cycle.apply(sprite)
+
+        positions = []
+        angles = []
+
+        # Record positions throughout the sequence
+        while not spiral_cycle.done:
+            positions.append((sprite.center_x, sprite.center_y))
+            angles.append(sprite.angle)
+            Action.update_all(1 / 60)  # 60 FPS
+
+        # Find the transition point (where outward ends and inward begins)
+        # This should be when we're at maximum distance from center
+        distances = [math.sqrt((x - center[0]) ** 2 + (y - center[1]) ** 2) for x, y in positions]
+        max_distance_idx = distances.index(max(distances))
+
+        # Check for position continuity around the transition
+        if max_distance_idx > 0 and max_distance_idx < len(positions) - 1:
+            prev_pos = positions[max_distance_idx - 1]
+            curr_pos = positions[max_distance_idx]
+            next_pos = positions[max_distance_idx + 1]
+
+            # Position jump between frames should be small (smooth movement)
+            jump1 = math.sqrt((curr_pos[0] - prev_pos[0]) ** 2 + (curr_pos[1] - prev_pos[1]) ** 2)
+            jump2 = math.sqrt((next_pos[0] - curr_pos[0]) ** 2 + (next_pos[1] - curr_pos[1]) ** 2)
+
+            # Both jumps should be similar (no sudden position change)
+            assert abs(jump1 - jump2) < 10.0, f"Position discontinuity detected: {jump1} vs {jump2}"
+
+    def test_spiral_sequence_rotation_continuity(self, sprite):
+        """Test that rotation is continuous between outward and inward spirals."""
+        center = (100, 100)
+        max_radius = 50
+        revolutions = 2
+        speed = 100
+
+        # Create spiral sequence
+        outward = create_spiral_pattern(center, max_radius, revolutions, speed, "outward")
+        inward = create_spiral_pattern(center, max_radius, revolutions, speed, "inward")
+        spiral_cycle = sequence(outward, inward)
+        spiral_cycle.apply(sprite)
+
+        angles = []
+        positions = []
+
+        # Record angles throughout the sequence
+        while not spiral_cycle.done:
+            angles.append(sprite.angle)
+            positions.append((sprite.center_x, sprite.center_y))
+            Action.update_all(1 / 60)  # 60 FPS
+
+        # Find the transition point
+        distances = [math.sqrt((x - center[0]) ** 2 + (y - center[1]) ** 2) for x, y in positions]
+        max_distance_idx = distances.index(max(distances))
+
+        # Check for rotation continuity around the transition
+        if max_distance_idx > 1 and max_distance_idx < len(angles) - 2:
+            # Get angles around transition point
+            angle_before = angles[max_distance_idx - 1]
+            angle_at = angles[max_distance_idx]
+            angle_after = angles[max_distance_idx + 1]
+
+            # Normalize angles to [0, 360)
+            def normalize_angle(angle):
+                return angle % 360
+
+            angle_before = normalize_angle(angle_before)
+            angle_at = normalize_angle(angle_at)
+            angle_after = normalize_angle(angle_after)
+
+            # Calculate angle changes
+            def angle_diff(a1, a2):
+                diff = abs(a1 - a2)
+                return min(diff, 360 - diff)
+
+            change1 = angle_diff(angle_at, angle_before)
+            change2 = angle_diff(angle_after, angle_at)
+
+            # Rotation changes should be similar (no sudden rotation jump)
+            assert abs(change1 - change2) < 30.0, f"Rotation discontinuity detected: {change1} vs {change2}"
+
+    def test_path_reversal_property(self):
+        """Test that inward spiral follows the exact reverse path of outward spiral."""
+        center = (100, 100)
+        max_radius = 50
+        revolutions = 2
+        speed = 100
+
+        # Create both spirals
+        outward = create_spiral_pattern(center, max_radius, revolutions, speed, "outward")
+        inward = create_spiral_pattern(center, max_radius, revolutions, speed, "inward")
+
+        # Get control points
+        outward_points = outward.control_points
+        inward_points = inward.control_points
+
+        # For true reversal, inward points should be outward points in reverse order
+        expected_inward_points = list(reversed(outward_points))
+
+        # Check if inward points match reversed outward points
+        points_match = True
+        for i, (expected, actual) in enumerate(zip(expected_inward_points, inward_points, strict=False)):
+            distance = math.sqrt((expected[0] - actual[0]) ** 2 + (expected[1] - actual[1]) ** 2)
+            if distance > 1.0:  # Allow small tolerance
+                points_match = False
+                break
+
+        assert points_match, "Inward spiral should follow exact reverse path of outward spiral"
+
 
 class TestFigureEightPattern:
     """Test suite for figure-8 movement pattern."""
@@ -207,16 +402,23 @@ class TestOrbitPattern:
         Action.stop_all()
 
     def test_create_orbit_pattern_basic(self):
-        """Test basic orbit pattern creation."""
+        """Test basic orbit pattern creation returns a finite action."""
         pattern = create_orbit_pattern(center=(400, 300), radius=120, speed=150, clockwise=True)
 
-        # The new orbit pattern returns an InfiniteOrbitAction, not a path-based action
-        assert hasattr(pattern, "center_x")
-        assert hasattr(pattern, "center_y")
-        assert hasattr(pattern, "radius")
-        assert pattern.center_x == 400
-        assert pattern.center_y == 300
-        assert pattern.radius == 120
+        # Should be a finite action that can be applied and completes
+        sprite = create_test_sprite()
+        start_pos = (sprite.center_x, sprite.center_y)
+        pattern.apply(sprite)
+        # Simulate until completion (one orbit)
+        _simulate_until_done(pattern, max_steps=600)
+        # Should end where it started if the sprite began on the orbit circle
+        # Move sprite onto circle and re-run quick check
+        sprite.center_x, sprite.center_y = (400 + 120, 300)
+        pat2 = create_orbit_pattern(center=(400, 300), radius=120, speed=150, clockwise=True)
+        pat2.apply(sprite)
+        _simulate_until_done(pat2, max_steps=600)
+        assert math.isclose(sprite.center_x, 400 + 120, abs_tol=1e-3)
+        assert math.isclose(sprite.center_y, 300, abs_tol=1e-3)
 
     def test_orbit_pattern_rotation_continuity(self):
         """Test that orbit pattern rotation is continuous without sudden angle jumps.
@@ -235,14 +437,15 @@ class TestOrbitPattern:
         sprite.center_y = center[1]
         sprite.angle = 0.0  # Start with known angle
 
-        # Apply infinite orbit with rotation enabled
-        orbit = create_orbit_pattern(center=center, radius=radius, speed=120.0, clockwise=True)
+        # Apply repeating single-orbit with rotation enabled to test seamless loops
+        orbit_single = create_orbit_pattern(center=center, radius=radius, speed=120.0, clockwise=True)
+        orbit = repeat(orbit_single)
         orbit.apply(sprite)
 
         dt = 1 / 60  # 60 FPS simulation step
         angles = []
 
-        # Capture data for multiple revolutions
+        # Capture data for multiple revolutions (via repeat)
         for _ in range(300):  # ~5 seconds at 60fps
             Action.update_all(dt)
             angles.append(sprite.angle)
@@ -262,10 +465,17 @@ class TestOrbitPattern:
         max_angle_change = max(angle_changes)
         median_angle_change = statistics.median(angle_changes)
 
-        # A sudden rotation discontinuity would show as a large angle change
-        # For a smooth orbit, the maximum change should be small (< 1 degree)
-        assert max_angle_change < 1.0, (
-            f"Rotation discontinuity detected: max angle change {max_angle_change:.4f}° > 1.0°"
+        # Calculate expected angle change per frame for smooth motion
+        # Angular velocity = speed / radius = 120 / 50 = 2.4 rad/s = 137.5 deg/s
+        # At 60 FPS: expected change = 137.5 / 60 = 2.29 degrees per frame
+        speed = 120.0  # From test parameters
+        expected_change_per_frame = (speed / radius) * (180 / math.pi) / 60
+
+        # Allow for small variations but detect large discontinuities
+        # Smooth motion should be within 20% of expected
+        assert max_angle_change < expected_change_per_frame * 1.2, (
+            f"Rotation discontinuity detected: max change {max_angle_change:.4f}° > "
+            f"expected {expected_change_per_frame:.4f}° * 1.2"
         )
 
         # Additional check: if we have meaningful rotation, changes should be reasonably consistent
@@ -287,15 +497,16 @@ class TestOrbitPattern:
         sprite.center_x = center[0] + radius
         sprite.center_y = center[1]
 
-        # Apply infinite orbit
-        orbit = create_orbit_pattern(center=center, radius=radius, speed=120.0, clockwise=True)
+        # Apply repeating single-orbit to test seamless loops
+        orbit_single = create_orbit_pattern(center=center, radius=radius, speed=120.0, clockwise=True)
+        orbit = repeat(orbit_single)
         orbit.apply(sprite)
 
         dt = 1 / 60  # 60 FPS simulation step
         step_sizes = []
         prev_pos = (sprite.center_x, sprite.center_y)
 
-        # Capture movement data for multiple revolutions
+        # Capture movement data for multiple revolutions (via repeat)
         for _ in range(300):  # ~5 seconds at 60fps
             Action.update_all(dt)
             cur_pos = (sprite.center_x, sprite.center_y)
@@ -314,6 +525,25 @@ class TestOrbitPattern:
         assert min_step > median_step * 0.8, (
             f"Position stutter detected: min step {min_step:.4f} < 80% of median {median_step:.4f}"
         )
+
+    def test_orbit_pattern_single_orbit_completes(self):
+        """Single orbit completes and returns to starting point on the circle."""
+        sprite = create_test_sprite()
+        center = (100.0, 100.0)
+        radius = 40.0
+
+        # Place sprite on right-most point of the circle
+        sprite.center_x = center[0] + radius
+        sprite.center_y = center[1]
+        start_pos = (sprite.center_x, sprite.center_y)
+
+        orbit = create_orbit_pattern(center=center, radius=radius, speed=120.0, clockwise=True)
+        orbit.apply(sprite)
+
+        _simulate_until_done(orbit, max_steps=600)
+
+        assert math.isclose(sprite.center_x, start_pos[0], abs_tol=1e-3)
+        assert math.isclose(sprite.center_y, start_pos[1], abs_tol=1e-3)
 
 
 class TestBouncePattern:

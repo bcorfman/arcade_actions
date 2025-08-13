@@ -99,8 +99,8 @@ class PatternDemo(arcade.Window):
 
     def _create_wave_demo(self, sprite: arcade.Sprite):
         """Create repeating wave pattern."""
-        wave = create_wave_pattern(amplitude=30, length=50, speed=80)
-        wave.apply(sprite)
+        wave = create_wave_pattern(amplitude=30, length=60, speed=80)
+        repeat(wave).apply(sprite)
 
     def _create_zigzag_demo(self, sprite: arcade.Sprite):
         """Create zigzag pattern that reverses to return to start."""
@@ -134,7 +134,7 @@ class PatternDemo(arcade.Window):
 
         # Create orbit around the center point
         orbit = create_orbit_pattern(center=orbit_center, radius=50, speed=100, clockwise=True)
-        orbit.apply(sprite)
+        repeat(orbit).apply(sprite)
 
     def _create_spiral_demo(self, sprite: arcade.Sprite):
         """Create spiral pattern that alternates between outward and inward."""
@@ -161,14 +161,14 @@ class PatternDemo(arcade.Window):
             sprite.center_y + 40,  # top
         )
 
-        bounce = create_bounce_pattern(velocity=(80, 60), bounds=bounds)
+        bounce = create_bounce_pattern(velocity=(5, 4), bounds=bounds)
         bounce.apply(sprite)
 
     def _create_patrol_demo(self, sprite: arcade.Sprite):
         """Create repeating patrol pattern."""
         start_pos = (sprite.center_x - 50, sprite.center_y)
         end_pos = (sprite.center_x + 50, sprite.center_y)
-        patrol = create_patrol_pattern(start_pos, end_pos, speed=80)
+        patrol = create_patrol_pattern(start_pos, end_pos, speed=4)
         repeat(patrol).apply(sprite)
 
     def on_draw(self):

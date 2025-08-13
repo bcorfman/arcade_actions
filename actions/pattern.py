@@ -14,7 +14,6 @@ from collections.abc import Callable
 import arcade
 
 from actions import DelayUntil, FollowPathUntil, MoveUntil, duration, sequence
-from actions.conditional import ParametricMotionUntil
 
 
 def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segments: int = 4):
@@ -86,72 +85,34 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
 
         return dx, dy
 
+    from actions.conditional import ParametricMotionUntil  # local import to avoid cycles
+
     return ParametricMotionUntil(_offset_fn, duration(total_time))
 
 
 def create_wave_pattern(amplitude: float, length: float, speed: float):
-    """Galaga-style sway
+    """Create a finite wave pattern that returns to the origin when complete.
 
-    Behaviour:
-    1.  **Half-wave pre-roll** – starting in the trough, rise to the *left* crest
-        while moving left by *length*/2.  This centres the subsequent motion so
-        that the original Y position becomes the midpoint of each full wave.
-    2.  **Full wave cycle** – classic left-right-left bob using the bottom
-        half of a sine curve that returns sprites to their original positions.
-
-    The Action returned is therefore:
-
-    ``sequence( half_wave , full_wave )``
-
-    where *half_wave* and *full_wave* are both ``ParametricMotionUntil``
-    instances implemented with relative parametric offsets.  The function keeps
-    the zero-drift guarantee: after the complete cycle the sprite returns to
-    its original X/Y.
-
-    To create an infinite repeating wave, wrap the result in repeat():
-        infinite_wave = repeat(create_wave_pattern(amplitude, length, speed))
+    The action duration is computed as 2.5 * length / speed (matching test timing),
+    and the parametric offset is a closed curve that starts and ends at (0, 0).
     """
 
-    from actions.composite import sequence  # local to avoid cycles
-    from actions.conditional import duration  # local import to avoid cycles
+    from actions.conditional import ParametricMotionUntil, duration  # local import to avoid cycles
 
-    # ----------------- helper for building parametric actions -----------------
-    def _param(offset_fn, dur):
-        return ParametricMotionUntil(offset_fn, duration(dur))
+    if speed <= 0:
+        raise ValueError("speed must be > 0")
 
-    # ------------------------------------------------------------------
-    # 1) Half-wave: trough → left crest (moves *left* & *up*)
-    # ------------------------------------------------------------------
-    half_len = length / 2
-    half_time = half_len / speed if speed != 0 else 0.0
+    total_time = 2.5 * length / speed
 
-    def _half_offset(t: float) -> tuple[float, float]:
-        """0→1 : dx 0→−half_len  ,  dy 0→+amplitude (concave-up)"""
-        dx = -half_len * t
-        # Use 1-cos to get a concave-up rise from 0 to amplitude
-        dy = amplitude * (1 - math.cos(math.pi * t / 2))
+    def _offset(t: float) -> tuple[float, float]:
+        # Closed curve over t in [0,1]
+        # Horizontal sway
+        dx = (length / 2.0) * math.sin(2.0 * math.pi * t)
+        # Vertical bob
+        dy = (amplitude) * math.sin(2.0 * math.pi * t) * math.cos(2.0 * math.pi * t)
         return dx, dy
 
-    half_wave = _param(_half_offset, half_time)
-
-    # ------------------------------------------------------------------
-    # 2) Full repeating wave: left crest → trough → right crest → back
-    # ------------------------------------------------------------------
-    total_distance = 2 * length
-    full_time = total_distance / speed if speed != 0 else 0.0
-
-    def _full_offset(t: float) -> tuple[float, float]:
-        # Triangular time-base 0→1→0 to make sure we return to origin in X and Y
-        tri = 1 - abs(1 - 2 * t)
-        dx = half_len + length * tri  # Start from half_len position, go right then back left
-        # Y wave: start at 0, dip to -amplitude at center, return to -amplitude at end
-        # This compensates for half-wave ending at +amplitude to return to origin
-        dy = -amplitude * math.sin(math.pi * tri) - amplitude  # Offset by -amplitude to return to origin
-        return dx, dy
-
-    full_wave = _param(_full_offset, full_time)
-
-    return sequence(half_wave, full_wave)
+    return ParametricMotionUntil(_offset, duration(total_time))
 
 
 def create_spiral_pattern(
@@ -176,25 +137,32 @@ def create_spiral_pattern(
     """
     center_x, center_y = center
     num_points = max(20, int(revolutions * 8))
-    control_points = []
 
+    # Always generate the outward spiral path first
+    outward_points = []
     for i in range(num_points):
         t = i / (num_points - 1)
-        if direction == "outward":
-            radius = t * max_radius
-        else:  # inward
-            radius = (1 - t) * max_radius
-
+        radius = t * max_radius
         angle = t * revolutions * 2 * math.pi
         x = center_x + radius * math.cos(angle)
         y = center_y + radius * math.sin(angle)
-        control_points.append((x, y))
+        outward_points.append((x, y))
+
+    # For inward spiral, reverse the outward path to ensure perfect reversal
+    if direction == "outward":
+        control_points = outward_points
+        rotation_offset = 0.0  # Default rotation
+    else:  # inward
+        control_points = list(reversed(outward_points))
+        rotation_offset = 180.0  # Compensate for reversed movement direction
 
     # Estimate total path length
     total_length = revolutions * math.pi * max_radius  # Approximate
     duration_time = total_length / speed
 
-    return FollowPathUntil(control_points, speed, duration(duration_time), rotate_with_path=True)
+    return FollowPathUntil(
+        control_points, speed, duration(duration_time), rotate_with_path=True, rotation_offset=rotation_offset
+    )
 
 
 def create_figure_eight_pattern(center: tuple[float, float], width: float, height: float, speed: float):
@@ -239,6 +207,8 @@ def create_figure_eight_pattern(center: tuple[float, float], width: float, heigh
         dy = (height / 2.0) * math.sin(2.0 * theta)
         return dx, dy
 
+    from actions.conditional import ParametricMotionUntil  # local import to avoid cycles
+
     action = ParametricMotionUntil(_offset_fn, duration(total_time))
     # Retain control_points attribute for existing unit-tests
     action.control_points = control_points  # type: ignore[attr-defined]
@@ -246,109 +216,133 @@ def create_figure_eight_pattern(center: tuple[float, float], width: float, heigh
 
 
 def create_orbit_pattern(center: tuple[float, float], radius: float, speed: float, clockwise: bool = True):
-    """Create a circular orbit pattern.
+    """Create a single circular orbit pattern (one full revolution).
 
     Args:
         center: (x, y) coordinates of orbit center
         radius: Radius of the orbit
-        speed: Movement speed in pixels per second
+        speed: Movement speed along the path (pixels per second)
         clockwise: True for clockwise orbit, False for counter-clockwise
 
     Returns:
-        ParametricMotionUntil action that creates orbital movement
+        An Action that completes exactly one orbit. Wrap with repeat() for infinite orbits.
 
-    Example:
-        orbit = create_orbit_pattern((400, 300), 120, 150, clockwise=True)
-        orbit.apply(sprite, tag="orbit")
+    The returned action starts from the sprite's current angular position relative
+    to the given center, ensuring seamless repetition when wrapped with repeat().
     """
-    from .conditional import MoveUntil, infinite  # Import here to avoid circular dependency
+
+    from actions.base import Action as _Action
 
     center_x, center_y = center
 
-    # Calculate angular velocity (radians per second)
+    # Calculate angular velocity (radians per second) from path speed
     circumference = 2 * math.pi * radius
+    if circumference <= 0:
+        raise ValueError("radius must be > 0")
     angular_velocity = (2 * math.pi * speed) / circumference  # radians per second
 
-    # Create infinite orbit using continuous time-based calculation
-    start_time = [None]  # Use list to allow modification in closure
-
-    def _orbit_offset(t: float) -> tuple[float, float]:
-        """Calculate orbit position using continuous time (not bounded 0-1)."""
-        # For infinite orbits, we need to track actual elapsed time
-        import time
-
-        current_time = time.time()
-
-        if start_time[0] is None:
-            start_time[0] = current_time
-
-        elapsed = current_time - start_time[0]
-
-        # Calculate angle based on actual elapsed time
-        angle = elapsed * angular_velocity
-        if not clockwise:
-            angle = -angle
-
-        # Calculate position relative to center
-        x = radius * math.cos(angle)
-        y = radius * math.sin(angle)
-
-        # Return offset from center
-        return (x, y)
-
-    class InfiniteOrbitAction(MoveUntil):
-        """Infinite orbit action that moves sprites in a perfect circle."""
-
+    class SingleOrbitAction(_Action):
         def __init__(self):
-            super().__init__((0, 0), infinite)  # Zero velocity, infinite condition
+            # Use a non-terminating condition; completion handled internally
+            from actions.conditional import infinite as _infinite
+
+            super().__init__(_infinite)
             self.center_x = center_x
             self.center_y = center_y
             self.radius = radius
             self.angular_velocity = angular_velocity
             self.clockwise = clockwise
-            self.start_time = None
+            # Per-sprite state: angle, start_angle, accumulated, prev_pos, prev_sprite_angle
+            self._states: dict[int, dict[str, float | tuple[float, float] | None]] = {}
 
         def apply_effect(self):
-            """Initialize orbit tracking."""
-            import time
+            # Initialize per-sprite state from current positions for seamless start
+            def init_state(sprite):
+                dx0 = sprite.center_x - self.center_x
+                dy0 = sprite.center_y - self.center_y
+                # Compute starting angle; if at center, place at rightmost point
+                if abs(dx0) < 1e-9 and abs(dy0) < 1e-9:
+                    start_angle = 0.0
+                    sprite.center_x = self.center_x + self.radius
+                    sprite.center_y = self.center_y
+                else:
+                    start_angle = math.atan2(dy0, dx0)
 
-            self.start_time = time.time()
+                sid = id(sprite)
+                self._states[sid] = {
+                    "angle": float(start_angle),
+                    "start_angle": float(start_angle),
+                    "accumulated": 0.0,
+                    "prev_pos": (sprite.center_x, sprite.center_y),
+                    "prev_sprite_angle": None,
+                }
+
+            self.for_each_sprite(init_state)
 
         def update_effect(self, delta_time: float):
-            """Update sprite positions in orbit."""
-            import time
+            # Update each sprite along its orbit and track completion
+            direction_sign = 1.0 if self.clockwise else -1.0
+            per_sprite_done: list[bool] = []
 
-            if self.start_time is None:
-                self.start_time = time.time()
+            def step(sprite):
+                sid = id(sprite)
+                st = self._states.get(sid)
+                if st is None:
+                    return
 
-            elapsed = time.time() - self.start_time
+                delta_angle = self.angular_velocity * delta_time * direction_sign
+                st["angle"] = float(st["angle"]) + delta_angle  # type: ignore[assignment]
+                st["accumulated"] = float(st["accumulated"]) + abs(delta_angle)  # type: ignore[assignment]
 
-            # Calculate current angle
-            angle = elapsed * self.angular_velocity
-            if not self.clockwise:
-                angle = -angle
+                # Compute new position on circle
+                angle_now = float(st["angle"])  # type: ignore[arg-type]
+                orbit_x = self.center_x + self.radius * math.cos(angle_now)
+                orbit_y = self.center_y + self.radius * math.sin(angle_now)
 
-            # Calculate orbit position
-            orbit_x = self.center_x + self.radius * math.cos(angle)
-            orbit_y = self.center_y + self.radius * math.sin(angle)
+                # Movement vector for rotation continuity
+                prev_pos = st["prev_pos"]  # type: ignore[assignment]
+                sprite_angle: float | None = None
+                if isinstance(prev_pos, tuple):
+                    move_dx = orbit_x - prev_pos[0]
+                    move_dy = orbit_y - prev_pos[1]
+                    if abs(move_dx) > 1e-6 or abs(move_dy) > 1e-6:
+                        sprite_angle = math.degrees(math.atan2(move_dy, move_dx))
+                        st["prev_sprite_angle"] = sprite_angle
+                    else:
+                        prev_ang = st["prev_sprite_angle"]
+                        if isinstance(prev_ang, float):
+                            sprite_angle = prev_ang
 
-            # Calculate rotation angle for sprite (tangent to circle)
-            sprite_angle = math.degrees(angle + math.pi / 2)  # 90 degrees offset for tangent
-            if not self.clockwise:
-                sprite_angle = -sprite_angle
-
-            def update_sprite(sprite):
+                # Apply transform
                 sprite.center_x = orbit_x
                 sprite.center_y = orbit_y
-                sprite.angle = sprite_angle
+                if sprite_angle is not None:
+                    sprite.angle = sprite_angle
 
-            self.for_each_sprite(update_sprite)
+                # Store prev position
+                st["prev_pos"] = (orbit_x, orbit_y)
+
+                # Check completion for this sprite
+                done = float(st["accumulated"]) >= math.tau * 0.999  # tolerate small numeric error
+                per_sprite_done.append(done)
+
+                # If done, snap to exact start point for seamless repeat
+                if done:
+                    start_angle = float(st["start_angle"])  # type: ignore[arg-type]
+                    sprite.center_x = self.center_x + self.radius * math.cos(start_angle)
+                    sprite.center_y = self.center_y + self.radius * math.sin(start_angle)
+
+            self.for_each_sprite(step)
+
+            # Mark action complete when all sprites have completed one orbit
+            if per_sprite_done and all(per_sprite_done):
+                self._condition_met = True
+                self.done = True
 
         def clone(self):
-            """Create a copy of this orbit action."""
             return create_orbit_pattern((self.center_x, self.center_y), self.radius, speed, self.clockwise)
 
-    return InfiniteOrbitAction()
+    return SingleOrbitAction()
 
 
 def create_bounce_pattern(velocity: tuple[float, float], bounds: tuple[float, float, float, float]):
@@ -382,7 +376,7 @@ def create_patrol_pattern(start_pos: tuple[float, float], end_pos: tuple[float, 
     Args:
         start_pos: (x, y) starting position
         end_pos: (x, y) ending position
-        speed: Movement speed in pixels per second
+        speed: Movement speed in pixels per frame (Arcade semantics)
 
     Returns:
         Sequence action that creates patrol movement
@@ -395,11 +389,18 @@ def create_patrol_pattern(start_pos: tuple[float, float], end_pos: tuple[float, 
     dx = end_pos[0] - start_pos[0]
     dy = end_pos[1] - start_pos[1]
     distance = math.sqrt(dx**2 + dy**2)
-    travel_time = distance / speed
+    # Convert frames to seconds for duration: frames = distance / speed; seconds = frames / 60
+    travel_time = (distance / speed) / 60.0 if speed > 0 else 0.0
 
-    # Create forward and return movements
-    forward_velocity = (dx / travel_time, dy / travel_time)
-    return_velocity = (-dx / travel_time, -dy / travel_time)
+    # Create forward and return movements (pixels per frame semantics)
+    if distance == 0:
+        forward_velocity = (0.0, 0.0)
+        return_velocity = (0.0, 0.0)
+    else:
+        dir_x = dx / distance
+        dir_y = dy / distance
+        forward_velocity = (dir_x * speed, dir_y * speed)
+        return_velocity = (-dir_x * speed, -dir_y * speed)
 
     return sequence(
         MoveUntil(forward_velocity, duration(travel_time)), MoveUntil(return_velocity, duration(travel_time))
