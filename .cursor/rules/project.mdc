@@ -18,10 +18,6 @@ In the actions/ directory:
 * Interfaces with Arcade 3.x functionality referenced in references/arcade/
 * Works directly with arcade.Sprite and arcade.SpriteList - no custom sprite classes needed
 
-In the references/arcade/ directory:
-* Reference implementation from Arcade 3.x for understanding system interfaces
-* Use only for understanding patterns, not for direct copying
-
 In the tests/ directory:
 * Unit and integration tests for the Actions system
 * Follow testing patterns documented in docs/testing_index.md

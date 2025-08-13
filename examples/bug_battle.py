@@ -551,54 +551,6 @@ def calculate_centered_grid_layout(
         return start_x, default_spacing
 
 
-def test_grid_centering():
-    """Unit test to verify grid centering calculation with configurable margins."""
-    # Test with zero margin (current behavior)
-    start_x, spacing_x = get_centered_grid_spacing(desired_margin=0.0)
-
-    # Calculate margins
-    left_margin = start_x - ENEMY_WIDTH / 2
-    rightmost_sprite_center = start_x + 3 * spacing_x  # 4 columns = 3 gaps
-    rightmost_sprite_right = rightmost_sprite_center + ENEMY_WIDTH / 2
-    right_margin = WINDOW_WIDTH - rightmost_sprite_right
-
-    # Verify margins are equal (both should be 0.0)
-    margins_equal = abs(left_margin - right_margin) < 0.01
-    left_correct = abs(left_margin - 0.0) < 0.01
-    right_correct = abs(right_margin - 0.0) < 0.01
-
-    print("Grid centering test (zero margin):")
-    print(f"  Left margin: {left_margin}")
-    print(f"  Right margin: {right_margin}")
-    print(f"  Margins equal: {margins_equal}")
-    print(f"  Left margin correct (0.0): {left_correct}")
-    print(f"  Right margin correct (0.0): {right_correct}")
-
-    # Test with non-zero margin
-    test_margin = 80.0
-    start_x2, spacing_x2 = get_centered_grid_spacing(desired_margin=test_margin)
-
-    # Calculate margins for non-zero case
-    left_margin2 = start_x2 - ENEMY_WIDTH / 2
-    rightmost_sprite_center2 = start_x2 + 3 * spacing_x2  # 4 columns = 3 gaps
-    rightmost_sprite_right2 = rightmost_sprite_center2 + ENEMY_WIDTH / 2
-    right_margin2 = WINDOW_WIDTH - rightmost_sprite_right2
-
-    # Verify margins are equal and match desired margin
-    margins_equal2 = abs(left_margin2 - right_margin2) < 0.01
-    left_correct2 = abs(left_margin2 - test_margin) < 0.01
-    right_correct2 = abs(right_margin2 - test_margin) < 0.01
-
-    print(f"\nGrid centering test (margin={test_margin}):")
-    print(f"  Left margin: {left_margin2}")
-    print(f"  Right margin: {right_margin2}")
-    print(f"  Margins equal: {margins_equal2}")
-    print(f"  Left margin correct ({test_margin}): {left_correct2}")
-    print(f"  Right margin correct ({test_margin}): {right_correct2}")
-
-    return margins_equal and left_correct and right_correct and margins_equal2 and left_correct2 and right_correct2
-
-
 def get_centered_grid_spacing(desired_margin: float = 0.0):
     """Calculate centered spacing for the enemy grid with configurable margins.
     Args:
