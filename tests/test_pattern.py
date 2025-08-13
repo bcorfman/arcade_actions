@@ -9,6 +9,7 @@ from actions.base import Action
 from actions.composite import repeat, sequence
 from actions.conditional import DelayUntil, FadeUntil, ParametricMotionUntil, duration
 from actions.formation import arrange_circle, arrange_grid, arrange_line
+from actions.instant import MoveBy, MoveTo
 from actions.pattern import (
     create_bounce_pattern,
     create_figure_eight_pattern,
@@ -22,7 +23,7 @@ from actions.pattern import (
 )
 
 
-def create_test_sprite() -> arcade.Sprite:
+def create_test_sprite() -> arcade.Sprite:  # type: ignore
     """Create a sprite with texture for testing."""
     sprite = arcade.Sprite(":resources:images/items/star.png")
     sprite.center_x = 100
@@ -655,6 +656,29 @@ class TestPatternIntegration:
         # Should be a valid sequence
         assert hasattr(complex_action, "actions")
         assert len(complex_action.actions) == 3
+
+    def test_instant_move_to_and_by(self):
+        sprite = create_test_sprite()
+
+        # MoveTo absolute (tuple form)
+        MoveTo((250, 260)).apply(sprite)
+        assert sprite.center_x == 250
+        assert sprite.center_y == 260
+
+        # MoveBy relative (tuple form)
+        MoveBy((10, -20)).apply(sprite)
+        assert sprite.center_x == 260
+        assert sprite.center_y == 240
+
+        # MoveTo absolute (separate args form)
+        MoveTo(300, 350).apply(sprite)
+        assert sprite.center_x == 300
+        assert sprite.center_y == 350
+
+        # MoveBy relative (separate args form)
+        MoveBy(-50, 25).apply(sprite)
+        assert sprite.center_x == 250
+        assert sprite.center_y == 375
 
     def test_pattern_with_conditions(self):
         """Test patterns with condition helpers."""

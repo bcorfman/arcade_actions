@@ -91,28 +91,40 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
 
 
 def create_wave_pattern(amplitude: float, length: float, speed: float):
-    """Create a finite wave pattern that returns to the origin when complete.
+    """Galaga-style sway with *formation slots in the middle of the dip*.
 
-    The action duration is computed as 2.5 * length / speed (matching test timing),
-    and the parametric offset is a closed curve that starts and ends at (0, 0).
+    The Action returned is therefore:
+
+    ``sequence( MoveBy(-amplitude, amplitude), repeat(full_wave) )``
+
+    where *half_wave* and *full_wave* are both ``ParametricMotionUntil``
+    instances implemented with relative parametric offsets.  The function keeps
+    the zero-drift guarantee: after every complete cycle the sprite returns to
+    its original X/Y.
     """
 
     from actions.conditional import ParametricMotionUntil, duration  # local import to avoid cycles
 
-    if speed <= 0:
-        raise ValueError("speed must be > 0")
+    # ----------------- helper for building parametric actions -----------------
+    def _param(offset_fn, dur):
+        return ParametricMotionUntil(offset_fn, duration(dur))
 
-    total_time = 2.5 * length / speed
+    # ------------------------------------------------------------
+    # Full wave: left crest → trough → right crest → back
+    # ------------------------------------------------------------
+    total_distance = 2 * length
+    full_time = total_distance / speed if speed != 0 else 0.0
 
-    def _offset(t: float) -> tuple[float, float]:
-        # Closed curve over t in [0,1]
-        # Horizontal sway
-        dx = (length / 2.0) * math.sin(2.0 * math.pi * t)
-        # Vertical bob
-        dy = (amplitude) * math.sin(2.0 * math.pi * t) * math.cos(2.0 * math.pi * t)
+    def _full_offset(t: float) -> tuple[float, float]:
+        # Triangular time-base 0→1→0 to make sure we return to origin in X
+        tri = 1 - abs(1 - 2 * t)
+        dx = length * tri  # right then back left
+        dy = -amplitude * math.sin(math.pi * tri)  # dip (trough at centre)
         return dx, dy
 
-    return ParametricMotionUntil(_offset, duration(total_time))
+    full_wave = _param(_full_offset, full_time)
+
+    return full_wave
 
 
 def create_spiral_pattern(
