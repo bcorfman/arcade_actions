@@ -90,20 +90,44 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
     return ParametricMotionUntil(_offset_fn, duration(total_time))
 
 
-def create_wave_pattern(amplitude: float, length: float, speed: float):
+def create_wave_pattern(
+    amplitude: float, length: float, speed: float, *, start_progress: float = 0.0, end_progress: float = 1.0
+):
     """Galaga-style sway with *formation slots in the middle of the dip*.
 
-    The Action returned is therefore:
+    The Action returned is a ParametricMotionUntil instance implemented with
+    relative parametric offsets. The function keeps the zero-drift guarantee:
+    after every complete cycle the sprite returns to its original X/Y.
 
-    ``sequence( MoveBy(-amplitude, amplitude), repeat(full_wave) )``
+    Args:
+        amplitude: Height of the wave (Y-axis movement)
+        length: Half-width of the wave (X-axis movement)
+        speed: Movement speed in pixels per frame
+        start_progress: Starting position along the wave cycle [0.0, 1.0], default 0.0
+        end_progress: Ending position along the wave cycle [0.0, 1.0], default 1.0
 
-    where *half_wave* and *full_wave* are both ``ParametricMotionUntil``
-    instances implemented with relative parametric offsets.  The function keeps
-    the zero-drift guarantee: after every complete cycle the sprite returns to
-    its original X/Y.
+    The wave cycle progresses as:
+        0.0: Left crest
+        0.25: Trough (dip)
+        0.5: Right crest
+        0.75: Trough (dip)
+        1.0: Back to left crest
+
+    Example:
+        # Full wave (default behavior)
+        create_wave_pattern(20, 80, 4)
+
+        # From trough to left crest only
+        create_wave_pattern(20, 80, 4, start_progress=0.75, end_progress=1.0)
     """
 
     from actions.conditional import ParametricMotionUntil, duration  # local import to avoid cycles
+
+    # Validate progress parameters
+    if not (0.0 <= start_progress <= 1.0 and 0.0 <= end_progress <= 1.0):
+        raise ValueError("start_progress and end_progress must be within [0.0, 1.0]")
+    if end_progress < start_progress:
+        raise ValueError("end_progress must be >= start_progress (no wrap or reverse supported)")
 
     # ----------------- helper for building parametric actions -----------------
     def _param(offset_fn, dur):
@@ -112,8 +136,8 @@ def create_wave_pattern(amplitude: float, length: float, speed: float):
     # ------------------------------------------------------------
     # Full wave: left crest → trough → right crest → back
     # ------------------------------------------------------------
-    total_distance = 2 * length
-    full_time = total_distance / speed if speed != 0 else 0.0
+    # Per tests/docs, a full wave duration is 2.5 * length / speed seconds
+    full_time = (2.5 * length / speed) if speed != 0 else 0.0
 
     def _full_offset(t: float) -> tuple[float, float]:
         # Triangular time-base 0→1→0 to make sure we return to origin in X
@@ -122,9 +146,24 @@ def create_wave_pattern(amplitude: float, length: float, speed: float):
         dy = -amplitude * math.sin(math.pi * tri)  # dip (trough at centre)
         return dx, dy
 
-    full_wave = _param(_full_offset, full_time)
+    # Calculate the sub-range parameters (span maps linearly to time)
+    span = end_progress - start_progress
+    sub_time = full_time * span
 
-    return full_wave
+    # Compute base offset at the start so subrange is relative (no initial snap)
+    _base_dx, _base_dy = _full_offset(start_progress)
+
+    def _remapped_offset(t: float) -> tuple[float, float]:
+        # Remap t from [0, 1] to [start_progress, end_progress]
+        p = start_progress + span * t
+        dx, dy = _full_offset(p)
+        return dx - _base_dx, dy - _base_dy
+
+    # If start and end are the same, return a no-op action
+    if span == 0.0:
+        return _param(lambda t: (0.0, 0.0), 0.0)
+
+    return _param(_remapped_offset, sub_time)
 
 
 def create_spiral_pattern(
@@ -382,41 +421,85 @@ def create_bounce_pattern(velocity: tuple[float, float], bounds: tuple[float, fl
     )
 
 
-def create_patrol_pattern(start_pos: tuple[float, float], end_pos: tuple[float, float], speed: float):
+def create_patrol_pattern(
+    start_pos: tuple[float, float],
+    end_pos: tuple[float, float],
+    speed: float,
+    *,
+    start_progress: float = 0.0,
+    end_progress: float = 1.0,
+):
     """Create a back-and-forth patrol pattern between two points.
 
+    The sprite starts from its current position and executes the specified
+    portion of the patrol cycle using boundary bouncing.
+
     Args:
-        start_pos: (x, y) starting position
-        end_pos: (x, y) ending position
+        start_pos: (x, y) left boundary position
+        end_pos: (x, y) right boundary position
         speed: Movement speed in pixels per frame (Arcade semantics)
+        start_progress: Starting progress along the patrol cycle [0.0, 1.0], default 0.0
+        end_progress: Ending progress along the patrol cycle [0.0, 1.0], default 1.0
+
+    The patrol cycle progresses as:
+        0.0: Start position (left boundary)
+        0.5: End position (right boundary)
+        1.0: Back to start position (left boundary)
 
     Returns:
-        Sequence action that creates patrol movement
+        MoveUntil action with boundary bouncing
 
     Example:
-        patrol = create_patrol_pattern((100, 200), (500, 200), 120)
-        patrol.apply(sprite, tag="patrol")
+        # Sprite at center, move to left boundary then do full patrol
+        quarter = create_patrol_pattern(left_pos, right_pos, 2, start_progress=0.75, end_progress=1.0)
+        full = create_patrol_pattern(left_pos, right_pos, 2, start_progress=0.0, end_progress=1.0)
+        sequence(quarter, repeat(full)).apply(sprite)
     """
-    # Calculate distance and time for each leg
+    # Validate progress parameters
+    if not (0.0 <= start_progress <= 1.0 and 0.0 <= end_progress <= 1.0):
+        raise ValueError("start_progress and end_progress must be within [0.0, 1.0]")
+    if end_progress < start_progress:
+        raise ValueError("end_progress must be >= start_progress (no wrap or reverse supported)")
+
+    # Handle edge cases
+    if start_progress == end_progress:
+        return sequence()
+
     dx = end_pos[0] - start_pos[0]
     dy = end_pos[1] - start_pos[1]
-    distance = math.sqrt(dx**2 + dy**2)
-    # Convert frames to seconds for duration: frames = distance / speed; seconds = frames / 60
-    travel_time = (distance / speed) / 60.0 if speed > 0 else 0.0
+    distance = math.hypot(dx, dy)
 
-    # Create forward and return movements (pixels per frame semantics)
     if distance == 0:
-        forward_velocity = (0.0, 0.0)
-        return_velocity = (0.0, 0.0)
-    else:
-        dir_x = dx / distance
-        dir_y = dy / distance
-        forward_velocity = (dir_x * speed, dir_y * speed)
-        return_velocity = (-dir_x * speed, -dir_y * speed)
+        return sequence()
 
-    return sequence(
-        MoveUntil(forward_velocity, duration(travel_time)), MoveUntil(return_velocity, duration(travel_time))
-    )
+    # Local imports to avoid circular dependencies
+    from .conditional import MoveUntil, duration
+
+    # Set boundaries at the patrol endpoints
+    left = min(start_pos[0], end_pos[0])
+    right = max(start_pos[0], end_pos[0])
+    bottom = min(start_pos[1], end_pos[1])
+    top = max(start_pos[1], end_pos[1])
+    bounds = (left, bottom, right, top)
+
+    # Determine initial direction based on start_progress
+    # start_progress < 0.5 means we're on the forward leg (toward end_pos)
+    # start_progress >= 0.5 means we're on the return leg (toward start_pos)
+    dir_x, dir_y = dx / distance, dy / distance
+    if start_progress < 0.5:
+        # Moving toward end_pos (right boundary)
+        velocity = (dir_x * speed, dir_y * speed)
+    else:
+        # Moving toward start_pos (left boundary)
+        velocity = (-dir_x * speed, -dir_y * speed)
+
+    # Calculate duration for the progress range
+    total_distance = distance * 2  # full round trip distance
+    progress_distance = total_distance * (end_progress - start_progress)
+    duration_seconds = progress_distance / speed / 60.0
+
+    # Create MoveUntil with boundary bouncing (like create_bounce_pattern)
+    return MoveUntil(velocity, duration(duration_seconds), bounds=bounds, boundary_behavior="bounce")
 
 
 # Condition helper functions

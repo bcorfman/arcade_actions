@@ -10,7 +10,6 @@ import arcade.gui
 
 from actions import (
     Action,
-    MoveBy,
     create_bounce_pattern,
     create_figure_eight_pattern,
     create_orbit_pattern,
@@ -100,9 +99,9 @@ class PatternDemo(arcade.Window):
 
     def _create_wave_demo(self, sprite: arcade.Sprite):
         """Create repeating wave pattern."""
-        move_by = MoveBy(-30, 30)
-        wave = create_wave_pattern(amplitude=30, length=60, speed=80)
-        sequence(move_by, repeat(wave)).apply(sprite)
+        quarter_wave = create_wave_pattern(amplitude=30, length=80, speed=80, start_progress=0.75, end_progress=1.0)
+        full_wave = create_wave_pattern(amplitude=30, length=80, speed=80)
+        sequence(quarter_wave, repeat(full_wave)).apply(sprite)
 
     def _create_zigzag_demo(self, sprite: arcade.Sprite):
         """Create zigzag pattern that reverses to return to start."""
@@ -168,10 +167,11 @@ class PatternDemo(arcade.Window):
 
     def _create_patrol_demo(self, sprite: arcade.Sprite):
         """Create repeating patrol pattern."""
-        start_pos = (sprite.center_x - 30, sprite.center_y)
-        end_pos = (sprite.center_x + 30, sprite.center_y)
-        patrol = create_patrol_pattern(start_pos, end_pos, speed=2)
-        repeat(patrol).apply(sprite)
+        start_pos = (sprite.center_x - 40, sprite.center_y)
+        end_pos = (sprite.center_x + 40, sprite.center_y)
+        quarter_patrol = create_patrol_pattern(start_pos, end_pos, speed=2, start_progress=0.75, end_progress=1.0)
+        full_patrol = create_patrol_pattern(start_pos, end_pos, speed=2)
+        sequence(quarter_patrol, repeat(full_patrol)).apply(sprite)
 
     def on_draw(self):
         """Draw everything."""
