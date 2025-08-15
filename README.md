@@ -80,6 +80,10 @@ docs/
 - **Global management** - Automatic action tracking and updates
 - **Composition helpers** - `sequence()` and `parallel()` functions
 
+#### Instant Action System (actions/instant.py)
+- **MoveBy** - Relative Sprite or SpriteList positioning
+- **MoveTo** - Absolute positioning
+
 #### Conditional Actions (actions/conditional.py)
 - **MoveUntil** - Velocity-based movement until condition met
 - **FollowPathUntil** - Follow Bezier curve paths with optional automatic sprite rotation
@@ -116,13 +120,8 @@ docs/
 | Sprite group actions | Helper functions on SpriteList | `move_until(enemies, ..., tag="formation")` |
 | Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
 | Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), RotateUntil(...))` |
+| Instant actions | Position initialization in a sequence | sequence(MoveBy(...), MoveUntil(...)) |
 | Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
-| Triangle formations | `arrange_triangle` | `arrange_triangle(count=10, apex_x=400, apex_y=500)` |
-| Hexagonal grids | `arrange_hexagonal_grid` | `arrange_hexagonal_grid(rows=4, cols=6)` |
-| Arc formations | `arrange_arc` | `arrange_arc(count=8, radius=120, start_angle=0, end_angle=180)` |
-| Concentric patterns | `arrange_concentric_rings` | `arrange_concentric_rings(radii=[50, 100])` |
-| Cross patterns | `arrange_cross` | `arrange_cross(count=9, arm_length=100)` |
-| Arrow formations | `arrange_arrow` | `arrange_arrow(count=7, rows=3)` |
 | Curved path movement | `follow_path_until` helper | `follow_path_until(sprite, points, ...)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, ..., bounds=bounds, boundary_behavior="bounce")` |
 | Smooth acceleration | `ease()` helper | `ease(sprite, action, ...)` |
