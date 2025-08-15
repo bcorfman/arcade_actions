@@ -124,8 +124,9 @@ class MoveUntil(_Action):
 
             # Check if duration has elapsed
             if self._elapsed >= self._duration:
-                # Mark as complete by setting the condition as met
+                # End immediately and clear velocities to avoid carryover into next actions
                 self._condition_met = True
+                self.remove_effect()
                 self.done = True
                 if self.on_stop:
                     self.on_stop()
@@ -205,6 +206,15 @@ class MoveUntil(_Action):
 
             if self.on_boundary:
                 self.on_boundary(sprite, "y")
+
+    def remove_effect(self) -> None:
+        """Clear velocities when the action finishes to avoid carryover between actions."""
+
+        def clear_velocity(sprite):
+            sprite.change_x = 0
+            sprite.change_y = 0
+
+        self.for_each_sprite(clear_velocity)
 
     def set_current_velocity(self, velocity: tuple[float, float]) -> None:
         """Allow external code to modify current velocity (for easing wrapper compatibility).
@@ -1113,6 +1123,9 @@ class ParametricMotionUntil(_Action):
             # Fallback to the helper function if the above didn't work
             if self._duration is None:
                 self._duration = _extract_duration_seconds(self.condition) or 0.0
+
+        # Do not pre-position sprites; offsets are relative to captured origins
+        self._prev_offset = self._offset_fn(0.0)
 
     def update_effect(self, delta_time: float) -> None:  # noqa: D401
         self._elapsed += delta_time * self._factor

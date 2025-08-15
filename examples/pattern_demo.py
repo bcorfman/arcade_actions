@@ -100,22 +100,22 @@ class PatternDemo(arcade.Window):
 
     def _create_wave_demo(self, sprite: arcade.Sprite):
         """Create repeating wave pattern."""
-        move_by = MoveBy(-30, 30)
-        wave = create_wave_pattern(amplitude=30, length=60, speed=80)
-        sequence(move_by, repeat(wave)).apply(sprite)
+        quarter_wave = create_wave_pattern(amplitude=30, length=80, speed=80, start_progress=0.75, end_progress=1.0)
+        full_wave = create_wave_pattern(amplitude=30, length=80, speed=80)
+        sequence(quarter_wave, repeat(full_wave)).apply(sprite)
 
     def _create_zigzag_demo(self, sprite: arcade.Sprite):
         """Create zigzag pattern that reverses to return to start."""
         # Create a zigzag that moves right and up
-        forward = create_zigzag_pattern(dimensions=(30, 15), speed=100, segments=3)
+        forward = create_zigzag_pattern(dimensions=(30, 15), speed=100, segments=5)
 
         # Create a zigzag that moves left and down to return to start
         # We need to reverse both X and Y directions
-        backward = create_zigzag_pattern(dimensions=(-30, -15), speed=100, segments=3)
+        backward = create_zigzag_pattern(dimensions=(-30, -15), speed=100, segments=5)
 
         # Combine forward and backward into a sequence, then repeat
         zigzag_cycle = sequence(forward, backward)
-        repeat(zigzag_cycle).apply(sprite)
+        sequence(MoveBy(-15, -30), repeat(zigzag_cycle)).apply(sprite)
 
     def _create_figure8_demo(self, sprite: arcade.Sprite):
         """Create repeating figure-8 pattern."""
@@ -163,15 +163,16 @@ class PatternDemo(arcade.Window):
             sprite.center_y + 40,  # top
         )
 
-        bounce = create_bounce_pattern(velocity=(5, 4), bounds=bounds)
+        bounce = create_bounce_pattern(velocity=(2, 1), bounds=bounds)
         bounce.apply(sprite)
 
     def _create_patrol_demo(self, sprite: arcade.Sprite):
         """Create repeating patrol pattern."""
-        start_pos = (sprite.center_x - 30, sprite.center_y)
-        end_pos = (sprite.center_x + 30, sprite.center_y)
-        patrol = create_patrol_pattern(start_pos, end_pos, speed=2)
-        repeat(patrol).apply(sprite)
+        start_pos = (sprite.center_x - 40, sprite.center_y)
+        end_pos = (sprite.center_x + 40, sprite.center_y)
+        quarter_patrol = create_patrol_pattern(start_pos, end_pos, speed=2, start_progress=0.75, end_progress=1.0)
+        full_patrol = create_patrol_pattern(start_pos, end_pos, speed=2)
+        sequence(quarter_patrol, repeat(full_patrol)).apply(sprite)
 
     def on_draw(self):
         """Draw everything."""

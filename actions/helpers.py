@@ -37,8 +37,37 @@ from actions import (
 SpriteTarget = arcade.Sprite | arcade.SpriteList
 
 
+def move_by(target: SpriteTarget, *, dx_or_offset, dy=None, on_stop: Any | None = None):
+    """Instantly offset a sprite or all sprites in a sprite list by (dx, dy).
+
+    Usage:
+        move_by(sprite, (dx, dy))
+        move_by(sprite_list, dx, dy)      # Also accepts separate arguments for convenience
+    """
+    from actions.instant import MoveBy
+
+    action = MoveBy(dx_or_offset, dy, on_stop=on_stop)
+    action.apply(target)
+    return action
+
+
+def move_to(target: SpriteTarget, *, x_or_position, y=None, on_stop: Any | None = None):
+    """Instantly move a sprite or all sprites in a sprite list to an absolute position.
+    Probably not useful for a sprite list. but there you go.
+
+    Usage:
+        move_to(sprite, (x, y))
+        move_to(sprite, x, y)      # Also accepts separate arguments for convenience
+    """
+    from actions.instant import MoveTo
+
+    action = MoveTo(x_or_position, y, on_stop=on_stop)
+    action.apply(target)
+    return action
+
+
 def move_until(
-    target: arcade.Sprite | arcade.SpriteList,
+    target: SpriteTarget,
     *,
     velocity: tuple[float, float],
     condition: Callable[[], Any],

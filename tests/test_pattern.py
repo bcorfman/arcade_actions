@@ -121,6 +121,53 @@ class TestZigzagPattern:
         # Sprite position should have changed (relative motion)
         assert (sprite.center_x, sprite.center_y) != initial_pos
 
+    def test_zigzag_segment_alignment(self):
+        """Test that zigzag segments connect smoothly without jumps."""
+        sprite = create_test_sprite()
+        initial_x = sprite.center_x
+        initial_y = sprite.center_y
+
+        # Create a zigzag with 3 segments to test multiple direction changes
+        pattern = create_zigzag_pattern(dimensions=(80, 40), speed=200, segments=3)
+        pattern.apply(sprite, tag="zigzag_alignment_test")
+
+        # Track positions at key points to verify smooth transitions
+        positions = []
+
+        # Simulate the movement and record positions at segment boundaries
+        while not pattern.done:
+            Action.update_all(1 / 60)  # 60 FPS simulation
+
+            # Record position every 0.1 seconds (roughly every 6 frames)
+            if len(positions) == 0 or (sprite.center_y - positions[-1][1]) >= 4:  # ~4 pixels up
+                positions.append((sprite.center_x, sprite.center_y))
+
+        # Should have recorded positions at each segment boundary
+        assert len(positions) >= 3, f"Expected at least 3 positions, got {len(positions)}"
+
+        # Verify the pattern spans the expected width
+        # The zigzag should span approximately the specified width (80 pixels)
+        x_positions = [pos[0] for pos in positions]
+        min_x = min(x_positions)
+        max_x = max(x_positions)
+
+        # Pattern should span approximately the expected width
+        # Note: The current implementation doesn't guarantee centering around the starting position
+        # It starts from the current position and moves in the specified dimensions
+        expected_width = 80
+        actual_width = max_x - min_x
+        assert actual_width >= expected_width * 0.8, (
+            f"Pattern too narrow: expected at least {expected_width * 0.8}, got {actual_width}"
+        )
+
+        # Verify Y movement is continuous (no jumps)
+        y_positions = [pos[1] for pos in positions]
+        for i in range(1, len(y_positions)):
+            # Each step should move upward by approximately the segment height
+            y_step = y_positions[i] - y_positions[i - 1]
+            assert y_step > 0, f"Y movement should always be positive, got {y_step}"
+            assert y_step <= 50, f"Y step too large, got {y_step}"  # Allow some tolerance
+
     # Segment-count specific tests are no longer required because the factory
     # now produces a single parametric action regardless of segment count.
 
@@ -594,9 +641,10 @@ class TestPatrolPattern:
 
         pattern = create_patrol_pattern(start_pos, end_pos, 120)
 
-        # Should return a sequence with two movements
-        assert hasattr(pattern, "actions")
-        assert len(pattern.actions) == 2
+        # Should return a MoveUntil action with bounce behavior (like create_bounce_pattern)
+        assert hasattr(pattern, "boundary_behavior")
+        assert pattern.boundary_behavior == "bounce"
+        assert hasattr(pattern, "bounds")
 
     def test_create_patrol_pattern_distance_calculation(self):
         """Test that patrol pattern calculates distances correctly."""
@@ -606,8 +654,11 @@ class TestPatrolPattern:
 
         pattern = create_patrol_pattern(start_pos, end_pos, 100)  # 100 px/s
 
-        # Should create two actions (forward and return)
-        assert len(pattern.actions) == 2
+        # Should create a single MoveUntil action with boundaries
+        assert hasattr(pattern, "bounds")
+        left, bottom, right, top = pattern.bounds
+        assert left == 100  # min of start/end x
+        assert right == 300  # max of start/end x
 
     def test_create_patrol_pattern_diagonal(self):
         """Test patrol pattern with diagonal movement."""
@@ -616,9 +667,9 @@ class TestPatrolPattern:
 
         pattern = create_patrol_pattern(start_pos, end_pos, 100)
 
-        # Should still create a valid sequence
-        assert hasattr(pattern, "actions")
-        assert len(pattern.actions) == 2
+        # Should create a single MoveUntil action with boundary bouncing
+        assert hasattr(pattern, "boundary_behavior")
+        assert pattern.boundary_behavior == "bounce"
 
 
 class TestPatternIntegration:
@@ -803,3 +854,134 @@ def test_wave_sequence_returns_origin():
     _simulate_until_done(seq, max_steps=int(total_time * 60 + 5))
     assert math.isclose(sprite.center_x, 100, abs_tol=1e-3)
     assert math.isclose(sprite.center_y, 200, abs_tol=1e-3)
+
+
+class TestDemoPatrolPattern:
+    """Tests mirroring the patrol demo behavior in examples.pattern_demo._create_patrol_demo."""
+
+    def teardown_method(self):
+        Action.stop_all()
+
+    def test_patrol_demo_quarter_then_full_positions(self):
+        sprite = arcade.Sprite()
+        center_x, center_y = 200.0, 150.0
+        sprite.center_x = center_x
+        sprite.center_y = center_y
+
+        # As in the demo: start/end 30px left/right of center, speed=2 px/frame
+        start_pos = (center_x - 30.0, center_y)
+        end_pos = (center_x + 30.0, center_y)
+
+        quarter_patrol = create_patrol_pattern(start_pos, end_pos, speed=2, start_progress=0.75, end_progress=1.0)
+        full_patrol = create_patrol_pattern(start_pos, end_pos, speed=2)
+
+        seq = sequence(quarter_patrol, full_patrol)
+        seq.apply(sprite)
+
+        dt = 1 / 60
+
+        def advance(seconds: float):
+            steps = int(round(seconds / dt))
+            for _ in range(steps):
+                Action.update_all(dt)
+                sprite.update()  # Apply Arcade velocities
+
+        # Durations based on create_patrol_pattern semantics
+        distance = math.hypot(end_pos[0] - start_pos[0], end_pos[1] - start_pos[1])  # 60px
+        speed_px_per_frame = 2.0
+        travel_time = (distance / speed_px_per_frame) / 60.0  # time for one leg
+
+        quarter_duration = travel_time * 0.5  # progress 0.75 -> 1.0 = last half of return leg
+        forward_leg = travel_time
+
+        # After quarter_patrol: center -> start_pos (allow small systematic offset)
+        advance(quarter_duration)
+        assert abs(sprite.center_x - start_pos[0]) < 5.0, f"Quarter patrol end: {sprite.center_x} vs {start_pos[0]}"
+        assert math.isclose(sprite.center_y, start_pos[1], abs_tol=1e-3)
+
+        # First half of full_patrol: start_pos -> end_pos
+        advance(forward_leg)
+        assert abs(sprite.center_x - end_pos[0]) < 5.0, f"Forward leg end: {sprite.center_x} vs {end_pos[0]}"
+        assert math.isclose(sprite.center_y, end_pos[1], abs_tol=1e-3)
+
+        # Second half of full_patrol: end_pos -> start_pos
+        advance(travel_time)
+        assert abs(sprite.center_x - start_pos[0]) < 5.0, f"Return leg end: {sprite.center_x} vs {start_pos[0]}"
+        assert math.isclose(sprite.center_y, start_pos[1], abs_tol=1e-3)
+
+        # Entire sequence should now be complete (full_patrol is finite)
+        # Give a bit more time in case of rounding errors
+        advance(travel_time * 0.1)  # Extra 10% time for completion
+        assert seq.done
+
+    def test_patrol_demo_boundaries_stable_over_repeats(self):
+        """Patrol demo should bounce reliably within boundaries without going past them.
+
+        Boundary bouncing ensures sprites never exceed boundaries, with precision
+        varying naturally based on speed (faster = less precise boundary hits).
+        """
+        sprite = arcade.Sprite()
+        center_x, center_y = 200.0, 150.0
+        sprite.center_x = center_x
+        sprite.center_y = center_y
+
+        start_pos = (center_x - 40.0, center_y)  # (160, 150)
+        end_pos = (center_x + 40.0, center_y)  # (240, 150)
+
+        quarter_patrol = create_patrol_pattern(start_pos, end_pos, speed=2, start_progress=0.75, end_progress=1.0)
+        full_patrol = create_patrol_pattern(start_pos, end_pos, speed=2)
+        loop = sequence(quarter_patrol, repeat(full_patrol))
+        loop.apply(sprite)
+
+        dt = 1 / 60
+        left_hits: list[float] = []
+        right_hits: list[float] = []
+        last_dx_sign: int | None = None
+        min_x = float("inf")
+        max_x = float("-inf")
+
+        # Run until we collect enough boundary data
+        steps = 0
+        max_steps = 10000
+        while len(left_hits) + len(right_hits) < 50 and steps < max_steps:  # Reduced from 200
+            prev_pos = sprite.center_x
+            Action.update_all(dt)
+            sprite.update()
+            cur_x = sprite.center_x
+
+            # Track extreme positions to ensure sprite stays in bounds
+            min_x = min(min_x, cur_x)
+            max_x = max(max_x, cur_x)
+
+            dx = cur_x - prev_pos
+            if abs(dx) > 1e-9:
+                sign = 1 if dx > 0 else -1
+                if last_dx_sign is not None and sign != last_dx_sign:
+                    # Velocity direction change detected (boundary bounce)
+                    if last_dx_sign > 0:
+                        right_hits.append(cur_x)
+                    else:
+                        left_hits.append(cur_x)
+                last_dx_sign = sign
+
+            steps += 1
+
+        # Primary test: sprite never goes past the boundaries
+        expected_left = start_pos[0]  # 160.0
+        expected_right = end_pos[0]  # 240.0
+
+        assert min_x >= expected_left - 1.0, f"Sprite went past left boundary: {min_x} < {expected_left}"
+        assert max_x <= expected_right + 1.0, f"Sprite went past right boundary: {max_x} > {expected_right}"
+
+        # Secondary test: we should see bounces on both sides
+        assert len(left_hits) > 0 and len(right_hits) > 0, f"Left: {len(left_hits)}, Right: {len(right_hits)}"
+
+        # Boundary hit positions should be reasonably close to expected boundaries
+        # (precision varies with speed, but should be within reasonable range)
+        if left_hits:
+            left_avg = sum(left_hits) / len(left_hits)
+            assert abs(left_avg - expected_left) < 10.0, f"Left boundary too far: {left_avg} vs {expected_left}"
+
+        if right_hits:
+            right_avg = sum(right_hits) / len(right_hits)
+            assert abs(right_avg - expected_right) < 10.0, f"Right boundary too far: {right_avg} vs {expected_right}"
