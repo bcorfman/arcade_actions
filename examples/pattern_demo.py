@@ -10,6 +10,7 @@ import arcade.gui
 
 from actions import (
     Action,
+    MoveBy,
     create_bounce_pattern,
     create_figure_eight_pattern,
     create_orbit_pattern,
@@ -106,15 +107,15 @@ class PatternDemo(arcade.Window):
     def _create_zigzag_demo(self, sprite: arcade.Sprite):
         """Create zigzag pattern that reverses to return to start."""
         # Create a zigzag that moves right and up
-        forward = create_zigzag_pattern(dimensions=(30, 15), speed=100, segments=3)
+        forward = create_zigzag_pattern(dimensions=(30, 15), speed=100, segments=5)
 
         # Create a zigzag that moves left and down to return to start
         # We need to reverse both X and Y directions
-        backward = create_zigzag_pattern(dimensions=(-30, -15), speed=100, segments=3)
+        backward = create_zigzag_pattern(dimensions=(-30, -15), speed=100, segments=5)
 
         # Combine forward and backward into a sequence, then repeat
         zigzag_cycle = sequence(forward, backward)
-        repeat(zigzag_cycle).apply(sprite)
+        sequence(MoveBy(-15, -30), repeat(zigzag_cycle)).apply(sprite)
 
     def _create_figure8_demo(self, sprite: arcade.Sprite):
         """Create repeating figure-8 pattern."""
@@ -162,7 +163,7 @@ class PatternDemo(arcade.Window):
             sprite.center_y + 40,  # top
         )
 
-        bounce = create_bounce_pattern(velocity=(5, 4), bounds=bounds)
+        bounce = create_bounce_pattern(velocity=(2, 1), bounds=bounds)
         bounce.apply(sprite)
 
     def _create_patrol_demo(self, sprite: arcade.Sprite):

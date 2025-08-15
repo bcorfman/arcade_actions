@@ -65,6 +65,8 @@ from .helpers import (
     ease,
     fade_until,
     follow_path_until,
+    move_by,
+    move_to,
     move_until,
     rotate_until,
     scale_until,
@@ -136,6 +138,8 @@ __all__ = [
     "time_elapsed",
     "sprite_count",
     # Helper functions
+    "move_by",
+    "move_to",
     "move_until",
     "rotate_until",
     "follow_path_until",

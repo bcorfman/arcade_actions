@@ -121,6 +121,59 @@ class TestZigzagPattern:
         # Sprite position should have changed (relative motion)
         assert (sprite.center_x, sprite.center_y) != initial_pos
 
+    def test_zigzag_segment_alignment(self):
+        """Test that zigzag segments connect smoothly without jumps."""
+        sprite = create_test_sprite()
+        initial_x = sprite.center_x
+        initial_y = sprite.center_y
+
+        # Create a zigzag with 3 segments to test multiple direction changes
+        pattern = create_zigzag_pattern(dimensions=(80, 40), speed=200, segments=3)
+        pattern.apply(sprite, tag="zigzag_alignment_test")
+
+        # Track positions at key points to verify smooth transitions
+        positions = []
+
+        # Simulate the movement and record positions at segment boundaries
+        while not pattern.done:
+            Action.update_all(1 / 60)  # 60 FPS simulation
+
+            # Record position every 0.1 seconds (roughly every 6 frames)
+            if len(positions) == 0 or (sprite.center_y - positions[-1][1]) >= 4:  # ~4 pixels up
+                positions.append((sprite.center_x, sprite.center_y))
+
+        # Should have recorded positions at each segment boundary
+        assert len(positions) >= 3, f"Expected at least 3 positions, got {len(positions)}"
+
+        # Verify the pattern is centered around the starting X position
+        # The zigzag should span from initial_x - 40 to initial_x + 40 (width=80)
+        x_positions = [pos[0] for pos in positions]
+        min_x = min(x_positions)
+        max_x = max(x_positions)
+
+        # Pattern should be centered (allow small tolerance for floating point)
+        expected_center = initial_x
+        actual_center = (min_x + max_x) / 2
+        assert abs(actual_center - expected_center) < 2.0, (
+            f"Pattern not centered: expected {expected_center}, got {actual_center}"
+        )
+
+        # Verify pattern spans approximately the expected width
+        # Allow some tolerance since the pattern may not end exactly at the edges
+        expected_width = 80
+        actual_width = max_x - min_x
+        assert actual_width >= expected_width * 0.8, (
+            f"Pattern too narrow: expected at least {expected_width * 0.8}, got {actual_width}"
+        )
+
+        # Verify Y movement is continuous (no jumps)
+        y_positions = [pos[1] for pos in positions]
+        for i in range(1, len(y_positions)):
+            # Each step should move upward by approximately the segment height
+            y_step = y_positions[i] - y_positions[i - 1]
+            assert y_step > 0, f"Y movement should always be positive, got {y_step}"
+            assert y_step <= 50, f"Y step too large, got {y_step}"  # Allow some tolerance
+
     # Segment-count specific tests are no longer required because the factory
     # now produces a single parametric action regardless of segment count.
 
