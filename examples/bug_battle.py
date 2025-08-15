@@ -19,7 +19,6 @@ import arcade
 from actions import (
     Action,
     DelayUntil,
-    MoveBy,
     arrange_grid,
     blink_until,
     create_formation_entry_from_sprites,
@@ -34,7 +33,7 @@ from actions import (
 # Window configuration
 # ---------------------------------------------------------------------------
 WINDOW_WIDTH = 720
-WINDOW_HEIGHT = 720
+WINDOW_HEIGHT = 1024
 WINDOW_TITLE = "Bug Battle"
 
 # ---------------------------------------------------------------------------
@@ -321,6 +320,11 @@ class StarfieldView(arcade.View):
         self.ship_list.append(self.ship)
 
     def _setup_enemies(self, delta_time) -> None:
+        # Stop all existing enemy actions before clearing
+        Action.stop_actions_for_target(self.enemy_list, tag="enemy_formation_entry")
+        Action.stop_actions_for_target(self.enemy_list, tag="enemy_wave")
+        Action.stop_actions_for_target(self.enemy_list, tag="formation_completion_watcher")
+
         # Clear existing enemies
         self.enemy_list.clear()
         enemy_list = [BEE, FISH_PINK, FLY, SAW, SLIME_BLOCK, FISH_GREEN]
@@ -375,17 +379,11 @@ class StarfieldView(arcade.View):
 
         def start_wave_motion():
             """Start repeating wave motion for the entire enemy formation."""
-            AMP = 30  # desired half-wave dip depth
-
-            move_by = MoveBy(-AMP, AMP)
-            single_wave = create_wave_pattern(
-                amplitude=AMP,
-                length=100,
-                speed=150.0,
-            )
+            quarter_wave = create_wave_pattern(amplitude=30, length=80, speed=80, start_progress=0.75, end_progress=1.0)
+            full_wave = create_wave_pattern(amplitude=30, length=80, speed=80)
 
             # Repeat the wave forever so enemies keep swaying
-            repeating_wave = sequence(move_by, repeat(single_wave))
+            repeating_wave = sequence(quarter_wave, repeat(full_wave))
 
             # Apply to the whole enemy list (grid moves as one unit)
             repeating_wave.apply(self.enemy_list, tag="enemy_wave")
