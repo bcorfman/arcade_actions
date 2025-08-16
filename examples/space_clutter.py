@@ -34,7 +34,7 @@ from actions import (
 # ---------------------------------------------------------------------------
 WINDOW_WIDTH = 720
 WINDOW_HEIGHT = 1024
-WINDOW_TITLE = "Bug Battle"
+WINDOW_TITLE = "Space Clutter!"
 
 # ---------------------------------------------------------------------------
 # Starfield configuration
@@ -76,8 +76,8 @@ BEE = ":resources:/images/enemies/bee.png"
 FISH_PINK = ":resources:/images/enemies/fishPink.png"
 FISH_GREEN = ":resources:/images/enemies/fishGreen.png"
 FLY = ":resources:/images/enemies/fly.png"
-SAW = ":resources:/images/enemies/saw.png"
-SLIME_BLOCK = ":resources:/images/enemies/slimeBlock.png"
+MOUSE = ":resources:/images/enemies/mouse.png"
+SLIME = ":resources:/images/enemies/slimeBlue.png"
 GEM_GREEN = ":resources:/images/items/gemGreen.png"
 GEM_RED = ":resources:/images/items/gemRed.png"
 GEM_YELLOW = ":resources:/images/items/gemYellow.png"
@@ -327,10 +327,15 @@ class StarfieldView(arcade.View):
 
         # Clear existing enemies
         self.enemy_list.clear()
-        enemy_list = [BEE, FISH_PINK, FLY, SAW, SLIME_BLOCK, FISH_GREEN]
+        enemy_list = [BEE, FISH_PINK, FLY, MOUSE, SLIME, FISH_GREEN]
 
-        # Calculate centered grid layout using the new function
-        start_x, spacing_x = get_centered_grid_spacing(ENEMY_GRID_MARGIN)
+        # Calculate centered grid layout using the consolidated function
+        start_x, spacing_x = calculate_centered_grid_layout(
+            window_width=WINDOW_WIDTH,
+            cols=4,
+            sprite_width=ENEMY_WIDTH,
+            desired_margin=ENEMY_GRID_MARGIN,
+        )
 
         # Create the target formation sprites (these define the final positions)
         target_sprites = [arcade.Sprite(random.choice(enemy_list), scale=0.5) for i in range(16)]
@@ -365,7 +370,7 @@ class StarfieldView(arcade.View):
 
             # Thresholds
             vel_eps = 0.05  # pixels / frame considered stationary
-            stable_frames_required = 30  # ≈0.5 s at 60 FPS
+            stable_frames_required = 5
 
             moving = any(abs(s.change_x) > vel_eps or abs(s.change_y) > vel_eps for s in self.enemy_list)
 
@@ -503,82 +508,33 @@ class StarfieldView(arcade.View):
 
 
 def calculate_centered_grid_layout(
-    window_width: float, cols: int, sprite_width: float, desired_margin: float = 0.0
+    window_width: float, cols: int, sprite_width: float, desired_margin: float
 ) -> tuple[float, float]:
-    """Calculate start_x and spacing_x to center a grid with specified margins.
-    Args:
-        window_width: Total window width
-        cols: Number of columns in the grid
-        sprite_width: Width of each sprite
-        desired_margin: Desired left and right margin (default: 0.0 for auto-centering)
-    Returns:
-        Tuple of (start_x, spacing_x) for centered grid
-    """
-    if desired_margin > 0:
-        # Calculate spacing needed to achieve equal margins
-        # The grid spans from left_margin to (window_width - right_margin)
-        # where left_margin = right_margin = desired_margin
+    """Calculate start_x and spacing_x to center a grid with specified margins."""
+    if desired_margin <= 0:
+        raise ValueError("desired_margin must be greater than 0")
 
-        # The leftmost sprite center is at: desired_margin + sprite_width/2
-        # The rightmost sprite center is at: window_width - desired_margin - sprite_width/2
+    # Calculate spacing needed to achieve equal margins
+    # The grid spans from left_margin to (window_width - right_margin)
+    # where left_margin = right_margin = desired_margin
 
-        # Total distance between centers = rightmost_center - leftmost_center
-        leftmost_center = desired_margin + sprite_width / 2
-        rightmost_center = window_width - desired_margin - sprite_width / 2
-        total_center_distance = rightmost_center - leftmost_center
+    # Total distance between centers = rightmost_center - leftmost_center
+    leftmost_center = desired_margin + sprite_width / 2
+    rightmost_center = window_width - desired_margin - sprite_width / 2
+    total_center_distance = rightmost_center - leftmost_center
 
-        # Divide this distance into (cols - 1) equal gaps
-        spacing_x = total_center_distance / (cols - 1)
+    # Divide this distance into (cols - 1) equal gaps
+    spacing_x = total_center_distance / (cols - 1)
 
-        # Ensure spacing is not negative
-        if spacing_x < 0:
-            # Grid too wide for specified margin, reduce spacing to fit
-            spacing_x = (window_width - sprite_width) / (cols - 1)
-            print(f"[WARNING] Grid too wide for margin {desired_margin}, using minimum spacing {spacing_x}")
+    # Ensure spacing is not negative
+    if spacing_x < 0:
+        # Grid too wide for specified margin, reduce spacing to fit
+        spacing_x = (window_width - sprite_width) / (cols - 1)
+        print(f"[WARNING] Grid too wide for margin {desired_margin}, using minimum spacing {spacing_x}")
 
-        start_x = leftmost_center
+    start_x = leftmost_center
 
-        return start_x, spacing_x
-    else:
-        # Equal margins on both sides (original behavior)
-        # Use a reasonable default spacing and calculate margins
-        default_spacing = 80.0
-        total_sprite_width = sprite_width * cols
-        total_spacing_width = default_spacing * (cols - 1)
-        total_grid_width = total_sprite_width + total_spacing_width
-        total_margin = window_width - total_grid_width
-        left_margin = total_margin / 2
-        start_x = left_margin + sprite_width / 2
-        return start_x, default_spacing
-
-
-def get_centered_grid_spacing(desired_margin: float = 0.0):
-    """Calculate centered spacing for the enemy grid with configurable margins.
-    Args:
-        desired_margin: Desired left and right margin (default: 0.0 for full-width grid)
-    Returns:
-        Tuple of (start_x, spacing_x) for centered grid
-    """
-    if desired_margin == 0.0:
-        # Full-width grid (current behavior)
-        # The sprites are positioned by their centers
-        # Leftmost sprite center: ENEMY_WIDTH/2
-        # Rightmost sprite center: WINDOW_WIDTH - ENEMY_WIDTH/2
-        # Total distance between centers: (WINDOW_WIDTH - ENEMY_WIDTH/2) - ENEMY_WIDTH/2 = WINDOW_WIDTH - ENEMY_WIDTH
-
-        total_center_distance = WINDOW_WIDTH - ENEMY_WIDTH
-        spacing_x = total_center_distance / 3  # 3 gaps for 4 columns
-        start_x = ENEMY_WIDTH / 2  # Center of the first sprite
-
-        return start_x, spacing_x
-    else:
-        # Use configurable margin
-        return calculate_centered_grid_layout(
-            window_width=WINDOW_WIDTH,
-            cols=4,
-            sprite_width=ENEMY_WIDTH,
-            desired_margin=desired_margin,
-        )
+    return start_x, spacing_x
 
 
 def main() -> None:

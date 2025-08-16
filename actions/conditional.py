@@ -392,6 +392,13 @@ class FollowPathUntil(_Action):
         start_point = self._bezier_point(0.0)
         self._last_position = start_point
 
+        # Snap target(s) to the exact start point to guarantee continuity across repeats
+        def snap_to_start(sprite):
+            sprite.center_x = start_point[0]
+            sprite.center_y = start_point[1]
+
+        self.for_each_sprite(snap_to_start)
+
     def update_effect(self, delta_time: float) -> None:
         """Update path following with constant velocity and optional rotation."""
         if self._curve_length <= 0:
@@ -444,6 +451,23 @@ class FollowPathUntil(_Action):
             self.done = True
             if self.on_stop:
                 self.on_stop(None)
+
+    def remove_effect(self) -> None:
+        """Ensure exact end-point alignment when finishing the path.
+
+        This prevents visible offsets when a hitch causes completion in the same
+        frame and a new iteration starts immediately under _Repeat.
+        """
+        try:
+            end_point = self._bezier_point(1.0)
+        except Exception:
+            return
+
+        def snap_to_end(sprite):
+            sprite.center_x = end_point[0]
+            sprite.center_y = end_point[1]
+
+        self.for_each_sprite(snap_to_end)
 
     def clone(self) -> "FollowPathUntil":
         """Create a copy of this FollowPathUntil action with all parameters preserved."""
@@ -1131,7 +1155,9 @@ class ParametricMotionUntil(_Action):
         self._elapsed += delta_time * self._factor
         progress = min(1.0, self._elapsed / self._duration) if self._duration > 0 else 1.0
 
-        current_offset = self._offset_fn(progress)
+        # Clamp progress to 1.0 for offset calculation to ensure exact endpoint positioning
+        clamped_progress = min(1.0, progress)
+        current_offset = self._offset_fn(clamped_progress)
         dx, dy = current_offset
 
         # Calculate rotation if enabled
@@ -1163,6 +1189,44 @@ class ParametricMotionUntil(_Action):
             if self.on_stop:
                 self.on_stop(None)
 
+    def remove_effect(self) -> None:
+        """
+        Ensure we finish at the exact end of the parametric path.
+
+        When actions complete due to condition timing (wall clock), there can be
+        rare frames where the duration condition completes before the internal
+        parametric progress reaches 1.0 exactly. That can leave the sprite at a
+        mid-path position at completion, which breaks seamless repetition.
+
+        To guarantee continuity when used with repeaters, snap to the exact
+        end-of-curve position (t=1.0) on effect removal.
+        """
+        try:
+            final_dx, final_dy = self._offset_fn(1.0)
+        except Exception:
+            # If the offset function misbehaves, do nothing rather than crash
+            return
+
+        def apply_final(sprite):
+            _apply_offset(sprite, final_dx, final_dy, self._origins)
+
+            if self.rotate_with_path:
+                # Best-effort: orient to the path direction near the end using a small delta
+                # This avoids large jumps while still producing a stable final angle.
+                epsilon = 1e-3
+                try:
+                    end_prev = self._offset_fn(max(0.0, 1.0 - epsilon))
+                    mvx = final_dx - end_prev[0]
+                    mvy = final_dy - end_prev[1]
+                    if abs(mvx) > 1e-6 or abs(mvy) > 1e-6:
+                        angle = math.degrees(math.atan2(mvy, mvx)) + self.rotation_offset
+                        sprite.angle = angle
+                except Exception:
+                    # Ignore rotation errors; position snap is the critical part
+                    pass
+
+        self.for_each_sprite(apply_final)
+
     def clone(self) -> "ParametricMotionUntil":  # type: ignore[name-defined]
         return ParametricMotionUntil(
             self._offset_fn,
@@ -1172,6 +1236,22 @@ class ParametricMotionUntil(_Action):
             rotate_with_path=self.rotate_with_path,
             rotation_offset=self.rotation_offset,
         )
+
+    def reset(self) -> None:
+        """Reset the action to its initial state."""
+        self._elapsed = 0.0
+        self._origins.clear()
+        self._prev_offset = None
+        self._condition_met = False
+        self.done = False
+
+    def set_factor(self, factor: float) -> None:
+        """Scale the motion speed by the given factor.
+
+        Args:
+            factor: Scaling factor for motion speed (0.0 = stopped, 1.0 = normal speed)
+        """
+        self._factor = factor
 
 
 # ------------------ helpers ------------------

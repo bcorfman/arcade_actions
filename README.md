@@ -6,41 +6,53 @@ So much of building an arcade game is a cluttered way of saying "animate this sp
 
 ```python 
 import arcade
-from actions import move_until
+from actions import MoveUntil, Action
 
-# Overview: This example shows how to set up an asteroid that moves continuously,
-# wraps around screen boundaries, and stops when it collides with the player or other asteroids.
-# The collision data is passed from the condition function to the callback function.
+class AsteroidDemoView(arcade.View):
+    def __init__(self):
+        super().__init__()
+        # Minimal, explicit setup
+        self.player = arcade.Sprite(":resources:/images/space_shooter/playerShip1_green.png")
+        self.player.center_x, self.player.center_y = 400, 100
 
-# assume player and asteroid are arcade.Sprites, and other_asteroids is a arcade.SpriteList
+        self.asteroids = arcade.SpriteList()
+        # Position asteroids in a simple pattern with different velocities
+        positions = [(200, 450), (400, 400), (600, 450)]
+        velocities = [(3, -2), (-2, -3), (4, -1)]
+        
+        for (x, y), (vx, vy) in zip(positions, velocities):
+            rock = arcade.Sprite(":resources:/images/space_shooter/meteorGrey_big1.png")
+            rock.center_x, rock.center_y = x, y
+            self.asteroids.append(rock)
+            
+            # Each asteroid moves independently with its own velocity
+            MoveUntil(
+                velocity=(vx, vy),
+                condition=self.player_asteroid_collision,
+                on_stop=self.on_player_collision,
+                bounds=(-64, -64, 864, 664),
+                boundary_behavior="wrap",
+            ).apply(rock)
 
-def asteroid_collision_check():
-    player_hit = arcade.check_for_collision(player, asteroid)
-    asteroid_hits = arcade.check_for_collision_with_list(asteroid, other_asteroids)
+    def player_asteroid_collision(self):
+        """Return data when player hits any asteroid; None to keep moving."""
+        hits = arcade.check_for_collision_with_list(self.player, self.asteroids)
+        return {"hits": hits} if hits else None
 
-    if player_hit or asteroid_hits:
-        return {
-            "player_hit": player_hit,
-            "asteroid_hits": asteroid_hits,
-        }
-    return None  # Continue moving
+    def on_player_collision(self, data):
+        """React to collision."""
+        print(f"Game over! {len(data['hits'])} asteroid(s) hit the player.")
+        # ... reset player / end round / etc. ...
 
-def handle_asteroid_collision(collision_data):
-    if collision_data["player_hit"]:
-        print("Player destroyed!")
-    for asteroid in collision_data["asteroid_hits"]:
-        print("Asteroid collisions!")
+    def on_update(self, dt):
+        Action.update_all(dt)
+        self.player.update()
+        self.asteroids.update()
 
-# Start the asteroid moving with collision detection
-# bounds are slightly outside the viewing area, so asteroids go offscreen before wrapping
-move_until(
-    asteroid, 
-    velocity=(5, 4), 
-    condition=asteroid_collision_check, 
-    on_stop=handle_asteroid_collision,
-    bounds=(-64, -64, 864, 664), 
-    boundary_behavior="wrap"
-)
+    def on_draw(self):
+        self.clear()
+        self.player.draw()
+        self.asteroids.draw()
 ```
 This example shows how animation actions can be logically separated from collision responses, making your code simple and appealing. 
 If writing high-level game code appeals to you ... it's why you chose Python in the first place ... read on!

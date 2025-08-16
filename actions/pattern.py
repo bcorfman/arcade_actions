@@ -153,10 +153,21 @@ def create_wave_pattern(
     # Compute base offset at the start so subrange is relative (no initial snap)
     _base_dx, _base_dy = _full_offset(start_progress)
 
+    # For sequence continuity, we need to ensure the end position matches the next pattern's start
+    # If this is a partial pattern that doesn't end at the natural cycle end, adjust accordingly
+    _end_dx, _end_dy = _full_offset(end_progress)
+
     def _remapped_offset(t: float) -> tuple[float, float]:
         # Remap t from [0, 1] to [start_progress, end_progress]
         p = start_progress + span * t
         dx, dy = _full_offset(p)
+
+        # For sequence continuity: if end_progress is 1.0 (full cycle end),
+        # ensure we end at (0,0) regardless of the pattern's natural end position
+        if end_progress >= 1.0 and t >= 1.0:
+            # Force end position to (0, 0) for seamless sequence transitions
+            return 0.0 - _base_dx, 0.0 - _base_dy
+
         return dx - _base_dx, dy - _base_dy
 
     # If start and end are the same, return a no-op action
@@ -389,6 +400,10 @@ def create_orbit_pattern(center: tuple[float, float], radius: float, speed: floa
             if per_sprite_done and all(per_sprite_done):
                 self._condition_met = True
                 self.done = True
+
+        def reset(self):
+            """Reset the action to its initial state."""
+            self._states.clear()
 
         def clone(self):
             return create_orbit_pattern((self.center_x, self.center_y), self.radius, speed, self.clockwise)
