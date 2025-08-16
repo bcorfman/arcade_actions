@@ -234,23 +234,25 @@ def arrange_v_formation(
     count: int | None = None,
     apex_x: float = 400,
     apex_y: float = 500,
-    angle: float = 45.0,
     spacing: float = 50.0,
+    direction: str = "up",
+    rotate_with_direction: bool = False,
     sprite_factory: Callable[[], arcade.Sprite] | None = None,
     visible: bool = True,
 ) -> arcade.SpriteList:
     """Create or arrange sprites in a V or wedge formation.
 
-    The formation grows upward from the apex, with sprites placed in alternating
-    left-right pattern at the specified angle.
+    The formation grows from the apex in the specified direction, with sprites placed
+    in alternating left-right pattern. The V can point up, down, left, or right.
 
     Args:
         sprites: Existing sprites to arrange, or None to create new ones
         count: Number of sprites to create (required if sprites is None)
         apex_x: X coordinate of the V formation apex (tip)
         apex_y: Y coordinate of the V formation apex (tip)
-        angle: Angle of the V formation in degrees (0-90)
         spacing: Distance between adjacent sprites along the V arms
+        direction: Direction the V points ("up", "down", "left", "right")
+        rotate_with_direction: Whether to rotate sprites to face the direction (default: False)
         sprite_factory: Function to create new sprites (if sprites is None)
         visible: Whether sprites should be visible (default: True)
 
@@ -258,14 +260,17 @@ def arrange_v_formation(
         The arranged sprite list
 
     Example:
-        # Create a V formation with 7 sprites
-        v_formation = arrange_v_formation(count=7, apex_x=400, apex_y=100, angle=60)
+        # Create a V formation pointing up (default)
+        v_formation = arrange_v_formation(count=7, apex_x=400, apex_y=100, spacing=60)
 
-        # Arrange existing sprites in V formation
-        arrange_v_formation(flying_birds, angle=30, spacing=40)
+        # Create a V formation pointing down
+        down_v = arrange_v_formation(count=7, apex_x=400, apex_y=500, spacing=60, direction="down")
 
-        # Create hidden V formation for formation entry
-        hidden_v = arrange_v_formation(count=7, apex_x=400, apex_y=100, angle=60, visible=False)
+        # Create a V formation pointing left with sprite rotation
+        left_v = arrange_v_formation(count=7, apex_x=100, apex_y=300, spacing=60, direction="left", rotate_with_direction=True)
+
+        # Arrange existing sprites in V formation pointing right
+        arrange_v_formation(flying_birds, direction="right", spacing=40)
     """
     if sprites is None:
         if count is None or count <= 0:
@@ -288,23 +293,69 @@ def arrange_v_formation(
     if count == 0:
         return sprites
 
-    angle_rad = math.radians(angle)
+    # Validate direction
+    valid_directions = ["up", "down", "left", "right"]
+    if direction not in valid_directions:
+        raise ValueError(f"direction must be one of {valid_directions}, got '{direction}'")
+
+    # Define V angle (45 degrees for a nice V shape)
+    v_angle = 45.0
+    angle_rad = math.radians(v_angle)
 
     # Place the first sprite at the apex
     sprites[0].center_x = apex_x
     sprites[0].center_y = apex_y
     sprites[0].visible = visible
 
+    # Set rotation for apex sprite if needed
+    if rotate_with_direction:
+        rotation_map = {"up": 0, "down": 180, "left": 90, "right": 270}
+        sprites[0].angle = rotation_map[direction]
+
     for i in range(1, count):
         side = 1 if i % 2 == 1 else -1
         distance = (i + 1) // 2 * spacing
 
-        offset_x = side * math.cos(angle_rad) * distance
-        offset_y = math.sin(angle_rad) * distance
+        # Calculate base offsets for V shape
+        base_offset_x = side * math.cos(angle_rad) * distance
+        base_offset_y = math.sin(angle_rad) * distance
+
+        # Apply direction transformation
+        if direction == "up":
+            offset_x = base_offset_x
+            offset_y = base_offset_y
+        elif direction == "down":
+            offset_x = base_offset_x
+            offset_y = -base_offset_y
+        elif direction == "left":
+            offset_x = -base_offset_y
+            offset_y = base_offset_x
+        else:  # direction == "right"
+            offset_x = base_offset_y
+            offset_y = base_offset_x
 
         sprites[i].center_x = apex_x + offset_x
         sprites[i].center_y = apex_y + offset_y
-        sprites[i].visible = visible  # Ensure visibility is set
+        sprites[i].visible = visible
+
+        # Set rotation for wing sprites if needed
+        if rotate_with_direction:
+            if direction == "up":
+                sprite_angle = 0
+            elif direction == "down":
+                sprite_angle = 180
+            elif direction == "left":
+                sprite_angle = 90
+            else:  # direction == "right"
+                sprite_angle = 270
+
+            # Add slight angle variation for wing sprites to face outward
+            if side == 1:  # Right wing
+                sprite_angle += v_angle
+            else:  # Left wing
+                sprite_angle -= v_angle
+
+            sprites[i].angle = sprite_angle
 
     return sprites
 
