@@ -92,7 +92,7 @@ def test_formations_with_existing_sprites():
         (arrange_line, {"start_x": 200, "start_y": 200, "spacing": 40}),
         (arrange_grid, {"rows": 2, "cols": 3, "start_x": 200, "start_y": 200}),
         (arrange_circle, {"center_x": 200, "center_y": 200, "radius": 80}),
-        (arrange_v_formation, {"apex_x": 200, "apex_y": 200, "angle": 45, "spacing": 40}),
+        (arrange_v_formation, {"apex_x": 200, "apex_y": 200, "spacing": 40}),
         (arrange_diamond, {"center_x": 200, "center_y": 200, "spacing": 40}),
         (arrange_triangle, {"apex_x": 200, "apex_y": 200, "row_spacing": 40, "lateral_spacing": 50}),
         (arrange_hexagonal_grid, {"rows": 2, "cols": 3, "start_x": 200, "start_y": 200}),
