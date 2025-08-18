@@ -1056,3 +1056,77 @@ class TestDemoPatrolPattern:
         if right_hits:
             right_avg = sum(right_hits) / len(right_hits)
             assert abs(right_avg - expected_right) < 10.0, f"Right boundary too far: {right_avg} vs {expected_right}"
+
+
+class TestWaveRepeatContinuity:
+    """Test suite for wave pattern repeat continuity to prevent large jumps."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_repeated_wave_motion_no_large_jump(self):
+        """Ensure repeated full-wave motion never produces a single-frame jump > threshold.
+
+        This test mirrors the enemy formation sway logic in *space_clutter.py*:
+            quarter_wave  = create_wave_pattern(..., start_progress=0.75, end_progress=1.0)
+            full_wave     = create_wave_pattern(...)
+            repeating     = sequence(quarter_wave, repeat(full_wave))
+
+        The bug report describes an occasional *large jump* after several cycles.
+        We replicate the exact pattern for a lone sprite and verify that the
+        per-frame displacement never exceeds an upper bound (1.5 × wave_length).
+        """
+
+        # Build a sprite list resembling the 4×4 enemy grid (16 sprites)
+        sprites = arcade.SpriteList()
+        for i in range(16):
+            s = arcade.Sprite()
+            # Spread initial positions horizontally to better expose any per-sprite origin issues
+            s.center_x = 200.0 + (i % 4) * 15.0
+            s.center_y = 300.0 + (i // 4) * 10.0
+            sprites.append(s)
+
+        # Wave parameters match the demo in space_clutter.py
+        amplitude = 30.0
+        length = 80.0
+        speed = 80.0  # pixels per *frame* (Arcade semantics)
+
+        quarter_wave = create_wave_pattern(
+            amplitude=amplitude,
+            length=length,
+            speed=speed,
+            start_progress=0.75,
+            end_progress=1.0,
+        )
+        full_wave = create_wave_pattern(amplitude, length, speed)
+        pattern = sequence(quarter_wave, repeat(full_wave))
+        pattern.apply(sprites)
+
+        # Run for an extended duration: 120 seconds at 60 FPS ~ 7200 frames.
+        dt = 1 / 60.0
+        frames_to_simulate = 7200
+
+        # Jump threshold: allow up to 12 px movement between frames
+        max_allowed_jump = 12.0
+
+        # Track previous positions of first sprite as representative (all move identically)
+        prev_x, prev_y = sprites[0].center_x, sprites[0].center_y
+        for frame_idx in range(frames_to_simulate):
+            # Introduce occasional frame-drop spikes (~every 397 frames, prime to avoid phase sync)
+            if frame_idx % 397 == 0 and frame_idx > 0:
+                Action.update_all(dt * 5)  # 5-frame drop
+            else:
+                Action.update_all(dt)
+
+            cur_x, cur_y = sprites[0].center_x, sprites[0].center_y
+            dx = abs(cur_x - prev_x)
+            dy = abs(cur_y - prev_y)
+            jump = math.hypot(dx, dy)
+            assert jump <= max_allowed_jump, (
+                f"Detected large single-frame jump: {jump:.2f}px (> {max_allowed_jump}px) at frame {frame_idx}"
+            )
+            prev_x, prev_y = cur_x, cur_y
+
+        # Repeat should still be running (infinite) – pattern itself never completes.
+        assert not pattern.done

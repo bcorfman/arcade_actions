@@ -91,7 +91,14 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
 
 
 def create_wave_pattern(
-    amplitude: float, length: float, speed: float, *, start_progress: float = 0.0, end_progress: float = 1.0
+    amplitude: float,
+    length: float,
+    speed: float,
+    *,
+    start_progress: float = 0.0,
+    end_progress: float = 1.0,
+    debug: bool = False,
+    debug_threshold: float | None = None,
 ):
     """Galaga-style sway with *formation slots in the middle of the dip*.
 
@@ -131,7 +138,12 @@ def create_wave_pattern(
 
     # ----------------- helper for building parametric actions -----------------
     def _param(offset_fn, dur):
-        return ParametricMotionUntil(offset_fn, duration(dur))
+        return ParametricMotionUntil(
+            offset_fn,
+            duration(dur),
+            debug=debug,
+            debug_threshold=debug_threshold if debug_threshold is not None else length * 1.2,
+        )
 
     # ------------------------------------------------------------
     # Full wave: left crest → trough → right crest → back

@@ -1113,6 +1113,9 @@ class ParametricMotionUntil(_Action):
         explicit_duration: float | None = None,
         rotate_with_path: bool = False,
         rotation_offset: float = 0.0,
+        # --- debug ---
+        debug: bool = False,
+        debug_threshold: float | None = None,
     ):
         super().__init__(condition=condition, on_stop=on_stop)
         self._offset_fn = offset_fn
@@ -1122,6 +1125,10 @@ class ParametricMotionUntil(_Action):
         self.rotate_with_path = rotate_with_path
         self.rotation_offset = rotation_offset
         self._prev_offset = None  # Track previous offset for rotation calculation
+
+        # Debug helpers
+        self._debug = debug
+        self._debug_threshold = debug_threshold if debug_threshold is not None else 120.0  # px / frame
 
     # --------------------- Action hooks --------------------
     def apply_effect(self) -> None:  # noqa: D401 – imperative style
@@ -1167,6 +1174,18 @@ class ParametricMotionUntil(_Action):
             movement_dx = dx - self._prev_offset[0]
             movement_dy = dy - self._prev_offset[1]
 
+            # Debug: detect large single-frame jumps in relative space
+            if self._debug:
+                import math
+                import time as _t
+
+                jump_mag = math.hypot(movement_dx, movement_dy)
+                if jump_mag > self._debug_threshold:
+                    stamp = f"{_t.time():.3f}"
+                    print(
+                        f"[ParametricMotionUntil:jump] t={stamp} Δ={jump_mag:.2f}px (thr={self._debug_threshold})"
+                        f" prev_offset={self._prev_offset} new_offset={(dx, dy)}"
+                    )
             # Only calculate angle if there's significant movement
             if abs(movement_dx) > 1e-6 or abs(movement_dy) > 1e-6:
                 angle = math.degrees(math.atan2(movement_dy, movement_dx))
@@ -1184,8 +1203,12 @@ class ParametricMotionUntil(_Action):
         self._prev_offset = current_offset
 
         if progress >= 1.0 and not self.done:
+            # Snap to final position before marking done
+            self.remove_effect()
+
             self._condition_met = True
             self.done = True
+
             if self.on_stop:
                 self.on_stop(None)
 
@@ -1235,6 +1258,8 @@ class ParametricMotionUntil(_Action):
             explicit_duration=self._duration,
             rotate_with_path=self.rotate_with_path,
             rotation_offset=self.rotation_offset,
+            debug=self._debug,
+            debug_threshold=self._debug_threshold,
         )
 
     def reset(self) -> None:
