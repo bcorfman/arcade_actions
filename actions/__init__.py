@@ -38,6 +38,9 @@ from .conditional import (
     infinite,
 )
 
+# Debug helpers
+from .debug import attach_motion_debugger
+
 # Easing wrappers
 from .easing import (
     Ease,

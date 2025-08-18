@@ -19,6 +19,7 @@ import arcade
 from actions import (
     Action,
     DelayUntil,
+    MoveUntil,
     arrange_grid,
     blink_until,
     create_formation_entry_from_sprites,
@@ -302,6 +303,9 @@ class StarfieldView(arcade.View):
         self.ship_list = arcade.SpriteList()
         self.enemy_list = arcade.SpriteList()
         self.starfield = Starfield()
+        self.cached_entry_paths = None  # Cache for enemy entry paths (optimization 2)
+        self.cached_action_templates = None  # Pool of reusable action templates (optimization 3)
+        self.wave_count = 0  # Track wave number for optimization tracking
         self._setup_ship()
         self._setup_enemies(0)
         self.left_pressed = False
@@ -314,54 +318,144 @@ class StarfieldView(arcade.View):
     # Setup helpers
     # ---------------------------------------------------------------------
 
+    def _cache_entry_paths_once(self, entry_actions):
+        """Cache the entry action templates for exact reuse (optimization 2: only cache once)."""
+        if self.cached_entry_paths is not None:
+            return  # Already cached, don't overwrite to preserve original cache
+
+        self.cached_entry_paths = []
+
+        for sprite, action, target_index in entry_actions:
+            # Store sprite template data and action parameters for recreation
+            entry_template = {
+                "spawn_position": (sprite.center_x, sprite.center_y),
+                "target_index": target_index,
+                "texture": sprite.texture,
+                "scale": getattr(sprite, "scale", 1.0),
+                "visible": sprite.visible,
+                "alpha": sprite.alpha,
+                "velocity": getattr(action, "target_velocity", None),  # Store velocity for recreation
+            }
+            self.cached_entry_paths.append(entry_template)
+
+    def _create_action_templates_once(self):
+        """Create reusable action templates from cached paths (optimization 3: action pooling)."""
+        if self.cached_action_templates is not None:
+            return  # Already created
+
+        if self.cached_entry_paths is None:
+            raise ValueError("Must cache entry paths before creating action templates")
+
+        self.cached_action_templates = []
+
+        for path_data in self.cached_entry_paths:
+            # Store action template data for later instantiation
+            action_template = {
+                "velocity": path_data["velocity"],
+                "target_position": (
+                    self.enemy_formation[path_data["target_index"]].center_x,
+                    self.enemy_formation[path_data["target_index"]].center_y,
+                ),
+            }
+            self.cached_action_templates.append(action_template)
+
+    def _create_reusable_enemy_sprites(self):
+        """Create 16 reusable enemy sprites that persist across waves (optimization 1: sprite reuse)."""
+        if len(self.enemy_list) > 0:
+            return  # Already created, reuse existing sprites
+
+        enemy_textures = [BEE, FISH_PINK, FLY, MOUSE, SLIME, FISH_GREEN]
+
+        for i in range(16):
+            sprite = arcade.Sprite(enemy_textures[i % len(enemy_textures)], scale=ENEMY_SCALE)
+            self.enemy_list.append(sprite)
+
     def _setup_ship(self) -> None:
         """Create and position the ship sprite."""
         self.ship = PlayerShip(self.shot_list)
         self.ship_list.append(self.ship)
 
     def _setup_enemies(self, delta_time) -> None:
-        # Stop all existing enemy actions before clearing
+        """Setup enemy wave with performance optimizations."""
+        self.wave_count += 1
+
+        # Stop all existing enemy actions for both sprite list and individual sprites
         Action.stop_actions_for_target(self.enemy_list, tag="enemy_formation_entry")
         Action.stop_actions_for_target(self.enemy_list, tag="enemy_wave")
         Action.stop_actions_for_target(self.enemy_list, tag="formation_completion_watcher")
 
-        # Clear existing enemies
-        self.enemy_list.clear()
-        enemy_list = [BEE, FISH_PINK, FLY, MOUSE, SLIME, FISH_GREEN]
+        # Also stop actions for individual sprites to prevent accumulation
+        for sprite in self.enemy_list:
+            Action.stop_actions_for_target(sprite, tag="enemy_formation_entry")
+            Action.stop_actions_for_target(sprite, tag="enemy_wave")
+            Action.stop_actions_for_target(sprite, tag="formation_completion_watcher")
 
-        # Calculate centered grid layout using the consolidated function
-        start_x, spacing_x = calculate_centered_grid_layout(
-            window_width=WINDOW_WIDTH,
-            cols=4,
-            sprite_width=ENEMY_WIDTH,
-            desired_margin=ENEMY_GRID_MARGIN,
-        )
+        # Create target formation only once (optimization 1 & 2)
+        if self.enemy_formation is None:
+            enemy_textures = [BEE, FISH_PINK, FLY, MOUSE, SLIME, FISH_GREEN]
 
-        # Create the target formation sprites (these define the final positions)
-        target_sprites = [arcade.Sprite(random.choice(enemy_list), scale=0.5) for i in range(16)]
-        self.enemy_formation: arcade.SpriteList = arrange_grid(
-            sprites=target_sprites,
-            rows=4,
-            cols=4,
-            start_x=start_x,  # Use calculated centered position
-            start_y=WINDOW_HEIGHT - 400,
-            spacing_x=spacing_x,  # Use calculated spacing
-            spacing_y=ENEMY_HEIGHT * 1.5,
-            visible=False,
-        )
+            # Calculate centered grid layout using the consolidated function
+            start_x, spacing_x = calculate_centered_grid_layout(
+                window_width=WINDOW_WIDTH,
+                cols=4,
+                sprite_width=ENEMY_WIDTH,
+                desired_margin=ENEMY_GRID_MARGIN,
+            )
 
-        # Create the entry pattern - this returns new sprites with actions
-        entry_actions = create_formation_entry_from_sprites(
-            self.enemy_formation,
-            speed=5.0,
-            stagger_delay=0.5,
-            window_bounds=(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
-        )
+            # Create the target formation sprites (these define the final positions)
+            target_sprites = [arcade.Sprite(random.choice(enemy_textures), scale=0.5) for i in range(16)]
+            self.enemy_formation: arcade.SpriteList = arrange_grid(
+                sprites=target_sprites,
+                rows=4,
+                cols=4,
+                start_x=start_x,  # Use calculated centered position
+                start_y=WINDOW_HEIGHT - 400,
+                spacing_x=spacing_x,  # Use calculated spacing
+                spacing_y=ENEMY_HEIGHT * 1.5,
+                visible=False,
+            )
 
-        # Apply actions to the new sprites and add them to the enemy list
-        for sprite, action, _ in entry_actions:
+        # Create reusable enemy sprites only once (optimization 1: sprite reuse)
+        self._create_reusable_enemy_sprites()
+
+        # Generate and cache paths only on first wave (optimization 2: cache persistence)
+        if self.cached_entry_paths is None:
+            # Generate original entry actions and cache them for future use
+            entry_actions = create_formation_entry_from_sprites(
+                self.enemy_formation,
+                speed=5.0,
+                stagger_delay=0.5,
+                window_bounds=(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
+            )
+            # Cache the paths for next time
+            self._cache_entry_paths_once(entry_actions)
+
+            # Create action templates for reuse
+            self._create_action_templates_once()
+
+        # Reset and reposition existing sprites using cached data
+        for i, (sprite, path_data) in enumerate(zip(self.enemy_list, self.cached_entry_paths, strict=False)):
+            # Reset sprite state - reuse existing sprite objects
+            sprite.center_x, sprite.center_y = path_data["spawn_position"]
+            sprite.visible = True
+            sprite.alpha = 255
+            sprite.change_x = 0
+            sprite.change_y = 0
+
+            # Create fresh action from template (optimization 3: action pooling)
+            action_template = self.cached_action_templates[i]
+            velocity = action_template["velocity"]
+            target_position = action_template["target_position"]
+
+            from actions.pattern import _create_precision_condition_and_callback
+
+            # Create new action with fresh condition bound to this sprite
+            action = MoveUntil(
+                velocity=velocity,
+                condition=_create_precision_condition_and_callback(target_position, sprite),
+            )
+
             action.apply(sprite, tag="enemy_formation_entry")
-            self.enemy_list.append(sprite)
 
         # Create a DelayUntil action that waits for all formation entry actions to complete,
         # then starts a wave pattern motion for the entire enemy formation
@@ -385,7 +479,7 @@ class StarfieldView(arcade.View):
         def start_wave_motion():
             """Start repeating wave motion for the entire enemy formation."""
             quarter_wave = create_wave_pattern(amplitude=30, length=80, speed=80, start_progress=0.75, end_progress=1.0)
-            full_wave = create_wave_pattern(amplitude=30, length=80, speed=80)
+            full_wave = create_wave_pattern(amplitude=30, length=80, speed=80, debug=True, debug_threshold=19)
 
             # Repeat the wave forever so enemies keep swaying
             repeating_wave = sequence(quarter_wave, repeat(full_wave))
