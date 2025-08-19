@@ -2,6 +2,8 @@
 
 *Space Clutter!, one of the included examples demonstrating grid formations, wave patterns, and MoveUntil actions.*
 
+---
+
 # ArcadeActions extension library for Arcade 3.x
 
 ## 🚀 Quick Appeal
