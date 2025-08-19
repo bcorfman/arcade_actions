@@ -1,6 +1,6 @@
-*Space Clutter!, one of the included examples demonstrating grid formations, wave patterns, and MoveUntil actions.*
-
 <img src="https://github.com/bcorfman/gif_resources/blob/main/space_clutter.gif?raw=true"/>
+
+*Space Clutter!, one of the included examples demonstrating grid formations, wave patterns, and MoveUntil actions.*
 
 # ArcadeActions extension library for Arcade 3.x
 
