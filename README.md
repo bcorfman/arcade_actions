@@ -1,10 +1,12 @@
 <img src="https://github.com/bcorfman/gif_resources/blob/main/space_clutter.gif?raw=true"/>
 
-*Space Clutter!, one of the included examples demonstrating grid formations, wave patterns, and MoveUntil actions.*
+*Space Clutter!, a game prototype demonstrating grid formations, wave patterns, and MoveUntil actions.*
 
 ---
 
 # ArcadeActions extension library for Arcade 3.x
+[![codecov](https://codecov.io/gh/bcorfman/arcade_actions/graph/badge.svg?token=9AIZD1GLND)](https://codecov.io/gh/bcorfman/arcade_actions)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bcorfman/arcade_actions)
 
 ## 🚀 Quick Appeal
 
