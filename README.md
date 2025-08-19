@@ -1,3 +1,9 @@
+<img src="https://github.com/bcorfman/gif_resources/blob/main/space_clutter.gif?raw=true"/>
+
+*Space Clutter!, one of the included examples demonstrating grid formations, wave patterns, and MoveUntil actions.*
+
+---
+
 # ArcadeActions extension library for Arcade 3.x
 
 ## 🚀 Quick Appeal
@@ -68,7 +74,7 @@ If writing high-level game code appeals to you ... it's why you chose Python in 
 ## 🚀 Getting Started
 
 1. **Read the [API Usage Guide](api_usage_guide.md)** to understand the framework
-2. **Study the demos in the examples directory** to understand the power of Actions
+2. **Study the working demos in the examples directory** to understand the power of Actions
 3. **Start with simple conditional actions** and build up to complex compositions
 4. **Use formation and pattern functions** for organizing sprite positions and layouts
 
