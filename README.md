@@ -1,5 +1,9 @@
 # ArcadeActions extension library for Arcade 3.x
 
+<img src="https://github.com/bcorfman/gif_resources/blob/main/space_clutter.gif?raw=true"/>
+
+*Space Clutter!, one of the included examples demonstrating grid formations, wave patterns, and MoveUntil actions.*
+
 ## 🚀 Quick Appeal
 
 So much of building an arcade game is a cluttered way of saying "animate this sprite until something happens", like colliding with another sprite, reaching a boundary, or an event response. Most of us manage this complexity in the game loop, using low-level movement of game objects and complex chains of `if`-statements. But what if you could write a concise command like "keep moving this sprite, wrap it the other side of the window if it hits a boundary, and raise an event when it collides with another sprite"? 
@@ -56,10 +60,6 @@ class AsteroidDemoView(arcade.View):
 ```
 This example shows how animation actions can be logically separated from collision responses, making your code simple and appealing. 
 If writing high-level game code appeals to you ... it's why you chose Python in the first place ... read on!
-
-<img src="https://github.com/bcorfman/gif_resources/blob/main/space_clutter.gif?raw=true"/>
-
-*Space Clutter!, one of the included examples demonstrating grid formations, wave patterns, and MoveUntil actions.*
 
 ## 📚 Documentation Overview
 
