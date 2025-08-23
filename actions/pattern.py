@@ -653,209 +653,135 @@ def _create_precision_condition_and_callback(target_position, sprite_ref):
     return precision_condition
 
 
-def create_formation_entry_from_sprites(
-    target_formation: arcade.SpriteList, **kwargs
-) -> list[tuple[arcade.Sprite, arcade.SpriteList, int]]:
-    """Create formation entry pattern from a target formation SpriteList.
+# Helper -------------------------------------------------------------
 
-    This function creates sprites positioned around the upper half of the window boundary
-    (left side, top, right side) and creates a three-phase movement:
-    1. Invisible movement to target positions
-    2. Return to origin positions
-    3. Visible entry with staggered waves to avoid collisions
 
-    Args:
-        target_formation: SpriteList with sprites positioned at target formation locations
-        **kwargs: Additional arguments including:
-            - window_bounds: (left, bottom, right, top) window boundaries
-            - speed: Movement speed in pixels per frame
-            - stagger_delay: Delay between waves in seconds
-            - min_spacing: Minimum spacing between sprites during movement
-
-    Returns:
-        List of (sprite, action, target_formation_index) tuples
-
-    Example:
-        # Create target formation (e.g., circle formation)
-        target_formation = arrange_circle(count=8, center_x=400, center_y=300, radius=100, visible=False)
-
-        # Create entry pattern
-        entry_actions = create_formation_entry_from_sprites(
-            target_formation,
-            window_bounds=(0, 0, 800, 600),
-            speed=5.0,
-            stagger_delay=1.0
-        )
-
-        # Apply actions
-        for sprite, action, target_index in entry_actions:
-            action.apply(sprite, tag="formation_entry")
-    """
-    # Get window bounds (required for this implementation)
-    window_bounds = kwargs.get("window_bounds")
-    if not window_bounds:
+def _validate_entry_kwargs(kwargs: dict) -> dict:
+    """Validate and normalize kwargs for create_formation_entry_from_sprites."""
+    if "window_bounds" not in kwargs:
         raise ValueError("window_bounds is required for create_formation_entry_from_sprites")
 
-    # Create new sprites for the entry pattern (same number as target formation)
-    sprites = arcade.SpriteList()
-    for i in range(len(target_formation)):
-        # Create a new sprite with the same texture as the target formation sprite
-        target_sprite = target_formation[i]
-        if hasattr(target_sprite, "texture") and target_sprite.texture:
-            new_sprite = arcade.Sprite(target_sprite.texture, scale=getattr(target_sprite, "scale", 1.0))
+    # Defaults
+    validated = {
+        "window_bounds": kwargs["window_bounds"],
+        "speed": kwargs.get("speed", 5.0),
+        "stagger_delay": kwargs.get("stagger_delay", 0.5),
+    }
+    return validated
+
+
+def _clone_formation_sprites(target_formation: arcade.SpriteList) -> arcade.SpriteList:
+    """Create invisible clones that will perform the entry animation."""
+    clones = arcade.SpriteList()
+    for sprite in target_formation:
+        if getattr(sprite, "texture", None):
+            clones.append(arcade.Sprite(sprite.texture, scale=getattr(sprite, "scale", 1.0)))
         else:
-            # Fallback to default star texture
-            new_sprite = arcade.Sprite(":resources:images/items/star.png", scale=1.0)
-        sprites.append(new_sprite)
+            clones.append(arcade.Sprite(":resources:images/items/star.png", scale=1.0))
+    return clones
 
-    # Generate spawn positions distributed equally around an off-screen arc
-    # Extract target positions from the formation
+
+def _generate_arc_spawn_positions(
+    num_sprites: int, window_bounds: tuple[float, float, float, float], min_spacing: float
+) -> list[tuple[float, float]]:
+    """Generate off-screen arc spawn positions with equal spacing."""
     left, bottom, right, top = window_bounds
-    num_sprites = len(target_formation)
-    spawn_positions = []
+    arc_center_x = (left + right) / 2
+    arc_center_y = (bottom + top) / 2
+    arc_radius = (right - left) * 1.2
 
-    if num_sprites > 0:
-        # Calculate minimum spacing based on sprite dimensions
-        max_sprite_dimension = 64  # Default fallback
-        # Get the maximum dimension from the first sprite as a reference
-        first_sprite = target_formation[0]
-        if hasattr(first_sprite, "width") and hasattr(first_sprite, "height"):
-            max_sprite_dimension = max(first_sprite.width, first_sprite.height)
-        elif hasattr(first_sprite, "texture") and first_sprite.texture:
-            max_sprite_dimension = max(first_sprite.texture.width, first_sprite.texture.height)
+    positions: list[tuple[float, float]] = []
+    for i in range(num_sprites):
+        angle = math.pi / 2 if num_sprites == 1 else math.pi - (i * math.pi / (num_sprites - 1))
+        x = arc_center_x + arc_radius * math.cos(angle)
+        y = arc_center_y + arc_radius * math.sin(angle)
+        positions.append((x, y))
+    return positions
 
-        # Minimum spacing is 1.5x the maximum sprite dimension
-        min_spacing = max_sprite_dimension * 1.5
 
-        # Arc parameters
-        arc_center_x = (left + right) / 2  # Center horizontally
-        arc_center_y = (bottom + top) / 2  # Halfway down window (as requested)
-        arc_radius = (right - left) * 1.2  # Arc radius based on window width
+def _determine_min_spacing(target_formation: arcade.SpriteList) -> float:
+    """Compute a reasonable minimum spacing based on largest sprite dimension."""
+    if not target_formation:
+        return 64.0
+    ref = target_formation[0]
+    dim = 64.0
+    if hasattr(ref, "width") and hasattr(ref, "height"):
+        dim = max(ref.width, ref.height)
+    elif getattr(ref, "texture", None):
+        dim = max(ref.texture.width, ref.texture.height)
+    return dim * 1.5
 
-        # Calculate how many spawn points can fit on the arc with proper spacing
-        arc_length = math.pi * arc_radius  # Half circle (180°)
-        max_spawn_points = int(arc_length / min_spacing)
 
-        # If we have more sprites than spawn points, reduce the number of spawn points
-        # and increase spacing to ensure no starting collisions
-        if num_sprites > max_spawn_points:
-            # Recalculate spacing to fit all sprites
-            min_spacing = arc_length / num_sprites
+def _assign_spawns(target_formation: arcade.SpriteList, spawn_positions: list[tuple[float, float]]) -> dict[int, int]:
+    """Assign each sprite to a spawn using the min-conflicts algorithm."""
+    return _min_conflicts_sprite_assignment(target_formation, spawn_positions, max_iterations=1000, time_limit=0.1)
 
-        # Distribute sprites equally along the arc from left (180°) to right (0°)
-        for i in range(num_sprites):
-            if num_sprites == 1:
-                angle = math.pi / 2  # Single sprite at top of arc
+
+def _build_entry_actions(
+    clones: arcade.SpriteList,
+    spawn_positions: list[tuple[float, float]],
+    target_formation: arcade.SpriteList,
+    assignments: dict[int, int],
+    speed: float,
+    stagger_delay: float,
+) -> list[tuple[arcade.Sprite, arcade.SpriteList, int]]:
+    """Create MoveUntil/DelayUntil action sequences for the entry animation."""
+    target_positions = [(s.center_x, s.center_y) for s in target_formation]
+    # Convert assignments (sprite_idx -> spawn_idx) into a single list wave for now.
+    wave_assignments = [assignments]  # future-proof: multiple waves possible
+
+    entry_actions: list[tuple[arcade.Sprite, arcade.SpriteList, int]] = []
+
+    for wave_index, wave in enumerate(wave_assignments):
+        wave_delay = wave_index * stagger_delay
+        # Compute arrival time so all sprites in wave finish together
+        max_distance = max(
+            math.hypot(
+                target_positions[sidx][0] - spawn_positions[pidx][0],
+                target_positions[sidx][1] - spawn_positions[pidx][1],
+            )
+            for sidx, pidx in wave.items()
+        )
+        duration_frames = max_distance / max(speed, 0.001)
+
+        for sidx, pidx in wave.items():
+            sprite = clones[sidx]
+            sprite.center_x, sprite.center_y = spawn_positions[pidx]
+            velocity = _calculate_velocity_to_target(spawn_positions[pidx], target_positions[sidx], speed)
+            move_action = MoveUntil(velocity, _create_precision_condition_and_callback(target_positions[sidx], sprite))
+            if wave_delay > 0.01:
+                combined = sequence(DelayUntil(duration(wave_delay)), move_action)
             else:
-                # Evenly distribute from 180° (left) to 0° (right)
-                angle = math.pi - (i * math.pi / (num_sprites - 1))
+                combined = move_action
+            entry_actions.append((sprite, combined, sidx))
+    return entry_actions
 
-            # Calculate position on the arc
-            x = arc_center_x + arc_radius * math.cos(angle)
-            y = arc_center_y + arc_radius * math.sin(angle)
-            spawn_positions.append((x, y))
-    target_positions = [(sprite.center_x, sprite.center_y) for sprite in target_formation]
 
-    # Handle empty formation case
-    if not target_positions:
+# --------------------------------------------------------------------
+
+
+def create_formation_entry_from_sprites(
+    target_formation: arcade.SpriteList,
+    **kwargs,
+) -> list[tuple[arcade.Sprite, arcade.SpriteList, int]]:
+    """Create formation entry animation from an invisible target formation.
+
+    The returned list contains tuples of (new_sprite, action, target_index).
+    """
+    if len(target_formation) == 0:
         return []
 
-    # Pick the nearest spawn position for each target position
-    sprite_distances = _find_nearest(spawn_positions, target_positions)
-    center_x = sum(pos[0] for pos in target_positions) / len(target_positions)
-    center_y = sum(pos[1] for pos in target_positions) / len(target_positions)
+    params = _validate_entry_kwargs(kwargs)
+    window_bounds = params["window_bounds"]
+    speed = params["speed"]
+    stagger_delay = params["stagger_delay"]
 
-    # Sort by distance from center (closest first for center-outward)
-    def distance_from_center(item):
-        _, tgt_idx, _ = item
-        tgt_pos = target_positions[tgt_idx]
-        return math.hypot(tgt_pos[0] - center_x, tgt_pos[1] - center_y)
+    clones = _clone_formation_sprites(target_formation)
+    min_spacing = _determine_min_spacing(target_formation)
+    spawn_positions = _generate_arc_spawn_positions(len(target_formation), window_bounds, min_spacing)
+    assignments = _assign_spawns(target_formation, spawn_positions)
 
-    sprite_distances.sort(key=distance_from_center)
-
-    # Get parameters
-    speed = kwargs.get("speed", 10.0)
-    stagger_delay = kwargs.get("stagger_delay", 1.2)
-
-    # Use the provided stagger_delay, but ensure it's reasonable
-    # The spawn position generation should handle collision avoidance, not just timing
-    stagger_delay = max(stagger_delay, 0.1)  # Minimum 0.1 second delay
-
-    # Use min-conflicts algorithm for optimal sprite-to-spawn assignment
-    optimal_assignments = _min_conflicts_sprite_assignment(
-        target_formation, spawn_positions, max_iterations=1000, time_limit=0.1
-    )
-
-    # Convert single assignment to wave format for compatibility
-    enemy_waves_with_assignments = [optimal_assignments] if optimal_assignments else []
-
-    entry_actions = []
-
-    # Calculate movement time to determine proper delays
-    max_movement_time = 0.0
-    for wave_assignments in enemy_waves_with_assignments:
-        for sprite_idx, spawn_idx in wave_assignments.items():
-            distance = math.hypot(
-                target_positions[sprite_idx][0] - spawn_positions[spawn_idx][0],
-                target_positions[sprite_idx][1] - spawn_positions[spawn_idx][1],
-            )
-            movement_time = distance / speed if speed > 0 else 0
-            max_movement_time = max(max_movement_time, movement_time)
-
-    # Calculate safe wave separation time based on sprite velocity and size
-    # Rule 3: Calculate enough time between waves to avoid collisions
-    estimated_sprite_size = 64  # Conservative estimate for sprite width/height
-    safe_clearance_time = (estimated_sprite_size * 2) / speed  # Time for 2 sprite widths at current speed
-    # Cap the safe clearance time to prevent excessive delays
-    safe_clearance_time = min(safe_clearance_time, 2.0)  # Maximum 2 seconds
-    wave_separation_time = max(stagger_delay, safe_clearance_time)
-
-    for wave_idx, wave_assignments in enumerate(enemy_waves_with_assignments):
-        wave_delay = wave_idx * wave_separation_time
-
-        # Calculate the longest distance in this wave to determine target arrival time
-        max_distance_in_wave = 0.0
-        for sprite_idx, spawn_idx in wave_assignments.items():
-            distance = math.hypot(
-                target_positions[sprite_idx][0] - spawn_positions[spawn_idx][0],
-                target_positions[sprite_idx][1] - spawn_positions[spawn_idx][1],
-            )
-            max_distance_in_wave = max(max_distance_in_wave, distance)
-
-        # Calculate target arrival time based on the longest distance and base speed
-        target_arrival_time = max_distance_in_wave / speed if speed > 0 else 1.0
-
-        for sprite_idx in wave_assignments:
-            sprite = sprites[sprite_idx]
-            si = wave_assignments[sprite_idx]  # Get spawn index directly from wave assignments
-            sprite.center_x, sprite.center_y = spawn_positions[si]
-            sprite.visible = True
-            sprite.alpha = 255
-
-            # Calculate individual speed so this sprite arrives at the same time as the slowest sprite
-            distance = math.hypot(
-                target_positions[sprite_idx][0] - spawn_positions[si][0],
-                target_positions[sprite_idx][1] - spawn_positions[si][1],
-            )
-            individual_speed = distance / target_arrival_time if target_arrival_time > 0 else speed
-
-            velocity = _calculate_velocity_to_target(
-                spawn_positions[si], target_positions[sprite_idx], individual_speed
-            )
-
-            movement_action = MoveUntil(
-                velocity, _create_precision_condition_and_callback(target_positions[sprite_idx], sprite)
-            )
-
-            if wave_delay > 0.01:  # Add delay for waves after the first
-                delay_action = DelayUntil(duration(wave_delay))
-                combined_action = sequence(delay_action, movement_action)
-            else:
-                combined_action = movement_action
-
-            entry_actions.append((sprite, combined_action, sprite_idx))
-
-    return entry_actions
+    return _build_entry_actions(clones, spawn_positions, target_formation, assignments, speed, stagger_delay)
 
 
 def _find_nearest(spawn_positions, target_positions):
@@ -996,12 +922,23 @@ def _min_conflicts_sprite_assignment(
 
     # Ensure we have enough spawn positions
     if num_sprites > num_spawns:
-        # Use only the first num_spawns sprites
         num_sprites = num_spawns
 
     start_time = time.time()
 
-    # Step 1: Create initial assignment (greedy nearest-neighbor)
+    # Step 1: Create initial greedy assignment
+    assignments = _create_initial_greedy_assignment(target_formation, spawn_positions, num_sprites)
+
+    # Step 2: Iteratively resolve conflicts
+    return _resolve_conflicts_iteratively(
+        assignments, target_formation, spawn_positions, max_iterations, time_limit, start_time
+    )
+
+
+def _create_initial_greedy_assignment(
+    target_formation: arcade.SpriteList, spawn_positions: list[tuple[float, float]], num_sprites: int
+) -> dict[int, int]:
+    """Create initial greedy nearest-neighbor assignment of sprites to spawn positions."""
     assignments = {}  # sprite_idx -> spawn_idx
     used_spawns = set()
 
@@ -1034,42 +971,19 @@ def _min_conflicts_sprite_assignment(
             assignments[sprite_idx] = best_spawn
             used_spawns.add(best_spawn)
 
-    def count_conflicts(assignments_dict: dict[int, int]) -> int:
-        """Count the number of path conflicts in the current assignment."""
-        conflicts = 0
-        sprite_indices = list(assignments_dict.keys())
+    return assignments
 
-        for i in range(len(sprite_indices)):
-            for j in range(i + 1, len(sprite_indices)):
-                sprite1_idx = sprite_indices[i]
-                sprite2_idx = sprite_indices[j]
 
-                if _sprites_would_collide_during_movement_with_assignments(
-                    sprite1_idx, sprite2_idx, target_formation, spawn_positions, assignments_dict
-                ):
-                    conflicts += 1
-
-        return conflicts
-
-    def get_conflicting_pairs(assignments_dict: dict[int, int]) -> list[tuple[int, int]]:
-        """Get all pairs of sprites that have path conflicts."""
-        conflicts = []
-        sprite_indices = list(assignments_dict.keys())
-
-        for i in range(len(sprite_indices)):
-            for j in range(i + 1, len(sprite_indices)):
-                sprite1_idx = sprite_indices[i]
-                sprite2_idx = sprite_indices[j]
-
-                if _sprites_would_collide_during_movement_with_assignments(
-                    sprite1_idx, sprite2_idx, target_formation, spawn_positions, assignments_dict
-                ):
-                    conflicts.append((sprite1_idx, sprite2_idx))
-
-        return conflicts
-
-    # Step 2: Iteratively resolve conflicts
-    current_conflicts = count_conflicts(assignments)
+def _resolve_conflicts_iteratively(
+    assignments: dict[int, int],
+    target_formation: arcade.SpriteList,
+    spawn_positions: list[tuple[float, float]],
+    max_iterations: int,
+    time_limit: float,
+    start_time: float,
+) -> dict[int, int]:
+    """Iteratively resolve conflicts using min-conflicts swapping strategy."""
+    current_conflicts = _count_assignment_conflicts(assignments, target_formation, spawn_positions)
     iteration = 0
 
     while current_conflicts > 0 and iteration < max_iterations:
@@ -1077,68 +991,145 @@ def _min_conflicts_sprite_assignment(
             break
 
         # Get all conflicting pairs
-        conflicting_pairs = get_conflicting_pairs(assignments)
+        conflicting_pairs = _get_conflicting_pairs(assignments, target_formation, spawn_positions)
         if not conflicting_pairs:
             break
 
         # Try to resolve conflicts by swapping assignments
-        improved = False
+        improved = _try_systematic_swaps(
+            assignments, conflicting_pairs, target_formation, spawn_positions, current_conflicts, start_time, time_limit
+        )
 
-        for sprite1_idx, sprite2_idx in conflicting_pairs:
-            if time.time() - start_time > time_limit:
-                break
-
-            # Try swapping the spawn assignments
-            spawn1 = assignments[sprite1_idx]
-            spawn2 = assignments[sprite2_idx]
-
-            # Create temporary assignment with swap
-            temp_assignments = assignments.copy()
-            temp_assignments[sprite1_idx] = spawn2
-            temp_assignments[sprite2_idx] = spawn1
-
-            # Check if this reduces conflicts
-            new_conflicts = count_conflicts(temp_assignments)
-
-            if new_conflicts < current_conflicts:
-                assignments = temp_assignments
-                current_conflicts = new_conflicts
-                improved = True
-                break
-
-        if not improved:
-            # If no single swap helps, try random swaps to escape local optima
-            for _ in range(min(10, len(conflicting_pairs))):
-                if time.time() - start_time > time_limit:
-                    break
-
-                # Pick a random conflicting pair
-                sprite1_idx, sprite2_idx = random.choice(conflicting_pairs)
-
-                # Try swapping
-                spawn1 = assignments[sprite1_idx]
-                spawn2 = assignments[sprite2_idx]
-
-                temp_assignments = assignments.copy()
-                temp_assignments[sprite1_idx] = spawn2
-                temp_assignments[sprite2_idx] = spawn1
-
-                new_conflicts = count_conflicts(temp_assignments)
-
-                # Accept swap if it doesn't increase conflicts too much (allows some exploration)
-                if new_conflicts <= current_conflicts + 1:
-                    assignments = temp_assignments
-                    current_conflicts = new_conflicts
-                    improved = True
-                    break
+        if improved:
+            current_conflicts = _count_assignment_conflicts(assignments, target_formation, spawn_positions)
+        else:
+            # Try random swaps to escape local optima
+            improved = _try_random_swaps(
+                assignments,
+                conflicting_pairs,
+                target_formation,
+                spawn_positions,
+                current_conflicts,
+                start_time,
+                time_limit,
+            )
+            if improved:
+                current_conflicts = _count_assignment_conflicts(assignments, target_formation, spawn_positions)
 
         if not improved:
             break
 
         iteration += 1
 
-    elapsed_time = time.time() - start_time
     return assignments
+
+
+def _count_assignment_conflicts(
+    assignments: dict[int, int], target_formation: arcade.SpriteList, spawn_positions: list[tuple[float, float]]
+) -> int:
+    """Count the number of path conflicts in the current assignment."""
+    conflicts = 0
+    sprite_indices = list(assignments.keys())
+
+    for i in range(len(sprite_indices)):
+        for j in range(i + 1, len(sprite_indices)):
+            sprite1_idx = sprite_indices[i]
+            sprite2_idx = sprite_indices[j]
+
+            if _sprites_would_collide_during_movement_with_assignments(
+                sprite1_idx, sprite2_idx, target_formation, spawn_positions, assignments
+            ):
+                conflicts += 1
+
+    return conflicts
+
+
+def _get_conflicting_pairs(
+    assignments: dict[int, int], target_formation: arcade.SpriteList, spawn_positions: list[tuple[float, float]]
+) -> list[tuple[int, int]]:
+    """Get all pairs of sprites that have path conflicts."""
+    conflicts = []
+    sprite_indices = list(assignments.keys())
+
+    for i in range(len(sprite_indices)):
+        for j in range(i + 1, len(sprite_indices)):
+            sprite1_idx = sprite_indices[i]
+            sprite2_idx = sprite_indices[j]
+
+            if _sprites_would_collide_during_movement_with_assignments(
+                sprite1_idx, sprite2_idx, target_formation, spawn_positions, assignments
+            ):
+                conflicts.append((sprite1_idx, sprite2_idx))
+
+    return conflicts
+
+
+def _try_systematic_swaps(
+    assignments: dict[int, int],
+    conflicting_pairs: list[tuple[int, int]],
+    target_formation: arcade.SpriteList,
+    spawn_positions: list[tuple[float, float]],
+    current_conflicts: int,
+    start_time: float,
+    time_limit: float,
+) -> bool:
+    """Try systematic swaps to resolve conflicts, return True if any improvement was made."""
+    for sprite1_idx, sprite2_idx in conflicting_pairs:
+        if time.time() - start_time > time_limit:
+            break
+
+        # Try swapping the spawn assignments
+        spawn1 = assignments[sprite1_idx]
+        spawn2 = assignments[sprite2_idx]
+
+        # Create temporary assignment with swap
+        temp_assignments = assignments.copy()
+        temp_assignments[sprite1_idx] = spawn2
+        temp_assignments[sprite2_idx] = spawn1
+
+        # Check if this reduces conflicts
+        new_conflicts = _count_assignment_conflicts(temp_assignments, target_formation, spawn_positions)
+
+        if new_conflicts < current_conflicts:
+            assignments.update(temp_assignments)
+            return True
+
+    return False
+
+
+def _try_random_swaps(
+    assignments: dict[int, int],
+    conflicting_pairs: list[tuple[int, int]],
+    target_formation: arcade.SpriteList,
+    spawn_positions: list[tuple[float, float]],
+    current_conflicts: int,
+    start_time: float,
+    time_limit: float,
+) -> bool:
+    """Try random swaps to escape local optima, return True if any improvement was made."""
+    for _ in range(min(10, len(conflicting_pairs))):
+        if time.time() - start_time > time_limit:
+            break
+
+        # Pick a random conflicting pair
+        sprite1_idx, sprite2_idx = random.choice(conflicting_pairs)
+
+        # Try swapping
+        spawn1 = assignments[sprite1_idx]
+        spawn2 = assignments[sprite2_idx]
+
+        temp_assignments = assignments.copy()
+        temp_assignments[sprite1_idx] = spawn2
+        temp_assignments[sprite2_idx] = spawn1
+
+        new_conflicts = _count_assignment_conflicts(temp_assignments, target_formation, spawn_positions)
+
+        # Accept swap if it doesn't increase conflicts too much (allows some exploration)
+        if new_conflicts <= current_conflicts + 1:
+            assignments.update(temp_assignments)
+            return True
+
+    return False
 
 
 def _sprites_would_collide_during_movement_with_assignments(

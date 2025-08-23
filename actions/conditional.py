@@ -143,69 +143,78 @@ class MoveUntil(_Action):
 
         left, bottom, right, top = self.bounds
 
-        # Check horizontal boundaries
-        if sprite.center_x <= left or sprite.center_x >= right:
-            if self.boundary_behavior == "bounce":
-                sprite.change_x = -sprite.change_x
-                self.current_velocity = (-self.current_velocity[0], self.current_velocity[1])
-                # Also update target velocity to maintain factor scaling
-                self.target_velocity = (-self.target_velocity[0], self.target_velocity[1])
-                # Keep sprite in bounds
-                if sprite.center_x <= left:
-                    sprite.center_x = left
-                elif sprite.center_x >= right:
-                    sprite.center_x = right
-            elif self.boundary_behavior == "wrap":
-                if sprite.center_x <= left:
-                    sprite.center_x = right
-                elif sprite.center_x >= right:
-                    sprite.center_x = left
-            elif self.boundary_behavior == "limit":
-                if sprite.center_x < left:
-                    sprite.center_x = left
-                    sprite.change_x = 0
-                    self.current_velocity = (0, self.current_velocity[1])
-                    self.target_velocity = (0, self.target_velocity[1])
-                elif sprite.center_x > right:
-                    sprite.center_x = right
-                    sprite.change_x = 0
-                    self.current_velocity = (0, self.current_velocity[1])
-                    self.target_velocity = (0, self.target_velocity[1])
+        # Check each axis independently
+        self._process_axis_boundary(sprite, sprite.center_x, left, right, sprite.change_x, "x")
+        self._process_axis_boundary(sprite, sprite.center_y, bottom, top, sprite.change_y, "y")
 
+    def _process_axis_boundary(self, sprite, position, low_bound, high_bound, velocity, axis):
+        """Process boundary interaction for a single axis."""
+        if position <= low_bound or position >= high_bound:
+            # Apply boundary behavior
+            self._apply_boundary_behavior(sprite, position, low_bound, high_bound, velocity, axis)
+
+            # Call boundary callback if configured
             if self.on_boundary:
-                self.on_boundary(sprite, "x")
+                self.on_boundary(sprite, axis)
 
-        # Check vertical boundaries
-        if sprite.center_y <= bottom or sprite.center_y >= top:
-            if self.boundary_behavior == "bounce":
-                sprite.change_y = -sprite.change_y
-                self.current_velocity = (self.current_velocity[0], -self.current_velocity[1])
-                # Also update target velocity to maintain factor scaling
-                self.target_velocity = (self.target_velocity[0], -self.target_velocity[1])
-                # Keep sprite in bounds
-                if sprite.center_y <= bottom:
-                    sprite.center_y = bottom
-                elif sprite.center_y >= top:
-                    sprite.center_y = top
-            elif self.boundary_behavior == "wrap":
-                if sprite.center_y <= bottom:
-                    sprite.center_y = top
-                elif sprite.center_y >= top:
-                    sprite.center_y = bottom
-            elif self.boundary_behavior == "limit":
-                if sprite.center_y < bottom:
-                    sprite.center_y = bottom
-                    sprite.change_y = 0
-                    self.current_velocity = (self.current_velocity[0], 0)
-                    self.target_velocity = (self.target_velocity[0], 0)
-                elif sprite.center_y > top:
-                    sprite.center_y = top
-                    sprite.change_y = 0
-                    self.current_velocity = (self.current_velocity[0], 0)
-                    self.target_velocity = (self.target_velocity[0], 0)
+    def _apply_boundary_behavior(self, sprite, position, low_bound, high_bound, velocity, axis):
+        """Apply the specific boundary behavior for an axis."""
+        behavior_handlers = {
+            "bounce": self._bounce_behavior,
+            "wrap": self._wrap_behavior,
+            "limit": self._limit_behavior,
+        }
 
-            if self.on_boundary:
-                self.on_boundary(sprite, "y")
+        handler = behavior_handlers.get(self.boundary_behavior)
+        if handler:
+            handler(sprite, position, low_bound, high_bound, velocity, axis)
+
+    def _bounce_behavior(self, sprite, position, low_bound, high_bound, velocity, axis):
+        """Handle bounce boundary behavior."""
+        if axis == "x":
+            sprite.change_x = -sprite.change_x
+            self.current_velocity = (-self.current_velocity[0], self.current_velocity[1])
+            self.target_velocity = (-self.target_velocity[0], self.target_velocity[1])
+            # Keep sprite in bounds
+            sprite.center_x = low_bound if position <= low_bound else high_bound
+        else:  # axis == "y"
+            sprite.change_y = -sprite.change_y
+            self.current_velocity = (self.current_velocity[0], -self.current_velocity[1])
+            self.target_velocity = (self.target_velocity[0], -self.target_velocity[1])
+            # Keep sprite in bounds
+            sprite.center_y = low_bound if position <= low_bound else high_bound
+
+    def _wrap_behavior(self, sprite, position, low_bound, high_bound, velocity, axis):
+        """Handle wrap boundary behavior."""
+        if axis == "x":
+            sprite.center_x = high_bound if position <= low_bound else low_bound
+        else:  # axis == "y"
+            sprite.center_y = high_bound if position <= low_bound else low_bound
+
+    def _limit_behavior(self, sprite, position, low_bound, high_bound, velocity, axis):
+        """Handle limit boundary behavior."""
+        if axis == "x":
+            if position < low_bound:
+                sprite.center_x = low_bound
+                sprite.change_x = 0
+                self.current_velocity = (0, self.current_velocity[1])
+                self.target_velocity = (0, self.target_velocity[1])
+            elif position > high_bound:
+                sprite.center_x = high_bound
+                sprite.change_x = 0
+                self.current_velocity = (0, self.current_velocity[1])
+                self.target_velocity = (0, self.target_velocity[1])
+        else:  # axis == "y"
+            if position < low_bound:
+                sprite.center_y = low_bound
+                sprite.change_y = 0
+                self.current_velocity = (self.current_velocity[0], 0)
+                self.target_velocity = (self.target_velocity[0], 0)
+            elif position > high_bound:
+                sprite.center_y = high_bound
+                sprite.change_y = 0
+                self.current_velocity = (self.current_velocity[0], 0)
+                self.target_velocity = (self.target_velocity[0], 0)
 
     def remove_effect(self) -> None:
         """Clear velocities when the action finishes to avoid carryover between actions."""
