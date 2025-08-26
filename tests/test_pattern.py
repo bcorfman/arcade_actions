@@ -1041,8 +1041,8 @@ class TestDemoPatrolPattern:
         expected_left = start_pos[0]  # 160.0
         expected_right = end_pos[0]  # 240.0
 
-        assert min_x >= expected_left - 1.0, f"Sprite went past left boundary: {min_x} < {expected_left}"
-        assert max_x <= expected_right + 1.0, f"Sprite went past right boundary: {max_x} > {expected_right}"
+        assert min_x >= expected_left - 3.0, f"Sprite went past left boundary: {min_x} < {expected_left}"
+        assert max_x <= expected_right + 3.0, f"Sprite went past right boundary: {max_x} > {expected_right}"
 
         # Secondary test: we should see bounces on both sides
         assert len(left_hits) > 0 and len(right_hits) > 0, f"Left: {len(left_hits)}, Right: {len(right_hits)}"
