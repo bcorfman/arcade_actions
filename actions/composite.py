@@ -234,11 +234,14 @@ class _Repeat(CompositeAction):
 
         # Check if current action completed after update
         if self.current_action and self.current_action.done:
-            # Action completed naturally - start a new iteration immediately
-            # Don't call stop() since the action is already done
-            self.current_action = self.action.clone()
-            self.current_action.target = self.target
-            self.current_action.start()
+            # Action finished.  Defer creation of the next iteration until the
+            # *next* frame so that any other concurrently-running actions can
+            # finish their updates before we capture fresh origins in
+            # apply_effect().  This eliminates the lateral “jump” that was
+            # observed when the new clone started in the very same frame.
+            # (The new clone will be created by the `if self.current_action is
+            # None:` block at the top of the next `update()` call.)
+            self.current_action = None
 
     def stop(self) -> None:
         """Stop the repeat action and the current iteration."""
