@@ -176,20 +176,32 @@ class MoveUntil(_Action):
             self.current_velocity = (-self.current_velocity[0], self.current_velocity[1])
             self.target_velocity = (-self.target_velocity[0], self.target_velocity[1])
             # Keep sprite in bounds
-            sprite.center_x = low_bound if position <= low_bound else high_bound
+            if sprite.center_x <= low_bound:
+                sprite.center_x = low_bound
+            elif sprite.center_x >= high_bound:
+                sprite.center_x = high_bound
         else:  # axis == "y"
             sprite.change_y = -sprite.change_y
             self.current_velocity = (self.current_velocity[0], -self.current_velocity[1])
             self.target_velocity = (self.target_velocity[0], -self.target_velocity[1])
             # Keep sprite in bounds
-            sprite.center_y = low_bound if position <= low_bound else high_bound
+            if sprite.center_y <= low_bound:
+                sprite.center_y = low_bound
+            elif sprite.center_y >= high_bound:
+                sprite.center_y = high_bound
 
     def _wrap_behavior(self, sprite, position, low_bound, high_bound, velocity, axis):
         """Handle wrap boundary behavior."""
         if axis == "x":
-            sprite.center_x = high_bound if position <= low_bound else low_bound
+            if sprite.center_x <= low_bound:
+                sprite.center_x = high_bound
+            elif sprite.center_x >= high_bound:
+                sprite.center_x = low_bound
         else:  # axis == "y"
-            sprite.center_y = high_bound if position <= low_bound else low_bound
+            if sprite.center_y <= low_bound:
+                sprite.center_y = high_bound
+            elif sprite.center_y >= high_bound:
+                sprite.center_y = low_bound
 
     def _limit_behavior(self, sprite, position, low_bound, high_bound, velocity, axis):
         """Handle limit boundary behavior."""
@@ -1142,7 +1154,11 @@ class ParametricMotionUntil(_Action):
     # --------------------- Action hooks --------------------
     def apply_effect(self) -> None:  # noqa: D401 – imperative style
         """Memorise origins and determine duration."""
-        self.for_each_sprite(lambda s: self._origins.__setitem__(id(s), (s.center_x, s.center_y)))
+
+        def capture_origin(sprite):
+            self._origins[id(sprite)] = (sprite.center_x, sprite.center_y)
+
+        self.for_each_sprite(capture_origin)
 
         if self._duration is None:
             # Try to extract duration from the condition function if it's from duration() helper
@@ -1161,7 +1177,7 @@ class ParametricMotionUntil(_Action):
                 pass
 
             # Fallback to the helper function if the above didn't work
-            if self._duration is None:
+            if self._duration is None or self._duration == 0:
                 self._duration = _extract_duration_seconds(self.condition) or 0.0
 
         # Do not pre-position sprites; offsets are relative to captured origins
@@ -1211,9 +1227,10 @@ class ParametricMotionUntil(_Action):
         # Store current offset for next frame's rotation calculation
         self._prev_offset = current_offset
 
-        if progress >= 1.0 and not self.done:
-            # Snap to final position before marking done
-            self.remove_effect()
+        if progress >= 1.0:
+            # Skip final position snap to prevent jumps when sprite count changes
+            # This happens when enemies are destroyed during wave patterns
+            # self.remove_effect()  # commented out to prevent position jumps
 
             self._condition_met = True
             self.done = True
@@ -1223,41 +1240,14 @@ class ParametricMotionUntil(_Action):
 
     def remove_effect(self) -> None:
         """
-        Ensure we finish at the exact end of the parametric path.
+        Skip position snapping to prevent jumps in repeated wave patterns.
 
-        When actions complete due to condition timing (wall clock), there can be
-        rare frames where the duration condition completes before the internal
-        parametric progress reaches 1.0 exactly. That can leave the sprite at a
-        mid-path position at completion, which breaks seamless repetition.
-
-        To guarantee continuity when used with repeaters, snap to the exact
-        end-of-curve position (t=1.0) on effect removal.
+        Originally this would snap sprites to exact endpoints for seamless
+        repetition, but when sprite counts change (enemies destroyed) or
+        multiple actions overlap, this causes visible position jumps.
         """
-        try:
-            final_dx, final_dy = self._offset_fn(1.0)
-        except Exception:
-            # If the offset function misbehaves, do nothing rather than crash
-            return
-
-        def apply_final(sprite):
-            _apply_offset(sprite, final_dx, final_dy, self._origins)
-
-            if self.rotate_with_path:
-                # Best-effort: orient to the path direction near the end using a small delta
-                # This avoids large jumps while still producing a stable final angle.
-                epsilon = 1e-3
-                try:
-                    end_prev = self._offset_fn(max(0.0, 1.0 - epsilon))
-                    mvx = final_dx - end_prev[0]
-                    mvy = final_dy - end_prev[1]
-                    if abs(mvx) > 1e-6 or abs(mvy) > 1e-6:
-                        angle = math.degrees(math.atan2(mvy, mvx)) + self.rotation_offset
-                        sprite.angle = angle
-                except Exception:
-                    # Ignore rotation errors; position snap is the critical part
-                    pass
-
-        self.for_each_sprite(apply_final)
+        # Disabled to prevent jumps - let patterns complete naturally
+        pass
 
     def clone(self) -> "ParametricMotionUntil":  # type: ignore[name-defined]
         return ParametricMotionUntil(

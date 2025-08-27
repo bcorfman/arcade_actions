@@ -293,25 +293,46 @@ def arrange_v_formation(
     if count == 0:
         return sprites
 
-    # Get direction configuration
-    direction_config = _get_v_direction_config(direction)
-    v_angle = 45.0
+    # Validate direction
+    valid_directions = ["up", "down", "left", "right"]
+    if direction not in valid_directions:
+        raise ValueError(f"direction must be one of {valid_directions}, got '{direction}'")
 
-    # Place the apex sprite
+    # Define V angle (45 degrees for a nice V shape)
+    v_angle = 45.0
+    angle_rad = math.radians(v_angle)
+
+    # Place the first sprite at the apex
     sprites[0].center_x = apex_x
     sprites[0].center_y = apex_y
     sprites[0].visible = visible
 
+    # Set rotation for apex sprite if needed
     if rotate_with_direction:
-        sprites[0].angle = direction_config["base_angle"]
+        rotation_map = {"up": 0, "down": 180, "left": 90, "right": 270}
+        sprites[0].angle = rotation_map[direction]
 
-    # Place wing sprites using direction mapping
     for i in range(1, count):
         side = 1 if i % 2 == 1 else -1
         distance = (i + 1) // 2 * spacing
 
-        # Calculate offsets using direction configuration
-        offset_x, offset_y = _calculate_v_offsets(side, distance, v_angle, direction_config)
+        # Calculate base offsets for V shape
+        base_offset_x = side * math.cos(angle_rad) * distance
+        base_offset_y = math.sin(angle_rad) * distance
+
+        # Apply direction transformation
+        if direction == "up":
+            offset_x = base_offset_x
+            offset_y = base_offset_y
+        elif direction == "down":
+            offset_x = base_offset_x
+            offset_y = -base_offset_y
+        elif direction == "left":
+            offset_x = -base_offset_y
+            offset_y = base_offset_x
+        else:  # direction == "right"
+            offset_x = base_offset_y
+            offset_y = base_offset_x
 
         sprites[i].center_x = apex_x + offset_x
         sprites[i].center_y = apex_y + offset_y
@@ -319,7 +340,21 @@ def arrange_v_formation(
 
         # Set rotation for wing sprites if needed
         if rotate_with_direction:
-            sprite_angle = _calculate_wing_angle(direction_config["base_angle"], side, v_angle)
+            if direction == "up":
+                sprite_angle = 0
+            elif direction == "down":
+                sprite_angle = 180
+            elif direction == "left":
+                sprite_angle = 90
+            else:  # direction == "right"
+                sprite_angle = 270
+
+            # Add slight angle variation for wing sprites to face outward
+            if side == 1:  # Right wing
+                sprite_angle += v_angle
+            else:  # Left wing
+                sprite_angle -= v_angle
+
             sprites[i].angle = sprite_angle
 
     return sprites
@@ -1015,75 +1050,3 @@ def arrange_arrow(
             sprite_index += 1
 
     return sprites
-
-
-def _get_v_direction_config(direction: str) -> dict:
-    """Get configuration for V formation direction.
-
-    Returns:
-        Dictionary with direction transformation parameters.
-
-    Raises:
-        ValueError: If direction is not valid.
-    """
-    direction_configs = {
-        "up": {"x_sign": 1, "y_sign": 1, "base_angle": 0},
-        "down": {"x_sign": 1, "y_sign": -1, "base_angle": 180},
-        "left": {"x_sign": -1, "y_sign": 1, "base_angle": 90, "swap_xy": True},
-        "right": {"x_sign": 1, "y_sign": 1, "base_angle": 270, "swap_xy": True},
-    }
-
-    if direction not in direction_configs:
-        valid_directions = list(direction_configs.keys())
-        raise ValueError(f"direction must be one of {valid_directions}, got '{direction}'")
-
-    return direction_configs[direction]
-
-
-def _calculate_v_offsets(side: int, distance: float, v_angle: float, direction_config: dict) -> tuple[float, float]:
-    """Calculate position offsets for V formation wing sprite.
-
-    Args:
-        side: 1 for right wing, -1 for left wing
-        distance: Distance from apex
-        v_angle: V angle in degrees
-        direction_config: Direction configuration dictionary
-
-    Returns:
-        Tuple of (offset_x, offset_y)
-    """
-    angle_rad = math.radians(v_angle)
-    base_offset_x = side * math.cos(angle_rad) * distance
-    base_offset_y = math.sin(angle_rad) * distance
-
-    # Apply direction transformation
-    if direction_config.get("swap_xy", False):
-        # For left/right directions, swap X and Y components
-        offset_x = direction_config["x_sign"] * base_offset_y
-        offset_y = direction_config["y_sign"] * base_offset_x
-    else:
-        # For up/down directions, use direct transformation
-        offset_x = direction_config["x_sign"] * base_offset_x
-        offset_y = direction_config["y_sign"] * base_offset_y
-
-    return offset_x, offset_y
-
-
-def _calculate_wing_angle(base_angle: float, side: int, v_angle: float) -> float:
-    """Calculate rotation angle for wing sprite.
-
-    Args:
-        base_angle: Base angle for the direction
-        side: 1 for right wing, -1 for left wing
-        v_angle: V angle in degrees
-
-    Returns:
-        Wing sprite angle in degrees
-    """
-    sprite_angle = base_angle
-    # Add slight angle variation for wing sprites to face outward
-    if side == 1:  # Right wing
-        sprite_angle += v_angle
-    else:  # Left wing
-        sprite_angle -= v_angle
-    return sprite_angle
