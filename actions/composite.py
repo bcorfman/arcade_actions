@@ -2,8 +2,6 @@
 Composite actions that combine other actions.
 """
 
-import arcade  # needed for jump detection helper
-
 from .base import Action, CompositeAction
 
 
@@ -199,9 +197,6 @@ class _Repeat(CompositeAction):
 
         self.action = action
         self.current_action = None
-        # --- debug jump tracking ---
-        self._last_positions: dict[int, tuple[float, float]] = {}
-        self._prev_frame_pos: dict[int, tuple[float, float]] = {}
 
     def start(self) -> None:
         """Start the repeat by starting the first iteration."""
@@ -218,44 +213,6 @@ class _Repeat(CompositeAction):
 
     def update(self, delta_time: float) -> None:
         """Update the current action and restart when done."""
-        # ---- runtime jump monitor: snapshot positions at frame start ----
-        if self.target is not None:
-
-            def _snapshot(sprite):
-                self._prev_frame_pos[id(sprite)] = (sprite.center_x, sprite.center_y)
-
-            if hasattr(self.target, "__iter__") and not isinstance(self.target, arcade.Sprite):
-                for spr in self.target:
-                    _snapshot(spr)
-            else:
-                _snapshot(self.target)
-
-        # ---- detect large instantaneous movement this frame ----
-        def check_for_jumps():
-            if self.target is not None and self._prev_frame_pos:
-                import math
-                import time as _t
-
-                def _detect(sprite):
-                    prev = self._prev_frame_pos.get(id(sprite))
-                    if prev is None:
-                        return
-                    dx = sprite.center_x - prev[0]
-                    dy = sprite.center_y - prev[1]
-                    jump = math.hypot(dx, dy)
-                    if jump > 5.0:
-                        stamp = f"{_t.time():.3f}"
-                        print(
-                            f"[FrameJump] t={stamp} Δ={jump:.2f}px (dx={dx:.2f}, dy={dy:.2f}) sprite id={id(sprite)} repeat_id={id(self)}"
-                        )
-
-                if hasattr(self.target, "__iter__") and not isinstance(self.target, arcade.Sprite):
-                    for spr in self.target:
-                        _detect(spr)
-                else:
-                    _detect(self.target)
-
-                self._prev_frame_pos.clear()
 
         # ---------------------------------------------------------------
         super().update(delta_time)
@@ -273,21 +230,7 @@ class _Repeat(CompositeAction):
 
         # Check if current action completed after update
         if self.current_action and self.current_action.done:
-            # Capture positions to detect jump on next iteration
-            if self.target is not None:
-
-                def _capture(sprite):
-                    self._last_positions[id(sprite)] = (sprite.center_x, sprite.center_y)
-
-                if hasattr(self.target, "__iter__") and not isinstance(self.target, arcade.Sprite):
-                    for spr in self.target:
-                        _capture(spr)
-                else:
-                    _capture(self.target)
-
-            # Action finished. Instead of deferring, immediately start the next
-            # iteration to prevent other concurrent actions from moving sprites
-            # before we capture the origin positions.
+            # Action finished. Immediately start the next iteration.
             self.current_action = self.action.clone()
             self.current_action.target = self.target
             self.current_action.start()
@@ -297,34 +240,6 @@ class _Repeat(CompositeAction):
             self.current_action = self.action.clone()
             self.current_action.target = self.target
             self.current_action.start()
-
-            # --- jump detection: compare new origins ---
-            if self._last_positions:
-                import math
-                import time as _t
-
-                def _check(sprite):
-                    prev = self._last_positions.get(id(sprite))
-                    if prev is None:
-                        return
-                    dx = sprite.center_x - prev[0]
-                    dy = sprite.center_y - prev[1]
-                    jump_mag = math.hypot(dx, dy)
-                    if jump_mag > 5.0:  # threshold px
-                        stamp = f"{_t.time():.3f}"
-                        print(
-                            f"[Repeat:jump] t={stamp} Δ={jump_mag:.2f}px (dx={dx:.2f}, dy={dy:.2f}) for sprite id={id(sprite)} tag={getattr(self, 'tag', '')}"
-                        )
-
-                if hasattr(self.target, "__iter__") and not isinstance(self.target, arcade.Sprite):
-                    for spr in self.target:
-                        _check(spr)
-                else:
-                    _check(self.target)
-                self._last_positions.clear()
-
-        # Check for jumps after all action updates
-        check_for_jumps()
 
     def stop(self) -> None:
         """Stop the repeat action and the current iteration."""
