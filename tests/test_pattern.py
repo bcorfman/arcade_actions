@@ -864,7 +864,7 @@ def _run_frames(frames: int) -> None:
         Action.update_all(1 / 60)
 
 
-def test_parametric_midcycle_stop_snaps_to_end():
+def test_parametric_midcycle_stop_stays_at_current_position():
     # Setup
     sprite = arcade.Sprite()
     sprite.center_x = 100
@@ -878,15 +878,18 @@ def test_parametric_midcycle_stop_snaps_to_end():
     _run_frames(45)  # ~0.75s
     assert not full_wave.done
 
+    # Record position before forced stop
+    pos_before_stop = (sprite.center_x, sprite.center_y)
+
     # Force early completion via condition override that returns True now
     # Replace condition with immediate true so base Action.update triggers remove_effect
     full_wave.condition = lambda: True
     Action.update_all(0)  # Trigger evaluation
 
-    # After early stop, the position must be at exact end (t=1.0) relative to origin
-    final_dx, final_dy = full_wave._offset_fn(1.0)
-    assert abs(sprite.center_x - (100 + final_dx)) < 1e-3
-    assert abs(sprite.center_y - (100 + final_dy)) < 1e-3
+    # After early stop, sprite should stay at its current position (no snapping)
+    # This behavior was changed to prevent jumps in repeated wave patterns
+    assert abs(sprite.center_x - pos_before_stop[0]) < 1e-3
+    assert abs(sprite.center_y - pos_before_stop[1]) < 1e-3
 
 
 def test_repeat_restart_no_offset_after_midcycle_stop():
