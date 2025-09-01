@@ -116,6 +116,7 @@ docs/
 #### Composite Actions (actions/composite.py)
 - **Sequential actions** - Run actions one after another (use `sequence()`)
 - **Parallel actions** - Run actions in parallel (use `parallel()`)
+- **StateMachine** - Simple predicate-based state switcher for animation and behavior states
 
 #### Boundary Handling (actions/conditional.py)
 - **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors

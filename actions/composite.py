@@ -331,3 +331,142 @@ def repeat(action: Action) -> _Repeat:
         # The action will repeat indefinitely until stopped
     """
     return _Repeat(action)
+
+
+class StateMachine(CompositeAction):
+    """A minimal predicate-based state switcher for simple animation and behavior states.
+
+    StateMachine is NOT a full graph-based finite state machine with transitions, guards,
+    history, or nested states. It's a simple condition-driven action dispatcher that
+    evaluates predicates in order each frame and switches to the first matching action.
+
+    This is designed for common game scenarios like idle/walk/die animations, not complex AI.
+    For complex AI behaviors, consider using a proper Behavior Tree or full FSM library.
+
+    Key characteristics:
+    - Evaluates predicates in order (first match wins)
+    - Switches actions when predicates change
+    - No explicit transitions or state graph
+    - Lightweight and easy to debug
+    - Perfect for sprite animation states
+
+    Args:
+        states: List of (predicate_function, action_factory) tuples
+        debug: When True, prints state transitions to console
+
+    Example:
+        # Classic idle/walk/die animation states
+        def is_dead(): return sprite.health <= 0
+        def is_moving(): return sprite.change_x != 0 or sprite.change_y != 0
+
+        states = [
+            (is_dead, lambda: DelayUntil(duration(2.0))),      # Die animation
+            (is_moving, lambda: MoveUntil((3, 0), infinite)),  # Walk animation
+            (infinite, lambda: DelayUntil(infinite))           # Idle animation (default)
+        ]
+
+        state_machine = StateMachine(states)
+        state_machine.apply(player_sprite, tag="animation")
+    """
+
+    def __init__(
+        self,
+        states: list[tuple[callable, callable]],
+        *,
+        debug: bool = False,
+    ):
+        super().__init__()
+        self._states = list(states)
+        self._current_action: Action | None = None
+        self._current_pred = None
+        self._debug = debug
+
+    def start(self) -> None:
+        """Start the state machine by evaluating predicates and selecting first match."""
+        super().start()
+        self._pick_state(first=True)
+
+    def update(self, delta_time: float) -> None:
+        """Update current action and re-evaluate predicates for state changes."""
+        super().update(delta_time)
+
+        # Update current action if it exists and isn't done
+        if self._current_action and not self._current_action.done:
+            self._current_action.update(delta_time)
+
+        # Check if current action completed
+        if self._current_action and self._current_action.done:
+            # Current action completed, try to find a new state
+            self._current_action = None
+            self._current_pred = None
+            self._pick_state()
+
+            # If no new state was found, mark the state machine as complete
+            if self._current_action is None:
+                self.done = True
+                self._check_complete()
+                return
+
+        # Re-evaluate predicates to check for state changes (only if still active)
+        if not self.done:
+            self._pick_state()
+
+    def stop(self) -> None:
+        """Stop the state machine and current action."""
+        if self._current_action:
+            self._current_action.stop()
+        super().stop()
+
+    def reset(self) -> None:
+        """Reset the state machine to initial state."""
+        if self._current_action:
+            self._current_action.reset()
+        self._current_action = None
+        self._current_pred = None
+        super().reset()
+
+    def clone(self) -> "StateMachine":
+        """Create a copy of this StateMachine with fresh action factories."""
+        # Clone the state list with fresh factories that clone their actions
+        cloned_states = []
+        for pred, factory in self._states:
+            # Create a new factory that clones the action from the original factory
+            def cloned_factory(original_factory=factory):
+                return original_factory().clone()
+
+            cloned_states.append((pred, cloned_factory))
+
+        return StateMachine(cloned_states, debug=self._debug)
+
+    def _pick_state(self, *, first: bool = False) -> None:
+        """Evaluate predicates and switch to first matching state."""
+        for pred, factory in self._states:
+            try:
+                if pred():
+                    # Check if this is the same predicate as current (avoid unnecessary switches)
+                    if pred is self._current_pred and not first:
+                        return  # Stay in current state
+
+                    # Switch to new state
+                    if self._current_action:
+                        self._current_action.stop()
+
+                    self._current_pred = pred
+                    self._current_action = factory()
+                    self._current_action.target = self.target
+                    self._current_action.start()
+
+                    if self._debug:
+                        print(f"[StateMachine] --> {self._current_action}")
+
+                    return  # Found matching state, stop evaluating
+
+            except Exception:
+                # Re-raise predicate/factory exceptions for debugging
+                raise
+
+        # No matching predicates found
+        if first:
+            # On first evaluation, it's okay to have no matching state
+            self._current_action = None
+            self._current_pred = None
