@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arcade-actions"
-version = "0.5.2"
+version = "0.6.0"
 description = "Extension library for Arcade 3.x, providing a high-level way to animate sprites with conditional actions."
 authors = [{name = "Brandon Corfman", email = "teacup_canny.5l@icloud.com"}]
 license = {file="LICENSE"}
@@ -26,6 +26,10 @@ classifiers = [
 dependencies = [
     "arcade>=3.0.0.dev35",
     "pyglet>=2.1.dev5",
+    # For fallback monitor detection
+    "screeninfo>=0.8.1",
+    # Optional; provides Python bindings and wheels for SDL2 on many platforms
+    "PySDL2>=0.9.16",
 ]
 
 [project.urls]

@@ -11,6 +11,7 @@ import arcade.gui
 from actions import (
     Action,
     MoveBy,
+    center_window,
     create_bounce_pattern,
     create_figure_eight_pattern,
     create_orbit_pattern,
@@ -37,7 +38,15 @@ class PatternDemo(arcade.Window):
     """Demo window showing all movement patterns."""
 
     def __init__(self):
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
+        # Create hidden window so we can center before showing.
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE, visible=False)
+
+        # Center on primary monitor.
+        center_window(self)
+
+        # Now reveal the window.
+        self.set_visible(True)
+
         arcade.set_background_color(arcade.color.MIDNIGHT_BLUE)
 
         # Sprite lists
@@ -199,8 +208,8 @@ class PatternDemo(arcade.Window):
 
 def main():
     """Main function."""
-    demo = PatternDemo()
-    demo.setup()
+    window = PatternDemo()
+    window.setup()
     arcade.run()
 
 

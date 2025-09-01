@@ -21,6 +21,7 @@ from actions import (
     DelayUntil,
     MoveUntil,
     TweenUntil,
+    center_window,
     duration,
     infinite,
     repeat,
@@ -181,7 +182,9 @@ class StarfieldView(arcade.View):
 
 
 def main() -> None:
-    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
+    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, visible=False)
+    center_window(window)
+    window.set_visible(True)
     window.show_view(StarfieldView())
     arcade.run()
 

@@ -9,6 +9,7 @@ window and spaceship sprites for all formations.
 import arcade
 import arcade.gui
 
+from actions import center_window
 from actions.formation import (
     arrange_arc,
     arrange_circle,
@@ -159,7 +160,15 @@ class FormationDemo(arcade.Window):
     """Demo window showing all formation patterns."""
 
     def __init__(self):
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
+        # Start hidden so we can center before showing.
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE, visible=False)
+
+        # Center on primary monitor while hidden.
+        center_window(self)
+
+        # Now make the window visible.
+        self.set_visible(True)
+
         arcade.set_background_color(arcade.color.MIDNIGHT_BLUE)
 
         # Sprite lists
@@ -288,8 +297,8 @@ class FormationDemo(arcade.Window):
 
 def main():
     """Main function."""
-    demo = FormationDemo()
-    demo.setup()
+    window = FormationDemo()
+    window.setup()
     arcade.run()
 
 

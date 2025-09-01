@@ -19,6 +19,7 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 | `composite.py`        | Composite actions for combining multiple actions (sequential, parallel) |
 | `conditional.py`      | Includes boundary handling in `MoveUntil` for arcade-style patterns |
 | `pattern.py`          | Formation functions for positioning and layout patterns |
+| `display.py`         | Cross-platform window centering utility (SDL2 + screeninfo) |
 | `easing.py`           | Easing wrapper for smooth acceleration/deceleration effects on any action |
 | `helpers.py`          | Convenience wrappers for actions, e.g., `move_until()` |
 | Global Action Management | Automatic action tracking, updates, and lifecycle management |

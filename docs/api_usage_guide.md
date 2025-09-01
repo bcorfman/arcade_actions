@@ -6,6 +6,10 @@ ArcadeActions provides a conditional action system that works directly with Arca
 
 ## Recommended Usage Patterns
 
+### Display Utilities
+
+* **`center_window`** – center an `arcade.Window` on the primary monitor before it becomes visible (SDL2-first fallback to screeninfo). Example projects demonstrate usage.
+
 ### Pattern 1: Helper Functions for Simple, Immediate Actions
 
 Helper functions like `move_until`, `rotate_until`, and `follow_path_until` are designed for simple, immediate application to sprites:
