@@ -22,7 +22,7 @@ import arcade
 from arcade import easing
 from arcade.types import Color
 
-from actions import Action, duration, tween_until
+from actions import Action, center_window, duration, tween_until
 
 # --- Constants ---
 SPRITE_SCALING = 0.5
@@ -145,7 +145,9 @@ class InterpolateDemoView(arcade.View):
 
 
 def main():
-    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
+    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, visible=False)
+    center_window(window)
+    window.set_visible(True)
     view = InterpolateDemoView()
     view.setup()
     window.show_view(view)

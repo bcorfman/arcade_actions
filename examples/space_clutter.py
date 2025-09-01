@@ -22,6 +22,7 @@ from actions import (
     MoveUntil,
     arrange_grid,
     blink_until,
+    center_window,
     create_formation_entry_from_sprites,
     create_wave_pattern,
     infinite,
@@ -632,7 +633,9 @@ def calculate_centered_grid_layout(
 
 
 def main() -> None:
-    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
+    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, visible=False)
+    center_window(window)
+    window.set_visible(True)
     window.show_view(StarfieldView())
     arcade.run()
 

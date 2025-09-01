@@ -12,7 +12,7 @@ import random
 
 import arcade
 
-from actions import Action, arrange_grid, move_until
+from actions import Action, arrange_grid, center_window, move_until
 
 SPRITE_SCALING_PLAYER = 0.75
 SPRITE_SCALING_ENEMY = 0.75
@@ -342,7 +342,9 @@ class GameView(arcade.View):
 
 def main():
     """Run the Slime Invaders game"""
-    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
+    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, visible=False)
+    center_window(window)
+    window.set_visible(True)
     game = GameView()
     game.reset()
     window.show_view(game)

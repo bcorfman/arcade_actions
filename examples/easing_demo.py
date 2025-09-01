@@ -21,7 +21,7 @@ import arcade
 from arcade import easing
 from arcade.types import Color
 
-from actions import Action, ease, infinite, move_until
+from actions import Action, center_window, ease, infinite, move_until
 
 # --- Constants ---
 WINDOW_WIDTH = 1280
@@ -193,7 +193,9 @@ class EaseDemoView(arcade.View):
 
 
 def main():
-    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
+    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, visible=False)
+    center_window(window)
+    window.set_visible(True)
     view = EaseDemoView()
     view.setup()
     window.show_view(view)
