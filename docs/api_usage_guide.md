@@ -146,6 +146,7 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 #### Composite Actions (actions/composite.py)
 - **Sequential actions** - Run actions one after another (use `sequence()`)
 - **Parallel actions** - Run actions in parallel (use `parallel()`)
+- **StateMachine** - Simple predicate-based state switcher for animation and behavior states
 
 #### Boundary Handling (actions/conditional.py)
 - **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
@@ -492,7 +493,126 @@ follow_path_until(
 )
 ```
 
-### Pattern 7: Boundary Interactions
+### Pattern 7: State Machines for Animation and Behavior
+For managing sprite animation states like idle/walk/die or other behavior switching:
+
+```python
+from actions import (
+    StateMachine, DelayUntil, MoveUntil, RotateUntil, FadeUntil,
+    duration, infinite, sequence, parallel
+)
+
+# Classic sprite animation state machine
+def create_character_state_machine(sprite):
+    """Create a state machine for character animations."""
+    
+    # Define state predicates
+    def is_dead():
+        return sprite.health <= 0
+    
+    def is_moving():
+        return sprite.change_x != 0 or sprite.change_y != 0
+    
+    def is_idle():
+        return not is_dead() and not is_moving()
+    
+    # Define state actions (these would typically be animation actions)
+    states = [
+        (is_dead, lambda: DelayUntil(duration(2.0))),       # Die animation (2 seconds)
+        (is_moving, lambda: MoveUntil((3, 0), infinite)),   # Walk animation + movement
+        (is_idle, lambda: DelayUntil(infinite))             # Idle animation (no movement)
+    ]
+    
+    # Create and apply state machine
+    state_machine = StateMachine(states, debug=True)  # debug=True shows state transitions
+    state_machine.apply(sprite, tag="character_animation")
+
+# Enemy AI state machine
+def create_enemy_ai_state_machine(enemy_sprite, player_sprite):
+    """Create a state machine for enemy AI behavior."""
+    
+    def player_nearby():
+        distance = ((enemy_sprite.center_x - player_sprite.center_x) ** 2 + 
+                   (enemy_sprite.center_y - player_sprite.center_y) ** 2) ** 0.5
+        return distance < 150
+    
+    def health_low():
+        return enemy_sprite.health < 30
+    
+    def default_state():
+        return True  # Always true as fallback
+    
+    states = [
+        (health_low, lambda: MoveUntil((-50, 0), infinite)),      # Flee when health low
+        (player_nearby, lambda: RotateUntil(180, infinite)),      # Attack when player near
+        (default_state, lambda: MoveUntil((20, 0), infinite))     # Patrol normally
+    ]
+    
+    state_machine = StateMachine(states)
+    state_machine.apply(enemy_sprite, tag="enemy_ai")
+
+# Power-up behavior state machine
+def create_powerup_state_machine(powerup_sprite):
+    """Create a state machine for power-up behavior."""
+    
+    collected = {"value": False}  # Mutable state for condition checking
+    
+    def is_collected():
+        return collected["value"]
+    
+    def is_active():
+        return not collected["value"]
+    
+    states = [
+        (is_collected, lambda: sequence(
+            FadeUntil(-200, duration(0.5)),  # Fade out over 0.5 seconds
+            DelayUntil(duration(0.1))        # Brief delay before removal
+        )),
+        (is_active, lambda: parallel(
+            RotateUntil(180, infinite),      # Spin continuously
+            MoveUntil((0, 10), infinite)     # Bob up and down (would need bounce behavior)
+        ))
+    ]
+    
+    # Store collection function for external use
+    powerup_sprite.collect = lambda: collected.update({"value": True})
+    
+    state_machine = StateMachine(states)
+    state_machine.apply(powerup_sprite, tag="powerup_behavior")
+
+# Usage in game
+player = arcade.Sprite(":resources:images/player.png")
+player.health = 100
+create_character_state_machine(player)
+
+enemies = arcade.SpriteList()
+for i in range(5):
+    enemy = arcade.Sprite(":resources:images/enemy.png") 
+    enemy.health = 100
+    create_enemy_ai_state_machine(enemy, player)
+    enemies.append(enemy)
+
+powerups = arcade.SpriteList()
+for i in range(3):
+    powerup = arcade.Sprite(":resources:images/powerup.png")
+    create_powerup_state_machine(powerup)
+    powerups.append(powerup)
+```
+
+**StateMachine Key Features:**
+- **Simple predicate evaluation**: Checks conditions in order, selects first match
+- **Automatic state switching**: Changes actions when conditions change  
+- **Debug support**: Set `debug=True` to see state transitions in console
+- **Lightweight**: Not a full FSM - perfect for simple animation/behavior states
+- **Composable**: Works with sequence, parallel, and other actions
+
+**When to use StateMachine vs other approaches:**
+- Use StateMachine for: idle/walk/die animations, simple AI behaviors, power-up states
+- Use sequence() for: fixed multi-step animations, cutscenes, tutorials
+- Use parallel() for: simultaneous effects, complex animations with multiple components
+- Use individual actions for: simple single-purpose behaviors
+
+### Pattern 8: Boundary Interactions
 For arcade-style movement with boundary detection:
 
 ```python
@@ -779,6 +899,7 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 | Sprite group actions | Helper functions on SpriteList | `move_until(sprite_list, velocity=(5, 0), condition=cond)` |
 | Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
 | Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), FadeUntil(...))` |
+| Animation/behavior states | `StateMachine` | `StateMachine([(is_moving, move_action), (is_idle, idle_action)])` |
 | Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
 | Triangle formations | `arrange_triangle` | `arrange_triangle(count=10, apex_x=400, apex_y=500)` |
 | Hexagonal grids | `arrange_hexagonal_grid` | `arrange_hexagonal_grid(rows=4, cols=6)` |
