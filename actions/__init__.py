@@ -38,8 +38,8 @@ from .conditional import (
     infinite,
 )
 
-# Debug helpers
-from .debug import attach_motion_debugger
+# Display utilities
+from .display import center_window
 
 # Easing wrappers
 from .easing import (
@@ -152,4 +152,6 @@ __all__ = [
     "scale_until",
     "fade_until",
     "ease",
+    # display
+    "center_window",
 ]
