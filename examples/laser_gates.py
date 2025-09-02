@@ -21,6 +21,8 @@ BOTTOM_BOUNDS = (
 )
 TUNNEL_WALL_HEIGHT = 50
 TUNNEL_WALL_COLOR = (141, 65, 8)
+SHIP_LEFT_BOUND = HILL_WIDTH // 4
+SHIP_RIGHT_BOUND = WINDOW_WIDTH - HILL_WIDTH / 1.5
 
 
 # sprite creation functions
@@ -43,10 +45,15 @@ def _create_sprite_at_location(filepath, **kwargs):
 
 
 class PlayerShip(arcade.Sprite):
-    def __init__(self):
+    def __init__(
+        self,
+        velocity_func,
+    ):
         super().__init__(SHIP, center_x=HILL_WIDTH // 4, center_y=WINDOW_HEIGHT // 2)
         self.right_texture = arcade.load_texture(SHIP)
         self.left_texture = self.right_texture.flip_left_right()
+        self.speed_factor = 1
+        self.set_tunnel_velocity = velocity_func
 
     def move(self, left_pressed, right_pressed, up_pressed, down_pressed):
         horizontal = 0
@@ -66,21 +73,38 @@ class PlayerShip(arcade.Sprite):
             move_until(
                 self,
                 velocity=(horizontal, vertical),
-                condition=infinite,
+                condition=self.bounds_check,
                 bounds=(
-                    HILL_WIDTH // 4,
+                    SHIP_LEFT_BOUND,
                     TUNNEL_WALL_HEIGHT,
-                    WINDOW_WIDTH - HILL_WIDTH // 4,
+                    SHIP_RIGHT_BOUND,
                     WINDOW_HEIGHT - TUNNEL_WALL_HEIGHT,
                 ),
                 boundary_behavior="limit",
+                on_boundary=self.on_boundary_hit,
                 tag="player_move",
             )
+            if self.speed_factor > 1 and horizontal <= 0:
+                self.speed_factor = 1
+                Action.stop_actions_for_target(self, tag="tunnel_velocity")
+                self.set_tunnel_velocity(TUNNEL_VELOCITY)
         else:
             Action.stop_actions_for_target(self, tag="player_move")
+            self.speed_factor = 1
+            Action.stop_actions_for_target(self, tag="tunnel_velocity")
+            self.set_tunnel_velocity(TUNNEL_VELOCITY)
 
     def update(self, delta_time):
         super().update(delta_time)
+
+    def bounds_check(self):
+        return self.center_x >= SHIP_RIGHT_BOUND + 1
+
+    def on_boundary_hit(self, sprite, axis):
+        if axis == "x" and self.right >= SHIP_RIGHT_BOUND:
+            self.speed_factor = 2
+        Action.stop_actions_for_target(self, tag="tunnel_velocity")
+        self.set_tunnel_velocity(TUNNEL_VELOCITY * self.speed_factor)
 
 
 class Tunnel(arcade.View):
@@ -94,27 +118,34 @@ class Tunnel(arcade.View):
         self.left_pressed = self.right_pressed = False
         self.up_pressed = self.down_pressed = False
         self.fire_pressed = False
+        self.speed_factor = 1
+        self.speed = TUNNEL_VELOCITY * self.speed_factor
 
         self.setup_walls()
         self.setup_hills()
         self.setup_ship()
 
+        self.set_tunnel_velocity(self.speed)
+
+    def set_tunnel_velocity(self, speed):
         move_until(
             self.hill_tops,
-            velocity=(TUNNEL_VELOCITY, 0),
+            velocity=(speed, 0),
             condition=infinite,
             bounds=TOP_BOUNDS,
             boundary_behavior="wrap",
             on_boundary=self.on_hill_top_wrap,
+            tag="tunnel_velocity",
         )
 
         move_until(
             self.hill_bottoms,
-            velocity=(TUNNEL_VELOCITY, 0),
+            velocity=(speed, 0),
             condition=infinite,
             bounds=BOTTOM_BOUNDS,
             boundary_behavior="wrap",
             on_boundary=self.on_hill_bottom_wrap,
+            tag="tunnel_velocity",
         )
 
     def on_hill_top_wrap(self, sprite, axis):
@@ -124,7 +155,7 @@ class Tunnel(arcade.View):
         sprite.position = (HILL_WIDTH * 3, sprite.position[1])
 
     def setup_ship(self):
-        self.ship = PlayerShip()
+        self.ship = PlayerShip(self.set_tunnel_velocity)
         self.player_list.append(self.ship)
 
     def setup_walls(self):
