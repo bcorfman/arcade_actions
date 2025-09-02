@@ -8,6 +8,9 @@ WINDOW_WIDTH = HILL_WIDTH * 2
 WINDOW_HEIGHT = 432
 HILL_TOP = "./res/hill_top.png"
 HILL_BOTTOM = "./res/hill_bottom.png"
+SHIP = "./res/dart.png"
+PLAYER_SHIP_VERT = 5
+PLAYER_SHIP_HORIZ = 8
 TUNNEL_VELOCITY = -3
 TOP_BOUNDS = (-HILL_WIDTH, WINDOW_HEIGHT // 2, HILL_WIDTH * 5, WINDOW_HEIGHT)
 BOTTOM_BOUNDS = (
@@ -20,35 +23,81 @@ TUNNEL_WALL_HEIGHT = 50
 TUNNEL_WALL_COLOR = (141, 65, 8)
 
 
-def create_tunnel_wall(left, top):
+# sprite creation functions
+def _create_tunnel_wall(left, top):
     wall = arcade.SpriteSolidColor(WINDOW_WIDTH, TUNNEL_WALL_HEIGHT, color=TUNNEL_WALL_COLOR)
     wall.left = left
     wall.top = top
     return wall
 
 
-def create_hill(filepath, left, top):
-    hill = arcade.Sprite(filepath)
-    hill.left = left
-    hill.top = top
-    return hill
+def _create_sprite_at_location(filepath, **kwargs):
+    sprite = arcade.Sprite(filepath)
+    if kwargs.get("left") is not None and kwargs.get("top") is not None:
+        sprite.left = kwargs.get("left")
+        sprite.top = kwargs.get("top")
+    elif kwargs.get("center_x") is not None and kwargs.get("center_y") is not None:
+        sprite.center_x = kwargs.get("center_x")
+        sprite.center_y = kwargs.get("center_y")
+    return sprite
+
+
+class PlayerShip(arcade.Sprite):
+    def __init__(self):
+        super().__init__(SHIP, center_x=HILL_WIDTH // 4, center_y=WINDOW_HEIGHT // 2)
+        self.right_texture = arcade.load_texture(SHIP)
+        self.left_texture = self.right_texture.flip_left_right()
+
+    def move(self, left_pressed, right_pressed, up_pressed, down_pressed):
+        horizontal = 0
+        vertical = 0
+        if left_pressed and not right_pressed:
+            horizontal = -PLAYER_SHIP_HORIZ
+            self.texture = self.left_texture
+        if right_pressed and not left_pressed:
+            horizontal = PLAYER_SHIP_HORIZ
+            self.texture = self.right_texture
+        if up_pressed and not down_pressed:
+            vertical = PLAYER_SHIP_VERT
+        if down_pressed and not up_pressed:
+            vertical = -PLAYER_SHIP_VERT
+        if horizontal != 0 or vertical != 0:
+            Action.stop_actions_for_target(self, tag="player_move")
+            move_until(
+                self,
+                velocity=(horizontal, vertical),
+                condition=infinite,
+                bounds=(
+                    HILL_WIDTH // 4,
+                    TUNNEL_WALL_HEIGHT,
+                    WINDOW_WIDTH - HILL_WIDTH // 4,
+                    WINDOW_HEIGHT - TUNNEL_WALL_HEIGHT,
+                ),
+                boundary_behavior="limit",
+                tag="player_move",
+            )
+        else:
+            Action.stop_actions_for_target(self, tag="player_move")
+
+    def update(self, delta_time):
+        super().update(delta_time)
 
 
 class Tunnel(arcade.View):
     def __init__(self):
         super().__init__()
         self.background_color = arcade.color.BLACK
+        self.player_list = arcade.SpriteList()
         self.tunnel_walls = arcade.SpriteList()
-        top_wall = create_tunnel_wall(0, WINDOW_HEIGHT)
-        bottom_wall = create_tunnel_wall(0, TUNNEL_WALL_HEIGHT)
-        self.tunnel_walls.append(top_wall)
-        self.tunnel_walls.append(bottom_wall)
-
         self.hill_tops = arcade.SpriteList()
         self.hill_bottoms = arcade.SpriteList()
-        for x in [0, HILL_WIDTH * 2]:
-            self.hill_tops.append(create_hill(HILL_TOP, x, WINDOW_HEIGHT - TUNNEL_WALL_HEIGHT))
-            self.hill_bottoms.append(create_hill(HILL_BOTTOM, x + HILL_WIDTH, TUNNEL_WALL_HEIGHT + HILL_HEIGHT))
+        self.left_pressed = self.right_pressed = False
+        self.up_pressed = self.down_pressed = False
+        self.fire_pressed = False
+
+        self.setup_walls()
+        self.setup_hills()
+        self.setup_ship()
 
         move_until(
             self.hill_tops,
@@ -74,11 +123,30 @@ class Tunnel(arcade.View):
     def on_hill_bottom_wrap(self, sprite, axis):
         sprite.position = (HILL_WIDTH * 3, sprite.position[1])
 
+    def setup_ship(self):
+        self.ship = PlayerShip()
+        self.player_list.append(self.ship)
+
+    def setup_walls(self):
+        top_wall = _create_tunnel_wall(0, WINDOW_HEIGHT)
+        bottom_wall = _create_tunnel_wall(0, TUNNEL_WALL_HEIGHT)
+        self.tunnel_walls.append(top_wall)
+        self.tunnel_walls.append(bottom_wall)
+
+    def setup_hills(self):
+        for x in [0, HILL_WIDTH * 2]:
+            self.hill_tops.append(_create_sprite_at_location(HILL_TOP, left=x, top=WINDOW_HEIGHT - TUNNEL_WALL_HEIGHT))
+            self.hill_bottoms.append(
+                _create_sprite_at_location(HILL_BOTTOM, left=x + HILL_WIDTH, top=TUNNEL_WALL_HEIGHT + HILL_HEIGHT)
+            )
+
     def on_update(self, delta_time: float):
         Action.update_all(delta_time)
         self.tunnel_walls.update()
         self.hill_tops.update()
         self.hill_bottoms.update()
+        self.player_list.update()
+        self.ship.move(self.left_pressed, self.right_pressed, self.up_pressed, self.down_pressed)
 
     def on_draw(self):
         # Clear screen (preferred over arcade.start_render() inside a View).
@@ -86,10 +154,37 @@ class Tunnel(arcade.View):
         self.tunnel_walls.draw()
         self.hill_tops.draw()
         self.hill_bottoms.draw()
+        self.player_list.draw()
 
     def on_key_press(self, key: int, modifiers: int):
+        if key == arcade.key.LEFT:
+            self.left_pressed = True
+            self.right_pressed = False
+        elif key == arcade.key.RIGHT:
+            self.right_pressed = True
+            self.left_pressed = False
+        if key == arcade.key.UP:
+            self.up_pressed = True
+            self.down_pressed = False
+        elif key == arcade.key.DOWN:
+            self.down_pressed = True
+            self.up_pressed = False
+        if key == arcade.key.LCTRL or modifiers == arcade.key.MOD_CTRL:
+            self.fire_pressed = True
         if key == arcade.key.ESCAPE:
             self.window.close()
+
+    def on_key_release(self, key: int, modifiers: int):
+        if key == arcade.key.LEFT:
+            self.left_pressed = False
+        elif key == arcade.key.RIGHT:
+            self.right_pressed = False
+        if key == arcade.key.UP:
+            self.up_pressed = False
+        elif key == arcade.key.DOWN:
+            self.down_pressed = False
+        if key == arcade.key.LCTRL:
+            self.fire_pressed = False
 
 
 class LaserGates(arcade.Window):
