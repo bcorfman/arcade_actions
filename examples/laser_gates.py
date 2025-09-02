@@ -9,8 +9,10 @@ WINDOW_HEIGHT = 432
 HILL_TOP = "./res/hill_top.png"
 HILL_BOTTOM = "./res/hill_bottom.png"
 SHIP = "./res/dart.png"
+PLAYER_SHOT = ":resources:/images/space_shooter/laserRed01.png"
 PLAYER_SHIP_VERT = 5
 PLAYER_SHIP_HORIZ = 8
+PLAYER_SHIP_FIRE_SPEED = 20
 TUNNEL_VELOCITY = -3
 TOP_BOUNDS = (-HILL_WIDTH, WINDOW_HEIGHT // 2, HILL_WIDTH * 5, WINDOW_HEIGHT)
 BOTTOM_BOUNDS = (
@@ -45,24 +47,33 @@ def _create_sprite_at_location(filepath, **kwargs):
 
 
 class PlayerShip(arcade.Sprite):
+    LEFT = -1
+    RIGHT = 1
+
     def __init__(
         self,
+        shot_list,
         velocity_func,
     ):
         super().__init__(SHIP, center_x=HILL_WIDTH // 4, center_y=WINDOW_HEIGHT // 2)
+        self.shot_list = shot_list
         self.right_texture = arcade.load_texture(SHIP)
         self.left_texture = self.right_texture.flip_left_right()
+        self.texture_red_laser = arcade.load_texture(":resources:images/space_shooter/laserRed01.png").rotate_90()
         self.speed_factor = 1
         self.set_tunnel_velocity = velocity_func
+        self.direction = self.RIGHT
 
     def move(self, left_pressed, right_pressed, up_pressed, down_pressed):
         horizontal = 0
         vertical = 0
         if left_pressed and not right_pressed:
             horizontal = -PLAYER_SHIP_HORIZ
+            self.direction = self.LEFT
             self.texture = self.left_texture
         if right_pressed and not left_pressed:
             horizontal = PLAYER_SHIP_HORIZ
+            self.direction = self.RIGHT
             self.texture = self.right_texture
         if up_pressed and not down_pressed:
             vertical = PLAYER_SHIP_VERT
@@ -94,6 +105,30 @@ class PlayerShip(arcade.Sprite):
             Action.stop_actions_for_target(self, tag="tunnel_velocity")
             self.set_tunnel_velocity(TUNNEL_VELOCITY)
 
+    def fire_when_ready(self):
+        can_fire = len(self.shot_list) == 0
+        if can_fire:
+            self.setup_shot()
+        return can_fire
+
+    def setup_shot(self, angle=0):
+        shot = arcade.Sprite()
+        shot.texture = self.texture_red_laser
+        if self.direction == self.RIGHT:
+            shot.left = self.right
+        else:
+            shot.right = self.left
+        shot.center_y = self.center_y
+        shot_vel_x = PLAYER_SHIP_FIRE_SPEED * self.direction
+
+        move_until(
+            shot,
+            velocity=(shot_vel_x, 0),
+            condition=lambda: shot.right < 0 or shot.left > WINDOW_WIDTH,
+            on_stop=lambda: shot.remove_from_sprite_lists(),
+        )
+        self.shot_list.append(shot)
+
     def update(self, delta_time):
         super().update(delta_time)
 
@@ -112,6 +147,7 @@ class Tunnel(arcade.View):
         super().__init__()
         self.background_color = arcade.color.BLACK
         self.player_list = arcade.SpriteList()
+        self.shot_list = arcade.SpriteList()
         self.tunnel_walls = arcade.SpriteList()
         self.hill_tops = arcade.SpriteList()
         self.hill_bottoms = arcade.SpriteList()
@@ -155,7 +191,7 @@ class Tunnel(arcade.View):
         sprite.position = (HILL_WIDTH * 3, sprite.position[1])
 
     def setup_ship(self):
-        self.ship = PlayerShip(self.set_tunnel_velocity)
+        self.ship = PlayerShip(self.shot_list, self.set_tunnel_velocity)
         self.player_list.append(self.ship)
 
     def setup_walls(self):
@@ -177,7 +213,10 @@ class Tunnel(arcade.View):
         self.hill_tops.update()
         self.hill_bottoms.update()
         self.player_list.update()
+        self.shot_list.update()
         self.ship.move(self.left_pressed, self.right_pressed, self.up_pressed, self.down_pressed)
+        if self.fire_pressed:
+            self.ship.fire_when_ready()
 
     def on_draw(self):
         # Clear screen (preferred over arcade.start_render() inside a View).
@@ -186,6 +225,7 @@ class Tunnel(arcade.View):
         self.hill_tops.draw()
         self.hill_bottoms.draw()
         self.player_list.draw()
+        self.shot_list.draw()
 
     def on_key_press(self, key: int, modifiers: int):
         if key == arcade.key.LEFT:
