@@ -6,13 +6,12 @@ HILL_WIDTH = 512
 HILL_HEIGHT = 57
 WINDOW_WIDTH = HILL_WIDTH * 2
 WINDOW_HEIGHT = 432
-HILL_TOP = "./res/hill_top.png"
-HILL_BOTTOM = "./res/hill_bottom.png"
+HILL_SLICES = ["./res/hill_slice1.png", "./res/hill_slice2.png", "./res/hill_slice3.png", "./res/hill_slice4.png"]
 SHIP = "./res/dart.png"
 PLAYER_SHOT = ":resources:/images/space_shooter/laserRed01.png"
 PLAYER_SHIP_VERT = 5
 PLAYER_SHIP_HORIZ = 8
-PLAYER_SHIP_FIRE_SPEED = 20
+PLAYER_SHIP_FIRE_SPEED = 15
 TUNNEL_VELOCITY = -3
 TOP_BOUNDS = (-HILL_WIDTH, WINDOW_HEIGHT // 2, HILL_WIDTH * 5, WINDOW_HEIGHT)
 BOTTOM_BOUNDS = (
@@ -35,8 +34,8 @@ def _create_tunnel_wall(left, top):
     return wall
 
 
-def _create_sprite_at_location(filepath, **kwargs):
-    sprite = arcade.Sprite(filepath)
+def _create_sprite_at_location(file_or_texture, **kwargs):
+    sprite = arcade.Sprite(file_or_texture)
     if kwargs.get("left") is not None and kwargs.get("top") is not None:
         sprite.left = kwargs.get("left")
         sprite.top = kwargs.get("top")
@@ -50,18 +49,13 @@ class PlayerShip(arcade.Sprite):
     LEFT = -1
     RIGHT = 1
 
-    def __init__(
-        self,
-        shot_list,
-        velocity_func,
-    ):
+    def __init__(self, parent):
         super().__init__(SHIP, center_x=HILL_WIDTH // 4, center_y=WINDOW_HEIGHT // 2)
-        self.shot_list = shot_list
+        self.parent = parent
         self.right_texture = arcade.load_texture(SHIP)
         self.left_texture = self.right_texture.flip_left_right()
         self.texture_red_laser = arcade.load_texture(":resources:images/space_shooter/laserRed01.png").rotate_90()
         self.speed_factor = 1
-        self.set_tunnel_velocity = velocity_func
         self.direction = self.RIGHT
 
     def move(self, left_pressed, right_pressed, up_pressed, down_pressed):
@@ -98,15 +92,15 @@ class PlayerShip(arcade.Sprite):
             if self.speed_factor > 1 and horizontal <= 0:
                 self.speed_factor = 1
                 Action.stop_actions_for_target(self, tag="tunnel_velocity")
-                self.set_tunnel_velocity(TUNNEL_VELOCITY)
+                self.parent.set_tunnel_velocity(TUNNEL_VELOCITY)
         else:
             Action.stop_actions_for_target(self, tag="player_move")
             self.speed_factor = 1
             Action.stop_actions_for_target(self, tag="tunnel_velocity")
-            self.set_tunnel_velocity(TUNNEL_VELOCITY)
+            self.parent.set_tunnel_velocity(TUNNEL_VELOCITY)
 
     def fire_when_ready(self):
-        can_fire = len(self.shot_list) == 0
+        can_fire = len(self.parent.shot_list) == 0
         if can_fire:
             self.setup_shot()
         return can_fire
@@ -124,10 +118,16 @@ class PlayerShip(arcade.Sprite):
         move_until(
             shot,
             velocity=(shot_vel_x, 0),
-            condition=lambda: shot.right < 0 or shot.left > WINDOW_WIDTH,
-            on_stop=lambda: shot.remove_from_sprite_lists(),
+            condition=self.shot_collision_check,
+            on_stop=lambda result: shot.remove_from_sprite_lists(),
         )
-        self.shot_list.append(shot)
+        self.parent.shot_list.append(shot)
+
+    def shot_collision_check(self):
+        shot = self.parent.shot_list[0]
+        off_screen = shot.right < 0 or shot.left > WINDOW_WIDTH
+        hills_hit = arcade.check_for_collision_with_lists(shot, [self.parent.hill_tops, self.parent.hill_bottoms])
+        return {"off_screen": off_screen, "hills_hit": hills_hit} if off_screen or hills_hit else None
 
     def update(self, delta_time):
         super().update(delta_time)
@@ -139,7 +139,7 @@ class PlayerShip(arcade.Sprite):
         if axis == "x" and self.right >= SHIP_RIGHT_BOUND:
             self.speed_factor = 2
         Action.stop_actions_for_target(self, tag="tunnel_velocity")
-        self.set_tunnel_velocity(TUNNEL_VELOCITY * self.speed_factor)
+        self.parent.set_tunnel_velocity(TUNNEL_VELOCITY * self.speed_factor)
 
 
 class Tunnel(arcade.View):
@@ -191,7 +191,7 @@ class Tunnel(arcade.View):
         sprite.position = (HILL_WIDTH * 3, sprite.position[1])
 
     def setup_ship(self):
-        self.ship = PlayerShip(self.shot_list, self.set_tunnel_velocity)
+        self.ship = PlayerShip(self)
         self.player_list.append(self.ship)
 
     def setup_walls(self):
@@ -201,11 +201,28 @@ class Tunnel(arcade.View):
         self.tunnel_walls.append(bottom_wall)
 
     def setup_hills(self):
+        largest_slice_width = arcade.load_texture(HILL_SLICES[0]).width
         for x in [0, HILL_WIDTH * 2]:
-            self.hill_tops.append(_create_sprite_at_location(HILL_TOP, left=x, top=WINDOW_HEIGHT - TUNNEL_WALL_HEIGHT))
-            self.hill_bottoms.append(
-                _create_sprite_at_location(HILL_BOTTOM, left=x + HILL_WIDTH, top=TUNNEL_WALL_HEIGHT + HILL_HEIGHT)
-            )
+            height_so_far = 0
+            for i in range(4):
+                hill_slice = arcade.load_texture(HILL_SLICES[i])
+                hill_top_slice = _create_sprite_at_location(
+                    hill_slice,
+                    left=x + (largest_slice_width - hill_slice.width) / 2,
+                    top=WINDOW_HEIGHT - TUNNEL_WALL_HEIGHT - height_so_far,
+                )
+                trim_width = hill_top_slice.right - hill_top_slice.left
+                hill_top_slice.left = x + (hill_slice.width - trim_width) / 2
+                self.hill_tops.append(hill_top_slice)
+                height_so_far += hill_slice.height
+                hill_slice = arcade.load_texture(HILL_SLICES[i]).flip_top_bottom()
+                hill_bottom_slice = _create_sprite_at_location(
+                    hill_slice,
+                    left=x + HILL_WIDTH + (largest_slice_width - hill_slice.width) / 2,
+                    top=TUNNEL_WALL_HEIGHT + height_so_far,
+                )
+                hill_bottom_slice.left = x + HILL_WIDTH + (hill_slice.width - trim_width) / 2
+                self.hill_bottoms.append(hill_bottom_slice)
 
     def on_update(self, delta_time: float):
         Action.update_all(delta_time)
