@@ -45,6 +45,68 @@ def _create_sprite_at_location(file_or_texture, **kwargs):
     return sprite
 
 
+# Hill collision detection and response
+def handle_hill_collision(sprite, collision_lists, parent_view):
+    """Handle collision with hills by adjusting position and providing visual feedback."""
+    collision_hit = arcade.check_for_collision_with_lists(sprite, collision_lists)
+    if not collision_hit:
+        return False
+
+    # Compute minimum translation vector to resolve all overlaps
+    min_overlap = None
+    mtv_axis = None  # "x" or "y"
+
+    for collision_sprite in collision_hit:
+        dx = sprite.center_x - collision_sprite.center_x
+        dy = sprite.center_y - collision_sprite.center_y
+
+        overlap_x = (sprite.width / 2 + collision_sprite.width / 2) - abs(dx)
+        overlap_y = (sprite.height / 2 + collision_sprite.height / 2) - abs(dy)
+
+        # Skip if somehow not overlapping (shouldn't happen given collision detection)
+        if overlap_x <= 0 or overlap_y <= 0:
+            continue
+
+        # Choose axis with smaller overlap to resolve
+        if overlap_x < overlap_y:
+            if min_overlap is None or overlap_x < min_overlap:
+                min_overlap = overlap_x
+                mtv_axis = ("x", 1 if dx > 0 else -1)
+        else:
+            if min_overlap is None or overlap_y < min_overlap:
+                min_overlap = overlap_y
+                mtv_axis = ("y", 1 if dy > 0 else -1)
+
+    # Always push vertically away from screen center
+    # Determine direction: up (1) if in bottom half, down (-1) if in top half
+    screen_mid = WINDOW_HEIGHT / 2
+    vertical_dir = 1 if sprite.center_y < screen_mid else -1
+
+    # Determine minimal vertical overlap among collisions to move the sprite out
+    min_vertical_overlap = None
+    for collision_sprite in collision_hit:
+        dy = sprite.center_y - collision_sprite.center_y
+        overlap_y = (sprite.height / 2 + collision_sprite.height / 2) - abs(dy)
+        if overlap_y > 0:
+            if min_vertical_overlap is None or overlap_y < min_vertical_overlap:
+                min_vertical_overlap = overlap_y
+
+    # Fallback small nudge if calculation failed (shouldn't happen)
+    if min_vertical_overlap is None:
+        min_vertical_overlap = sprite.height / 2
+
+    sprite.center_y += vertical_dir * (min_vertical_overlap + 1)
+    sprite.change_y = 0
+
+    # Visual damage feedback - flash background
+    if hasattr(parent_view, "damage_flash"):
+        parent_view.damage_flash = min(parent_view.damage_flash + 0.3, 1.0)
+    else:
+        parent_view.damage_flash = 0.3
+
+    return True
+
+
 class PlayerShip(arcade.Sprite):
     LEFT = -1
     RIGHT = 1
@@ -99,6 +161,12 @@ class PlayerShip(arcade.Sprite):
             Action.stop_actions_for_target(self, tag="tunnel_velocity")
             self.parent.set_tunnel_velocity(TUNNEL_VELOCITY)
 
+        # Always check for hill or wall collisions after movement (whether moving or stationary)
+        hill_collision_lists = [self.parent.hill_tops, self.parent.hill_bottoms, self.parent.tunnel_walls]
+        if handle_hill_collision(self, hill_collision_lists, self.parent):
+            # Stop current movement if we hit hills
+            Action.stop_actions_for_target(self, tag="player_move")
+
     def fire_when_ready(self):
         can_fire = len(self.parent.shot_list) == 0
         if can_fire:
@@ -136,10 +204,11 @@ class PlayerShip(arcade.Sprite):
         return self.center_x >= SHIP_RIGHT_BOUND + 1
 
     def on_boundary_hit(self, sprite, axis):
+        # Handle tunnel boundary limits (existing behavior)
         if axis == "x" and self.right >= SHIP_RIGHT_BOUND:
             self.speed_factor = 2
-        Action.stop_actions_for_target(self, tag="tunnel_velocity")
-        self.parent.set_tunnel_velocity(TUNNEL_VELOCITY * self.speed_factor)
+            Action.stop_actions_for_target(self, tag="tunnel_velocity")
+            self.parent.set_tunnel_velocity(TUNNEL_VELOCITY * self.speed_factor)
 
 
 class Tunnel(arcade.View):
@@ -156,6 +225,7 @@ class Tunnel(arcade.View):
         self.fire_pressed = False
         self.speed_factor = 1
         self.speed = TUNNEL_VELOCITY * self.speed_factor
+        self.damage_flash = 0.0  # Visual feedback for hill collisions
 
         self.setup_walls()
         self.setup_hills()
@@ -235,14 +305,31 @@ class Tunnel(arcade.View):
         if self.fire_pressed:
             self.ship.fire_when_ready()
 
+        # Decay damage flash effect
+        if self.damage_flash > 0:
+            self.damage_flash = max(0, self.damage_flash - delta_time * 5.0)
+
     def on_draw(self):
-        # Clear screen (preferred over arcade.start_render() inside a View).
+        # Always clear with black background
+        self.background_color = arcade.color.BLACK
         self.clear()
         self.tunnel_walls.draw()
         self.hill_tops.draw()
         self.hill_bottoms.draw()
         self.player_list.draw()
         self.shot_list.draw()
+
+        # Draw flash overlay last so it appears over everything
+        if self.damage_flash > 0:
+            # Create a white overlay using a solid color sprite
+            overlay_alpha = int(255 * self.damage_flash)
+            arcade.draw_lrbt_rectangle_filled(
+                0,
+                WINDOW_WIDTH,
+                0,
+                WINDOW_HEIGHT,
+                (255, 255, 255, overlay_alpha),
+            )
 
     def on_key_press(self, key: int, modifiers: int):
         if key == arcade.key.LEFT:
