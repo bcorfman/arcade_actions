@@ -1,5 +1,7 @@
+import argparse
 import random
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 import arcade
 
@@ -16,7 +18,7 @@ PLAYER_SHIP_VERT = 5
 PLAYER_SHIP_HORIZ = 8
 PLAYER_SHIP_FIRE_SPEED = 15
 WALL_WIDTH = 200
-TUNNEL_VELOCITY = -3
+TUNNEL_VELOCITY = -2
 TOP_BOUNDS = (-HILL_WIDTH, WINDOW_HEIGHT // 2, HILL_WIDTH * 5, WINDOW_HEIGHT)
 BOTTOM_BOUNDS = (
     -HILL_WIDTH,
@@ -50,7 +52,7 @@ def _create_sprite_at_location(file_or_texture, **kwargs):
 
 
 # Hill collision detection and response
-def _handle_hill_collision(sprite, collision_lists, parent_view):
+def _handle_hill_collision(sprite, collision_lists, register_damage: Callable[[float], None]):
     """Handle collision with hills by adjusting position and providing visual feedback."""
     collision_hit = arcade.check_for_collision_with_lists(sprite, collision_lists)
     if not collision_hit:
@@ -103,139 +105,184 @@ def _handle_hill_collision(sprite, collision_lists, parent_view):
     sprite.change_y = 0
 
     # Visual damage feedback - flash background
-    if hasattr(parent_view, "damage_flash"):
-        parent_view.damage_flash = min(parent_view.damage_flash + 0.3, 1.0)
-    else:
-        parent_view.damage_flash = 0.3
+    register_damage(0.3)
 
     return True
 
 
+class WaveContext:
+    """
+    Read-only bundle of objects a wave may need.
+
+    Nothing here is specific to any particular wave pattern.
+    """
+
+    __slots__ = ("shot_list", "player_ship", "register_damage", "on_cleanup")
+
+    def __init__(
+        self,
+        *,
+        shot_list: arcade.SpriteList,
+        player_ship: arcade.Sprite,
+        register_damage: Callable[[float], None],
+        on_cleanup: Callable[["EnemyWave"], None],
+    ):
+        self.shot_list = shot_list
+        self.player_ship = player_ship
+        self.register_damage = register_damage
+        self.on_cleanup = on_cleanup
+
+
 class EnemyWave(ABC):
-    def __init__(self, subscriber, *args, **kwargs):
-        if getattr(self, "_enemywave_initialized", False):
-            return
-        self._enemywave_initialized = True
-        self._subscriber = subscriber
-        self.sprites = arcade.SpriteList()
-        super().__init__()
+    """
+    Behaviour strategy for a wave.
+
+    A wave owns NO sprites—it receives the SpriteList that Tunnel created.
+    """
+
+    @property
+    @abstractmethod
+    def actions(self) -> list[Action]:
+        """Return a list of actions that are currently active for this wave."""
+        pass
 
     @abstractmethod
-    def setup(self):
+    def build(self, sprites: arcade.SpriteList, ctx: WaveContext) -> None:
+        """Populate *sprites* and add actions (move_until, etc.)."""
         pass
 
-    def cleanup(self):
-        """Default cleanup: stop actions, remove sprites, notify subscriber."""
-        if self.sprites:
-            # Stop all actions targeting this wave's sprites
-            Action.stop_actions_for_target(self.sprites)
-            # Remove sprites from all lists they belong to
-            for sprite in list(self.sprites):
-                sprite.remove_from_sprite_lists()
-            self.sprites = arcade.SpriteList()
-        # Notify tunnel to start next wave
-        self._subscriber.on_wave_cleanup(self)
-
-    def update(self, delta_time: float) -> None:
-        """Per-frame wave logic. Override in subclasses as needed."""
+    @abstractmethod
+    def update(self, sprites: arcade.SpriteList, ctx: WaveContext, dt: float) -> None:
+        """Per-frame logic (collision tests, win/loss checks)."""
         pass
-
-
-def _make_shield_block(width):
-    block = arcade.SpriteSolidColor(10, 20, color=arcade.color.WHITE)
-    return block
 
 
 def _make_shield(width):
     """Create shield blocks"""
-    # Build shield by creating a small grid of white blocks
+
+    def _make_shield_block() -> arcade.Sprite:
+        """Factory that creates a single shield block sprite."""
+        return arcade.SpriteSolidColor(10, 12, color=arcade.color.GRAY)
+
+    # Build shield by creating a small grid of blocks
     shield_grid = arrange_grid(
-        rows=20,
+        rows=30,
         cols=width,
         start_x=WINDOW_WIDTH + WALL_WIDTH,
         start_y=TUNNEL_WALL_HEIGHT,  # Position shields between player and enemies
         spacing_x=10,
-        spacing_y=20,
+        spacing_y=12,
         sprite_factory=_make_shield_block,
     )
     return shield_grid
 
 
 class DensePackWave(EnemyWave):
-    def __init__(self, subscriber):
-        super().__init__(subscriber)
+    def __init__(self, wall_width: int):
+        self._width = wall_width
+        self._actions = []
 
-    def setup(self):
-        shield_grid = _make_shield(10)
-        move_until(
-            shield_grid,
+    @property
+    def actions(self) -> list[Action]:
+        """Return a list of actions that are currently active for this wave."""
+        return self._actions
+
+    def build(self, sprites: arcade.SpriteList, ctx: WaveContext) -> None:
+        """Populate enemy sprites and add actions (move_until, etc.)."""
+        shield = _make_shield(self._width)
+        sprites.extend(shield)
+
+        action = move_until(
+            sprites,
             velocity=(TUNNEL_VELOCITY, 0),
             condition=infinite,
             bounds=(
                 -WALL_WIDTH,
                 0,
-                WINDOW_WIDTH + WALL_WIDTH,
+                WINDOW_WIDTH + WALL_WIDTH + WALL_WIDTH,
                 WINDOW_HEIGHT,
             ),
             boundary_behavior="limit",
-            on_boundary=self.on_boundary_hit,
+            on_boundary=lambda *_: ctx.on_cleanup(self),
             tag="shield_move",
         )
-        # Track sprites and register them with the tunnel for drawing/updating
-        self.sprites = shield_grid
-        for sprite in shield_grid:
-            self._subscriber.enemy_list.append(sprite)
+        self._actions.append(action)
 
-    def cleanup(self):
-        super().cleanup()
-
-    def on_boundary_hit(self, sprite, axis):
-        self.cleanup()
-
-    def update(self, delta_time: float) -> None:
+    def update(self, sprites: arcade.SpriteList, ctx: WaveContext, dt: float) -> None:
+        """Per-frame logic (collision tests, win/loss checks)."""
         # Handle collisions between player shots and the dense pack sprites
-        if not self.sprites:
+        if not sprites:
             return
-        shots = list(self._subscriber.shot_list)
-        for shot in shots:
-            hits = arcade.check_for_collision_with_list(shot, self.sprites)
+
+        # Shot collisions
+        for shot in tuple(ctx.shot_list):
+            hits = arcade.check_for_collision_with_list(shot, sprites)
             if hits:
-                # Remove the shot on first contact
                 shot.remove_from_sprite_lists()
-                # Remove all hit sprites
-                for enemy_sprite in hits:
-                    enemy_sprite.remove_from_sprite_lists()
+                for block in hits:
+                    block.remove_from_sprite_lists()
 
-        # Check for collision between player ship and wave sprites
-        player_ship = self._subscriber.ship
-        player_hits = arcade.check_for_collision_with_list(player_ship, self.sprites)
-        if player_hits:
-            # Flash player red to indicate damage
-            if hasattr(self._subscriber, "damage_flash"):
-                self._subscriber.damage_flash = min(self._subscriber.damage_flash + 0.3, 1.0)
-            else:
-                self._subscriber.damage_flash = 0.3
-            # Remove all shield sprites and advance to next wave
-            self.cleanup()
+        # Player collisions
+        if arcade.check_for_collision_with_list(ctx.player_ship, sprites):
+            ctx.register_damage(0.3)
+            ctx.on_cleanup(self)
             return
 
-        # If all sprites are gone, finish the wave
-        if len(self.sprites) == 0:
-            self.cleanup()
+        # Wave complete?
+        if len(sprites) == 0:
+            ctx.on_cleanup(self)
+
+
+class ThinDensePackWave(DensePackWave):
+    def __init__(self):
+        super().__init__(wall_width=5)
+
+
+class ThickDensePackWave(DensePackWave):
+    def __init__(self):
+        super().__init__(wall_width=10)
+
+
+class PlayerContext:
+    """
+    Read-only bundle of objects a PlayerShip may need.
+
+    Nothing here is specific to any particular player behavior.
+    """
+
+    __slots__ = ("shot_list", "hill_tops", "hill_bottoms", "tunnel_walls", "set_tunnel_velocity", "register_damage")
+
+    def __init__(
+        self,
+        *,
+        shot_list: arcade.SpriteList,
+        hill_tops: arcade.SpriteList,
+        hill_bottoms: arcade.SpriteList,
+        tunnel_walls: arcade.SpriteList,
+        set_tunnel_velocity: Callable[[float], None],
+        register_damage: Callable[[float], None],
+    ):
+        self.shot_list = shot_list
+        self.hill_tops = hill_tops
+        self.hill_bottoms = hill_bottoms
+        self.tunnel_walls = tunnel_walls
+        self.set_tunnel_velocity = set_tunnel_velocity
+        self.register_damage = register_damage
 
 
 class PlayerShip(arcade.Sprite):
     LEFT = -1
     RIGHT = 1
 
-    def __init__(self, parent):
+    def __init__(self, ctx: PlayerContext, *, behaviour: Callable[["PlayerShip", float], None] | None = None):
         super().__init__(SHIP, center_x=HILL_WIDTH // 4, center_y=WINDOW_HEIGHT // 2)
-        self.parent = parent
+        self.ctx = ctx
         self.right_texture = arcade.load_texture(SHIP)
         self.left_texture = self.right_texture.flip_left_right()
         self.texture_red_laser = arcade.load_texture(":resources:images/space_shooter/laserRed01.png").rotate_90()
         self.speed_factor = 1
         self.direction = self.RIGHT
+        self.behaviour = behaviour  # Optional AI/attract mode behaviour
 
     def move(self, left_pressed, right_pressed, up_pressed, down_pressed):
         horizontal = 0
@@ -271,21 +318,21 @@ class PlayerShip(arcade.Sprite):
             if self.speed_factor > 1 and horizontal <= 0:
                 self.speed_factor = 1
                 Action.stop_actions_for_target(self, tag="tunnel_velocity")
-                self.parent.set_tunnel_velocity(TUNNEL_VELOCITY)
+                self.ctx.set_tunnel_velocity(TUNNEL_VELOCITY)
         else:
             Action.stop_actions_for_target(self, tag="player_move")
             self.speed_factor = 1
             Action.stop_actions_for_target(self, tag="tunnel_velocity")
-            self.parent.set_tunnel_velocity(TUNNEL_VELOCITY)
+            self.ctx.set_tunnel_velocity(TUNNEL_VELOCITY)
 
         # Always check for hill or wall collisions after movement (whether moving or stationary)
-        hill_collision_lists = [self.parent.hill_tops, self.parent.hill_bottoms, self.parent.tunnel_walls]
-        if _handle_hill_collision(self, hill_collision_lists, self.parent):
+        hill_collision_lists = [self.ctx.hill_tops, self.ctx.hill_bottoms, self.ctx.tunnel_walls]
+        if _handle_hill_collision(self, hill_collision_lists, self.ctx.register_damage):
             # Stop current movement if we hit hills
             Action.stop_actions_for_target(self, tag="player_move")
 
     def fire_when_ready(self):
-        can_fire = len(self.parent.shot_list) == 0
+        can_fire = len(self.ctx.shot_list) == 0
         if can_fire:
             self.setup_shot()
         return can_fire
@@ -304,18 +351,25 @@ class PlayerShip(arcade.Sprite):
             shot,
             velocity=(shot_vel_x, 0),
             condition=self.shot_collision_check,
-            on_stop=lambda result: shot.remove_from_sprite_lists(),
+            on_stop=lambda *_: shot.remove_from_sprite_lists(),
         )
-        self.parent.shot_list.append(shot)
+        self.ctx.shot_list.append(shot)
 
     def shot_collision_check(self):
-        shot = self.parent.shot_list[0]
+        # Safeguard: if the shot has already been removed, stop the action.
+        if not self.ctx.shot_list:
+            return True  # Condition met -> stop action
+
+        shot = self.ctx.shot_list[0]
         off_screen = shot.right < 0 or shot.left > WINDOW_WIDTH
-        hills_hit = arcade.check_for_collision_with_lists(shot, [self.parent.hill_tops, self.parent.hill_bottoms])
+        hills_hit = arcade.check_for_collision_with_lists(shot, [self.ctx.hill_tops, self.ctx.hill_bottoms])
         return {"off_screen": off_screen, "hills_hit": hills_hit} if off_screen or hills_hit else None
 
     def update(self, delta_time):
         super().update(delta_time)
+        # Run AI/attract mode behaviour if present
+        if self.behaviour:
+            self.behaviour(self, delta_time)
 
     def bounds_check(self):
         return self.center_x >= SHIP_RIGHT_BOUND + 1
@@ -325,7 +379,7 @@ class PlayerShip(arcade.Sprite):
         if axis == "x" and self.right >= SHIP_RIGHT_BOUND:
             self.speed_factor = 2
             Action.stop_actions_for_target(self, tag="tunnel_velocity")
-            self.parent.set_tunnel_velocity(TUNNEL_VELOCITY * self.speed_factor)
+            self.ctx.set_tunnel_velocity(TUNNEL_VELOCITY * self.speed_factor)
 
 
 class Tunnel(arcade.View):
@@ -334,7 +388,6 @@ class Tunnel(arcade.View):
         self.background_color = arcade.color.BLACK
         self.player_list = arcade.SpriteList()
         self.shot_list = arcade.SpriteList()
-        self.enemy_list = arcade.SpriteList()
         self.tunnel_walls = arcade.SpriteList()
         self.hill_tops = arcade.SpriteList()
         self.hill_bottoms = arcade.SpriteList()
@@ -344,49 +397,83 @@ class Tunnel(arcade.View):
         self.speed_factor = 1
         self.speed = TUNNEL_VELOCITY * self.speed_factor
         self.damage_flash = 0.0  # Visual feedback for hill collisions
-        self.wave_classes = [DensePackWave]
-        self.current_wave: EnemyWave | None = None
-
+        self._wave_sprites = arcade.SpriteList()
+        self._wave_strategy: EnemyWave | None = None
+        self._hill_top_action = None
+        self._hill_bottom_action = None
         self.setup_walls()
         self.setup_hills()
         self.setup_ship()
 
-        self.set_tunnel_velocity(self.speed)
-        self.start_random_wave()
+        # Wave classes that can be instantiated
+        self.wave_classes = [ThinDensePackWave, ThickDensePackWave]
 
-    def start_random_wave(self):
+        # Create context for waves
+        self._ctx = WaveContext(
+            shot_list=self.shot_list,
+            player_ship=self.ship,
+            register_damage=self._flash_damage,
+            on_cleanup=self._wave_finished,
+        )
+
+        self.set_tunnel_velocity(self.speed)
+        self._start_random_wave()
+
+    def _start_random_wave(self):
         if not self.wave_classes:
             return
+        self._wave_sprites.clear()
         wave_cls = random.choice(self.wave_classes)
-        self.current_wave = wave_cls(self)
-        self.current_wave.setup()
+        self._wave_strategy = wave_cls()
+        self._wave_strategy.build(self._wave_sprites, self._ctx)
 
-    def on_wave_cleanup(self, wave):
-        # Start another wave when one completes
-        if self.current_wave is wave:
-            self.current_wave = None
-        self.start_random_wave()
+    def _wave_finished(self, wave):
+        """Callback when a wave signals it is finished.
+
+        Stops all actions associated with *wave* to ensure they no longer
+        run once the wave has been cleaned up.
+        """
+        for action in wave.actions:
+            action.stop()
+        wave.actions.clear()
+        self._wave_strategy = None
+        self._start_random_wave()
+
+    def _flash_damage(self, amount: float):
+        """Register damage and trigger visual flash effect."""
+        self.damage_flash = min(self.damage_flash + amount, 1.0)
 
     def set_tunnel_velocity(self, speed):
-        move_until(
-            self.hill_tops,
-            velocity=(speed, 0),
-            condition=infinite,
-            bounds=TOP_BOUNDS,
-            boundary_behavior="wrap",
-            on_boundary=self.on_hill_top_wrap,
-            tag="tunnel_velocity",
-        )
+        # Reuse existing actions and adjust velocity instead of recreating
+        if self._hill_top_action is None or self._hill_top_action.done:
+            self._hill_top_action = move_until(
+                self.hill_tops,
+                velocity=(speed, 0),
+                condition=infinite,
+                bounds=TOP_BOUNDS,
+                boundary_behavior="wrap",
+                on_boundary=self.on_hill_top_wrap,
+                tag="tunnel_velocity",
+            )
+        else:
+            self._hill_top_action.set_current_velocity((speed, 0))
 
-        move_until(
-            self.hill_bottoms,
-            velocity=(speed, 0),
-            condition=infinite,
-            bounds=BOTTOM_BOUNDS,
-            boundary_behavior="wrap",
-            on_boundary=self.on_hill_bottom_wrap,
-            tag="tunnel_velocity",
-        )
+        if self._hill_bottom_action is None or self._hill_bottom_action.done:
+            self._hill_bottom_action = move_until(
+                self.hill_bottoms,
+                velocity=(speed, 0),
+                condition=infinite,
+                bounds=BOTTOM_BOUNDS,
+                boundary_behavior="wrap",
+                on_boundary=self.on_hill_bottom_wrap,
+                tag="tunnel_velocity",
+            )
+        else:
+            self._hill_bottom_action.set_current_velocity((speed, 0))
+
+        if self._wave_strategy and self._wave_strategy.actions is not None:
+            for action in self._wave_strategy.actions:
+                action.set_current_velocity((speed, 0))
 
     def on_hill_top_wrap(self, sprite, axis):
         sprite.position = (HILL_WIDTH * 3, sprite.position[1])
@@ -395,7 +482,15 @@ class Tunnel(arcade.View):
         sprite.position = (HILL_WIDTH * 3, sprite.position[1])
 
     def setup_ship(self):
-        self.ship = PlayerShip(self)
+        player_ctx = PlayerContext(
+            shot_list=self.shot_list,
+            hill_tops=self.hill_tops,
+            hill_bottoms=self.hill_bottoms,
+            tunnel_walls=self.tunnel_walls,
+            set_tunnel_velocity=self.set_tunnel_velocity,
+            register_damage=self._flash_damage,
+        )
+        self.ship = PlayerShip(player_ctx)
         self.player_list.append(self.ship)
 
     def setup_walls(self):
@@ -435,9 +530,9 @@ class Tunnel(arcade.View):
         self.hill_bottoms.update()
         self.player_list.update()
         self.shot_list.update()
-        self.enemy_list.update()
-        if self.current_wave:
-            self.current_wave.update(delta_time)
+        self._wave_sprites.update()
+        if self._wave_strategy:
+            self._wave_strategy.update(self._wave_sprites, self._ctx, delta_time)
         self.ship.move(self.left_pressed, self.right_pressed, self.up_pressed, self.down_pressed)
         if self.fire_pressed:
             self.ship.fire_when_ready()
@@ -447,13 +542,12 @@ class Tunnel(arcade.View):
             self.damage_flash = max(0, self.damage_flash - delta_time * 5.0)
 
     def on_draw(self):
-        # Always clear with black background
         self.background_color = arcade.color.BLACK
         self.clear()
+        self._wave_sprites.draw()
         self.tunnel_walls.draw()
         self.hill_tops.draw()
         self.hill_bottoms.draw()
-        self.enemy_list.draw()
         self.player_list.draw()
         self.shot_list.draw()
 
@@ -517,6 +611,17 @@ class LaserGates(arcade.Window):
 
 def main():
     """Main function."""
+    parser = argparse.ArgumentParser(description="Laser Gates Game")
+    parser.add_argument(
+        "--debug-actions",
+        action="store_true",
+        help="Enable debug output for action creation",
+    )
+    args = parser.parse_args()
+
+    # Enable or disable debug action logging
+    Action.debug_actions = args.debug_actions
+
     window = LaserGates()
     arcade.run()
 
