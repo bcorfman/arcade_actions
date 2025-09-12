@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 import arcade
 
-from actions import Action, arrange_grid, center_window, infinite, move_until
+from actions import Action, arrange_grid, center_window, infinite, move_until, set_debug_actions
 
 HILL_WIDTH = 512
 HILL_HEIGHT = 57
@@ -637,8 +637,11 @@ def main():
     )
     args = parser.parse_args()
 
-    # Enable or disable debug action logging
-    Action.debug_actions = args.debug_actions
+    # Enable debug action logging if requested.
+    # Note: environment variable ARCADEACTIONS_DEBUG is applied automatically
+    # at import time; this flag only enables additional logging (does not disable).
+    if args.debug_actions:
+        set_debug_actions(True)
 
     window = LaserGates()
     arcade.run()

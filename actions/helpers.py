@@ -93,20 +93,25 @@ def move_until(
         velocity_provider: Optional function returning (dx, dy) velocity each frame.
         on_boundary_enter: Optional callback(sprite, axis, side) for boundary enter events.
         on_boundary_exit: Optional callback(sprite, axis, side) for boundary exit events.
+        **kwargs: Additional arguments passed to MoveUntil (bounds, boundary_behavior, etc.)
 
-    action = MoveUntil(
-        velocity=velocity,
-        condition=condition,
-        on_stop=on_stop,
-        velocity_provider=velocity_provider,
-        on_boundary_enter=on_boundary_enter,
-        on_boundary_exit=on_boundary_exit,
-        **kwargs
-    )
+    Returns:
         The created MoveUntil action instance.
 
     Example:
+        # Basic movement
         move_until(sprite, velocity=(5, 0), condition=lambda: sprite.center_x > 500)
+
+        # With boundary callbacks
+        move_until(
+            sprite,
+            velocity=(10, 0),
+            condition=infinite,
+            bounds=(0, 0, 800, 600),
+            boundary_behavior="bounce",
+            on_boundary_enter=lambda s, axis, side: print(f"Hit {side} {axis} boundary"),
+            on_boundary_exit=lambda s, axis, side: print(f"Left {side} {axis} boundary")
+        )
     """
     action = MoveUntil(
         velocity=velocity,
