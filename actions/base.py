@@ -36,7 +36,10 @@ class Action(ABC, Generic[_T]):
           enforce the desired order of operations, e.g., `a + (b | c)`.
     """
 
+    num_active_actions = 0
+    debug_actions: bool = False
     _active_actions: list[Action] = []
+    _previous_actions: set[Action] | None = None
 
     def __init__(
         self,
@@ -170,12 +173,68 @@ class Action(ABC, Generic[_T]):
     @classmethod
     def update_all(cls, delta_time: float) -> None:
         """Update all active actions. Call this once per frame."""
+        # Optional: debug new actions creation with detailed target info
+        if cls.debug_actions:
+            if cls._previous_actions is None:
+                cls._previous_actions = set()
+            current_actions = set(cls._active_actions)
+            new_actions = current_actions - cls._previous_actions
+            if new_actions:
+                print(f"New actions created ({len(new_actions)}):")
+                for action in new_actions:
+                    target_desc = cls._describe_target(action.target)
+                    print(f"  - {type(action).__name__} on {target_desc}, tag='{action.tag}'")
+            cls._previous_actions = current_actions
+
         # Update all actions
+        num_actions = len(cls._active_actions)
+        if cls.debug_actions and num_actions != cls.num_active_actions:
+            print(f"Total active actions: {num_actions}")
         for action in cls._active_actions[:]:  # Copy to avoid modification during iteration
             action.update(delta_time)
 
         # Remove completed actions
         cls._active_actions[:] = [action for action in cls._active_actions if not action.done]
+        cls.num_active_actions = len(cls._active_actions)
+
+    @classmethod
+    def _describe_target(cls, target: arcade.Sprite | arcade.SpriteList | None) -> str:
+        if target is None:
+            return "None"
+        # Check type directly - this is debug-only code and performance matters
+        if type(target).__name__ == "SpriteList":
+            return cls._get_sprite_list_name(target)
+        return f"{type(target).__name__}"
+
+    @classmethod
+    def _get_sprite_list_name(cls, sprite_list: arcade.SpriteList) -> str:
+        """Attempt to find an attribute name that refers to this SpriteList.
+
+        This is best-effort and only used for debug output.
+        """
+        try:
+            import gc  # Imported here to avoid overhead unless debugging is enabled
+
+            for obj in gc.get_objects():
+                try:
+                    # Use EAFP - try to access __dict__ directly
+                    obj_dict = obj.__dict__
+                    for attr_name, attr_value in obj_dict.items():
+                        if attr_value is sprite_list:
+                            return f"{type(obj).__name__}.{attr_name}"
+                except AttributeError:
+                    # Object has no __dict__, skip it
+                    continue
+                except Exception:
+                    # Best-effort only; ignore objects that raise during inspection
+                    continue
+        except Exception:
+            pass
+        # Fallback description
+        try:
+            return f"SpriteList(len={len(sprite_list)})"
+        except Exception:
+            return "SpriteList"
 
     @classmethod
     def stop_all(cls) -> None:
@@ -196,10 +255,15 @@ class Action(ABC, Generic[_T]):
         If the target is a sprite list, the function is run on each sprite in
         the list.
         """
-        if isinstance(self.target, arcade.SpriteList):
+        if self.target is None:
+            return
+        # Use duck typing - try list behavior first, fall back to single sprite
+        try:
+            # Try to iterate (SpriteList behavior)
             for sprite in self.target:
                 func(sprite)
-        elif isinstance(self.target, arcade.Sprite):
+        except TypeError:
+            # Not iterable, treat as single sprite
             func(self.target)
 
     def set_factor(self, factor: float) -> None:

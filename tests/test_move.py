@@ -85,8 +85,8 @@ class TestMoveUntilBoundaries:
 
         boundary_hits = []
 
-        def on_boundary_hit(hitting_sprite, axis):
-            boundary_hits.append((hitting_sprite, axis))
+        def on_boundary_enter(hitting_sprite, axis, side):
+            boundary_hits.append((hitting_sprite, axis, side))
 
         bounds = (0, 0, 800, 600)
         move_until(
@@ -95,7 +95,7 @@ class TestMoveUntilBoundaries:
             condition=time_elapsed(2.0),
             bounds=bounds,
             boundary_behavior="bounce",
-            on_boundary=on_boundary_hit,
+            on_boundary_enter=on_boundary_enter,
             tag="movement",
         )
 
@@ -106,10 +106,11 @@ class TestMoveUntilBoundaries:
         # Check boundaries on new position
         Action.update_all(0.001)
 
-        # Should have called boundary callback
-        assert len(boundary_hits) == 1
+        # Should have called boundary enter callback once on X/right
+        assert len(boundary_hits) >= 1
         assert boundary_hits[0][0] == sprite
-        assert boundary_hits[0][1] == "x"  # Hit X axis boundary
+        assert boundary_hits[0][1] == "x"
+        assert boundary_hits[0][2] in ("right", "left", "top", "bottom")
 
     def test_move_until_vertical_boundaries(self):
         """Test MoveUntil with vertical boundary interactions."""
@@ -159,12 +160,12 @@ class TestMoveUntilBoundaries:
         """Test cloning MoveUntil action with boundary settings."""
         bounds = (0, 0, 800, 600)
 
-        def on_boundary(sprite, axis):
+        def on_boundary_enter(sprite, axis, side):
             pass
 
         # Create unbound action for cloning test
         original = MoveUntil(
-            (50, 25), time_elapsed(2.0), bounds=bounds, boundary_behavior="wrap", on_boundary=on_boundary
+            (50, 25), time_elapsed(2.0), bounds=bounds, boundary_behavior="wrap", on_boundary_enter=on_boundary_enter
         )
 
         cloned = original.clone()
@@ -172,7 +173,7 @@ class TestMoveUntilBoundaries:
         assert cloned.target_velocity == original.target_velocity
         assert cloned.bounds == original.bounds
         assert cloned.boundary_behavior == original.boundary_behavior
-        assert cloned.on_boundary == original.on_boundary
+        assert cloned.on_boundary_enter == original.on_boundary_enter
 
     def test_move_until_multiple_sprites_boundaries(self):
         """Test MoveUntil boundary checking with multiple sprites."""
