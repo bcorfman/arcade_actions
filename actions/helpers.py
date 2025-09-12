@@ -73,6 +73,9 @@ def move_until(
     condition: Callable[[], Any],
     on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     tag: str | None = None,
+    velocity_provider: Callable[[], tuple[float, float]] | None = None,
+    on_boundary_enter: Callable[[Any, str, str], None] | None = None,
+    on_boundary_exit: Callable[[Any, str, str], None] | None = None,
     **kwargs,
 ) -> MoveUntil:
     """
@@ -87,14 +90,33 @@ def move_until(
         condition: The condition to stop moving.
         on_stop: An optional callback to run when the condition is met.
         tag: An optional tag for the action.
+        velocity_provider: Optional function returning (dx, dy) velocity each frame.
+        on_boundary_enter: Optional callback(sprite, axis, side) for boundary enter events.
+        on_boundary_exit: Optional callback(sprite, axis, side) for boundary exit events.
 
-    Returns:
+    action = MoveUntil(
+        velocity=velocity,
+        condition=condition,
+        on_stop=on_stop,
+        velocity_provider=velocity_provider,
+        on_boundary_enter=on_boundary_enter,
+        on_boundary_exit=on_boundary_exit,
+        **kwargs
+    )
         The created MoveUntil action instance.
 
     Example:
         move_until(sprite, velocity=(5, 0), condition=lambda: sprite.center_x > 500)
     """
-    action = MoveUntil(velocity=velocity, condition=condition, on_stop=on_stop, **kwargs)
+    action = MoveUntil(
+        velocity=velocity,
+        condition=condition,
+        on_stop=on_stop,
+        velocity_provider=velocity_provider,
+        on_boundary_enter=on_boundary_enter,
+        on_boundary_exit=on_boundary_exit,
+        **kwargs,
+    )
     action.apply(target, tag=tag)
     return action
 

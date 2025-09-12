@@ -278,7 +278,7 @@ class TestMoveUntil(ActionTestBase):
         boundary_sprite = None
         boundary_axis = None
 
-        def on_boundary(sprite, axis):
+        def on_boundary(sprite, axis, side):
             nonlocal boundary_called, boundary_sprite, boundary_axis
             boundary_called = True
             boundary_sprite = sprite
@@ -291,7 +291,7 @@ class TestMoveUntil(ActionTestBase):
             condition=infinite,
             bounds=bounds,
             boundary_behavior="limit",
-            on_boundary=on_boundary,
+            on_boundary_enter=on_boundary,
             tag="test_limit_callback",
         )
 

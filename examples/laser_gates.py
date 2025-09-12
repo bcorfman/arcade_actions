@@ -18,7 +18,7 @@ PLAYER_SHIP_VERT = 5
 PLAYER_SHIP_HORIZ = 8
 PLAYER_SHIP_FIRE_SPEED = 15
 WALL_WIDTH = 200
-TUNNEL_VELOCITY = -2
+TUNNEL_VELOCITY = -3
 TOP_BOUNDS = (-HILL_WIDTH, WINDOW_HEIGHT // 2, HILL_WIDTH * 5, WINDOW_HEIGHT)
 BOTTOM_BOUNDS = (
     -HILL_WIDTH,
@@ -203,7 +203,7 @@ class DensePackWave(EnemyWave):
                 WINDOW_HEIGHT,
             ),
             boundary_behavior="limit",
-            on_boundary=lambda *_: ctx.on_cleanup(self),
+            on_boundary_enter=lambda sprite, axis, side: ctx.on_cleanup(self),
             tag="shield_move",
         )
         self._actions.append(action)
@@ -284,46 +284,69 @@ class PlayerShip(arcade.Sprite):
         self.direction = self.RIGHT
         self.behaviour = behaviour  # Optional AI/attract mode behaviour
 
+        # Input state for velocity provider
+        self._input = {"left": False, "right": False, "up": False, "down": False}
+
+        def velocity_provider():
+            # Manual control takes priority
+            h = 0
+            v = 0
+
+            if self._input["right"] and not self._input["left"]:
+                h = PLAYER_SHIP_HORIZ
+            elif self._input["left"] and not self._input["right"]:
+                h = -PLAYER_SHIP_HORIZ
+
+            if self._input["up"] and not self._input["down"]:
+                v = PLAYER_SHIP_VERT
+            elif self._input["down"] and not self._input["up"]:
+                v = -PLAYER_SHIP_VERT
+
+            if h or v:
+                # Respect left boundary: no further left when already at edge
+                if h < 0 and self.left <= SHIP_LEFT_BOUND:
+                    h = 0
+                return (h, v)
+
+            # Drift when idle: same as tunnel, unless at left wall
+            if self.left <= SHIP_LEFT_BOUND:
+                return (0, 0)
+            return (TUNNEL_VELOCITY, 0)
+
+        def on_boundary_enter(sprite, axis, side):
+            if axis == "x" and side == "right":
+                self.speed_factor = 2
+                self.ctx.set_tunnel_velocity(TUNNEL_VELOCITY * self.speed_factor)
+
+        def on_boundary_exit(sprite, axis, side):
+            if axis == "x" and side == "right":
+                self.speed_factor = 1
+                self.ctx.set_tunnel_velocity(TUNNEL_VELOCITY)
+
+        # Single long-lived action for all movement
+        move_until(
+            self,
+            velocity=(0, 0),  # ignored when velocity_provider is present
+            condition=infinite,
+            bounds=(SHIP_LEFT_BOUND, TUNNEL_WALL_HEIGHT, SHIP_RIGHT_BOUND, WINDOW_HEIGHT - TUNNEL_WALL_HEIGHT),
+            boundary_behavior="limit",
+            velocity_provider=velocity_provider,
+            on_boundary_enter=on_boundary_enter,
+            on_boundary_exit=on_boundary_exit,
+            tag="player_move",
+        )
+
     def move(self, left_pressed, right_pressed, up_pressed, down_pressed):
-        horizontal = 0
-        vertical = 0
-        if left_pressed and not right_pressed:
-            horizontal = -PLAYER_SHIP_HORIZ
-            self.direction = self.LEFT
-            self.texture = self.left_texture
+        # Simply update input state - velocity_provider handles the rest
+        self._input.update(left=left_pressed, right=right_pressed, up=up_pressed, down=down_pressed)
+
+        # Update direction and texture for visual feedback
         if right_pressed and not left_pressed:
-            horizontal = PLAYER_SHIP_HORIZ
             self.direction = self.RIGHT
             self.texture = self.right_texture
-        if up_pressed and not down_pressed:
-            vertical = PLAYER_SHIP_VERT
-        if down_pressed and not up_pressed:
-            vertical = -PLAYER_SHIP_VERT
-        if horizontal != 0 or vertical != 0:
-            Action.stop_actions_for_target(self, tag="player_move")
-            move_until(
-                self,
-                velocity=(horizontal, vertical),
-                condition=self.bounds_check,
-                bounds=(
-                    SHIP_LEFT_BOUND,
-                    TUNNEL_WALL_HEIGHT,
-                    SHIP_RIGHT_BOUND,
-                    WINDOW_HEIGHT - TUNNEL_WALL_HEIGHT,
-                ),
-                boundary_behavior="limit",
-                on_boundary=self.on_boundary_hit,
-                tag="player_move",
-            )
-            if self.speed_factor > 1 and horizontal <= 0:
-                self.speed_factor = 1
-                Action.stop_actions_for_target(self, tag="tunnel_velocity")
-                self.ctx.set_tunnel_velocity(TUNNEL_VELOCITY)
-        else:
-            Action.stop_actions_for_target(self, tag="player_move")
-            self.speed_factor = 1
-            Action.stop_actions_for_target(self, tag="tunnel_velocity")
-            self.ctx.set_tunnel_velocity(TUNNEL_VELOCITY)
+        elif left_pressed and not right_pressed:
+            self.direction = self.LEFT
+            self.texture = self.left_texture
 
         # Always check for hill or wall collisions after movement (whether moving or stationary)
         hill_collision_lists = [self.ctx.hill_tops, self.ctx.hill_bottoms, self.ctx.tunnel_walls]
@@ -370,16 +393,6 @@ class PlayerShip(arcade.Sprite):
         # Run AI/attract mode behaviour if present
         if self.behaviour:
             self.behaviour(self, delta_time)
-
-    def bounds_check(self):
-        return self.center_x >= SHIP_RIGHT_BOUND + 1
-
-    def on_boundary_hit(self, sprite, axis):
-        # Handle tunnel boundary limits (existing behavior)
-        if axis == "x" and self.right >= SHIP_RIGHT_BOUND:
-            self.speed_factor = 2
-            Action.stop_actions_for_target(self, tag="tunnel_velocity")
-            self.ctx.set_tunnel_velocity(TUNNEL_VELOCITY * self.speed_factor)
 
 
 class Tunnel(arcade.View):
@@ -433,9 +446,11 @@ class Tunnel(arcade.View):
         Stops all actions associated with *wave* to ensure they no longer
         run once the wave has been cleaned up.
         """
+        # Stop movement actions tied to the current wave's sprite list
+        Action.stop_actions_for_target(self._wave_sprites, tag="shield_move")
+        # Also stop any extra references kept in the wave's local list (defensive)
         for action in wave.actions:
             action.stop()
-        wave.actions.clear()
         self._wave_strategy = None
         self._start_random_wave()
 
@@ -452,7 +467,7 @@ class Tunnel(arcade.View):
                 condition=infinite,
                 bounds=TOP_BOUNDS,
                 boundary_behavior="wrap",
-                on_boundary=self.on_hill_top_wrap,
+                on_boundary_enter=self.on_hill_top_wrap,
                 tag="tunnel_velocity",
             )
         else:
@@ -465,7 +480,7 @@ class Tunnel(arcade.View):
                 condition=infinite,
                 bounds=BOTTOM_BOUNDS,
                 boundary_behavior="wrap",
-                on_boundary=self.on_hill_bottom_wrap,
+                on_boundary_enter=self.on_hill_bottom_wrap,
                 tag="tunnel_velocity",
             )
         else:
@@ -475,10 +490,10 @@ class Tunnel(arcade.View):
             for action in self._wave_strategy.actions:
                 action.set_current_velocity((speed, 0))
 
-    def on_hill_top_wrap(self, sprite, axis):
+    def on_hill_top_wrap(self, sprite, axis, side):
         sprite.position = (HILL_WIDTH * 3, sprite.position[1])
 
-    def on_hill_bottom_wrap(self, sprite, axis):
+    def on_hill_bottom_wrap(self, sprite, axis, side):
         sprite.position = (HILL_WIDTH * 3, sprite.position[1])
 
     def setup_ship(self):

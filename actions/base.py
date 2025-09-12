@@ -188,8 +188,8 @@ class Action(ABC, Generic[_T]):
 
         # Update all actions
         num_actions = len(cls._active_actions)
-        if num_actions > cls.num_active_actions and cls.debug_actions:
-            print(f"New active actions: {num_actions - cls.num_active_actions}")
+        if cls.debug_actions and num_actions != cls.num_active_actions:
+            print(f"Total active actions: {num_actions}")
         for action in cls._active_actions[:]:  # Copy to avoid modification during iteration
             action.update(delta_time)
 
