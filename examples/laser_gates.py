@@ -192,9 +192,12 @@ class DensePackWave(EnemyWave):
         shield = _make_shield(self._width)
         sprites.extend(shield)
 
+        # Use the player's current speed factor to set initial velocity
+        current_velocity = TUNNEL_VELOCITY * ctx.player_ship.speed_factor
+
         action = move_until(
             sprites,
-            velocity=(TUNNEL_VELOCITY, 0),
+            velocity=(current_velocity, 0),
             condition=infinite,
             bounds=(
                 -WALL_WIDTH,
