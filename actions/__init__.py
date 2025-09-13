@@ -37,6 +37,7 @@ from .conditional import (
     duration,
     infinite,
 )
+from .config import apply_environment_configuration, get_debug_actions, set_debug_actions
 
 # Display utilities
 from .display import center_window
@@ -96,6 +97,10 @@ from .pattern import (
 __all__ = [
     # Core classes
     "Action",
+    # Configuration
+    "set_debug_actions",
+    "get_debug_actions",
+    "apply_environment_configuration",
     # Conditional actions
     "MoveUntil",
     "RotateUntil",
@@ -156,3 +161,8 @@ __all__ = [
     # display
     "center_window",
 ]
+
+# Apply environment-driven configuration at import time so applications can
+# enable debugging via ARCADEACTIONS_DEBUG without additional code changes.
+# This remains opt-in and side-effect free beyond toggling debug output.
+apply_environment_configuration()

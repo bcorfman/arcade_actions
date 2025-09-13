@@ -100,6 +100,11 @@ docs/
 - **Global management** - Automatic action tracking and updates
 - **Composition helpers** - `sequence()` and `parallel()` functions
 
+#### Configuration (actions/config.py)
+- **Debug actions logging**: Enable library-wide diagnostics that print when actions are created and the total active count changes.
+- **Environment toggle**: Set `ARCADEACTIONS_DEBUG=1` (or `true/yes/on`) to enable without code changes.
+- **Programmatic API**: Call `from actions import set_debug_actions` and then `set_debug_actions(True)` in your app startup or tests. Current state via `get_debug_actions()`.
+
 #### Instant Action System (actions/instant.py)
 - **MoveBy** - Relative Sprite or SpriteList positioning
 - **MoveTo** - Absolute positioning

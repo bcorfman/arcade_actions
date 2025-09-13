@@ -4,6 +4,7 @@ import arcade
 
 from actions.base import Action
 from actions.composite import parallel, repeat, sequence
+from actions.conditional import DelayUntil, duration
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -30,7 +31,6 @@ class TestSequenceFunction:
 
     def test_sequence_with_actions_initialization(self):
         """Test sequence initialization with actions."""
-        from actions.conditional import DelayUntil, duration
 
         action1 = DelayUntil(duration(0.1))
         action2 = DelayUntil(duration(0.1))
@@ -53,7 +53,6 @@ class TestSequenceFunction:
 
     def test_sequence_starts_first_action(self):
         """Test that sequence starts the first action."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.1))
@@ -68,7 +67,6 @@ class TestSequenceFunction:
 
     def test_sequence_advances_to_next_action(self):
         """Test that sequence advances to next action when current completes."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))
@@ -87,7 +85,6 @@ class TestSequenceFunction:
 
     def test_sequence_completes_when_all_actions_done(self):
         """Test that sequence completes when all actions are done."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))
@@ -108,7 +105,6 @@ class TestSequenceFunction:
 
     def test_sequence_stop_stops_current_action(self):
         """Test that stopping sequence stops the current action."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(1.0))  # Long duration so it won't complete
@@ -123,7 +119,6 @@ class TestSequenceFunction:
 
     def test_sequence_clone(self):
         """Test sequence cloning."""
-        from actions.conditional import DelayUntil, duration
 
         action1 = DelayUntil(duration(0.1))
         action2 = DelayUntil(duration(0.1))
@@ -151,7 +146,6 @@ class TestParallelFunction:
 
     def test_parallel_with_actions_initialization(self):
         """Test parallel initialization with actions."""
-        from actions.conditional import DelayUntil, duration
 
         action1 = DelayUntil(duration(0.1))
         action2 = DelayUntil(duration(0.1))
@@ -172,7 +166,6 @@ class TestParallelFunction:
 
     def test_parallel_starts_all_actions(self):
         """Test that parallel starts all actions simultaneously."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.1))
@@ -187,7 +180,6 @@ class TestParallelFunction:
 
     def test_parallel_completes_when_all_actions_done(self):
         """Test that parallel completes when all actions are done."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))
@@ -209,7 +201,6 @@ class TestParallelFunction:
 
     def test_parallel_stops_all_actions(self):
         """Test that stopping parallel stops all actions."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(1.0))  # Long duration
@@ -225,7 +216,6 @@ class TestParallelFunction:
 
     def test_parallel_clone(self):
         """Test parallel cloning."""
-        from actions.conditional import DelayUntil, duration
 
         action1 = DelayUntil(duration(0.1))
         action2 = DelayUntil(duration(0.1))
@@ -248,7 +238,6 @@ class TestOperatorOverloading:
 
     def test_plus_operator_creates_sequence(self):
         """Test that the '+' operator creates a sequential action."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))
@@ -267,7 +256,6 @@ class TestOperatorOverloading:
 
     def test_pipe_operator_creates_parallel(self):
         """Test that the '|' operator creates a parallel action."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))
@@ -287,7 +275,6 @@ class TestOperatorOverloading:
 
     def test_mixed_operator_composition(self):
         """Test mixing + and | operators for complex compositions."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))
@@ -309,7 +296,6 @@ class TestOperatorOverloading:
 
     def test_operator_precedence_with_parentheses(self):
         """Test operator precedence with explicit parentheses."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))
@@ -339,7 +325,6 @@ class TestNestedComposites:
 
     def test_sequence_of_parallels_with_operators(self):
         """Test sequence containing parallel actions using operators."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))
@@ -363,7 +348,6 @@ class TestNestedComposites:
 
     def test_parallel_of_sequences_with_operators(self):
         """Test parallel containing sequence actions using operators."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))
@@ -387,7 +371,6 @@ class TestNestedComposites:
 
     def test_traditional_vs_operator_equivalence(self):
         """Test that operator syntax produces equivalent results to function syntax."""
-        from actions.conditional import DelayUntil, duration
 
         sprite1 = create_test_sprite()
         sprite2 = create_test_sprite()
@@ -422,7 +405,6 @@ class TestRepeatFunction:
 
     def test_repeat_initialization(self):
         """Test repeat initialization."""
-        from actions.conditional import DelayUntil, duration
 
         action = DelayUntil(duration(0.1))
         rep = repeat(action)
@@ -433,7 +415,6 @@ class TestRepeatFunction:
 
     def test_repeat_starts_first_iteration(self):
         """Test that repeat starts the first iteration of the action."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action = DelayUntil(duration(0.05))
@@ -448,7 +429,6 @@ class TestRepeatFunction:
 
     def test_repeat_restarts_action_when_completed(self):
         """Test that repeat restarts the action when it completes."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action = DelayUntil(duration(0.05))
@@ -470,7 +450,6 @@ class TestRepeatFunction:
 
     def test_repeat_continues_indefinitely(self):
         """Test that repeat continues indefinitely."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action = DelayUntil(duration(0.05))
@@ -496,7 +475,6 @@ class TestRepeatFunction:
 
     def test_repeat_stop_stops_current_action(self):
         """Test that stopping repeat stops the current action."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action = DelayUntil(duration(1.0))  # Long duration
@@ -511,7 +489,6 @@ class TestRepeatFunction:
 
     def test_repeat_clone(self):
         """Test repeat cloning."""
-        from actions.conditional import DelayUntil, duration
 
         action = DelayUntil(duration(0.1))
         rep = repeat(action)
@@ -534,7 +511,6 @@ class TestRepeatFunction:
 
     def test_repeat_with_composite_action(self):
         """Test repeat with a composite action (sequence)."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))
@@ -563,7 +539,7 @@ class TestRepeatFunction:
 
     def test_repeat_with_move_action(self):
         """Test repeat with a MoveUntil action."""
-        from actions.conditional import MoveUntil, duration
+        from actions.conditional import MoveUntil
 
         sprite = create_test_sprite()
 
@@ -597,7 +573,6 @@ class TestRepeatIntegration:
 
     def test_repeat_in_sequence(self):
         """Test repeat action used within a sequence."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         setup_action = DelayUntil(duration(0.05))
@@ -623,7 +598,6 @@ class TestRepeatIntegration:
 
     def test_repeat_in_parallel(self):
         """Test repeat action used within a parallel."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         finite_action = DelayUntil(duration(0.1))
@@ -645,7 +619,6 @@ class TestRepeatIntegration:
 
     def test_operator_overloading_with_repeat(self):
         """Test that repeat works with operator overloading (+, |)."""
-        from actions.conditional import DelayUntil, duration
 
         sprite = create_test_sprite()
         action1 = DelayUntil(duration(0.05))

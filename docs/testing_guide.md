@@ -5,198 +5,367 @@ This guide covers testing patterns and best practices for the arcade_actions lib
 
 # Testing Guide
 
-## Basic Action Testing
+## Test Structure and Fixtures
 
-Test basic action functionality using the provided test fixtures:
+The test suite uses pytest fixtures defined in `conftest.py`:
 
 ```python
-from arcade_actions import move_until, rotate_until, duration
-from .fixtures import create_sprite
+import pytest
+from actions import Action
 
-def test_basic_movement():
-    sprite = create_sprite()
+class ActionTestBase:
+    """Base class for action tests with common setup and teardown."""
     
-    # Test movement
-    action = move_until(
-        sprite,
-        velocity=(5, 0),
-        condition=duration(1.0),
-        tag="test_move"
-    )
-    
-    # Verify initial state
-    assert sprite.change_x == 0
-    assert sprite.change_y == 0
-    
-    # Update and verify movement
-    action.update()
-    assert sprite.change_x == 5
-    assert sprite.change_y == 0
-    
-    # Stop and verify cleanup
-    action.stop()
-    assert sprite.change_x == 0
-    assert sprite.change_y == 0
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
 
-def test_basic_rotation():
-    sprite = create_sprite()
-    
-    # Test rotation
-    action = rotate_until(
-        sprite,
-        velocity=180,
-        condition=duration(1.0),
-        tag="test_rotate"
-    )
-    
-    # Verify initial state
-    assert sprite.change_angle == 0
-    
-    # Update and verify rotation
-    action.update()
-    assert sprite.change_angle == 180
-    
-    # Stop and verify cleanup
-    action.stop()
-    assert sprite.change_angle == 0
+@pytest.fixture
+def test_sprite() -> arcade.Sprite:
+    """Create a sprite with texture for testing."""
+    sprite = arcade.Sprite(":resources:images/items/star.png")
+    sprite.center_x = 100
+    sprite.center_y = 100
+    return sprite
+
+@pytest.fixture
+def test_sprite_list() -> arcade.SpriteList:
+    """Create a SpriteList with test sprites."""
+    sprite_list = arcade.SpriteList()
+    sprite1 = arcade.Sprite(":resources:images/items/star.png")
+    sprite2 = arcade.Sprite(":resources:images/items/star.png")
+    sprite_list.append(sprite1)
+    sprite_list.append(sprite2)
+    return sprite_list
+```
+
+## Basic Action Testing
+
+Test basic action functionality using the global action update system:
+
+```python
+from actions import Action, move_until, rotate_until, duration, infinite
+
+class TestMoveUntil(ActionTestBase):
+    """Test suite for MoveUntil action."""
+
+    def test_move_until_basic(self, test_sprite):
+        """Test basic MoveUntil functionality."""
+        sprite = test_sprite
+        start_x = sprite.center_x
+
+        condition_met = False
+
+        def condition():
+            nonlocal condition_met
+            return condition_met
+
+        action = move_until(sprite, velocity=(100, 0), condition=condition, tag="test_basic")
+
+        # Update for one frame - sprite should have velocity applied
+        Action.update_all(0.016)
+        assert sprite.change_x == 100
+        assert sprite.change_y == 0
+
+        # Let it move for a bit
+        for _ in range(10):
+            sprite.update()  # Apply velocity to position
+            Action.update_all(0.016)
+
+        assert sprite.center_x > start_x
+
+        # Trigger condition
+        condition_met = True
+        Action.update_all(0.016)
+
+        # Velocity should be zeroed
+        assert sprite.change_x == 0
+        assert sprite.change_y == 0
+        assert action.done
+
+    def test_rotate_until_basic(self, test_sprite):
+        """Test basic RotateUntil functionality."""
+        sprite = test_sprite
+
+        target_reached = False
+
+        def condition():
+            return target_reached
+
+        action = rotate_until(sprite, angular_velocity=90, condition=condition, tag="test_basic")
+
+        Action.update_all(0.016)
+
+        # RotateUntil uses degrees per frame at 60 FPS semantics
+        assert sprite.change_angle == 90
+
+        # Trigger condition
+        target_reached = True
+        Action.update_all(0.016)
+
+        assert action.done
 ```
 
 ## Testing Easing Actions
 
-Test easing functionality with different ease functions:
+Test easing functionality that provides smooth acceleration/deceleration for continuous actions:
 
 ```python
-from arcade_actions import ease, move_until, easing
+from actions import Action, MoveUntil, Ease, infinite
+from arcade import easing
 
-def test_easing():
-    sprite = create_sprite()
-    
-    # Create movement action
-    move_action = move_until(
-        sprite,
-        velocity=(100, 0),
-        condition=duration(2.0)
-    )
-    
-    # Apply easing
-    ease_action = ease(
-        sprite,
-        move_action,
-        duration=2.0,
-        ease_function=easing.ease_in_out,
-        tag="ease_move"
-    )
-    
-    # Test initial state
-    assert sprite.change_x == 0
-    
-    # Test acceleration phase
-    ease_action.update()
-    assert 0 < sprite.change_x < 100
-    
-    # Test deceleration phase
-    ease_action._elapsed = 1.5  # Simulate time passing
-    ease_action.update()
-    assert 0 < sprite.change_x < 100
-    
-    # Test completion
-    ease_action._elapsed = 2.0
-    ease_action.update()
-    assert sprite.change_x == 0
+class TestEase(ActionTestBase):
+    """Test suite for Ease wrapper."""
+
+    def test_ease_continuous_movement(self, test_sprite):
+        """Test Ease wrapper with continuous movement action."""
+        sprite = test_sprite
+        
+        # Create continuous movement action (never stops on its own)
+        continuous_move = MoveUntil((100, 0), infinite)
+        easing_wrapper = Ease(continuous_move, duration=2.0, ease_function=easing.ease_in_out)
+        
+        easing_wrapper.apply(sprite, tag="test_ease")
+        
+        # Test initial state (should start with reduced velocity)
+        Action.update_all(0.016)
+        assert 0 < sprite.change_x < 100  # Eased start
+        
+        # Test mid-easing (should reach full velocity)
+        easing_wrapper._elapsed = 1.0  # Halfway through easing
+        Action.update_all(0.016)
+        assert sprite.change_x == 100  # Full velocity at midpoint
+        
+        # Test easing completion (action continues at full velocity)
+        easing_wrapper._elapsed = 2.0  # Easing complete
+        Action.update_all(0.016)
+        assert sprite.change_x == 100  # Continues at full velocity
+        assert easing_wrapper._easing_complete
+
+    def test_ease_factor_scaling(self, test_sprite):
+        """Test that Ease properly scales wrapped action velocity."""
+        sprite = test_sprite
+        move = MoveUntil((100, 0), infinite)
+        ease_action = Ease(move, duration=1.0)
+        
+        ease_action.apply(sprite, tag="test")
+        
+        # Test various easing factors
+        ease_action.set_factor(0.5)  # Half speed
+        Action.update_all(0.016)
+        assert sprite.change_x == 50
+        
+        ease_action.set_factor(1.0)  # Full speed
+        Action.update_all(0.016)
+        assert sprite.change_x == 100
 ```
 
 ## Testing Action Composition
 
-Test sequences and parallel actions:
+Test sequences and parallel actions using the current API:
 
 ```python
-from arcade_actions import sequence, parallel, move_until, rotate_until
+from actions import Action, sequence, parallel, DelayUntil, MoveUntil, RotateUntil, duration
 
-def test_sequence():
-    sprite = create_sprite()
-    
-    # Create sequence
-    actions = sequence(
-        move_until(sprite, velocity=(5, 0), condition=duration(1.0)),
-        rotate_until(sprite, velocity=180, condition=duration(1.0))
-    )
-    
-    # Test first action
-    actions.update()
-    assert sprite.change_x == 5
-    assert sprite.change_angle == 0
-    
-    # Test second action
-    actions._elapsed = 1.0  # Complete first action
-    actions.update()
-    assert sprite.change_x == 0
-    assert sprite.change_angle == 180
+class TestSequenceFunction:
+    """Test suite for sequence() function."""
 
-def test_parallel():
-    sprite = create_sprite()
-    
-    # Create parallel actions
-    actions = parallel(
-        move_until(sprite, velocity=(5, 0), condition=duration(1.0)),
-        rotate_until(sprite, velocity=180, condition=duration(1.0))
-    )
-    
-    # Test simultaneous execution
-    actions.update()
-    assert sprite.change_x == 5
-    assert sprite.change_angle == 180
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_sequence_execution_order(self, test_sprite):
+        """Test that sequence executes actions in order."""
+        sprite = test_sprite
+        
+        action1 = DelayUntil(duration(0.1))
+        action2 = MoveUntil((100, 0), duration(0.1))
+        seq = sequence(action1, action2)
+        
+        seq.apply(sprite, tag="test_sequence")
+        
+        # First action should be active
+        assert seq.current_index == 0
+        assert seq.current_action == action1
+        
+        # After first action completes, second should start
+        Action.update_all(0.11)  # Complete first action
+        Action.update_all(0.016) # Start second action
+        
+        assert seq.current_index == 1
+        assert seq.current_action == action2
+        assert sprite.change_x == 100
+
+class TestParallelFunction:
+    """Test suite for parallel() function."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_parallel_simultaneous_execution(self, test_sprite):
+        """Test that parallel actions execute simultaneously."""
+        sprite = test_sprite
+        
+        move_action = MoveUntil((50, 0), duration(1.0))
+        rotate_action = RotateUntil(180, duration(1.0))
+        par = parallel(move_action, rotate_action)
+        
+        par.apply(sprite, tag="test_parallel")
+        Action.update_all(0.016)
+        
+        # Both actions should be active simultaneously
+        assert sprite.change_x == 50
+        assert sprite.change_angle == 180
+        assert len(par.sub_actions) == 2
+        assert all(action._is_active for action in par.sub_actions)
 ```
 
-## Testing Complex Patterns
+## Testing Boundary Interactions
 
-Test more complex action patterns:
+Test boundary detection and callbacks using the current edge-triggered API:
 
 ```python
-from arcade_actions import sequence, parallel, ease, move_until, rotate_until
+from actions import Action, MoveUntil, infinite
 
-def test_attack_pattern():
-    sprite = create_sprite()
-    
-    # Create complex pattern
-    pattern = sequence(
-        # Move to position
-        move_until(sprite, velocity=(5, 0), condition=duration(1.0)),
-        
-        # Attack sequence
-        parallel(
-            rotate_until(sprite, velocity=360, condition=duration(1.0)),
-            move_until(sprite, velocity=(0, 5), condition=duration(1.0))
-        ),
-        
-        # Retreat
-        move_until(sprite, velocity=(-5, -5), condition=duration(1.0))
-    )
-    
-    # Apply easing
-    ease_action = ease(
-        sprite,
-        pattern,
-        duration=2.0,
-        ease_function=easing.ease_in_out,
-        tag="ease_pattern"
-    )
-    
-    # Test pattern execution
-    ease_action.update()
-    assert sprite.change_x > 0  # Moving right
-    assert sprite.change_y == 0
-    
-    # Test attack phase
-    ease_action._elapsed = 1.0
-    ease_action.update()
-    assert sprite.change_angle > 0  # Rotating
-    assert sprite.change_y > 0  # Moving up
-    
-    # Test retreat phase
-    ease_action._elapsed = 2.0
-    ease_action.update()
-    assert sprite.change_x < 0  # Moving left
-    assert sprite.change_y < 0  # Moving down
+class TestBoundaryCallbacks:
+    """Test boundary enter/exit callbacks."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_boundary_enter_callback(self, test_sprite):
+        """Test boundary enter event for right boundary."""
+        sprite = test_sprite
+        sprite.center_x = 195  # Near right boundary
+        events = []
+
+        def on_boundary_enter(sprite_obj, axis, side):
+            events.append(("enter", axis, side))
+
+        action = MoveUntil(
+            velocity=(10, 0),
+            condition=infinite,
+            bounds=(0, 0, 200, 200),
+            boundary_behavior="limit",
+            on_boundary_enter=on_boundary_enter,
+        )
+        action.apply(sprite, tag="test")
+
+        Action.update_all(0.016)
+        sprite.update()
+
+        assert len(events) == 1
+        assert events[0] == ("enter", "x", "right")
+
+    def test_boundary_enter_exit_cycle(self, test_sprite):
+        """Test complete enter/exit cycle."""
+        sprite = test_sprite
+        sprite.center_x = 195
+        events = []
+        state = {"velocity": 10}
+
+        def on_boundary_enter(sprite_obj, axis, side):
+            events.append(("enter", axis, side))
+            if side == "right":
+                state["velocity"] = -10  # Reverse direction
+
+        def on_boundary_exit(sprite_obj, axis, side):
+            events.append(("exit", axis, side))
+
+        def velocity_provider():
+            return (state["velocity"], 0)
+
+        action = MoveUntil(
+            velocity=(0, 0),
+            condition=infinite,
+            bounds=(0, 0, 200, 200),
+            boundary_behavior="limit",
+            velocity_provider=velocity_provider,
+            on_boundary_enter=on_boundary_enter,
+            on_boundary_exit=on_boundary_exit,
+        )
+        action.apply(sprite, tag="test")
+
+        # Hit boundary and reverse
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Move away from boundary
+        Action.update_all(0.016)
+        sprite.update()
+
+        assert len(events) == 2
+        assert events[0] == ("enter", "x", "right")
+        assert events[1] == ("exit", "x", "right")
+```
+
+## Testing Velocity Providers
+
+Test dynamic velocity provision for complex movement patterns:
+
+```python
+from actions import Action, MoveUntil, infinite
+
+class TestVelocityProvider:
+    """Test velocity_provider functionality."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_velocity_provider_basic(self, test_sprite):
+        """Test basic velocity_provider functionality."""
+        sprite = test_sprite
+        velocity_calls = []
+
+        def velocity_provider():
+            velocity_calls.append(True)
+            return (5, 0)
+
+        action = MoveUntil(
+            velocity=(0, 0),
+            condition=infinite,
+            velocity_provider=velocity_provider,
+        )
+        action.apply(sprite, tag="test")
+
+        Action.update_all(0.016)
+
+        assert len(velocity_calls) == 2  # Called in apply_effect and update_effect
+        assert sprite.change_x == 5
+        assert sprite.change_y == 0
+
+    def test_velocity_provider_prevents_action_loops(self, test_sprite):
+        """Test that velocity_provider prevents per-frame action creation loops."""
+        sprite = test_sprite
+        call_count = 0
+
+        def velocity_provider():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 5:
+                return (10, 0)
+            else:
+                return (0, 0)  # Stop after a few frames
+
+        action = MoveUntil(
+            velocity=(0, 0),
+            condition=infinite,
+            velocity_provider=velocity_provider,
+        )
+        action.apply(sprite, tag="test")
+
+        initial_action_count = len(Action._active_actions)
+
+        # Run multiple frames
+        for _ in range(10):
+            Action.update_all(0.016)
+
+        # Should not create additional actions
+        assert len(Action._active_actions) == initial_action_count
+        assert call_count == 11  # 1 from apply + 10 from updates
 ```
 
 ## Testing Formation Functions
@@ -266,196 +435,189 @@ def test_formation_parameter_validation():
 
 ## Testing Best Practices
 
-1. Use test fixtures for sprite creation:
+1. **Use ActionTestBase and pytest fixtures:**
 ```python
-from .fixtures import create_sprite, create_sprite_list
+from tests.conftest import ActionTestBase
 
-def test_action():
-    sprite = create_sprite()
-    sprite_list = create_sprite_list()
-    # Test with fixtures
+class TestYourAction(ActionTestBase):
+    """Test suite for your action."""
+    
+    def test_your_action(self, test_sprite):
+        sprite = test_sprite  # Use provided fixture
+        # Your test logic here
 ```
 
-2. Test initial state, updates, and cleanup:
+2. **Test action lifecycle with global update system:**
 ```python
-def test_action_lifecycle():
-    sprite = create_sprite()
-    action = move_until(sprite, velocity=(5, 0), condition=duration(1.0))
+def test_action_lifecycle(self, test_sprite):
+    sprite = test_sprite
+    action = move_until(sprite, velocity=(5, 0), condition=duration(1.0), tag="test")
     
     # Test initial state
-    assert not action.is_running
-    
-    # Test after apply
-    action.apply(sprite)
-    assert action.is_running
-    
-    # Test after update
-    action.update()
-    assert sprite.change_x == 5
-    
-    # Test after stop
-    action.stop()
-    assert not action.is_running
+    assert not action.done
     assert sprite.change_x == 0
+    
+    # Test after global update
+    Action.update_all(0.016)
+    assert sprite.change_x == 5
+    assert action._is_active
+    
+    # Test completion
+    action.stop()
+    assert action.done
+    assert sprite.change_x == 0  # Cleaned up
 ```
 
-3. Test edge cases and error conditions:
+3. **Test edge cases and error handling:**
 ```python
-def test_invalid_parameters():
-    sprite = create_sprite()
+def test_invalid_parameters(self, test_sprite):
+    sprite = test_sprite
     
-    # Test invalid velocity
+    # Test invalid velocity tuple
     with pytest.raises(ValueError):
-        move_until(sprite, velocity=(float('inf'), 0), condition=duration(1.0))
+        MoveUntil(velocity=(1,), condition=infinite)  # Wrong length
     
     # Test invalid duration
     with pytest.raises(ValueError):
-        ease(sprite, move_action, duration=-1.0)
+        Ease(MoveUntil((5, 0), infinite), duration=-1.0)
 ```
 
-4. Test action completion:
+4. **Test callbacks and conditions:**
 ```python
-def test_action_completion():
-    sprite = create_sprite()
-    completion_called = False
+def test_action_completion_callback(self, test_sprite):
+    sprite = test_sprite
+    callback_called = False
+    callback_data = None
     
-    def on_complete():
-        nonlocal completion_called
-        completion_called = True
+    def on_stop(data=None):
+        nonlocal callback_called, callback_data
+        callback_called = True
+        callback_data = data
     
-    action = move_until(
-        sprite,
-        velocity=(5, 0),
-        condition=duration(1.0),
-        on_complete=on_complete
-    )
+    def condition():
+        return {"result": "success"}
     
-    # Run until complete
-    action._elapsed = 1.0
-    action.update()
+    action = MoveUntil((5, 0), condition, on_stop=on_stop)
+    action.apply(sprite, tag="test")
     
-    assert completion_called
-    assert not action.is_running
+    Action.update_all(0.016)
+    
+    assert callback_called
+    assert callback_data == {"result": "success"}
 ```
 
-5. Test action scaling:
+5. **Test action factor scaling:**
 ```python
-def test_action_scaling():
-    sprite = create_sprite()
-    action = move_until(sprite, velocity=(5, 0), condition=duration(1.0))
+def test_action_factor_scaling(self, test_sprite):
+    sprite = test_sprite
+    action = MoveUntil((100, 0), infinite)
+    action.apply(sprite, tag="test")
     
     # Test normal speed
-    action.update()
-    normal_velocity = sprite.change_x
+    Action.update_all(0.016)
+    assert sprite.change_x == 100
     
     # Test scaled speed
-    action.scale(2.0)
-    action.update()
-    assert sprite.change_x == normal_velocity * 2
+    action.set_factor(0.5)
+    assert sprite.change_x == 50
+    
+    action.set_factor(2.0)
+    assert sprite.change_x == 200
 ```
 
 ## Common Testing Patterns
 
-1. Testing velocity changes:
+1. **Testing velocity changes with current velocity system:**
 ```python
-def test_velocity_changes():
-    sprite = create_sprite()
-    action = move_until(sprite, velocity=(5, 0), condition=duration(1.0))
+def test_velocity_changes(self, test_sprite):
+    sprite = test_sprite
     
     # Test positive velocity
-    action.update()
+    action = MoveUntil((5, 0), infinite)
+    action.apply(sprite, tag="test")
+    Action.update_all(0.016)
     assert sprite.change_x == 5
     
-    # Test negative velocity
-    action.stop()
-    action = move_until(sprite, velocity=(-5, 0), condition=duration(1.0))
-    action.update()
-    assert sprite.change_x == -5
+    # Test velocity update
+    action.set_current_velocity((-10, 0))
+    assert sprite.change_x == -10
 ```
 
-2. Testing conditions:
+2. **Testing custom conditions:**
 ```python
-def test_custom_condition():
-    sprite = create_sprite()
-    target_x = 100
+def test_custom_condition(self, test_sprite):
+    sprite = test_sprite
+    target_x = 200
     
     def reach_target():
         return sprite.center_x >= target_x
     
-    action = move_until(sprite, velocity=(5, 0), condition=reach_target)
+    action = MoveUntil((5, 0), reach_target)
+    action.apply(sprite, tag="test")
     
     # Run until condition met
-    while not action.done:
-        action.update()
-        sprite.center_x += sprite.change_x
+    for _ in range(50):  # Prevent infinite loop
+        Action.update_all(0.016)
+        sprite.update()  # Apply velocity to position
+        if action.done:
+            break
     
     assert sprite.center_x >= target_x
+    assert action.done
 ```
 
-3. Testing callbacks:
+3. **Testing global action management:**
 ```python
-def test_callbacks():
-    sprite = create_sprite()
-    events = []
+def test_action_tags(self, test_sprite):
+    sprite = test_sprite
     
-    def on_start():
-        events.append("start")
+    # Apply multiple actions with tags
+    move_action = MoveUntil((5, 0), infinite)
+    rotate_action = RotateUntil(180, infinite)
     
-    def on_update():
-        events.append("update")
+    move_action.apply(sprite, tag="movement")
+    rotate_action.apply(sprite, tag="rotation")
     
-    def on_complete():
-        events.append("complete")
+    Action.update_all(0.016)
+    assert sprite.change_x == 5
+    assert sprite.change_angle == 180
     
-    action = move_until(
-        sprite,
-        velocity=(5, 0),
-        condition=duration(1.0),
-        on_start=on_start,
-        on_update=on_update,
-        on_complete=on_complete
-    )
-    
-    # Test callback sequence
-    action.apply(sprite)
-    assert events == ["start"]
-    
-    action.update()
-    assert "update" in events
-    
-    action._elapsed = 1.0
-    action.update()
-    assert events[-1] == "complete"
+    # Stop specific action by tag
+    Action.stop_actions_for_target(sprite, tag="movement")
+    Action.update_all(0.016)
+    assert sprite.change_x == 0  # Movement stopped
+    assert sprite.change_angle == 180  # Rotation continues
 ```
 
-4. Testing sprite lists:
+4. **Testing sprite lists:**
 ```python
-def test_sprite_list():
-    sprite_list = create_sprite_list()
-    action = move_until(
-        sprite_list,
-        velocity=(5, 0),
-        condition=duration(1.0)
-    )
+def test_sprite_list_actions(self, test_sprite_list):
+    sprite_list = test_sprite_list
+    action = MoveUntil((5, 0), infinite)
+    action.apply(sprite_list, tag="group_move")
+    
+    Action.update_all(0.016)
     
     # Test all sprites move together
-    action.update()
     for sprite in sprite_list:
         assert sprite.change_x == 5
         assert sprite.change_y == 0
 ```
 
-5. Testing action tags:
+5. **Testing action cleanup:**
 ```python
-def test_action_tags():
-    sprite = create_sprite()
+def test_action_cleanup(self, test_sprite):
+    sprite = test_sprite
+    action = MoveUntil((5, 0), duration(0.1))
+    action.apply(sprite, tag="test")
     
-    # Apply multiple actions
-    move_until(sprite, velocity=(5, 0), condition=duration(1.0), tag="movement")
-    rotate_until(sprite, velocity=180, condition=duration(1.0), tag="rotation")
+    initial_count = len(Action._active_actions)
     
-    # Stop specific action
-    Action.stop_actions_for_target(sprite, tag="movement")
-    assert sprite.change_x == 0
-    assert sprite.change_angle == 180
+    # Run until completion
+    Action.update_all(0.11)  # Exceed duration
+    
+    # Action should be automatically removed
+    assert len(Action._active_actions) < initial_count
+    assert action.done
+    assert sprite.change_x == 0  # Velocity cleared
 ``` 

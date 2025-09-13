@@ -618,9 +618,12 @@ For arcade-style movement with boundary detection:
 ```python
 from actions import duration, infinite, move_until
 
-# Individual sprite bouncing
-def on_bounce(sprite, axis):
-    print(f"Sprite bounced on {axis} axis")
+# Individual sprite bouncing with enter/exit events
+def on_bounce_enter(sprite, axis, side):
+    print(f"Sprite hit {side} {axis} boundary")
+
+def on_bounce_exit(sprite, axis, side):
+    print(f"Sprite left {side} {axis} boundary")
 
 bounds = (0, 0, 800, 600)  # left, bottom, right, top
 move_until(
@@ -629,13 +632,14 @@ move_until(
     condition=infinite,  
     bounds=bounds,
     boundary_behavior="bounce",
-    on_boundary=on_bounce,
+    on_boundary_enter=on_bounce_enter,
+    on_boundary_exit=on_bounce_exit,
 )
 
-# Group bouncing (like Space Invaders)
-def formation_bounce(sprite, axis):
+# Group bouncing (like Space Invaders) with edge-triggered callbacks
+def formation_bounce_enter(sprite, axis, side):
     if axis == 'x':
-        # Move entire formation down
+        # Move entire formation down when hitting side boundaries
         move_until(enemies, (0, -30), duration(0.2))
 
 move_until(
@@ -644,8 +648,54 @@ move_until(
     condition=infinite,  
     bounds=bounds,
     boundary_behavior="bounce",
-    on_boundary=formation_bounce,
+    on_boundary_enter=formation_bounce_enter,
     tag="formation_bounce"
+)
+```
+
+### Boundary Callback API
+The boundary system uses edge-triggered callbacks that fire when sprites enter or exit boundary regions:
+
+#### Callback Signatures
+- `on_boundary_enter(sprite, axis, side)` - Called when sprite first touches a boundary
+- `on_boundary_exit(sprite, axis, side)` - Called when sprite moves away from a boundary
+
+#### Parameters
+- `sprite` - The sprite that triggered the boundary event
+- `axis` - Either `"x"` (horizontal) or `"y"` (vertical) 
+- `side` - Boundary side: `"left"`, `"right"`, `"top"`, or `"bottom"`
+
+#### Edge-Triggered Behavior
+Unlike the old `on_boundary` callback, these new callbacks are edge-triggered:
+- `on_boundary_enter` fires only **once** when a sprite first contacts a boundary
+- `on_boundary_exit` fires only **once** when a sprite moves away from a boundary
+- This prevents callback spam and enables clean state management
+
+#### Example: Speed Boost System
+```python
+class PlayerShip:
+    def __init__(self):
+        self.speed_factor = 1
+        
+    def on_right_boundary_enter(self, sprite, axis, side):
+        if axis == "x" and side == "right":
+            self.speed_factor = 2  # Double speed when pushing right
+            self.update_tunnel_velocity()
+            
+    def on_right_boundary_exit(self, sprite, axis, side):
+        if axis == "x" and side == "right":
+            self.speed_factor = 1  # Normal speed when away from right edge
+            self.update_tunnel_velocity()
+
+# Apply boundary callbacks
+move_until(
+    player_ship,
+    velocity_provider=player_ship.get_velocity,
+    condition=infinite,
+    bounds=(LEFT_BOUND, 0, RIGHT_BOUND, HEIGHT),
+    boundary_behavior="limit",
+    on_boundary_enter=player_ship.on_right_boundary_enter,
+    on_boundary_exit=player_ship.on_right_boundary_exit,
 )
 ```
 
@@ -775,6 +825,25 @@ movement_actions = Action.get_actions_for_target(sprite, "movement")
 Action.stop_all()
 ```
 
+### Library-wide Debug Logging
+Enable extra diagnostics that print when new actions are created and when the total active count changes.
+
+- Environment variable (no code changes):
+
+```bash
+ARCADEACTIONS_DEBUG=1 uv run python your_app.py
+```
+
+- Programmatic (e.g., app startup or tests):
+
+```python
+from actions import set_debug_actions
+
+set_debug_actions(True)
+```
+
+Examples may also expose a `--debug-actions` flag that calls `set_debug_actions(True)` for convenience.
+
 ## Complete Game Example
 
 ```python
@@ -808,9 +877,9 @@ class SpaceInvadersGame(arcade.Window):
         )
         initial_sequence.apply(self.enemies, tag="initial_movement")
         
-        # Set up boundary bouncing using helper function
-        def on_formation_bounce(sprite, axis):
-            # Move formation down and reverse direction
+        # Set up boundary bouncing using new edge-triggered callbacks
+        def on_formation_bounce_enter(sprite, axis, side):
+            # Move formation down and reverse direction when hitting side boundaries
             if axis == 'x':
                 move_until(self.enemies, velocity=(0, -30), condition=duration(0.3), tag="drop")
         
@@ -821,7 +890,7 @@ class SpaceInvadersGame(arcade.Window):
             condition=infinite,
             bounds=bounds,
             boundary_behavior="bounce",
-            on_boundary=on_formation_bounce,
+            on_boundary_enter=on_formation_bounce_enter,
         )
     
     def on_update(self, delta_time):

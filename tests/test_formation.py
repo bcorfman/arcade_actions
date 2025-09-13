@@ -969,3 +969,129 @@ def test_create_formation_entry_from_sprites_phase_completion():
     # The important thing is that the sprite reached its target
     if len(Action._active_actions) > 0:
         print(f"Warning: {len(Action._active_actions)} actions still active, but sprite reached target")
+
+
+class TestFormationErrorCases:
+    """Test error cases and edge conditions in formation functions."""
+
+    def test_arrange_line_no_sprites_no_count(self):
+        """Test arrange_line with no sprites and no count raises error."""
+        with pytest.raises(ValueError, match="When \\*sprites\\* is None you must supply a positive \\*count\\*"):
+            arrange_line()
+
+    def test_arrange_line_negative_count(self):
+        """Test arrange_line with negative count raises error."""
+        with pytest.raises(ValueError, match="When \\*sprites\\* is None you must supply a positive \\*count\\*"):
+            arrange_line(count=-1)
+
+    def test_arrange_line_zero_count(self):
+        """Test arrange_line with zero count raises error."""
+        with pytest.raises(ValueError, match="When \\*sprites\\* is None you must supply a positive \\*count\\*"):
+            arrange_line(count=0)
+
+    def test_arrange_circle_no_sprites_no_count(self):
+        """Test arrange_circle with no sprites and no count raises error."""
+        with pytest.raises(ValueError, match="When \\*sprites\\* is None you must supply a positive \\*count\\*"):
+            arrange_circle()
+
+    def test_arrange_circle_negative_count(self):
+        """Test arrange_circle with negative count raises error."""
+        with pytest.raises(ValueError, match="When \\*sprites\\* is None you must supply a positive \\*count\\*"):
+            arrange_circle(count=-1)
+
+    def test_arrange_circle_zero_count(self):
+        """Test arrange_circle with zero count raises error."""
+        with pytest.raises(ValueError, match="When \\*sprites\\* is None you must supply a positive \\*count\\*"):
+            arrange_circle(count=0)
+
+    def test_arrange_line_with_list_conversion(self):
+        """Test arrange_line converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(3)]
+        result = arrange_line(sprites, start_x=0, start_y=0, spacing=50)
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 3
+        # Check positions
+        for i, sprite in enumerate(result):
+            assert sprite.center_x == i * 50
+            assert sprite.center_y == 0
+
+    def test_arrange_circle_with_list_conversion(self):
+        """Test arrange_circle converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(4)]
+        result = arrange_circle(sprites, center_x=100, center_y=100, radius=50)
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 4
+
+    def test_arrange_grid_with_list_conversion(self):
+        """Test arrange_grid converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(6)]
+        result = arrange_grid(sprites, cols=3, rows=2, start_x=0, start_y=0, spacing_x=50, spacing_y=50)
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 6
+
+    def test_arrange_v_formation_with_list_conversion(self):
+        """Test arrange_v_formation converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(5)]
+        result = arrange_v_formation(sprites, apex_x=100, apex_y=100, spacing=30)
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 5
+
+    def test_arrange_diamond_with_list_conversion(self):
+        """Test arrange_diamond converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(8)]
+        result = arrange_diamond(sprites, center_x=200, center_y=200, spacing=50)
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 8
+
+    def test_arrange_triangle_with_list_conversion(self):
+        """Test arrange_triangle converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(6)]
+        result = arrange_triangle(sprites, apex_x=150, apex_y=150, row_spacing=40, lateral_spacing=50)
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 6
+
+    def test_arrange_arrow_with_list_conversion(self):
+        """Test arrange_arrow converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(7)]
+        result = arrange_arrow(sprites, tip_x=100, tip_y=100, spacing_along=25, spacing_outward=30)
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 7
+
+    def test_arrange_cross_with_list_conversion(self):
+        """Test arrange_cross converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(5)]
+        result = arrange_cross(sprites, center_x=200, center_y=200, arm_length=80, spacing=40)
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 5
+
+    def test_arrange_arc_with_list_conversion(self):
+        """Test arrange_arc converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(4)]
+        result = arrange_arc(sprites, center_x=100, center_y=100, radius=50, start_angle=0, end_angle=180)
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 4
+
+    def test_arrange_concentric_rings_with_list_conversion(self):
+        """Test arrange_concentric_rings converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(12)]
+        result = arrange_concentric_rings(sprites, center_x=150, center_y=150, radii=[40, 80], sprites_per_ring=[4, 8])
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 12
+
+    def test_arrange_hexagonal_grid_with_list_conversion(self):
+        """Test arrange_hexagonal_grid converts list to SpriteList."""
+        sprites = [create_test_sprite() for _ in range(7)]
+        result = arrange_hexagonal_grid(sprites, start_x=100, start_y=100, rows=3, cols=3)
+
+        assert isinstance(result, arcade.SpriteList)
+        assert len(result) == 7

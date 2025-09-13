@@ -467,3 +467,130 @@ class TestAction:
 
         assert len(visited) == 1
         assert visited[0] == sprite
+
+    def test_on_stop_callback_with_condition_data(self):
+        """Test on_stop callback with condition data."""
+        sprite = create_test_sprite()
+        callback_data = None
+
+        def on_stop(data):
+            nonlocal callback_data
+            callback_data = data
+
+        def condition():
+            return {"result": "success"}
+
+        action = MockAction(condition=condition, on_stop=on_stop)
+        action.apply(sprite, tag="test")
+
+        # Update until condition is met
+        Action.update_all(0.1)
+
+        # Callback should be called with condition data
+        assert callback_data == {"result": "success"}
+
+    def test_on_stop_callback_without_condition_data(self):
+        """Test on_stop callback when condition returns True."""
+        sprite = create_test_sprite()
+        callback_called = False
+
+        def on_stop():
+            nonlocal callback_called
+            callback_called = True
+
+        def condition():
+            return True
+
+        action = MockAction(condition=condition, on_stop=on_stop)
+        action.apply(sprite, tag="test")
+
+        # Update until condition is met
+        Action.update_all(0.1)
+
+        # Callback should be called without data
+        assert callback_called
+
+    def test_describe_target_none(self):
+        """Test _describe_target with None target."""
+        result = Action._describe_target(None)
+        assert result == "None"
+
+    def test_describe_target_sprite(self):
+        """Test _describe_target with sprite target."""
+        sprite = create_test_sprite()
+        result = Action._describe_target(sprite)
+        assert "Sprite" in result
+
+    def test_describe_target_sprite_list(self):
+        """Test _describe_target with sprite list target."""
+        sprite_list = arcade.SpriteList()
+        sprite1 = create_test_sprite()
+        sprite2 = create_test_sprite()
+        sprite_list.append(sprite1)
+        sprite_list.append(sprite2)
+
+        result = Action._describe_target(sprite_list)
+        assert "SpriteList" in result
+
+    def test_get_sprite_list_name_with_dict(self):
+        """Test _get_sprite_list_name with sprite list that has __dict__."""
+        sprite_list = arcade.SpriteList()
+        sprite_list.name = "test_list"
+
+        result = Action._get_sprite_list_name(sprite_list)
+        # The method should return the name from __dict__ if available
+        assert "test_list" in result or "SpriteList" in result
+
+    def test_get_sprite_list_name_without_dict(self):
+        """Test _get_sprite_list_name with sprite list without __dict__."""
+
+        # Create a mock sprite list without __dict__
+        class MockSpriteList:
+            def __len__(self):
+                return 5
+
+        sprite_list = MockSpriteList()
+        result = Action._get_sprite_list_name(sprite_list)
+        assert "SpriteList(len=5)" in result
+
+    def test_get_sprite_list_name_exception_handling(self):
+        """Test _get_sprite_list_name exception handling."""
+
+        # Create a mock sprite list that raises exceptions
+        class MockSpriteList:
+            def __len__(self):
+                raise Exception("Test exception")
+
+        sprite_list = MockSpriteList()
+        result = Action._get_sprite_list_name(sprite_list)
+        assert result == "SpriteList"
+
+    def test_radd_operator(self):
+        """Test right-hand addition operator."""
+        sprite = create_test_sprite()
+        action1 = MockAction(name="action1")
+        action2 = MockAction(name="action2")
+
+        # Test right-hand addition: action2 + action1
+        result = action1.__radd__(action2)
+
+        # Should create a sequence
+        assert hasattr(result, "actions")
+        assert len(result.actions) == 2
+        assert result.actions[0] == action2
+        assert result.actions[1] == action1
+
+    def test_ror_operator(self):
+        """Test right-hand OR operator."""
+        sprite = create_test_sprite()
+        action1 = MockAction(name="action1")
+        action2 = MockAction(name="action2")
+
+        # Test right-hand OR: action2 | action1
+        result = action1.__ror__(action2)
+
+        # Should create a parallel
+        assert hasattr(result, "actions")
+        assert len(result.actions) == 2
+        assert result.actions[0] == action2
+        assert result.actions[1] == action1

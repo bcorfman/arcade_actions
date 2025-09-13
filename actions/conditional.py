@@ -15,9 +15,11 @@ class MoveUntil(_Action):
         velocity: (dx, dy) velocity vector to apply to sprites
         condition: Function that returns truthy value when movement should stop, or None/False to continue
         on_stop: Optional callback called when condition is satisfied. Receives condition data if provided.
-        bounds: Optional (left, bottom, right, top) boundary box for bouncing/wrapping
-        boundary_behavior: "bounce", "wrap", or None (default: None for no boundary checking)
-        on_boundary: Optional callback(sprite, axis) called when sprite hits boundary
+        bounds: Optional (left, bottom, right, top) boundary box for bouncing/wrapping/limiting
+        boundary_behavior: "bounce", "wrap", "limit", or None (default: None for no boundary checking)
+        velocity_provider: Optional function returning (dx, dy) to dynamically provide velocity each frame
+        on_boundary_enter: Optional callback(sprite, axis, side) called when sprite enters a boundary
+        on_boundary_exit: Optional callback(sprite, axis, side) called when sprite exits a boundary
     """
 
     def __init__(
