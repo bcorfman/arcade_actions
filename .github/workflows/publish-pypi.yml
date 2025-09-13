@@ -12,6 +12,7 @@ jobs:
     environment: pypi
     permissions:
       id-token: write  # Required for PyPI Trusted Publishing
+      contents: write  # Required for updating GitHub releases
 
     steps:
       - name: Checkout code
@@ -34,3 +35,38 @@ jobs:
 
       - name: Publish to PyPI
         run: uv publish
+
+      - name: Update GitHub Release with PyPI Links
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: release } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: context.payload.release.id
+            });
+            
+            const packageName = 'arcade-actions';
+            const pypiUrl = `https://pypi.org/project/${packageName}/`;
+            const pypiVersionUrl = `https://pypi.org/project/${packageName}/${release.tag_name}/`;
+            
+            const newBody = release.body + `
+            
+            ## 📦 Installation
+            
+            Install from PyPI:
+            \`\`\`bash
+            pip install ${packageName}
+            \`\`\`
+            
+            ## 🔗 Links
+            - [PyPI Package](${pypiUrl})
+            - [This Version on PyPI](${pypiVersionUrl})
+            `;
+            
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: context.payload.release.id,
+              body: newBody
+            });
