@@ -49,28 +49,37 @@ class TestCenterWindow:
     """Test suite for center_window function - simplified tests focusing on testable behavior."""
 
     def test_center_window_with_mock_window(self):
-        """Test center_window with a mock window."""
+        """Test center_window with a mock window in a controlled environment."""
+        from unittest.mock import patch
+
         window = MockWindow(800, 600)
 
-        # Test that the function can be called without errors
-        # The actual centering behavior depends on system capabilities
-        result = center_window(window)
+        # Mock both SDL2 and screeninfo to avoid environment dependencies
+        with patch("actions.display._load_sdl2", return_value=None):
+            with patch("actions.display._center_with_screeninfo", return_value=True):
+                result = center_window(window)
+                assert result is True
 
-        # Result should be boolean regardless of success
-        assert isinstance(result, bool)
+        # Test the fallback case where both methods fail
+        with patch("actions.display._load_sdl2", return_value=None):
+            with patch("actions.display._center_with_screeninfo", return_value=False):
+                result = center_window(window)
+                assert result is False
 
     def test_center_window_with_real_arcade_window(self):
-        """Test center_window with a real arcade.Window (if available)."""
+        """Test center_window with a real arcade.Window in a controlled environment."""
+        from unittest.mock import patch
+
         try:
             import arcade
 
             window = arcade.Window(800, 600, visible=False)
 
-            # This test might fail in headless environments, which is expected
-            result = center_window(window)
-
-            # Result should be boolean regardless of success
-            assert isinstance(result, bool)
+            # Mock both SDL2 and screeninfo to avoid environment dependencies
+            with patch("actions.display._load_sdl2", return_value=None):
+                with patch("actions.display._center_with_screeninfo", return_value=True):
+                    result = center_window(window)
+                    assert result is True
 
         except Exception:
             # Skip test if arcade is not available or window creation fails
