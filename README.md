@@ -1,6 +1,17 @@
-<img src="https://github.com/bcorfman/gif_resources/blob/main/space_clutter.gif?raw=true"/>
-
-*Space Clutter!, a game prototype demonstrating grid formations, wave patterns, and MoveUntil actions.*
+<table style="border: none; border-collapse: collapse;">
+<tr>
+<td align="center" style="border: none; padding: 10px; vertical-align: bottom;">
+<img src="https://github.com/bcorfman/gif_resources/blob/main/space_clutter.gif?raw=true" style="width: 400px"/>
+<br/>
+<em style="display: block; width: 400px; text-align: center;">Space Clutter! - A game prototype demonstrating grid formations, wave patterns, and MoveUntil actions</em>
+</td>
+<td align="center" style="border: none; padding: 10px; vertical-align: bottom;">
+<img src="https://github.com/bcorfman/gif_resources/blob/main/pattern_demo.gif?raw=true" style="width: 400px"/>
+<br/>
+<em style="display: block; width: 400px; text-align: center;">Pattern Demo - Showcasing various movement patterns and formation arrangements</em>
+</td>
+</tr>
+</table>
 
 ---
 
