@@ -1,0 +1,23 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.7, pytest-8.3.3, pluggy-1.5.0
+rootdir: /home/bcorfman/dev/arcade_actions
+configfile: pyproject.toml
+plugins: cov-6.0.0
+collected 5 items
+
+tests/test_display.py .....                                              [100%]
+
+---------- coverage: platform linux, python 3.13.7-final-0 -----------
+Name                 Stmts   Miss  Cover   Missing
+--------------------------------------------------
+actions/display.py      58     11    81%   40, 58, 63, 65, 72-74, 80, 92, 97, 100
+--------------------------------------------------
+TOTAL                   58     11    81%
+
+
+============================== 5 passed in 0.46s ===============================
+Exception ignored in atexit callback <function _delete_audio_driver at 0x791d60cac220>:
+Traceback (most recent call last):
+  File "/home/bcorfman/dev/arcade_actions/.venv/lib/python3.13/site-packages/pyglet/media/drivers/__init__.py", line 80, in _delete_audio_driver
+    for p in Source._players:
+AttributeError: type object 'Source' has no attribute '_players'

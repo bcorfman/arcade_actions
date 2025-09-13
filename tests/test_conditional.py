@@ -1328,19 +1328,210 @@ class TestMoveUntilExceptionHandling(ActionTestBase):
         # After bouncing, sprite should be moving in opposite direction or stopped
         assert sprite.change_x <= 0  # Velocity should be zero or negative after bounce
 
+
+class TestConditionalErrorCases:
+    """Test error cases and edge conditions in conditional actions."""
+
+    def test_move_until_invalid_velocity_not_tuple(self, test_sprite):
+        """Test MoveUntil with invalid velocity type raises error."""
+        with pytest.raises(ValueError, match="velocity must be a tuple or list of length 2"):
+            move_until(test_sprite, velocity="invalid", condition=infinite)
+
+    def test_move_until_invalid_velocity_wrong_length(self, test_sprite):
+        """Test MoveUntil with wrong velocity length raises error."""
+        with pytest.raises(ValueError, match="velocity must be a tuple or list of length 2"):
+            move_until(test_sprite, velocity=(1,), condition=infinite)
+
+    def test_move_until_invalid_velocity_too_long(self, test_sprite):
+        """Test MoveUntil with too long velocity raises error."""
+        with pytest.raises(ValueError, match="velocity must be a tuple or list of length 2"):
+            move_until(test_sprite, velocity=(1, 2, 3), condition=infinite)
+
+    def test_duration_with_invalid_seconds(self):
+        """Test duration with invalid seconds parameter."""
+        # Test with None - this should raise TypeError when called
+        cond = duration(None)
+        with pytest.raises(TypeError):
+            cond()
+
+    def test_duration_with_callable_seconds(self):
+        """Test duration with callable seconds parameter."""
+
+        def get_seconds():
+            return 0.1
+
+        cond = duration(get_seconds)
+        # Should work with callable
+        assert callable(cond)
+
+    def test_conditional_action_exception_handling(self, test_sprite):
+        """Test conditional action with exception during duration parsing."""
+
+        # Create a mock object that raises exceptions when accessed
+        class BadDuration:
+            def __getitem__(self, key):
+                raise TypeError("Bad duration")
+
+            def __len__(self):
+                raise IndexError("Bad length")
+
+        # This should not crash, just fall back to default duration
+        action = move_until(test_sprite, velocity=(10, 0), condition=duration(BadDuration()))
+        assert action is not None
+
     def test_duration_condition_closure_detection(self, test_sprite):
         """Test duration condition closure detection coverage."""
         sprite = test_sprite
+
+        # Test with a closure that contains seconds variable
+        seconds = 0.1
+
+        def make_condition():
+            return duration(seconds)
+
+        cond = make_condition()
+        action = move_until(sprite, velocity=(10, 0), condition=cond)
+        assert action is not None
 
         # Create a duration condition with closure
         condition = duration(2.0)
 
         action = move_until(sprite, velocity=(10, 0), condition=condition, tag="test_duration_closure")
 
+        # Update to test the closure detection
+        for _ in range(5):
+            Action.update_all(0.016)
+
+        assert sprite.change_x == 10
+
         # The action should detect the duration from the closure
         # This exercises the closure inspection code
         Action.update_all(0.016)
         assert sprite.change_x == 10
+
+    def test_move_until_boundary_limit_with_events(self, test_sprite):
+        """Test MoveUntil boundary limit behavior with enter/exit events."""
+        sprite = test_sprite
+        sprite.center_x = 180
+        sprite.center_y = 150
+
+        # Track boundary events
+        boundary_enters = []
+        boundary_exits = []
+
+        def on_enter(sprite, axis, side):
+            boundary_enters.append((sprite, axis, side))
+
+        def on_exit(sprite, axis, side):
+            boundary_exits.append((sprite, axis, side))
+
+        action = move_until(
+            sprite,
+            velocity=(50, 0),
+            condition=infinite,
+            boundary_behavior="limit",
+            bounds=(0, 0, 200, 300),
+            on_boundary_enter=on_enter,
+            on_boundary_exit=on_exit,
+            tag="test_boundary_events",
+        )
+
+        # Move sprite to trigger boundary
+        for _ in range(5):
+            Action.update_all(0.016)
+            sprite.update()
+
+        # Should have triggered boundary enter event
+        assert len(boundary_enters) > 0
+        assert boundary_enters[0][2] == "right"
+
+        # Change direction to move away from boundary
+        sprite.change_x = -50
+
+        # Move away from boundary
+        for _ in range(3):
+            Action.update_all(0.016)
+            sprite.update()
+
+        # Should trigger boundary exit event
+        assert len(boundary_exits) > 0
+        assert boundary_exits[0][2] == "right"
+
+    def test_move_until_boundary_vertical_limits(self, test_sprite):
+        """Test MoveUntil boundary limit behavior for vertical movement."""
+        sprite = test_sprite
+        sprite.center_x = 100
+        sprite.center_y = 280
+
+        action = move_until(
+            sprite,
+            velocity=(0, 50),
+            condition=infinite,
+            boundary_behavior="limit",
+            bounds=(0, 0, 200, 300),
+            tag="test_vertical_boundary",
+        )
+
+        # Move sprite to trigger top boundary
+        for _ in range(5):
+            Action.update_all(0.016)
+            sprite.update()
+
+        # Should be limited to boundary
+        assert sprite.center_y <= 300
+        assert sprite.change_y == 0  # Velocity should be stopped
+
+    def test_move_until_boundary_initialization(self, test_sprite):
+        """Test boundary state initialization for new sprites."""
+        sprite = test_sprite
+        sprite.center_x = 50
+        sprite.center_y = 50
+
+        action = move_until(
+            sprite,
+            velocity=(10, 10),
+            condition=infinite,
+            boundary_behavior="limit",
+            bounds=(0, 0, 200, 200),
+            tag="test_boundary_init",
+        )
+
+        # Update once to initialize boundary state
+        Action.update_all(0.016)
+
+        # Boundary state should be initialized
+        assert hasattr(action, "_boundary_state")
+        sprite_id = id(sprite)
+        assert sprite_id in action._boundary_state
+        assert "x" in action._boundary_state[sprite_id]
+        assert "y" in action._boundary_state[sprite_id]
+
+    def test_move_until_exception_in_boundary_callback(self, test_sprite):
+        """Test handling of exceptions in boundary callbacks."""
+        sprite = test_sprite
+        sprite.center_x = 180
+        sprite.center_y = 150
+
+        def bad_callback(sprite, side):
+            raise RuntimeError("Test exception")
+
+        action = move_until(
+            sprite,
+            velocity=(50, 0),
+            condition=infinite,
+            boundary_behavior="limit",
+            bounds=(0, 0, 200, 300),
+            on_boundary_enter=bad_callback,
+            tag="test_exception_handling",
+        )
+
+        # Should not crash even with exception in callback
+        for _ in range(5):
+            Action.update_all(0.016)
+            sprite.update()
+
+        # Sprite should still be properly limited
+        assert sprite.center_x <= 200
 
     def test_move_until_with_sprite_list_boundary_mixed_states(self, test_sprite_list):
         """Test boundary behavior with sprite list where sprites are in different boundary states."""
@@ -1371,3 +1562,160 @@ class TestMoveUntilExceptionHandling(ActionTestBase):
         # Second sprite should continue moving
         assert sprite_list[1].change_x == 30
         assert sprite_list[1].center_x >= 50  # Should have moved right
+
+
+class TestConditionalAdditionalCoverage:
+    """Additional tests to improve conditional.py coverage."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_duration_boundary_state_initialization(self):
+        """Test boundary state initialization for different sprites."""
+        from tests.test_base import create_test_sprite
+
+        sprite1 = create_test_sprite()
+        sprite1.center_x = 50
+        sprite1.center_y = 50
+
+        sprite2 = create_test_sprite()
+        sprite2.center_x = 75
+        sprite2.center_y = 75
+
+        # Create MoveUntil actions for both sprites with boundary behavior
+        move_until(
+            sprite1,
+            velocity=(10, 0),
+            condition=infinite,
+            boundary_behavior="limit",
+            bounds=(0, 0, 100, 100),
+        )
+
+        move_until(
+            sprite2,
+            velocity=(-10, 0),
+            condition=infinite,
+            boundary_behavior="limit",
+            bounds=(0, 0, 100, 100),
+        )
+
+        # Both actions should be created successfully
+        assert len(Action._active_actions) >= 2
+
+    def test_move_until_boundary_enter_exception_handling(self):
+        """Test that boundary enter callback exceptions are caught gracefully."""
+        from tests.test_base import create_test_sprite
+
+        sprite = create_test_sprite()
+        sprite.center_x = 90  # Start close to right boundary
+        sprite.center_y = 50
+
+        def failing_boundary_callback(sprite, axis, side):
+            """A callback that raises an exception."""
+            raise ValueError("Test boundary exception")
+
+        # Create MoveUntil with boundary limits and a failing callback
+        move_until(
+            sprite,
+            velocity=(30, 0),  # Moving right
+            condition=infinite,
+            boundary_behavior="limit",
+            bounds=(0, 0, 100, 100),
+            on_boundary_enter=failing_boundary_callback,
+        )
+
+        # Update multiple times to ensure boundary collision
+        for _ in range(5):
+            Action.update_all(0.016)
+            sprite.update()
+
+        # Sprite should be stopped at boundary despite callback exception
+        assert sprite.change_x == 0
+        assert sprite.center_x == 100  # Should be at right boundary
+
+    def test_move_until_boundary_exit_exception_handling(self):
+        """Test that boundary exit callback exceptions are caught gracefully."""
+        from tests.test_base import create_test_sprite
+
+        sprite = create_test_sprite()
+        sprite.center_x = 100  # Start at right boundary
+        sprite.center_y = 50
+
+        def failing_boundary_exit_callback(sprite, axis, side):
+            """A callback that raises an exception."""
+            raise ValueError("Test boundary exit exception")
+
+        # Create MoveUntil with boundary limits and a failing exit callback
+        move_until(
+            sprite,
+            velocity=(-50, 0),  # Moving left (away from right boundary)
+            condition=infinite,
+            boundary_behavior="limit",
+            bounds=(0, 0, 100, 100),
+            on_boundary_exit=failing_boundary_exit_callback,
+        )
+
+        # Update to trigger boundary exit - this should not crash
+        # even though the callback raises an exception
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Sprite should continue moving despite callback exception
+        assert sprite.change_x == -50
+        assert sprite.center_x < 100  # Should have moved away from boundary
+
+    def test_move_until_vertical_boundary_limits(self):
+        """Test MoveUntil with vertical boundary limits (top/bottom)."""
+        from tests.test_base import create_test_sprite
+
+        sprite = create_test_sprite()
+        sprite.center_x = 50
+        sprite.center_y = 50
+
+        boundary_events = []
+
+        def track_boundary_enter(sprite, axis, side):
+            boundary_events.append(f"enter_{axis}_{side}")
+
+        # Test hitting top boundary
+        move_until(
+            sprite,
+            velocity=(0, 60),  # Moving up
+            condition=infinite,
+            boundary_behavior="limit",
+            bounds=(0, 0, 100, 100),
+            on_boundary_enter=track_boundary_enter,
+        )
+
+        # Update until sprite hits top boundary
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Sprite should be stopped at top boundary
+        assert sprite.change_y == 0
+        assert sprite.center_y == 100  # Top boundary
+        assert "enter_y_top" in boundary_events
+
+        # Clear previous action and test bottom boundary
+        Action.stop_all()
+        boundary_events.clear()
+        sprite.center_y = 50
+
+        move_until(
+            sprite,
+            velocity=(0, -60),  # Moving down
+            condition=infinite,
+            boundary_behavior="limit",
+            bounds=(0, 0, 100, 100),
+            on_boundary_enter=track_boundary_enter,
+        )
+
+        # Update until sprite hits bottom boundary
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Sprite should be stopped at bottom boundary
+        assert sprite.change_y == 0
+        assert sprite.center_y == 0  # Bottom boundary
+        assert "enter_y_bottom" in boundary_events
