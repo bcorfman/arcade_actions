@@ -293,3 +293,58 @@ def ease(
     ease_action = Ease(action, duration=duration, ease_function=ease_function, on_complete=on_complete, tag=tag)
     ease_action.apply(target, tag=tag)
     return ease_action
+
+
+def cycle_textures_until(
+    target: arcade.Sprite | arcade.SpriteList,
+    *,
+    textures: list,
+    frames_per_second: float = 60.0,
+    direction: int = 1,
+    condition: Callable[[], Any] = None,
+    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
+    tag: str | None = None,
+) -> CycleTexturesUntil:
+    """Creates and applies a CycleTexturesUntil action to the target.
+
+    This is a convenience wrapper for the CycleTexturesUntil class that immediately applies
+    the action to the target sprite or sprite list.
+
+    Args:
+        target: The sprite (arcade.Sprite) or sprite list (arcade.SpriteList) to animate.
+        textures: List of arcade.Texture objects to cycle through.
+        frames_per_second: How many texture indices to advance per second (default: 60.0).
+        direction: Direction of cycling - 1 for forward, -1 for backward (default: 1).
+        condition: The condition to stop cycling. If None, cycles infinitely.
+        on_stop: An optional callback to run when the condition is met.
+        tag: An optional tag for the action.
+
+    Returns:
+        The created CycleTexturesUntil action instance.
+
+    Example:
+        # Simple infinite texture cycling
+        cycle_textures_until(sprite, textures=texture_list)
+
+        # Cycle backward for 3 seconds
+        cycle_textures_until(
+            sprite,
+            textures=texture_list,
+            direction=-1,
+            condition=duration(3.0)
+        )
+    """
+    from actions.conditional import CycleTexturesUntil, infinite
+
+    if condition is None:
+        condition = infinite
+
+    action = CycleTexturesUntil(
+        textures=textures,
+        frames_per_second=frames_per_second,
+        direction=direction,
+        condition=condition,
+        on_stop=on_stop,
+    )
+    action.apply(target, tag=tag)
+    return action

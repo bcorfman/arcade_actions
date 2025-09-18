@@ -1569,3 +1569,72 @@ def _extract_duration_seconds(cond: _Callable[[], _Any]) -> float | None:
     except Exception:
         pass
     return None
+
+
+class CycleTexturesUntil(_Action):
+    """Continuously cycle through a list of textures until a condition is met.
+
+    This action animates sprite textures by cycling through a provided list at a
+    specified frame rate. The cycling can go forward or backward, and the action
+    runs until the specified condition is satisfied.
+
+    Args:
+        textures: List of arcade.Texture objects to cycle through
+        frames_per_second: How many texture indices to advance per second
+        direction: Direction of cycling (1 for forward, -1 for backward)
+        condition: Function that returns truthy value when cycling should stop
+        on_stop: Optional callback called when condition is satisfied
+    """
+
+    def __init__(
+        self,
+        textures: list,
+        frames_per_second: float = 60.0,
+        direction: int = 1,
+        condition: _Callable[[], _Any] = infinite,
+        on_stop: _Callable[[_Any], None] | _Callable[[], None] | None = None,
+    ):
+        if not textures:
+            raise ValueError("textures list cannot be empty")
+        if direction not in (1, -1):
+            raise ValueError("direction must be 1 or -1")
+
+        super().__init__(condition, on_stop)
+        self._textures = textures
+        self._fps = frames_per_second * direction
+        self._direction = direction
+        self._count = len(textures)
+        self._cursor = 0.0  # Fractional texture index
+
+    def apply_effect(self) -> None:
+        """Initialize textures on the target sprite(s)."""
+
+        def set_initial_texture(sprite):
+            sprite.textures = self._textures
+            sprite.texture = self._textures[0]
+
+        self.for_each_sprite(set_initial_texture)
+
+    def update_effect(self, dt: float) -> None:
+        """Update texture cycling."""
+        # Advance cursor by frame rate * delta time
+        self._cursor = (self._cursor + self._fps * dt) % self._count
+
+        # Get current texture index (floor of cursor)
+        texture_index = int(math.floor(self._cursor)) % self._count
+        current_texture = self._textures[texture_index]
+
+        def set_texture(sprite):
+            sprite.texture = current_texture
+
+        self.for_each_sprite(set_texture)
+
+    def clone(self) -> "CycleTexturesUntil":
+        """Create a copy of this action."""
+        return CycleTexturesUntil(
+            textures=self._textures,
+            frames_per_second=abs(self._fps),  # Remove direction factor
+            direction=self._direction,
+            condition=self.condition,
+            on_stop=self.on_stop,
+        )
