@@ -19,7 +19,7 @@ wheels = [
 
 [[package]]
 name = "arcade-actions"
-version = "0.6.1"
+version = "0.7"
 source = { editable = "." }
 dependencies = [
     { name = "arcade" },
