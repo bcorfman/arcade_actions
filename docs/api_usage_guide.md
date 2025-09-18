@@ -15,11 +15,12 @@ ArcadeActions provides a conditional action system that works directly with Arca
 Helper functions like `move_until`, `rotate_until`, and `follow_path_until` are designed for simple, immediate application to sprites:
 
 ```python
-from actions import move_until, rotate_until, duration
+from actions import move_until, rotate_until, cycle_textures_until, duration
 
 # Simple, immediate actions - this is what helper functions are for
 move_until(player_sprite, velocity=(5, 0), condition=lambda: player_sprite.center_x > 800)
 rotate_until(enemy_swarm, velocity=1.5, condition=duration(5.0))
+cycle_textures_until(power_up_sprite, textures=power_up_textures, frames_per_second=30.0)
 ```
 
 ### Pattern 2: Direct Classes with sequence() for Complex Compositions
@@ -140,6 +141,7 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **RotateUntil** - Angular velocity rotation
 - **ScaleUntil** - Scale velocity changes
 - **FadeUntil** - Alpha velocity changes
+- **CycleTexturesUntil** - Cycle through a list of textures at specified frame rate
 - **DelayUntil** - Wait for condition
 - **TweenUntil** - Direct property animation from start to end value
 
@@ -493,7 +495,90 @@ follow_path_until(
 )
 ```
 
-### Pattern 7: State Machines for Animation and Behavior
+### Pattern 7: Texture Cycling for Animation
+For animating sprites by cycling through textures at specified frame rates:
+
+```python
+from actions import cycle_textures_until, infinite, duration
+
+# Create a list of textures for animation
+texture_list = []
+for i in range(8):
+    texture = arcade.load_texture(f"sprites/walk_frame_{i}.png")
+    texture_list.append(texture)
+
+# Simple infinite texture cycling
+cycle_textures_until(
+    player_sprite,
+    textures=texture_list,
+    frames_per_second=12.0,  # 12 frames per second animation
+    condition=infinite
+)
+
+# Time-limited texture cycling
+cycle_textures_until(
+    power_up_sprite,
+    textures=power_up_textures,
+    frames_per_second=30.0,
+    condition=duration(3.0),  # Animate for 3 seconds
+    direction=1,  # Forward animation
+    tag="power_up_animation"
+)
+
+# Reverse texture cycling (for different animation directions)
+cycle_textures_until(
+    enemy_sprite,
+    textures=enemy_walk_textures,
+    frames_per_second=8.0,
+    direction=-1,  # Backward cycling
+    condition=lambda: enemy_sprite.center_x < 100  # Until reaching position
+)
+
+# Using with sequences for complex animations
+from actions import sequence, DelayUntil
+
+animation_sequence = sequence(
+    # Phase 1: Spin up animation
+    CycleTexturesUntil(
+        textures=spin_up_textures,
+        frames_per_second=24.0,
+        direction=1,
+        condition=duration(1.0)
+    ),
+    # Phase 2: Steady state animation
+    CycleTexturesUntil(
+        textures=steady_textures,
+        frames_per_second=12.0,
+        direction=1,
+        condition=duration(5.0)
+    ),
+    # Phase 3: Spin down animation
+    CycleTexturesUntil(
+        textures=spin_down_textures,
+        frames_per_second=24.0,
+        direction=1,
+        condition=duration(1.0)
+    )
+)
+animation_sequence.apply(machinery_sprite, tag="machinery_startup")
+```
+
+**Key Features:**
+- **Frame Rate Control**: Specify exactly how many texture changes per second
+- **Direction Control**: Cycle forward (1) or backward (-1) through texture list
+- **Condition-Based**: Stop cycling when any condition is met
+- **Automatic Wrapping**: Seamlessly loops through texture list
+- **Works with Groups**: Apply same animation to entire sprite lists
+
+**Common Use Cases:**
+- Character walk/run animations
+- Power-up spinning effects
+- Environmental animations (water, fire, etc.)
+- UI element animations
+- Machinery and rotating objects
+- Particle-like effects
+
+### Pattern 8: State Machines for Animation and Behavior
 For managing sprite animation states like idle/walk/die or other behavior switching:
 
 ```python
@@ -978,6 +1063,7 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 | Arrow formations | `arrange_arrow` | `arrange_arrow(count=7, tip_x=400, rows=3)` |
 | Movement patterns | Pattern functions | `create_zigzag_pattern(100, 50, 150)` |
 | Path following | `follow_path_until` helper | `follow_path_until(sprite, points, velocity=200, condition=cond)` |
+| Texture animation | `cycle_textures_until` helper | `cycle_textures_until(sprite, textures=tex_list, frames_per_second=12)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, velocity=vel, condition=cond, bounds=b)` |
 | Delayed execution | Direct classes in sequences | `sequence(DelayUntil(duration(1.0)), action)` |
 | Smooth acceleration | `ease` helper | `ease(sprite, action, duration=2.0)` |

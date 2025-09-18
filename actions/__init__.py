@@ -27,6 +27,7 @@ from .composite import StateMachine, parallel, repeat, sequence
 # Conditional actions
 from .conditional import (
     BlinkUntil,
+    CycleTexturesUntil,
     DelayUntil,
     FadeUntil,
     FollowPathUntil,
@@ -65,6 +66,7 @@ from .formation import (
 # Helper functions
 from .helpers import (
     blink_until,
+    cycle_textures_until,
     delay_until,
     ease,
     fade_until,
@@ -110,6 +112,7 @@ __all__ = [
     "DelayUntil",
     "FollowPathUntil",
     "TweenUntil",
+    "CycleTexturesUntil",
     "duration",
     "infinite",
     # Instant actions
@@ -157,6 +160,7 @@ __all__ = [
     "tween_until",
     "scale_until",
     "fade_until",
+    "cycle_textures_until",
     "ease",
     # display
     "center_window",
