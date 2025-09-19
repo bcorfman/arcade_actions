@@ -142,6 +142,7 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **ScaleUntil** - Scale velocity changes
 - **FadeUntil** - Alpha velocity changes
 - **CycleTexturesUntil** - Cycle through a list of textures at specified frame rate
+- **BlinkUntil** - Toggle sprite visibility with optional enter/exit callbacks
 - **DelayUntil** - Wait for condition
 - **TweenUntil** - Direct property animation from start to end value
 
@@ -577,6 +578,97 @@ animation_sequence.apply(machinery_sprite, tag="machinery_startup")
 - UI element animations
 - Machinery and rotating objects
 - Particle-like effects
+
+### Pattern 7.1: Visibility Blinking with Callbacks
+For sprite blinking effects with collision detection management:
+
+```python
+from actions import blink_until, infinite, duration
+
+# Basic blinking without callbacks
+blink_until(
+    invulnerable_player,
+    seconds_until_change=0.25,  # Blink every 0.25 seconds
+    condition=duration(3.0),    # Blink for 3 seconds total
+    tag="invulnerability"
+)
+
+# Advanced: Collision detection management with callbacks
+def enable_collisions(sprite):
+    """Add sprite to collision detection when visible."""
+    if sprite not in collision_sprites:
+        collision_sprites.append(sprite)
+
+def disable_collisions(sprite):
+    """Remove sprite from collision detection when invisible."""
+    if sprite in collision_sprites:
+        collision_sprites.remove(sprite)
+
+# Sprite only participates in collisions while visible
+blink_until(
+    player_sprite,
+    seconds_until_change=0.2,
+    condition=infinite,
+    on_blink_enter=enable_collisions,   # Called when becoming visible
+    on_blink_exit=disable_collisions,   # Called when becoming invisible
+    tag="invulnerability_blink"
+)
+
+# Power-up collection effect with status management
+def on_powerup_visible(powerup):
+    """Enable collection when power-up becomes visible."""
+    powerup.can_be_collected = True
+    powerup.alpha = 255  # Full opacity when visible
+
+def on_powerup_hidden(powerup):
+    """Disable collection when power-up becomes invisible."""
+    powerup.can_be_collected = False
+    
+blink_until(
+    collected_powerup,
+    seconds_until_change=0.15,
+    condition=duration(2.0),
+    on_blink_enter=on_powerup_visible,
+    on_blink_exit=on_powerup_hidden,
+    tag="collection_effect"
+)
+
+# Enemy vulnerability periods
+def make_vulnerable(enemy):
+    """Enemy can take damage when visible."""
+    enemy.vulnerable = True
+    enemy.tint = arcade.color.WHITE
+
+def make_invulnerable(enemy):
+    """Enemy cannot take damage when invisible."""
+    enemy.vulnerable = False
+
+blink_until(
+    boss_enemy,
+    seconds_until_change=0.1,
+    condition=lambda: boss_enemy.health <= 0,
+    on_blink_enter=make_vulnerable,
+    on_blink_exit=make_invulnerable,
+    tag="boss_vulnerability"
+)
+```
+
+**BlinkUntil Callback Features:**
+- **Edge-triggered**: Callbacks fire only on visibility state changes, not continuously
+- **Exception-safe**: Callback exceptions are caught and don't break blinking
+- **Sprite list support**: Works with both individual sprites and sprite lists
+- **Partial callbacks**: Can use only `on_blink_enter` or only `on_blink_exit`
+- **Clone preservation**: Callback functions are preserved when cloning actions
+
+**When to Use BlinkUntil Callbacks:**
+- **Collision detection management**: Turn collision on/off based on visibility
+- **Game state synchronization**: Update game state when sprites appear/disappear
+- **Audio/visual effects**: Trigger sounds or particles on visibility changes
+- **Performance optimization**: Enable/disable expensive operations based on visibility
+
+**Callback Signatures:**
+- `on_blink_enter(sprite)` - Called when sprite visibility changes to `True`
+- `on_blink_exit(sprite)` - Called when sprite visibility changes to `False`
 
 ### Pattern 8: State Machines for Animation and Behavior
 For managing sprite animation states like idle/walk/die or other behavior switching:
@@ -1064,6 +1156,8 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 | Movement patterns | Pattern functions | `create_zigzag_pattern(100, 50, 150)` |
 | Path following | `follow_path_until` helper | `follow_path_until(sprite, points, velocity=200, condition=cond)` |
 | Texture animation | `cycle_textures_until` helper | `cycle_textures_until(sprite, textures=tex_list, frames_per_second=12)` |
+| Visibility blinking | `blink_until` helper | `blink_until(sprite, seconds_until_change=0.25, condition=cond)` |
+| Visibility callbacks | `blink_until` with callbacks | `blink_until(sprite, ..., on_blink_enter=enable_fn, on_blink_exit=disable_fn)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, velocity=vel, condition=cond, bounds=b)` |
 | Delayed execution | Direct classes in sequences | `sequence(DelayUntil(duration(1.0)), action)` |
 | Smooth acceleration | `ease` helper | `ease(sprite, action, duration=2.0)` |
