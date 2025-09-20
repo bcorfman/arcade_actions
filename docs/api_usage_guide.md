@@ -670,6 +670,44 @@ blink_until(
 - `on_blink_enter(sprite)` - Called when sprite visibility changes to `True`
 - `on_blink_exit(sprite)` - Called when sprite visibility changes to `False`
 
+### When to Add Enter/Exit Callbacks
+
+**Design Principle:** Only add `on_*_enter` and `on_*_exit` callbacks when the action has clear, binary state transitions that map to meaningful game events.
+
+**Current implementations:**
+- **MoveUntil** - `on_boundary_enter/exit` for boundary membership changes
+- **BlinkUntil** - `on_blink_enter/exit` for visibility state changes
+
+**Good candidates for future addition:**
+- **FadeUntil** - `on_transparent_enter/exit` for alpha threshold crossings (0/255)
+- **ScaleUntil** (with bounds) - `on_scale_min_enter/on_scale_max_enter` for scale limits
+- **RotateUntil** (with angle limits) - `on_angle_min_enter/on_angle_max_enter` for angle constraints
+
+**Avoid for:**
+- **FollowPathUntil** - Continuous path following without clear state edges
+- **DelayUntil** - Simple waiting without state transitions
+- **CycleTexturesUntil** - Texture cycling is continuous, not binary
+
+**Use composition instead for non-binary states:**
+```python
+# Instead of adding generic callbacks to every action
+# Use conditions to detect state changes
+def check_scale_threshold():
+    if sprite.scale >= 2.0:
+        return "max_scale_reached"
+    return None
+
+scale_until(sprite, scale_velocity=0.1, condition=check_scale_threshold, on_stop=handle_max_scale)
+```
+
+**Consistent API Pattern:** When adding callbacks, follow the established pattern:
+- `on_[action]_enter(sprite, ...)` - Called when entering the state
+- `on_[action]_exit(sprite, ...)` - Called when exiting the state
+- Edge-triggered semantics (fire once per transition)
+- Exception-safe execution
+
+This pattern could be thoughtfully applied to other conditional actions where clear binary state transitions exist.
+
 ### Pattern 8: State Machines for Animation and Behavior
 For managing sprite animation states like idle/walk/die or other behavior switching:
 
