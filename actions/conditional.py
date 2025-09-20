@@ -946,6 +946,8 @@ class BlinkUntil(_Action):
         seconds_until_change: Seconds to wait before toggling visibility
         condition: Function that returns truthy value when blinking should stop
         on_stop: Optional callback called when condition is satisfied
+        on_blink_enter: Optional callback(sprite) when visibility toggles to True
+        on_blink_exit: Optional callback(sprite) when visibility toggles to False
     """
 
     def __init__(
@@ -953,6 +955,8 @@ class BlinkUntil(_Action):
         seconds_until_change: float,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
+        on_blink_enter: Callable[[Any], None] | None = None,
+        on_blink_exit: Callable[[Any], None] | None = None,
     ):
         if seconds_until_change <= 0:
             raise ValueError("seconds_until_change must be positive")
@@ -962,6 +966,10 @@ class BlinkUntil(_Action):
         self.current_seconds_until_change = seconds_until_change  # Current rate (can be scaled)
         self._blink_elapsed = 0.0
         self._original_visibility = {}
+        self._last_visible: dict[int, bool] = {}
+
+        self.on_blink_enter = on_blink_enter
+        self.on_blink_exit = on_blink_exit
 
     def set_factor(self, factor: float) -> None:
         """Scale the blink rate by the given factor.
@@ -983,7 +991,10 @@ class BlinkUntil(_Action):
         """Store original visibility for all sprites."""
 
         def store_visibility(sprite):
-            self._original_visibility[id(sprite)] = sprite.visible
+            vid = id(sprite)
+            visible = sprite.visible
+            self._original_visibility[vid] = visible
+            self._last_visible[vid] = visible
 
         self.for_each_sprite(store_visibility)
 
@@ -991,8 +1002,11 @@ class BlinkUntil(_Action):
         """Restore original visibility for all sprites."""
 
         def restore_visibility(sprite):
-            original_visible = self._original_visibility.get(id(sprite), True)
+            vid = id(sprite)
+            original_visible = self._original_visibility.get(vid, True)
             sprite.visible = original_visible
+            self._last_visible.pop(vid, None)
+            self._original_visibility.pop(vid, None)
 
         self.for_each_sprite(restore_visibility)
 
@@ -1003,8 +1017,33 @@ class BlinkUntil(_Action):
         cycles = int(self._blink_elapsed / self.current_seconds_until_change)
 
         def apply_blink(sprite):
-            # Even cycles: visible, odd cycles: invisible
-            sprite.visible = cycles % 2 == 0
+            vid = id(sprite)
+            # Get the starting visibility state for this sprite
+            original_visible = self._original_visibility.get(vid, True)
+
+            # Calculate new visibility: if original was visible, even cycles = visible
+            # If original was invisible, odd cycles = visible (invert the pattern)
+            if original_visible:
+                new_visible = cycles % 2 == 0
+            else:
+                new_visible = cycles % 2 == 1
+
+            last_visible = self._last_visible.get(vid, original_visible)  # Use original visibility as default
+
+            if new_visible != last_visible:
+                if new_visible and self.on_blink_enter:
+                    try:
+                        self.on_blink_enter(sprite)
+                    except Exception:
+                        pass
+                elif not new_visible and self.on_blink_exit:
+                    try:
+                        self.on_blink_exit(sprite)
+                    except Exception:
+                        pass
+
+            sprite.visible = new_visible
+            self._last_visible[vid] = new_visible
 
         self.for_each_sprite(apply_blink)
 
@@ -1014,7 +1053,13 @@ class BlinkUntil(_Action):
 
     def clone(self) -> "BlinkUntil":
         """Create a copy of this action."""
-        return BlinkUntil(self.target_seconds_until_change, _clone_condition(self.condition), self.on_stop)
+        return BlinkUntil(
+            self.target_seconds_until_change,
+            _clone_condition(self.condition),
+            self.on_stop,
+            on_blink_enter=self.on_blink_enter,
+            on_blink_exit=self.on_blink_exit,
+        )
 
 
 class DelayUntil(_Action):

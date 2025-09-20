@@ -820,6 +820,303 @@ class TestBlinkUntil(ActionTestBase):
 
         assert action.done
 
+    def test_blink_until_visibility_callbacks(self, test_sprite):
+        """Test BlinkUntil with on_blink_enter and on_blink_exit callbacks."""
+        sprite = test_sprite
+        sprite.visible = True  # Start visible
+
+        enter_calls = []
+        exit_calls = []
+
+        def on_enter(sprite_arg):
+            enter_calls.append(sprite_arg)
+
+        def on_exit(sprite_arg):
+            exit_calls.append(sprite_arg)
+
+        action = blink_until(
+            sprite,
+            seconds_until_change=0.05,
+            condition=infinite,
+            on_blink_enter=on_enter,
+            on_blink_exit=on_exit,
+            tag="test_callbacks",
+        )
+
+        # Initial state - sprite should be visible, no callbacks yet
+        assert sprite.visible
+        assert len(enter_calls) == 0
+        assert len(exit_calls) == 0
+
+        # Update enough to trigger first blink (to invisible)
+        Action.update_all(0.06)  # More than 0.05 seconds
+
+        # Should now be invisible and exit callback called
+        assert not sprite.visible
+        assert len(exit_calls) == 1
+        assert exit_calls[0] == sprite
+        assert len(enter_calls) == 0  # No enter call yet
+
+        # Update enough to trigger second blink (back to visible)
+        Action.update_all(0.06)  # More than 0.05 seconds again
+
+        # Should now be visible and enter callback called
+        assert sprite.visible
+        assert len(enter_calls) == 1
+        assert enter_calls[0] == sprite
+        assert len(exit_calls) == 1  # Still only one exit call
+
+    def test_blink_until_edge_triggered_callbacks(self, test_sprite):
+        """Test that callbacks are edge-triggered (only fire on state changes)."""
+        sprite = test_sprite
+        sprite.visible = True
+
+        callback_count = {"enter": 0, "exit": 0}
+
+        def count_enter(sprite_arg):
+            callback_count["enter"] += 1
+
+        def count_exit(sprite_arg):
+            callback_count["exit"] += 1
+
+        action = blink_until(
+            sprite,
+            seconds_until_change=0.05,
+            condition=infinite,
+            on_blink_enter=count_enter,
+            on_blink_exit=count_exit,
+            tag="test_edge_triggered",
+        )
+
+        # Multiple updates within the same blink period - no callbacks yet
+        for _ in range(3):
+            Action.update_all(0.01)  # Less than 0.05 threshold
+
+        assert callback_count["enter"] == 0
+        assert callback_count["exit"] == 0
+        assert sprite.visible  # Still visible
+
+        # Cross the threshold to invisible
+        Action.update_all(0.03)  # Total now > 0.05
+
+        assert callback_count["exit"] == 1  # One exit call
+        assert callback_count["enter"] == 0
+        assert not sprite.visible
+
+        # Multiple updates while invisible - no additional callbacks
+        for _ in range(3):
+            Action.update_all(0.01)
+
+        assert callback_count["exit"] == 1  # Still just one
+        assert callback_count["enter"] == 0
+
+        # Cross threshold back to visible
+        Action.update_all(0.03)  # Total blink time > 0.05 again
+
+        assert callback_count["exit"] == 1
+        assert callback_count["enter"] == 1  # One enter call
+        assert sprite.visible
+
+    def test_blink_until_callback_exceptions_handled(self, test_sprite):
+        """Test that callback exceptions are caught and don't break blinking."""
+        sprite = test_sprite
+        sprite.visible = True
+
+        def failing_enter(sprite_arg):
+            raise RuntimeError("Enter callback failed!")
+
+        def failing_exit(sprite_arg):
+            raise RuntimeError("Exit callback failed!")
+
+        action = blink_until(
+            sprite,
+            seconds_until_change=0.05,
+            condition=infinite,
+            on_blink_enter=failing_enter,
+            on_blink_exit=failing_exit,
+            tag="test_exception_handling",
+        )
+
+        # Should not crash despite callback exceptions
+        Action.update_all(0.06)  # Trigger first transition (to invisible)
+        assert not sprite.visible
+
+        Action.update_all(0.06)  # Trigger second transition (to visible)
+        assert sprite.visible
+
+        # Blinking should continue to work normally
+        Action.update_all(0.06)  # Trigger third transition (to invisible)
+        assert not sprite.visible
+
+    def test_blink_until_no_callbacks(self, test_sprite):
+        """Test BlinkUntil works normally without callbacks (backward compatibility)."""
+        sprite = test_sprite
+        sprite.visible = True
+
+        action = blink_until(sprite, seconds_until_change=0.05, condition=infinite, tag="test_no_callbacks")
+
+        # Should work normally without callbacks
+        Action.update_all(0.06)
+        assert not sprite.visible
+
+        Action.update_all(0.06)
+        assert sprite.visible
+
+    def test_blink_until_only_enter_callback(self, test_sprite):
+        """Test BlinkUntil with only on_blink_enter callback."""
+        sprite = test_sprite
+        sprite.visible = True
+
+        enter_calls = []
+
+        def on_enter(sprite_arg):
+            enter_calls.append(sprite_arg)
+
+        action = blink_until(
+            sprite, seconds_until_change=0.05, condition=infinite, on_blink_enter=on_enter, tag="test_only_enter"
+        )
+
+        # Go invisible (no callback)
+        Action.update_all(0.06)
+        assert not sprite.visible
+        assert len(enter_calls) == 0
+
+        # Go visible (enter callback)
+        Action.update_all(0.06)
+        assert sprite.visible
+        assert len(enter_calls) == 1
+
+    def test_blink_until_only_exit_callback(self, test_sprite):
+        """Test BlinkUntil with only on_blink_exit callback."""
+        sprite = test_sprite
+        sprite.visible = True
+
+        exit_calls = []
+
+        def on_exit(sprite_arg):
+            exit_calls.append(sprite_arg)
+
+        action = blink_until(
+            sprite, seconds_until_change=0.05, condition=infinite, on_blink_exit=on_exit, tag="test_only_exit"
+        )
+
+        # Go invisible (exit callback)
+        Action.update_all(0.06)
+        assert not sprite.visible
+        assert len(exit_calls) == 1
+
+        # Go visible (no callback)
+        Action.update_all(0.06)
+        assert sprite.visible
+        assert len(exit_calls) == 1  # Still just one
+
+    def test_blink_until_sprite_list_callbacks(self, test_sprite_list):
+        """Test BlinkUntil callbacks work with sprite lists."""
+        sprite_list = test_sprite_list
+        for sprite in sprite_list:
+            sprite.visible = True
+
+        callback_sprites = {"enter": [], "exit": []}
+
+        def track_enter(sprite_arg):
+            callback_sprites["enter"].append(sprite_arg)
+
+        def track_exit(sprite_arg):
+            callback_sprites["exit"].append(sprite_arg)
+
+        action = blink_until(
+            sprite_list,
+            seconds_until_change=0.05,
+            condition=infinite,
+            on_blink_enter=track_enter,
+            on_blink_exit=track_exit,
+            tag="test_sprite_list_callbacks",
+        )
+
+        # Trigger first blink (all go invisible)
+        Action.update_all(0.06)
+
+        for sprite in sprite_list:
+            assert not sprite.visible
+            assert sprite in callback_sprites["exit"]
+        assert len(callback_sprites["exit"]) == len(sprite_list)
+        assert len(callback_sprites["enter"]) == 0
+
+        # Trigger second blink (all go visible)
+        Action.update_all(0.06)
+
+        for sprite in sprite_list:
+            assert sprite.visible
+            assert sprite in callback_sprites["enter"]
+        assert len(callback_sprites["enter"]) == len(sprite_list)
+
+    def test_blink_until_clone_preserves_callbacks(self, test_sprite):
+        """Test that cloning preserves callback functions."""
+        sprite = test_sprite
+
+        def dummy_enter(sprite_arg):
+            pass
+
+        def dummy_exit(sprite_arg):
+            pass
+
+        original = blink_until(
+            sprite,
+            seconds_until_change=0.1,
+            condition=infinite,
+            on_blink_enter=dummy_enter,
+            on_blink_exit=dummy_exit,
+            tag="test_clone_callbacks",
+        )
+
+        cloned = original.clone()
+
+        assert cloned.on_blink_enter == dummy_enter
+        assert cloned.on_blink_exit == dummy_exit
+        assert cloned.target_seconds_until_change == 0.1
+
+    def test_blink_until_starts_invisible_callbacks(self, test_sprite):
+        """Test callbacks when sprite starts invisible."""
+        sprite = test_sprite
+        sprite.visible = False  # Start invisible
+
+        enter_calls = []
+        exit_calls = []
+
+        def on_enter(sprite_arg):
+            enter_calls.append(sprite_arg)
+
+        def on_exit(sprite_arg):
+            exit_calls.append(sprite_arg)
+
+        action = blink_until(
+            sprite,
+            seconds_until_change=0.05,
+            condition=infinite,
+            on_blink_enter=on_enter,
+            on_blink_exit=on_exit,
+            tag="test_starts_invisible",
+        )
+
+        # Initial state - sprite invisible, no callbacks yet
+        assert not sprite.visible
+        assert len(enter_calls) == 0
+        assert len(exit_calls) == 0
+
+        # First blink should make it visible (enter callback)
+        Action.update_all(0.06)
+
+        assert sprite.visible
+        assert len(enter_calls) == 1
+        assert len(exit_calls) == 0
+
+        # Second blink should make it invisible (exit callback)
+        Action.update_all(0.06)
+
+        assert not sprite.visible
+        assert len(enter_calls) == 1
+        assert len(exit_calls) == 1
+
 
 class TestDelayUntil(ActionTestBase):
     """Test suite for DelayUntil action."""

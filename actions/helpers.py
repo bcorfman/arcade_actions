@@ -207,10 +207,31 @@ def blink_until(
     seconds_until_change: float,
     condition: Callable[[], Any],
     on_stop: Callable = None,
+    on_blink_enter: Callable[[Any], None] | None = None,
+    on_blink_exit: Callable[[Any], None] | None = None,
     tag: str | None = None,
 ) -> BlinkUntil:
-    """Creates and applies a BlinkUntil action."""
-    action = BlinkUntil(seconds_until_change=seconds_until_change, condition=condition, on_stop=on_stop)
+    """Creates and applies a BlinkUntil action with optional visibility callbacks.
+
+    Args:
+        target: Sprite or SpriteList to apply blinking to
+        seconds_until_change: Seconds to wait before toggling visibility
+        condition: Function that returns truthy value when blinking should stop
+        on_stop: Optional callback called when condition is satisfied
+        on_blink_enter: Optional callback(sprite) when visibility toggles to True
+        on_blink_exit: Optional callback(sprite) when visibility toggles to False
+        tag: Optional tag for the action
+
+    Returns:
+        The BlinkUntil action that was created and applied
+    """
+    action = BlinkUntil(
+        seconds_until_change=seconds_until_change,
+        condition=condition,
+        on_stop=on_stop,
+        on_blink_enter=on_blink_enter,
+        on_blink_exit=on_blink_exit,
+    )
     action.apply(target, tag=tag)
     return action
 

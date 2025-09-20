@@ -127,6 +127,7 @@ docs/
 - **ScaleUntil** - Scale velocity changes  
 - **FadeUntil** - Alpha velocity changes
 - **CycleTexturesUntil** - Cycle through a list of textures at a specific frame rate for sprite animations
+- **BlinkUntil** - Toggle sprite visibility with optional enter/exit callbacks for collision management
 - **DelayUntil** - Wait for condition to be met
 - **TweenUntil** - Direct property animation from start to end value
 
@@ -161,6 +162,7 @@ docs/
 | Instant actions | Position initialization in a sequence | sequence(MoveBy(...), MoveUntil(...)) |
 | Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
 | Curved path movement | `follow_path_until` helper | `follow_path_until(sprite, points, ...)` |
+| Visibility blinking | `blink_until` helper | `blink_until(sprite, seconds_until_change=0.25, condition=...)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, ..., bounds=bounds, boundary_behavior="bounce")` |
 | Smooth acceleration | `ease()` helper | `ease(sprite, action, ...)` |
 | Complex curved movement | `ease()` + `follow_path_until` | `ease(sprite, follow_path_until(...), ...)` |
