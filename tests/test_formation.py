@@ -1095,3 +1095,86 @@ class TestFormationErrorCases:
 
         assert isinstance(result, arcade.SpriteList)
         assert len(result) == 7
+
+
+# ==============================================================================
+# Additional targeted formation coverage (moved from test_formation_additional.py)
+# ==============================================================================
+
+
+def _make_sprites(n: int) -> arcade.SpriteList:
+    sl = arcade.SpriteList()
+    for _ in range(n):
+        sl.append(arcade.Sprite(":resources:images/items/star.png"))
+    return sl
+
+
+def test_arrange_line_both_sprites_and_count_raises():
+    sprites = _make_sprites(3)
+    with pytest.raises(ValueError, match="Cannot specify both 'sprites' and 'count'"):
+        arrange_line(sprites, count=3, start_x=0, start_y=0)
+
+
+def test_v_formation_rotate_with_direction_all_dirs():
+    sprites = _make_sprites(5)
+    # up
+    result_up = arrange_v_formation(
+        sprites, apex_x=100, apex_y=100, spacing=30, direction="up", rotate_with_direction=True
+    )
+    assert result_up[0].angle == 0
+    # down
+    sprites = _make_sprites(5)
+    result_down = arrange_v_formation(
+        sprites, apex_x=100, apex_y=100, spacing=30, direction="down", rotate_with_direction=True
+    )
+    assert result_down[0].angle == 180
+    # left
+    sprites = _make_sprites(5)
+    result_left = arrange_v_formation(
+        sprites, apex_x=100, apex_y=100, spacing=30, direction="left", rotate_with_direction=True
+    )
+    assert result_left[0].angle == 90
+    # right
+    sprites = _make_sprites(5)
+    result_right = arrange_v_formation(
+        sprites, apex_x=100, apex_y=100, spacing=30, direction="right", rotate_with_direction=True
+    )
+    assert result_right[0].angle == 270
+
+
+def test_hexagonal_grid_flat_orientation_positions_shift():
+    sprites = _make_sprites(6)
+    grid_pointy = arrange_hexagonal_grid(
+        sprites, rows=2, cols=3, start_x=0, start_y=0, spacing=60, orientation="pointy"
+    )
+    # Copy positions
+    positions_pointy = [(s.center_x, s.center_y) for s in grid_pointy]
+
+    sprites = _make_sprites(6)
+    grid_flat = arrange_hexagonal_grid(sprites, rows=2, cols=3, start_x=0, start_y=0, spacing=60, orientation="flat")
+    positions_flat = [(s.center_x, s.center_y) for s in grid_flat]
+
+    # Ensure orientation changes layout (different x/y offsets)
+    assert positions_pointy != positions_flat
+
+
+def test_arrange_arc_single_sprite_middle_angle():
+    sprites = _make_sprites(1)
+    res = arrange_arc(sprites, center_x=100, center_y=100, radius=50, start_angle=0, end_angle=180)
+    # Single sprite placed at middle angle (90 degrees)
+    expected_x = 100 + math.cos(math.radians(90)) * 50
+    expected_y = 100 + math.sin(math.radians(90)) * 50
+    assert abs(res[0].center_x - expected_x) < 0.001
+    assert abs(res[0].center_y - expected_y) < 0.001
+
+
+def test_arrange_arc_count_creation_path():
+    res = arrange_arc(count=3, center_x=0, center_y=0, radius=10, start_angle=0, end_angle=180)
+    assert len(res) == 3
+
+
+def test_concentric_rings_defaults():
+    # No radii or sprites_per_ring provided -> defaults kick in
+    res = arrange_concentric_rings()
+    # Defaults: radii [50,100], sprites_per_ring [6,12]
+    assert len(res) == 18
