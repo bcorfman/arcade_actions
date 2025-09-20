@@ -141,10 +141,51 @@ docs/
 
 #### Formation Management (actions/formation.py)
 - **Formation functions** - Grid, line, circle, diamond, V-formation, triangle, hexagonal grid, arc, concentric rings, cross, and arrow positioning
+  - Zero-allocation support: pass `sprites=` to arrange existing sprites without allocating
+  - Contract: exactly one of `sprites` or creation inputs (`count` or `sprite_factory`) is required
+  - Grid rule: when `sprites` is provided, `len(sprites)` must equal `rows * cols`
 
 #### Movement Patterns (actions/pattern.py)
 - **Movement pattern functions** - Zigzag, wave, spiral, figure-8, orbit, bounce, and patrol patterns
 - **Condition helpers** - Time-based and sprite count conditions for conditional actions
+### ♻️ Zero-Allocation Gameplay (experimental)
+
+ArcadeActions now provides an optional zero-allocation workflow to eliminate per-wave sprite creation.
+
+1) Use the new `SpritePool` (in `actions.pools`) to pre-allocate sprites once at boot:
+
+```python
+from actions.pools import SpritePool
+from actions import arrange_grid
+import arcade
+
+def make_block():
+    return arcade.Sprite(":resources:images/items/star.png", scale=0.8)
+
+pool = SpritePool(make_block, max_size=300)
+blocks = pool.acquire(150)                                    # borrow invisible sprites
+arrange_grid(rows=30, cols=5, sprites=blocks, start_x=0, start_y=0)  # position only
+pool.assign(blocks)                                           # return to pool (hidden & neutral)
+```
+
+2) During gameplay, acquire → arrange → release without allocating:
+
+```python
+shield = pool.acquire(width * 30)
+arrange_grid(rows=30, cols=width, sprites=shield, start_x=WINDOW+50, start_y=TUNNEL_H)
+# ... gameplay ...
+pool.release(shield)
+```
+
+SpritePool API:
+- `acquire(n) -> list[Sprite]` — borrow invisible, un-positioned sprites
+- `release(iterable[Sprite])` — return sprites to the pool (hidden, detached, reset)
+- `assign(iterable[Sprite])` — load externally-created sprites into the pool once
+
+Arrange functions contract:
+- Provide exactly one of `sprites` or creation inputs (`count`/`sprite_factory`)
+- When using `sprites` with `arrange_grid`, `len(sprites) == rows * cols` is required
+
 
 #### Easing Effects (actions/easing.py)
 - **Ease wrapper** - Apply smooth acceleration/deceleration curves to any conditional action

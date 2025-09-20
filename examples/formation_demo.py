@@ -76,7 +76,6 @@ FORMATIONS = [
         9,  # 9 sprites fit comfortably in V formation without going offscreen
         lambda sprites, count: arrange_v_formation(
             sprites[:count],
-            count=count,
             apex_x=FORMATION_CENTER_X,
             apex_y=FORMATION_AREA_CENTER_Y - 100,
             spacing=FORMATION_SPACING,

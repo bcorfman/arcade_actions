@@ -654,6 +654,16 @@ def test_formation_positioning():
     assert arrow[0].center_x == 400  # Tip sprite
     assert arrow[0].center_y == 500
 
+    # Zero-allocation: arrange existing sprites
+    sprites = [arcade.Sprite(":resources:images/items/star.png") for _ in range(9)]
+    v_formation = arrange_v_formation(sprites, apex_x=400, apex_y=300, spacing=50)
+    assert len(v_formation) == 9
+
+    # Grid rule: len(sprites) must equal rows * cols
+    sprites = [arcade.Sprite(":resources:images/items/star.png") for _ in range(6)]
+    grid = arrange_grid(sprites, rows=2, cols=3, start_x=100, start_y=100)
+    assert len(grid) == 6
+
 def test_formation_visibility():
     # Test that formations respect visibility parameter
     invisible_triangle = arrange_triangle(count=6, apex_x=100, apex_y=100, visible=False)

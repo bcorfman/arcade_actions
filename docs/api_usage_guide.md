@@ -156,6 +156,9 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 
 #### Formation Management (actions/formation.py)
 - **Formation functions** - Grid, line, circle, diamond, V-formation, triangle, hexagonal grid, arc, concentric rings, cross, and arrow positioning patterns
+  - Zero-allocation support: pass `sprites=` to arrange existing sprites without allocating
+  - Contract: exactly one of `sprites` or creation inputs (`count` / `sprite_factory`) is required
+  - Grid rule: when `sprites` is provided, `len(sprites)` must equal `rows * cols`
 
 #### Movement Patterns (actions/pattern.py)
 - **Movement pattern functions** - Zigzag, wave, spiral, figure-8, orbit, bounce, and patrol movement patterns
@@ -380,6 +383,14 @@ enemies = arrange_grid(
     spacing_y=60,
     sprite_factory=enemy_factory,
 )
+
+# Zero-allocation: arrange an existing list without creating new sprites
+pooled = [arcade.Sprite(":resources:images/enemy.png") for _ in range(12)]
+arrange_grid(sprites=pooled, rows=3, cols=4, start_x=200, start_y=300)
+
+# Contract reminders
+# - Provide exactly one of `sprites` or creation inputs (`count` / `sprite_factory`)
+# - For grids, len(sprites) must equal rows * cols
 
 # Triangle formation for attack patterns
 attack_formation = arrange_triangle(
@@ -1252,6 +1263,31 @@ This pattern ensures collision checks are only performed once per frame, and all
 ### infinite() Function
 
 **CRITICAL:** The `infinite()` function implementation in `actions/conditional.py` should never be modified. The current implementation (`return False`) is intentional and correct for the project's usage patterns. Do not suggest changing it to return `lambda: False` or any other callable. This function works correctly with the existing codebase and should not be modified.
+
+### SpritePool (experimental)
+
+`actions.pools.SpritePool` enables zero-allocation gameplay by reusing sprites:
+
+```python
+from actions.pools import SpritePool
+from actions import arrange_grid
+import arcade
+
+def make_enemy():
+    return arcade.Sprite(":resources:images/enemies/bee.png", scale=0.5)
+
+pool = SpritePool(make_enemy, max_size=300)
+wave = pool.acquire(20)  # invisible, un-positioned sprites
+arrange_grid(sprites=wave, rows=4, cols=5, start_x=100, start_y=400)
+# ... gameplay ...
+pool.release(wave)  # return hidden & detached
+```
+
+API:
+- `acquire(n) -> list[Sprite]`
+- `release(iterable[Sprite])`
+- `assign(iterable[Sprite])` (load external sprites into the pool)
+
 
 ### Velocity System Consistency
 
