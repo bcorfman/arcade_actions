@@ -1028,7 +1028,7 @@ class BlinkUntil(_Action):
             else:
                 new_visible = cycles % 2 == 1
 
-            last_visible = self._last_visible.get(vid, not new_visible)  # Ensure different for first check
+            last_visible = self._last_visible.get(vid, original_visible)  # Use original visibility as default
 
             if new_visible != last_visible:
                 if new_visible and self.on_blink_enter:
