@@ -16,6 +16,7 @@ Actions available:
             arrange_cross, arrange_arrow functions
 - Movement Patterns: create_zigzag_pattern, create_wave_pattern, create_spiral_pattern, etc.
 - Condition helpers: sprite_count, time_elapsed
+- Experimental: SpritePool for zero-allocation gameplay
 """
 
 # Core classes
@@ -96,6 +97,9 @@ from .pattern import (
     time_elapsed,
 )
 
+# Experimental pools module
+from .pools import SpritePool
+
 __all__ = [
     # Core classes
     "Action",
@@ -164,6 +168,8 @@ __all__ = [
     "ease",
     # display
     "center_window",
+    # experimental pools
+    "SpritePool",
 ]
 
 # Apply environment-driven configuration at import time so applications can

@@ -29,9 +29,9 @@ def arrange_line(
 ) -> arcade.SpriteList:
     """Create or arrange sprites in a horizontal line.
 
-    If *sprites* is given, it is arranged in-place. If *sprites* is **None**, a new
-    :class:`arcade.SpriteList` is created with ``count`` sprites produced by
-    *sprite_factory* (defaults to a simple star sprite).
+    Exactly one of *sprites* or *count* must be provided. If *sprites* is given,
+    it is arranged in-place. If *count* is given, a new :class:`arcade.SpriteList`
+    is created with sprites produced by *sprite_factory* (defaults to a simple star sprite).
 
     Args:
         sprites: Existing sprites to arrange, or None to create new ones
@@ -46,10 +46,9 @@ def arrange_line(
         The arranged sprite list
 
     Example:
-        # Arrange existing sprites
-        enemies = arcade.SpriteList()
-        # ... add sprites to enemies ...
-        arrange_line(enemies, start_x=100, start_y=200, spacing=60)
+        # Arrange existing sprites (zero-allocation)
+        pooled_sprites = pool.acquire(5)
+        arrange_line(pooled_sprites, start_x=100, start_y=200, spacing=60)
 
         # Create new sprites in a line
         line = arrange_line(count=5, start_x=0, start_y=300, spacing=50)
@@ -57,6 +56,15 @@ def arrange_line(
         # Create hidden sprites for formation entry
         hidden_line = arrange_line(count=5, start_x=200, start_y=400, visible=False)
     """
+    # Validate exactly one of sprites or count is provided
+    if sprites is not None and count is not None:
+        raise ValueError("Cannot specify both 'sprites' and 'count'. Use exactly one.")
+
+    # Validate exactly one of sprites or count is provided
+
+    if sprites is not None and count is not None:
+        raise ValueError("Cannot specify both 'sprites' and 'count'. Use exactly one.")
+
     if sprites is None:
         if count is None or count <= 0:
             raise ValueError("When *sprites* is None you must supply a positive *count*.")
@@ -98,9 +106,9 @@ def arrange_grid(
 ) -> arcade.SpriteList:
     """Create or arrange sprites in a rectangular grid formation.
 
+    If *sprites* is provided, they are arranged in-place and must match ``rows × cols``.
     If *sprites* is **None**, a new :class:`arcade.SpriteList` with ``rows × cols``
-    sprites is created using *sprite_factory* (defaults to a star sprite). The
-    function always returns the arranged sprite list.
+    sprites is created using *sprite_factory* (defaults to a star sprite).
 
     Args:
         sprites: Existing sprites to arrange, or None to create new ones
@@ -117,11 +125,12 @@ def arrange_grid(
         The arranged sprite list
 
     Example:
-        # Create a 3x5 grid of star sprites
-        stars = arrange_grid(rows=3, cols=5, start_x=200, start_y=400)
+        # Arrange pooled sprites in a grid (zero-allocation)
+        pooled_sprites = pool.acquire(15)  # 3*5 sprites
+        arrange_grid(pooled_sprites, rows=3, cols=5, start_x=200, start_y=400)
 
-        # Arrange existing sprites in a grid
-        arrange_grid(existing_sprites, rows=2, cols=4, spacing_x=80, spacing_y=60)
+        # Create a 3x5 grid of new sprites
+        stars = arrange_grid(rows=3, cols=5, start_x=200, start_y=400)
 
         # Create hidden grid for formation entry
         hidden_grid = arrange_grid(rows=4, cols=10, start_x=200, start_y=400, visible=False)
@@ -140,6 +149,11 @@ def arrange_grid(
             for sprite in sprites:
                 sprite_list.append(sprite)
             sprites = sprite_list
+
+        # Validate sprite count matches grid dimensions
+        expected_count = rows * cols
+        if len(sprites) != expected_count:
+            raise ValueError(f"sprite count ({len(sprites)}) does not match rows * cols ({expected_count})")
 
     for i, sprite in enumerate(sprites):
         row = i // cols
@@ -195,6 +209,15 @@ def arrange_circle(
         # Create hidden circle for formation entry
         hidden_circle = arrange_circle(count=8, center_x=400, center_y=300, radius=100, visible=False)
     """
+    # Validate exactly one of sprites or count is provided
+    if sprites is not None and count is not None:
+        raise ValueError("Cannot specify both 'sprites' and 'count'. Use exactly one.")
+
+    # Validate exactly one of sprites or count is provided
+
+    if sprites is not None and count is not None:
+        raise ValueError("Cannot specify both 'sprites' and 'count'. Use exactly one.")
+
     if sprites is None:
         if count is None or count <= 0:
             raise ValueError("When *sprites* is None you must supply a positive *count*.")
@@ -267,11 +290,18 @@ def arrange_v_formation(
         down_v = arrange_v_formation(count=7, apex_x=400, apex_y=500, spacing=60, direction="down")
 
         # Create a V formation pointing left with sprite rotation
-        left_v = arrange_v_formation(count=7, apex_x=100, apex_y=300, spacing=60, direction="left", rotate_with_direction=True)
+        left_v = arrange_v_formation(
+            count=7, apex_x=100, apex_y=300, spacing=60, direction="left", rotate_with_direction=True
+        )
 
         # Arrange existing sprites in V formation pointing right
         arrange_v_formation(flying_birds, direction="right", spacing=40)
     """
+    # Validate exactly one of sprites or count is provided
+
+    if sprites is not None and count is not None:
+        raise ValueError("Cannot specify both 'sprites' and 'count'. Use exactly one.")
+
     if sprites is None:
         if count is None or count <= 0:
             raise ValueError("When *sprites* is None you must supply a positive *count*.")
@@ -422,6 +452,11 @@ def arrange_diamond(
         # - Crystal/gem displays (hollow showcases central item)
         # - Special effect arrangements (hollow creates visual focus)
     """
+    # Validate exactly one of sprites or count is provided
+
+    if sprites is not None and count is not None:
+        raise ValueError("Cannot specify both 'sprites' and 'count'. Use exactly one.")
+
     if sprites is None:
         if count is None or count <= 0:
             raise ValueError("When *sprites* is None you must supply a positive *count*.")
@@ -542,6 +577,11 @@ def arrange_triangle(
         # Arrange existing sprites in triangle
         arrange_triangle(existing_sprites, apex_x=200, apex_y=300, lateral_spacing=40)
     """
+    # Validate exactly one of sprites or count is provided
+
+    if sprites is not None and count is not None:
+        raise ValueError("Cannot specify both 'sprites' and 'count'. Use exactly one.")
+
     if sprites is None:
         if count is None or count <= 0:
             raise ValueError("When *sprites* is None you must supply a positive *count*.")
@@ -568,10 +608,7 @@ def arrange_triangle(
         sprites_to_place = min(sprites_in_row, total_sprites - sprite_index)
 
         # Calculate Y position for this row
-        if invert:
-            y_pos = apex_y + row * row_spacing  # Grow upward
-        else:
-            y_pos = apex_y - row * row_spacing  # Grow downward
+        y_pos = apex_y + row * row_spacing if invert else apex_y - row * row_spacing
 
         # Calculate starting X position to center the row
         if sprites_to_place == 1:
@@ -714,6 +751,11 @@ def arrange_arc(
         fan = arrange_arc(count=5, center_x=200, center_y=200, radius=80,
                          start_angle=45, end_angle=135)
     """
+    # Validate exactly one of sprites or count is provided
+
+    if sprites is not None and count is not None:
+        raise ValueError("Cannot specify both 'sprites' and 'count'. Use exactly one.")
+
     if sprites is None:
         if count is None or count <= 0:
             raise ValueError("When *sprites* is None you must supply a positive *count*.")
@@ -830,7 +872,7 @@ def arrange_concentric_rings(
             sprites = sprite_list
 
     sprite_index = 0
-    for ring_idx, (radius, sprite_count) in enumerate(zip(radii, sprites_per_ring, strict=False)):
+    for _ring_idx, (radius, sprite_count) in enumerate(zip(radii, sprites_per_ring, strict=False)):
         if sprite_index >= len(sprites):
             break
 
@@ -896,6 +938,11 @@ def arrange_cross(
         hollow_cross = arrange_cross(count=8, center_x=200, center_y=200,
                                    arm_length=80, include_center=False)
     """
+    # Validate exactly one of sprites or count is provided
+
+    if sprites is not None and count is not None:
+        raise ValueError("Cannot specify both 'sprites' and 'count'. Use exactly one.")
+
     if sprites is None:
         if count is None or count <= 0:
             raise ValueError("When *sprites* is None you must supply a positive *count*.")
@@ -992,6 +1039,11 @@ def arrange_arrow(
         # Arrange existing sprites in arrow formation
         arrange_arrow(existing_sprites, tip_x=200, tip_y=300, spacing_along=40)
     """
+    # Validate exactly one of sprites or count is provided
+
+    if sprites is not None and count is not None:
+        raise ValueError("Cannot specify both 'sprites' and 'count'. Use exactly one.")
+
     if sprites is None:
         if count is None or count <= 0:
             raise ValueError("When *sprites* is None you must supply a positive *count*.")

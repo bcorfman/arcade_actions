@@ -19,6 +19,7 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 | `composite.py`        | Composite actions for combining multiple actions (sequential, parallel) |
 | `conditional.py`      | Includes boundary handling in `MoveUntil` for arcade-style patterns |
 | `pattern.py`          | Formation functions for positioning and layout patterns |
+| `pools.py`            | Experimental `SpritePool` for zero-allocation gameplay |
 | `display.py`         | Cross-platform window centering utility (SDL2 + screeninfo) |
 | `easing.py`           | Easing wrapper for smooth acceleration/deceleration effects on any action |
 | `helpers.py`          | Convenience wrappers for actions, e.g., `move_until()` |
@@ -278,5 +279,27 @@ def on_update(self, delta_time):
 from actions import arrange_grid
 arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
 ```
+
+#### Zero-Allocation Gameplay (Experimental)
+
+To eliminate per-wave allocations, pre-allocate sprites and reuse:
+
+```python
+from actions.pools import SpritePool
+from actions import arrange_grid
+import arcade
+
+def make_enemy():
+    return arcade.Sprite(":resources:images/enemies/bee.png", scale=0.5)
+
+pool = SpritePool(make_enemy, max_size=300)
+wave = pool.acquire(20)
+arrange_grid(sprites=wave, rows=4, cols=5, start_x=100, start_y=400)
+pool.release(wave)
+```
+
+Arrange function contract updates:
+- Provide exactly one of `sprites` or creation inputs (`count` / `sprite_factory`)
+- For grids, `len(sprites) == rows * cols` when `sprites` is supplied
 
 This architecture provides a clean, powerful, and maintainable action system that enhances Arcade without replacing its core functionality.
