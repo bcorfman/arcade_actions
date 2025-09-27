@@ -463,3 +463,364 @@ class TestCycleTexturesUntilHelper(ActionTestBase):
 
         assert callback_called
         assert len(Action._active_actions) == 0
+
+
+class TestCycleTexturesUntilDurationSupport(ActionTestBase):
+    """Test suite for CycleTexturesUntil duration support (simulation time)."""
+
+    def test_cycle_textures_duration_extraction_basic(self, test_sprite):
+        """Test that CycleTexturesUntil extracts duration from duration() condition."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(3)
+        action = CycleTexturesUntil(
+            textures=textures,
+            frames_per_second=60.0,
+            direction=1,
+            condition=duration(0.5),  # 0.5 seconds
+        )
+        action.apply(test_sprite, tag="duration_test")
+
+        # Check that duration was extracted
+        assert hasattr(action, "_duration")
+        assert action._duration == 0.5
+        assert hasattr(action, "_elapsed")
+        assert action._elapsed == 0.0
+
+    def test_cycle_textures_duration_completion(self, test_sprite):
+        """Test that CycleTexturesUntil completes after specified duration."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(4)
+        action = CycleTexturesUntil(
+            textures=textures,
+            frames_per_second=60.0,
+            direction=1,
+            condition=duration(0.1),  # 0.1 seconds
+        )
+        action.apply(test_sprite, tag="duration_completion")
+
+        # Run for exactly 0.1 seconds at 60 FPS (6 frames)
+        dt = 1.0 / 60.0
+        for frame in range(6):
+            Action.update_all(dt)
+            if action.done:
+                break
+
+        # Should complete exactly at 0.1 seconds
+        assert action.done
+        assert abs(action._elapsed - 0.1) < 1e-9
+
+    def test_cycle_textures_duration_scaling_with_factor(self, test_sprite):
+        """Test that CycleTexturesUntil duration scales with set_factor."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(3)
+        action = CycleTexturesUntil(
+            textures=textures,
+            frames_per_second=60.0,
+            direction=1,
+            condition=duration(0.2),  # 0.2 seconds
+        )
+        action.apply(test_sprite, tag="factor_test")
+
+        # Set factor to 2.0 (double speed)
+        action.set_factor(2.0)
+
+        # Run for 0.1 seconds of real time (should complete in half the time)
+        dt = 1.0 / 60.0
+        for frame in range(6):  # 6 frames = 0.1 seconds
+            Action.update_all(dt)
+            if action.done:
+                break
+
+        # Should complete in 0.1 seconds real time (0.2 seconds simulation time)
+        assert action.done
+        assert abs(action._elapsed - 0.2) < 1e-9  # _elapsed tracks simulation time
+
+    def test_cycle_textures_factor_pausing(self, test_sprite):
+        """Test that CycleTexturesUntil can be paused with factor=0."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(4)
+        action = CycleTexturesUntil(
+            textures=textures,
+            frames_per_second=60.0,
+            direction=1,
+            condition=duration(0.2),
+        )
+        action.apply(test_sprite, tag="pause_test")
+
+        # Run for a few frames normally
+        dt = 1.0 / 60.0
+        for _ in range(3):
+            Action.update_all(dt)
+
+        elapsed_before_pause = action._elapsed
+        texture_before_pause = test_sprite.texture
+
+        # Pause the action
+        action.set_factor(0.0)
+
+        # Run more frames - should not advance
+        for _ in range(5):
+            Action.update_all(dt)
+
+        # Should be paused
+        assert action._elapsed == elapsed_before_pause
+        assert test_sprite.texture == texture_before_pause
+        assert not action.done
+
+        # Resume the action
+        action.set_factor(1.0)
+
+        # Should continue from where it left off
+        Action.update_all(dt)
+        assert action._elapsed > elapsed_before_pause
+
+    def test_cycle_textures_reset_functionality(self, test_sprite):
+        """Test that CycleTexturesUntil can be reset to initial state."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(3)
+        action = CycleTexturesUntil(
+            textures=textures,
+            frames_per_second=60.0,
+            direction=1,
+            condition=duration(0.2),
+        )
+        action.apply(test_sprite, tag="reset_test")
+
+        # Run for several frames
+        dt = 1.0 / 60.0
+        for _ in range(5):
+            Action.update_all(dt)
+
+        # State should have advanced
+        assert action._elapsed > 0
+        assert action._cursor > 0
+        assert test_sprite.texture != textures[0]
+
+        # Reset the action
+        action.reset()
+
+        # Should be back to initial state
+        assert action._elapsed == 0.0
+        assert action._cursor == 0.0
+        assert not action.done
+
+        # Reapply to restore sprite state
+        action.apply_effect()
+        assert test_sprite.texture == textures[0]
+
+    def test_cycle_textures_duration_with_on_stop_callback(self, test_sprite):
+        """Test that CycleTexturesUntil calls on_stop when duration completes."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(3)
+        callback_called = False
+        callback_data = None
+
+        def on_stop(data=None):
+            nonlocal callback_called, callback_data
+            callback_called = True
+            callback_data = data
+
+        action = CycleTexturesUntil(
+            textures=textures,
+            frames_per_second=60.0,
+            direction=1,
+            condition=duration(0.05),  # Very short duration
+            on_stop=on_stop,
+        )
+        action.apply(test_sprite, tag="callback_test")
+
+        # Run until completion
+        dt = 1.0 / 60.0
+        for _ in range(10):
+            Action.update_all(dt)
+            if action.done:
+                break
+
+        assert action.done
+        assert callback_called
+
+    def test_cycle_textures_duration_clone_preserves_state(self, test_sprite):
+        """Test that cloning CycleTexturesUntil preserves duration state."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(4)
+        original = CycleTexturesUntil(
+            textures=textures,
+            frames_per_second=120.0,
+            direction=-1,
+            condition=duration(0.3),
+        )
+
+        # Clone the action
+        cloned = original.clone()
+
+        # Both should have same configuration
+        assert cloned._textures == original._textures
+        assert cloned._fps == original._fps
+        assert cloned._direction == original._direction
+        assert cloned._count == original._count
+
+        # Apply both and verify they work independently
+        original.apply(test_sprite, tag="original")
+
+        # Create a second sprite for the clone
+        sprite2 = arcade.Sprite()
+        cloned.apply(sprite2, tag="clone")
+
+        # Both should have same initial state
+        assert test_sprite.texture == textures[0]
+        assert sprite2.texture == textures[0]
+
+        # Update both
+        dt = 1.0 / 60.0
+        Action.update_all(dt)
+
+        # Both should advance by 2 frames backward: (0 - 2) % 4 = 2
+        assert test_sprite.texture == textures[2]
+        assert sprite2.texture == textures[2]
+
+    def test_cycle_textures_duration_mixed_with_custom_condition(self, test_sprite):
+        """Test CycleTexturesUntil with non-duration condition (fallback behavior)."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(3)
+
+        # Custom condition that doesn't use duration()
+        frame_count = 0
+
+        def custom_condition():
+            nonlocal frame_count
+            frame_count += 1
+            return frame_count >= 8
+
+        action = CycleTexturesUntil(
+            textures=textures,
+            frames_per_second=60.0,
+            direction=1,
+            condition=custom_condition,
+        )
+        action.apply(test_sprite, tag="custom_condition")
+
+        # Should not have duration tracking for non-duration conditions
+        assert not hasattr(action, "_duration") or action._duration is None
+
+        # Should still work with the custom condition
+        dt = 1.0 / 60.0
+        for _ in range(10):
+            Action.update_all(dt)
+            if action.done:
+                break
+
+        assert action.done
+        assert frame_count >= 8
+
+    def test_cycle_textures_duration_zero_duration(self, test_sprite):
+        """Test CycleTexturesUntil with zero duration completes immediately."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(3)
+        action = CycleTexturesUntil(
+            textures=textures,
+            frames_per_second=60.0,
+            direction=1,
+            condition=duration(0.0),  # Zero duration
+        )
+        action.apply(test_sprite, tag="zero_duration")
+
+        # Should complete immediately
+        assert action.done
+
+    def test_cycle_textures_duration_simulation_time_independence(self, test_sprite):
+        """Test that CycleTexturesUntil duration is independent of frame rate."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(5)
+
+        # Test with different delta times but same total elapsed time
+        for frame_rate in [30, 60, 120]:  # Different frame rates
+            action = CycleTexturesUntil(
+                textures=textures,
+                frames_per_second=60.0,  # Texture animation rate
+                direction=1,
+                condition=duration(0.1),  # 0.1 seconds
+            )
+            action.apply(test_sprite, tag=f"framerate_{frame_rate}")
+
+            # Update with different delta times to reach 0.1 seconds total
+            dt = 1.0 / frame_rate
+            frames_needed = int(0.1 * frame_rate)
+
+            for _ in range(frames_needed):
+                Action.update_all(dt)
+                if action.done:
+                    break
+
+            # Should complete at roughly the same simulation time regardless of frame rate
+            assert action.done
+            assert abs(action._elapsed - 0.1) < 1e-9
+
+            # Clean up for next iteration
+            Action.stop_all()
+
+    def test_cycle_textures_factor_affects_both_timing_and_animation(self, test_sprite):
+        """Test that set_factor affects both duration timing and animation speed."""
+        from actions.conditional import CycleTexturesUntil
+
+        textures = create_test_textures(4)
+        action = CycleTexturesUntil(
+            textures=textures,
+            frames_per_second=60.0,  # 1 frame per 1/60 second normally
+            direction=1,
+            condition=duration(0.2),  # 0.2 seconds duration
+        )
+        action.apply(test_sprite, tag="factor_both_test")
+
+        # Set factor to 3.0 (triple speed)
+        action.set_factor(3.0)
+
+        # Run for 1 frame at normal rate
+        dt = 1.0 / 60.0
+        Action.update_all(dt)
+
+        # Should advance by 3 frames in texture animation: 0 + 3 = 3
+        expected_texture_index = 3 % len(textures)  # Should be texture 3
+        assert test_sprite.texture == textures[expected_texture_index]
+
+        # Duration should also be scaled: 1/60 * 3.0 = 3/60 = 0.05 seconds elapsed
+        assert abs(action._elapsed - 0.05) < 1e-9
+
+    def test_cycle_textures_helper_with_duration_support(self, test_sprite):
+        """Test cycle_textures_until helper properly supports duration conditions."""
+        from actions import cycle_textures_until
+
+        textures = create_test_textures(3)
+
+        # Use helper with duration condition
+        action = cycle_textures_until(
+            test_sprite,
+            textures=textures,
+            frames_per_second=60.0,
+            direction=1,
+            condition=duration(0.1),  # Should use simulation time
+            tag="helper_duration",
+        )
+
+        # Should have duration tracking
+        assert hasattr(action, "_duration")
+        assert action._duration == 0.1
+
+        # Run for 0.1 seconds
+        dt = 1.0 / 60.0
+        for _ in range(6):  # 6 frames = 0.1 seconds
+            Action.update_all(dt)
+            if action.done:
+                break
+
+        assert action.done
+        assert abs(action._elapsed - 0.1) < 1e-9

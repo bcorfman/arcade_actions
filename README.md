@@ -126,8 +126,9 @@ docs/
 - **RotateUntil** - Angular velocity rotation
 - **ScaleUntil** - Scale velocity changes  
 - **FadeUntil** - Alpha velocity changes
-- **CycleTexturesUntil** - Cycle through a list of textures at a specific frame rate for sprite animations
+- **CycleTexturesUntil** - Cycle through a list of textures at a specific frame rate with simulation time duration support
 - **BlinkUntil** - Toggle sprite visibility with optional enter/exit callbacks for collision management
+- **CallbackUntil** - Execute callback functions at specified intervals or every frame until condition is met
 - **DelayUntil** - Wait for condition to be met
 - **TweenUntil** - Direct property animation from start to end value
 

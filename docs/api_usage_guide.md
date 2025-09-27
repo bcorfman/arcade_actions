@@ -143,6 +143,7 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **FadeUntil** - Alpha velocity changes
 - **CycleTexturesUntil** - Cycle through a list of textures at specified frame rate
 - **BlinkUntil** - Toggle sprite visibility with optional enter/exit callbacks
+- **CallbackUntil** - Execute callback functions at specified intervals or every frame
 - **DelayUntil** - Wait for condition
 - **TweenUntil** - Direct property animation from start to end value
 
@@ -527,12 +528,12 @@ cycle_textures_until(
     condition=infinite
 )
 
-# Time-limited texture cycling
+# Time-limited texture cycling (uses simulation time for consistent timing)
 cycle_textures_until(
     power_up_sprite,
     textures=power_up_textures,
     frames_per_second=30.0,
-    condition=duration(3.0),  # Animate for 3 seconds
+    condition=duration(3.0),  # Animate for 3 seconds - uses simulation time
     direction=1,  # Forward animation
     tag="power_up_animation"
 )
@@ -579,8 +580,29 @@ animation_sequence.apply(machinery_sprite, tag="machinery_startup")
 - **Frame Rate Control**: Specify exactly how many texture changes per second
 - **Direction Control**: Cycle forward (1) or backward (-1) through texture list
 - **Condition-Based**: Stop cycling when any condition is met
+- **Simulation Time Support**: `duration()` conditions use consistent timing independent of frame rate
+- **Factor Scaling**: Use `set_factor()` to speed up/slow down both animation and duration timing
 - **Automatic Wrapping**: Seamlessly loops through texture list
 - **Works with Groups**: Apply same animation to entire sprite lists
+
+**Duration and Timing:**
+`CycleTexturesUntil` supports simulation time for consistent behavior:
+
+```python
+# Duration conditions use simulation time (frame-rate independent)
+cycle_textures_until(
+    sprite, 
+    textures=animation_frames, 
+    frames_per_second=24.0,
+    condition=duration(3.0)  # Exactly 3 seconds, regardless of FPS
+)
+
+# Factor scaling affects both animation speed and duration
+action = cycle_textures_until(sprite, textures=frames, condition=duration(2.0))
+action.set_factor(2.0)  # 2x speed: animation plays faster AND completes in 1 second
+action.set_factor(0.5)  # Half speed: animation plays slower AND takes 4 seconds
+action.set_factor(0.0)  # Paused: both animation and duration timing stop
+```
 
 **Common Use Cases:**
 - Character walk/run animations
@@ -1255,6 +1277,7 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 | Texture animation | `cycle_textures_until` helper | `cycle_textures_until(sprite, textures=tex_list, frames_per_second=12)` |
 | Visibility blinking | `blink_until` helper | `blink_until(sprite, seconds_until_change=0.25, condition=cond)` |
 | Visibility callbacks | `blink_until` with callbacks | `blink_until(sprite, ..., on_blink_enter=enable_fn, on_blink_exit=disable_fn)` |
+| Periodic callbacks | `callback_until` helper | `callback_until(sprite, callback=update_fn, condition=cond, seconds_between_calls=0.1)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, velocity=vel, condition=cond, bounds=b)` |
 | Delayed execution | Direct classes in sequences | `sequence(DelayUntil(duration(1.0)), action)` |
 | Smooth acceleration | `ease` helper | `ease(sprite, action, duration=2.0)` |

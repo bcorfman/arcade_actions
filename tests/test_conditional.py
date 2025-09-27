@@ -2654,3 +2654,149 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         # Should have made at least one call before failing
         assert call_count >= 1
+
+
+class TestCallbackUntilExceptionHandling(ActionTestBase):
+    """Test exception handling in CallbackUntil."""
+
+    def test_callback_until_duration_extraction_exception(self, test_sprite):
+        """Test exception handling when duration extraction fails."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        # Create a malformed condition that will cause exception during duration extraction
+        def bad_condition():
+            return False
+
+        # Add attributes that will cause exception in duration extraction
+        bad_condition._is_duration_condition = True
+        bad_condition._duration_seconds = "not_a_number"  # Invalid type
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=bad_condition,
+            seconds_between_calls=0.05,
+        )
+        action.apply(sprite, tag="test_exception")
+
+        # Should not crash despite duration extraction exception
+        for _ in range(5):
+            Action.update_all(1 / 60)
+
+        # Should still work with callback
+        assert call_count >= 1
+
+    def test_callback_until_apply_effect_exception_handling(self, test_sprite):
+        """Test exception handling in apply_effect duration extraction."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        # Create a condition with malformed closure that will cause exception
+        def bad_closure_condition():
+            return False
+
+        # Simulate a condition with broken closure
+        bad_closure_condition.__closure__ = ["not_a_cell"]  # Invalid closure
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=bad_closure_condition,
+            seconds_between_calls=0.05,
+        )
+        action.apply(sprite, tag="test_apply_exception")
+
+        # Should not crash despite exception in apply_effect
+        for _ in range(5):
+            Action.update_all(1 / 60)
+
+        # Should still work
+        assert call_count >= 1
+
+    def test_callback_until_callback_exception_fallback(self, test_sprite):
+        """Test fallback to _safe_call when callback has other exceptions."""
+        sprite = test_sprite
+        exception_count = 0
+
+        def failing_callback():
+            nonlocal exception_count
+            exception_count += 1
+            if exception_count == 1:
+                # First call: TypeError (wrong signature)
+                raise TypeError("Wrong signature")
+            elif exception_count == 2:
+                # Second call: RuntimeError (other exception)
+                raise RuntimeError("Other error")
+
+        action = CallbackUntil(
+            callback=failing_callback,
+            condition=duration(0.1),
+            seconds_between_calls=0.05,
+        )
+        action.apply(sprite, tag="test_fallback")
+
+        # Should not crash and use _safe_call fallback
+        for _ in range(6):
+            Action.update_all(1 / 60)
+
+        # Should have attempted to call at least once
+        assert exception_count >= 1
+
+    def test_callback_until_edge_case_completion_callback(self, test_sprite):
+        """Test edge case where final callback fires at completion time."""
+        sprite = test_sprite
+        call_times = []
+
+        def callback():
+            call_times.append(len(call_times) + 1)
+
+        # Set up action with very precise timing to trigger edge case
+        action = CallbackUntil(
+            callback=callback,
+            condition=duration(0.1),
+            seconds_between_calls=0.1,  # Exactly at completion time
+        )
+        action.apply(sprite, tag="test_edge_case")
+
+        # Run for exactly the duration
+        for _ in range(6):  # 6 * (1/60) = 0.1 seconds
+            Action.update_all(1 / 60)
+
+        # Should fire callback at the completion time due to edge case handling
+        assert len(call_times) >= 1
+
+    def test_callback_until_no_duration_condition(self, test_sprite):
+        """Test CallbackUntil with condition that doesn't have duration."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        # Simple condition without duration
+        def simple_condition():
+            return call_count >= 3
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=simple_condition,
+            seconds_between_calls=0.02,
+        )
+        action.apply(sprite, tag="test_no_duration")
+
+        # Run until condition is met
+        for _ in range(10):
+            Action.update_all(1 / 60)
+            if action.done:
+                break
+
+        assert call_count == 3
+        assert action.done

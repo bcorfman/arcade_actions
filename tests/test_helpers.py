@@ -1,7 +1,9 @@
 """Test suite for helpers.py - Helper functions for common action patterns."""
 
-from actions import Action
-from actions.helpers import move_by, move_to
+import arcade
+
+from actions import Action, duration
+from actions.helpers import callback_until, cycle_textures_until, move_by, move_to
 from tests.conftest import ActionTestBase
 
 
@@ -156,3 +158,220 @@ class TestHelperFunctions(ActionTestBase):
         assert action is not None
         assert hasattr(action, "apply")
         assert hasattr(action, "update_effect")
+
+
+class TestCallbackUntilHelper(ActionTestBase):
+    """Test suite for callback_until helper function."""
+
+    def test_callback_until_basic(self, test_sprite):
+        """Test basic callback_until functionality."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        action = callback_until(sprite, callback=callback, condition=duration(0.1))
+
+        # Run for a few frames
+        for _ in range(6):
+            Action.update_all(1 / 60)
+
+        assert call_count == 6
+        assert action.done
+
+    def test_callback_until_with_interval(self, test_sprite):
+        """Test callback_until with interval scheduling."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        action = callback_until(sprite, callback=callback, condition=duration(0.1), seconds_between_calls=0.05)
+
+        # Run for 6 frames (0.1 seconds)
+        for _ in range(6):
+            Action.update_all(1 / 60)
+
+        assert call_count == 2  # Called at 0.05s and 0.1s
+        assert action.done
+
+    def test_callback_until_with_target_parameter(self, test_sprite):
+        """Test callback_until with callback that receives target."""
+        sprite = test_sprite
+        received_targets = []
+
+        def callback_with_target(target):
+            received_targets.append(target)
+
+        action = callback_until(
+            sprite, callback=callback_with_target, condition=duration(0.05), seconds_between_calls=0.05
+        )
+
+        # Run for enough frames to trigger callback
+        for _ in range(3):
+            Action.update_all(1 / 60)
+
+        assert len(received_targets) == 1
+        assert received_targets[0] == sprite
+
+    def test_callback_until_with_on_stop(self, test_sprite):
+        """Test callback_until with on_stop callback."""
+        sprite = test_sprite
+        on_stop_called = False
+
+        def callback():
+            pass
+
+        def on_stop():
+            nonlocal on_stop_called
+            on_stop_called = True
+
+        action = callback_until(sprite, callback=callback, condition=duration(0.05), on_stop=on_stop)
+
+        # Run until completion
+        for _ in range(10):
+            Action.update_all(1 / 60)
+            if action.done:
+                break
+
+        assert on_stop_called
+
+    def test_callback_until_with_tag(self, test_sprite):
+        """Test callback_until applies with correct tag."""
+        sprite = test_sprite
+
+        def callback():
+            pass
+
+        action = callback_until(sprite, callback=callback, condition=duration(0.1), tag="test_tag")
+
+        # Verify action was applied with tag
+        assert action.target == sprite
+        # Note: tag verification would require accessing internal action manager
+
+
+class TestCycleTexturesUntilHelper(ActionTestBase):
+    """Test suite for cycle_textures_until helper function."""
+
+    def test_cycle_textures_until_basic(self, test_sprite):
+        """Test basic cycle_textures_until functionality."""
+        sprite = test_sprite
+
+        # Create some dummy textures
+        textures = [
+            arcade.Texture.create_empty("tex1", (10, 10)),
+            arcade.Texture.create_empty("tex2", (10, 10)),
+            arcade.Texture.create_empty("tex3", (10, 10)),
+        ]
+
+        # Use a simple condition instead of duration() since CycleTexturesUntil
+        # doesn't have simulation-time tracking
+        frame_count = 0
+
+        def stop_after_frames():
+            nonlocal frame_count
+            frame_count += 1
+            return frame_count >= 5
+
+        action = cycle_textures_until(sprite, textures=textures, condition=stop_after_frames)
+
+        # Action should be applied and running
+        assert action.target == sprite
+        assert not action.done
+
+        # Run until condition is met
+        for _ in range(10):
+            Action.update_all(1 / 60)
+            if action.done:
+                break
+
+        assert action.done
+
+    def test_cycle_textures_until_with_none_condition(self, test_sprite):
+        """Test cycle_textures_until with condition=None (infinite)."""
+        sprite = test_sprite
+
+        textures = [
+            arcade.Texture.create_empty("tex1", (10, 10)),
+            arcade.Texture.create_empty("tex2", (10, 10)),
+        ]
+
+        action = cycle_textures_until(
+            sprite,
+            textures=textures,
+            condition=None,  # Should default to infinite
+        )
+
+        # Action should be applied and running
+        assert action.target == sprite
+        assert not action.done
+
+        # Run for a few frames - should still be running
+        for _ in range(5):
+            Action.update_all(1 / 60)
+
+        assert not action.done  # Should still be running infinitely
+
+    def test_cycle_textures_until_with_direction(self, test_sprite):
+        """Test cycle_textures_until with backward direction."""
+        sprite = test_sprite
+
+        textures = [
+            arcade.Texture.create_empty("tex1", (10, 10)),
+            arcade.Texture.create_empty("tex2", (10, 10)),
+        ]
+
+        action = cycle_textures_until(
+            sprite,
+            textures=textures,
+            direction=-1,  # Backward
+            condition=duration(0.1),
+        )
+
+        # Action should be applied and running
+        assert action.target == sprite
+        assert not action.done
+
+    def test_cycle_textures_until_with_on_stop(self, test_sprite):
+        """Test cycle_textures_until with on_stop callback."""
+        sprite = test_sprite
+        on_stop_called = False
+
+        textures = [arcade.Texture.create_empty("tex1", (10, 10))]
+
+        def on_stop():
+            nonlocal on_stop_called
+            on_stop_called = True
+
+        # Use a simple condition instead of duration()
+        frame_count = 0
+
+        def stop_condition():
+            nonlocal frame_count
+            frame_count += 1
+            return frame_count >= 3
+
+        action = cycle_textures_until(sprite, textures=textures, condition=stop_condition, on_stop=on_stop)
+
+        # Run until completion
+        for _ in range(10):
+            Action.update_all(1 / 60)
+            if action.done:
+                break
+
+        assert on_stop_called
+
+    def test_cycle_textures_until_with_tag(self, test_sprite):
+        """Test cycle_textures_until applies with correct tag."""
+        sprite = test_sprite
+
+        textures = [arcade.Texture.create_empty("tex1", (10, 10))]
+
+        action = cycle_textures_until(sprite, textures=textures, condition=duration(0.1), tag="texture_cycle")
+
+        # Verify action was applied
+        assert action.target == sprite

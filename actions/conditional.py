@@ -1759,8 +1759,47 @@ class CycleTexturesUntil(_Action):
         self._count = len(textures)
         self._cursor = 0.0  # Fractional texture index
 
+        # Duration tracking for simulation time
+        self._elapsed = 0.0
+        self._duration: float | None = None
+
+        # Try to extract duration from duration() helper functions
+        try:
+            if hasattr(condition, "__name__") and condition.__name__ == "condition":
+                if hasattr(condition, "__closure__") and condition.__closure__:
+                    seconds = condition.__closure__[0].cell_contents
+                    if isinstance(seconds, (int, float)) and seconds >= 0:
+                        self._duration = float(seconds)
+
+                        def _sim_condition() -> bool:
+                            return self._elapsed >= (self._duration or 0.0) - 1e-9
+
+                        # Preserve attributes so cloning and tools can still introspect
+                        _sim_condition._is_duration_condition = True
+                        _sim_condition._original_condition = condition
+                        _sim_condition._duration_seconds = self._duration
+
+                        # Replace the condition with simulation-time version
+                        self.condition = _sim_condition
+        except Exception:
+            # If duration extraction fails, use original condition
+            pass
+
     def apply_effect(self) -> None:
         """Initialize textures on the target sprite(s)."""
+        # Reset timing state
+        self._elapsed = 0.0
+
+        # Try duration extraction again in case condition wasn't extractable during __init__
+        if self._duration is None:
+            try:
+                if hasattr(self.condition, "__name__") and self.condition.__name__ == "condition":
+                    if hasattr(self.condition, "__closure__") and self.condition.__closure__:
+                        seconds = self.condition.__closure__[0].cell_contents
+                        if isinstance(seconds, (int, float)) and seconds >= 0:
+                            self._duration = float(seconds)
+            except Exception:
+                pass
 
         def set_initial_texture(sprite):
             sprite.textures = self._textures
@@ -1768,10 +1807,18 @@ class CycleTexturesUntil(_Action):
 
         self.for_each_sprite(set_initial_texture)
 
+        # Check for immediate completion (zero duration)
+        if self._duration is not None and self._duration <= 0.0:
+            self.done = True
+
     def update_effect(self, dt: float) -> None:
         """Update texture cycling."""
-        # Advance cursor by frame rate * delta time
-        self._cursor = (self._cursor + self._fps * dt) % self._count
+        # Update simulation time (respects factor scaling)
+        scaled_dt = dt * self._factor
+        self._elapsed += scaled_dt
+
+        # Advance cursor by frame rate * scaled delta time
+        self._cursor = (self._cursor + self._fps * scaled_dt) % self._count
 
         # Get current texture index (floor of cursor)
         texture_index = int(math.floor(self._cursor)) % self._count
@@ -1782,12 +1829,34 @@ class CycleTexturesUntil(_Action):
 
         self.for_each_sprite(set_texture)
 
+        # Check for duration completion
+        if self._duration is not None and self._elapsed >= self._duration - 1e-9:
+            self.done = True
+
+    def set_factor(self, factor: float) -> None:
+        """Scale both texture cycling speed and duration timing by the given factor.
+
+        Args:
+            factor: Scaling factor (0.0 = stopped, 1.0 = normal speed)
+        """
+        self._factor = factor
+
+    def reset(self) -> None:
+        """Reset the action to its initial state."""
+        self._elapsed = 0.0
+        self._cursor = 0.0
+        self.done = False
+
     def clone(self) -> "CycleTexturesUntil":
         """Create a copy of this action."""
-        return CycleTexturesUntil(
+        cloned = CycleTexturesUntil(
             textures=self._textures,
             frames_per_second=abs(self._fps),  # Remove direction factor
             direction=self._direction,
             condition=self.condition,
             on_stop=self.on_stop,
         )
+        # Preserve duration state if it was manually set
+        if hasattr(self, "_duration"):
+            cloned._duration = self._duration
+        return cloned
