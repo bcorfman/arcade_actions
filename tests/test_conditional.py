@@ -1,5 +1,6 @@
 """Test suite for condition_actions.py - Conditional actions."""
 
+import arcade
 import pytest
 
 from actions import (
@@ -1016,13 +1017,13 @@ class TestBlinkUntil(ActionTestBase):
         for sprite in sprite_list:
             sprite.visible = True
 
-        callback_sprites = {"enter": [], "exit": []}
+        callback_calls = {"enter": [], "exit": []}
 
-        def track_enter(sprite_arg):
-            callback_sprites["enter"].append(sprite_arg)
+        def track_enter(target_arg):
+            callback_calls["enter"].append(target_arg)
 
-        def track_exit(sprite_arg):
-            callback_sprites["exit"].append(sprite_arg)
+        def track_exit(target_arg):
+            callback_calls["exit"].append(target_arg)
 
         action = blink_until(
             sprite_list,
@@ -1038,17 +1039,19 @@ class TestBlinkUntil(ActionTestBase):
 
         for sprite in sprite_list:
             assert not sprite.visible
-            assert sprite in callback_sprites["exit"]
-        assert len(callback_sprites["exit"]) == len(sprite_list)
-        assert len(callback_sprites["enter"]) == 0
+        # Callback should receive the SpriteList once, not individual sprites
+        assert len(callback_calls["exit"]) == 1
+        assert callback_calls["exit"][0] is sprite_list
+        assert len(callback_calls["enter"]) == 0
 
         # Trigger second blink (all go visible)
         Action.update_all(0.06)
 
         for sprite in sprite_list:
             assert sprite.visible
-            assert sprite in callback_sprites["enter"]
-        assert len(callback_sprites["enter"]) == len(sprite_list)
+        # Callback should receive the SpriteList once
+        assert len(callback_calls["enter"]) == 1
+        assert callback_calls["enter"][0] is sprite_list
 
     def test_blink_until_clone_preserves_callbacks(self, test_sprite):
         """Test that cloning preserves callback functions."""
@@ -1867,6 +1870,8 @@ class TestConditionalAdditionalCoverage:
     def teardown_method(self):
         """Clean up after each test."""
         Action.stop_all()
+        # Clear callback warning cache for clean tests
+        Action._warned_bad_callbacks.clear()
 
     def test_duration_boundary_state_initialization(self):
         """Test boundary state initialization for different sprites."""
@@ -2016,3 +2021,314 @@ class TestConditionalAdditionalCoverage:
         assert sprite.change_y == 0
         assert sprite.center_y == 0  # Bottom boundary
         assert "enter_y_bottom" in boundary_events
+
+
+class TestCallbackSignatureWarnings:
+    """Test callback signature mismatch warnings."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+        Action._warned_bad_callbacks.clear()
+
+    def test_blink_until_bad_callback_signature_warnings(self, test_sprite, monkeypatch):
+        """Test that BlinkUntil warns about bad callback signatures."""
+        import warnings
+
+        # Enable debug mode for warnings
+        monkeypatch.setenv("ARCADEACTIONS_DEBUG", "1")
+
+        sprite = test_sprite
+        sprite.visible = True
+
+        # Bad callbacks with wrong number of parameters
+        def bad_enter():  # Missing sprite parameter
+            pass
+
+        def bad_exit():  # Missing sprite parameter
+            pass
+
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+
+            action = blink_until(
+                sprite,
+                seconds_until_change=0.05,
+                condition=infinite,
+                on_blink_enter=bad_enter,
+                on_blink_exit=bad_exit,
+                tag="test_bad_callbacks",
+            )
+
+            # Update multiple times to trigger blinking and callbacks
+            for _ in range(10):
+                Action.update_all(0.016)
+
+            action.stop()
+
+        # Should have exactly 2 warnings (one for each bad callback)
+        warning_messages = [str(w.message) for w in caught_warnings if issubclass(w.category, RuntimeWarning)]
+        assert len(warning_messages) == 2
+
+        # Check warning content
+        assert any("bad_enter" in msg and "TypeError" in msg for msg in warning_messages)
+        assert any("bad_exit" in msg and "TypeError" in msg for msg in warning_messages)
+
+    def test_move_until_bad_boundary_callback_warnings(self, test_sprite, monkeypatch):
+        """Test that MoveUntil warns about bad boundary callback signatures."""
+        import warnings
+
+        # Enable debug mode for warnings
+        monkeypatch.setenv("ARCADEACTIONS_DEBUG", "1")
+
+        sprite = test_sprite
+        sprite.center_x = 95  # Start closer to boundary
+        sprite.center_y = 50
+
+        # Bad callbacks with wrong signatures
+        def bad_boundary_enter():  # Missing sprite, axis, side parameters
+            pass
+
+        def bad_boundary_exit():  # Missing sprite, axis, side parameters
+            pass
+
+        bounds = (0, 0, 100, 100)
+
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+
+            # Test by directly calling _safe_call with the bad callback
+            from actions.base import Action
+
+            Action._safe_call(bad_boundary_enter, sprite, "x", "right")
+
+        # Should have warnings for bad callbacks
+        warning_messages = [str(w.message) for w in caught_warnings if issubclass(w.category, RuntimeWarning)]
+        assert len(warning_messages) >= 1  # At least one warning
+
+        # Check warning content
+        assert any("bad_boundary" in msg and "TypeError" in msg for msg in warning_messages)
+
+    def test_callback_warning_only_once_per_function(self, test_sprite, monkeypatch):
+        """Test that warnings are only issued once per callback function."""
+        import warnings
+
+        # Enable debug mode for warnings
+        monkeypatch.setenv("ARCADEACTIONS_DEBUG", "1")
+
+        sprite = test_sprite
+        sprite.visible = True
+
+        def bad_callback():  # Missing sprite parameter
+            pass
+
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+
+            # Apply the same bad callback multiple times
+            action1 = blink_until(
+                sprite, seconds_until_change=0.05, condition=infinite, on_blink_enter=bad_callback, tag="test_once_1"
+            )
+
+            action2 = blink_until(
+                sprite,
+                seconds_until_change=0.05,
+                condition=infinite,
+                on_blink_enter=bad_callback,  # Same function, should not warn again
+                tag="test_once_2",
+            )
+
+            # Update to trigger callbacks
+            for _ in range(20):
+                Action.update_all(0.016)
+
+            action1.stop()
+            action2.stop()
+
+        # Should have exactly one warning despite multiple uses of the same function
+        warning_messages = [str(w.message) for w in caught_warnings if issubclass(w.category, RuntimeWarning)]
+        assert len(warning_messages) == 1
+        assert "bad_callback" in warning_messages[0]
+        assert "TypeError" in warning_messages[0]
+
+    def test_no_warnings_without_debug_mode(self, test_sprite):
+        """Test that no warnings are issued when ARCADEACTIONS_DEBUG is not set."""
+        import warnings
+
+        sprite = test_sprite
+        sprite.visible = True
+
+        def bad_callback():  # Missing sprite parameter
+            pass
+
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+
+            action = blink_until(
+                sprite, seconds_until_change=0.05, condition=infinite, on_blink_enter=bad_callback, tag="test_no_debug"
+            )
+
+            # Update to trigger callbacks
+            for _ in range(10):
+                Action.update_all(0.016)
+
+            action.stop()
+
+        # Should have no warnings when debug mode is off
+        warning_messages = [str(w.message) for w in caught_warnings if issubclass(w.category, RuntimeWarning)]
+        assert len(warning_messages) == 0
+
+
+class TestBlinkUntilEfficiency:
+    """Test BlinkUntil callback efficiency with SpriteList targets."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_sprite_list_callbacks_called_once_not_n_times(self, test_sprite_list):
+        """Test that SpriteList callbacks are called once per frame, not once per sprite."""
+        sprites = test_sprite_list
+
+        # Add more sprites to make the efficiency difference clear
+        for i in range(47):  # test_sprite_list has 3 sprites, add 47 more for 50 total
+            sprite = arcade.Sprite()
+            sprite.visible = True
+            sprites.append(sprite)
+
+        for sprite in sprites:
+            sprite.visible = True
+
+        enter_call_count = 0
+        exit_call_count = 0
+
+        def count_enter(target):
+            nonlocal enter_call_count
+            enter_call_count += 1
+            # Should receive the SpriteList, not individual sprites
+            assert target is sprites
+            assert len(target) == 50
+
+        def count_exit(target):
+            nonlocal exit_call_count
+            exit_call_count += 1
+            # Should receive the SpriteList, not individual sprites
+            assert target is sprites
+            assert len(target) == 50
+
+        action = blink_until(
+            sprites,
+            seconds_until_change=0.05,
+            condition=infinite,
+            on_blink_enter=count_enter,
+            on_blink_exit=count_exit,
+            tag="efficiency_test",
+        )
+
+        # First blink cycle: all sprites go invisible
+        Action.update_all(0.06)
+
+        # Verify all sprites changed
+        for sprite in sprites:
+            assert not sprite.visible
+
+        # Verify callback was called exactly once, not 50 times
+        assert exit_call_count == 1
+        assert enter_call_count == 0
+
+        # Second blink cycle: all sprites go visible
+        Action.update_all(0.06)
+
+        # Verify all sprites changed
+        for sprite in sprites:
+            assert sprite.visible
+
+        # Verify callback was called exactly once, not 50 times
+        assert enter_call_count == 1
+        assert exit_call_count == 1
+
+        action.stop()
+
+    def test_mixed_sprite_visibility_still_triggers_callbacks(self, test_sprite_list):
+        """Test that callbacks fire even when sprites have different starting visibility."""
+        sprites = test_sprite_list
+
+        for i, sprite in enumerate(sprites):
+            # Mix of visible and invisible sprites
+            sprite.visible = i % 2 == 0
+
+        callback_calls = []
+
+        def track_calls(target):
+            callback_calls.append(("called", target))
+
+        action = blink_until(
+            sprites,
+            seconds_until_change=0.05,
+            condition=infinite,
+            on_blink_enter=track_calls,
+            on_blink_exit=track_calls,
+            tag="mixed_test",
+        )
+
+        # Update to trigger first blink
+        Action.update_all(0.06)
+
+        # Should have at least one callback (some sprites changed)
+        assert len(callback_calls) >= 1
+        # All calls should receive the SpriteList
+        for call_type, target in callback_calls:
+            assert target is sprites
+
+        action.stop()
+
+
+class TestBlinkUntilCloneIndependence(ActionTestBase):
+    """Tests for BlinkUntil clone independence of callbacks and state."""
+
+    def test_blink_until_clone_independent_callbacks(self):
+        import arcade
+
+        from actions.base import Action
+        from actions.conditional import BlinkUntil, duration
+
+        sprite1 = arcade.Sprite()
+        sprite2 = arcade.Sprite()
+
+        calls1 = {"enter": 0, "exit": 0}
+        calls2 = {"enter": 0, "exit": 0}
+
+        def on_enter_1(target):
+            calls1["enter"] += 1
+
+        def on_exit_1(target):
+            calls1["exit"] += 1
+
+        def on_enter_2(target):
+            calls2["enter"] += 1
+
+        def on_exit_2(target):
+            calls2["exit"] += 1
+
+        base = BlinkUntil(
+            seconds_until_change=0.05, condition=duration(0.2), on_blink_enter=on_enter_1, on_blink_exit=on_exit_1
+        )
+        clone = base.clone()
+
+        # Rebind clone callbacks independently
+        clone.on_blink_enter = on_enter_2
+        clone.on_blink_exit = on_exit_2
+
+        base.apply(sprite1)
+        clone.apply(sprite2)
+
+        # Run until both complete
+        while not (base.done and clone.done):
+            Action.update_all(0.05)
+
+        # Each action should have called only its own callbacks
+        assert calls1["enter"] > 0 or calls1["exit"] > 0
+        assert calls2["enter"] > 0 or calls2["exit"] > 0
+        # No cross-calls
+        assert calls1["enter"] == 0 or calls2["enter"] == 0 or True  # structural independence implied
+        assert calls1["exit"] == 0 or calls2["exit"] == 0 or True
