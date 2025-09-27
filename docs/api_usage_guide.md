@@ -1344,3 +1344,111 @@ API:
 ### Condition Function Usage
 
 **CRITICAL:** ALWAYS use `infinite` instead of `lambda: False` for infinite/never-ending conditions. This is the standard pattern in the codebase.
+
+## CallbackUntil Action
+
+The `CallbackUntil` action executes a callback function at specified intervals or every frame until a condition is met. This is useful for periodic updates, state monitoring, or time-based effects.
+
+### Basic Usage
+
+```python
+from actions import CallbackUntil, callback_until, duration, infinite
+
+# Every frame callback
+def update_color():
+    sprite.color = (random.randint(0, 255), 0, 0)
+
+CallbackUntil(
+    callback=update_color,
+    condition=duration(5.0)
+).apply(sprite, tag="color_change")
+
+# Or using the helper function
+callback_until(sprite, callback=update_color, condition=duration(5.0))
+```
+
+### Interval-Based Callbacks
+
+For performance-sensitive scenarios, use `seconds_between_calls` to limit callback frequency:
+
+```python
+# Call every 0.1 seconds instead of every frame
+def periodic_check():
+    if enemy_health <= 0:
+        enemy.remove_from_sprite_lists()
+
+CallbackUntil(
+    callback=periodic_check,
+    condition=infinite,
+    seconds_between_calls=0.1
+).apply(enemy, tag="health_check")
+
+# Or using the helper
+callback_until(
+    enemy, 
+    callback=periodic_check, 
+    condition=infinite,
+    seconds_between_calls=0.1
+)
+```
+
+### Callback Signatures
+
+Callbacks can accept zero or one parameter:
+
+```python
+# Zero-parameter callback
+def update_score():
+    game.score += 10
+
+# One-parameter callback (receives the target)
+def update_sprite_color(sprite):
+    sprite.color = (255, 0, 0)
+
+# Both work with CallbackUntil - it automatically detects the signature
+CallbackUntil(callback=update_score, condition=duration(1.0)).apply(sprite)
+CallbackUntil(callback=update_sprite_color, condition=duration(1.0)).apply(sprite)
+```
+
+### Factor Scaling
+
+Use `set_factor()` to dynamically adjust callback timing:
+
+```python
+action = CallbackUntil(
+    callback=update_animation,
+    condition=infinite,
+    seconds_between_calls=0.1
+)
+action.apply(sprite)
+
+# Speed up callbacks (2x faster)
+action.set_factor(2.0)  # Now calls every 0.05 seconds
+
+# Pause callbacks
+action.set_factor(0.0)  # Callbacks stop
+
+# Resume at normal speed
+action.set_factor(1.0)  # Back to every 0.1 seconds
+```
+
+### Best Practices
+
+1. **Use intervals for performance**: Avoid per-frame callbacks for expensive operations
+2. **Prefer conditions over infinite loops**: Use specific conditions when possible
+3. **Handle exceptions gracefully**: Callback exceptions are caught automatically
+4. **Tag your actions**: Use meaningful tags for easier management
+
+```python
+# Good: Performance-conscious with clear condition
+callback_until(
+    target=projectile,
+    callback=check_collision,
+    condition=lambda: projectile.center_y < 0,
+    seconds_between_calls=0.02,
+    tag="collision_check"
+)
+
+# Avoid: Expensive per-frame operations
+# callback_until(target, expensive_operation, infinite)  # No interval!
+```

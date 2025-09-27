@@ -1294,27 +1294,172 @@ class TweenUntil(_Action):
 class CallbackUntil(_Action):
     """Execute a callback function until a condition is satisfied.
 
-    The callback is called every frame while the action is active.
+    The callback is called every frame by default, or at a fixed interval
+    if ``seconds_between_calls`` is provided. Interval timing respects
+    ``set_factor`` scaling (higher factor → shorter interval).
 
     Args:
-        callback: Function to call every frame
+        callback: Function to call (accepts optional target parameter)
         condition: Function that returns truthy value when callbacks should stop
         on_stop: Optional callback called when condition is satisfied
+        seconds_between_calls: Optional seconds between calls; None → every frame
     """
 
     def __init__(
         self,
-        callback: Callable[[], None],
+        callback: Callable[..., None],
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
+        *,
+        seconds_between_calls: float | None = None,
     ):
         super().__init__(condition=condition, on_stop=on_stop)
+        if seconds_between_calls is not None and seconds_between_calls < 0:
+            raise ValueError("seconds_between_calls must be non-negative")
         self.callback = callback
+        self.target_seconds_between_calls = seconds_between_calls
+        self.current_seconds_between_calls = seconds_between_calls
+        self._elapsed_since_call = 0.0
+        self._duration: float | None = None
+        self._elapsed = 0.0
+
+        # If the condition is a duration() helper, replace it with a simulation-time condition
+        try:
+            if hasattr(condition, "_is_duration_condition") and condition._is_duration_condition:
+                seconds = getattr(condition, "_duration_seconds", None)
+                if isinstance(seconds, (int, float)) and seconds >= 0:
+                    self._duration = seconds
+
+                    def _sim_condition() -> bool:
+                        return self._elapsed >= (self._duration or 0.0) - 1e-9
+
+                    # Preserve attributes so cloning and tools can still introspect
+                    _sim_condition._is_duration_condition = True
+                    _sim_condition._duration_seconds = self._duration
+                    self.condition = _sim_condition
+        except Exception:
+            pass
+
+    def set_factor(self, factor: float) -> None:
+        """Scale the callback interval by the given factor.
+
+        Factor affects the time between calls - higher factor = faster callbacks.
+        A factor of 0.0 stops callbacks (when using interval mode).
+        """
+        if self.target_seconds_between_calls is None:
+            # Per-frame mode; factor has no effect on rate here
+            self._factor = factor
+            return
+
+        if factor <= 0:
+            self.current_seconds_between_calls = float("inf")
+        else:
+            self.current_seconds_between_calls = self.target_seconds_between_calls / factor
+
+        # Update next fire time if we're already scheduled
+        if hasattr(self, "_next_fire_time") and self._next_fire_time is not None:
+            if self.current_seconds_between_calls == float("inf"):
+                # Paused - don't update next fire time
+                pass
+            else:
+                # Reschedule based on new interval
+                self._next_fire_time = self._elapsed + self.current_seconds_between_calls
 
     def update_effect(self, delta_time: float) -> None:
-        """Call the callback function."""
-        if self.callback:
-            self.callback()
+        """Call the callback function respecting optional interval scheduling."""
+        if not self.callback:
+            return
+
+        # Always advance simulation time first for duration conditions
+        self._elapsed += delta_time
+
+        # Per-frame mode
+        if self.current_seconds_between_calls is None:
+            # Call callback once per frame, trying both signatures
+            self._call_callback_with_fallback()
+            return
+
+        # Interval mode (use absolute scheduling to ensure exact counts)
+        # Bootstrap schedule on first update
+        if not hasattr(self, "_next_fire_time") or self._next_fire_time is None:
+            self._next_fire_time = self.current_seconds_between_calls or 0.0
+
+        # Fire when elapsed meets or exceeds schedule (but not if paused)
+        if self.current_seconds_between_calls != float("inf") and self._elapsed >= self._next_fire_time - 1e-9:
+            # Call callback once, trying both signatures
+            self._call_callback_with_fallback()
+
+            # Schedule next fire time
+            self._next_fire_time += self.current_seconds_between_calls or 0.0
+
+        # Special case: if we have a duration condition and we're very close to completion,
+        # check if there's a pending callback that should fire at completion time
+        if (
+            self.current_seconds_between_calls != float("inf")
+            and self._duration is not None
+            and self._elapsed >= (self._duration - 1e-9)
+            and hasattr(self, "_next_fire_time")
+            and self._next_fire_time is not None
+            and self._next_fire_time <= self._duration + 1e-9
+        ):
+            # Fire final callback if it's scheduled at or before the completion time
+            if self._elapsed < self._next_fire_time <= self._duration + 1e-9:
+                self._call_callback_with_fallback()
+
+    def apply_effect(self) -> None:
+        """Initialize duration tracking if condition is a duration()."""
+        self._elapsed = 0.0
+        self._elapsed_since_call = 0.0
+        self.current_seconds_between_calls = self.target_seconds_between_calls
+        self._next_fire_time = None
+        # Try to extract duration from the condition function if it's from duration() helper
+        self._duration = None
+        # Prefer attribute set by duration() helper if available
+        try:
+            if hasattr(self.condition, "_duration_seconds"):
+                seconds = self.condition._duration_seconds
+                if isinstance(seconds, (int, float)) and seconds >= 0:
+                    self._duration = seconds
+        except Exception:
+            pass
+        if self._duration is None:
+            try:
+                if (
+                    hasattr(self.condition, "__closure__")
+                    and self.condition.__closure__
+                    and len(self.condition.__closure__) >= 1
+                ):
+                    seconds = self.condition.__closure__[0].cell_contents
+                    if isinstance(seconds, (int, float)) and seconds >= 0:
+                        self._duration = seconds
+            except (AttributeError, IndexError, TypeError):
+                pass
+        # Fallback to helper if still None
+        if self._duration is None:
+            try:
+                self._duration = _extract_duration_seconds(self.condition)
+            except Exception:
+                self._duration = None
+
+    def _call_callback_with_fallback(self) -> None:
+        """Call the callback, trying both with and without target parameter."""
+        try:
+            # Try with target parameter first
+            self.callback(self.target)
+        except TypeError:
+            try:
+                # Fall back to no parameters
+                self.callback()
+            except Exception:
+                # Use safe call for any other exceptions (includes TypeError)
+                self._safe_call(self.callback)
+
+    def reset(self) -> None:
+        """Reset interval timing to initial state."""
+        self._elapsed_since_call = 0.0
+        self.current_seconds_between_calls = self.target_seconds_between_calls
+        self._elapsed = 0.0
+        self._next_fire_time = None
 
     def clone(self) -> "CallbackUntil":
         """Create a copy of this action."""
@@ -1322,6 +1467,7 @@ class CallbackUntil(_Action):
             self.callback,
             _clone_condition(self.condition),
             self.on_stop,
+            seconds_between_calls=self.target_seconds_between_calls,
         )
 
 
