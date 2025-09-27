@@ -95,6 +95,15 @@ class _Sequence(CompositeAction):
         """Create a copy of this _Sequence action."""
         return _Sequence(*(action.clone() for action in self.actions))
 
+    def set_current_velocity(self, velocity: tuple[float, float]) -> None:
+        """Forward velocity setting to the currently running action."""
+        if self.current_action is not None:
+            try:
+                self.current_action.set_current_velocity(velocity)
+            except AttributeError:
+                # Current action doesn't support velocity control
+                pass
+
     def __repr__(self) -> str:
         actions_repr = ", ".join(repr(a) for a in self.actions)
         return f"_Sequence(actions=[{actions_repr}])"
@@ -171,6 +180,15 @@ class _Parallel(CompositeAction):
     def clone(self) -> "_Parallel":
         """Create a copy of this _Parallel action."""
         return _Parallel(*(action.clone() for action in self.actions))
+
+    def set_current_velocity(self, velocity: tuple[float, float]) -> None:
+        """Forward velocity setting to all child actions that support it."""
+        for action in self.actions:
+            try:
+                action.set_current_velocity(velocity)
+            except AttributeError:
+                # Action doesn't support velocity control - continue to next
+                continue
 
     def __repr__(self) -> str:
         actions_repr = ", ".join(repr(a) for a in self.actions)
@@ -260,6 +278,15 @@ class _Repeat(CompositeAction):
     def clone(self) -> "_Repeat":
         """Create a copy of this _Repeat action."""
         return _Repeat(self.action.clone() if self.action else None)
+
+    def set_current_velocity(self, velocity: tuple[float, float]) -> None:
+        """Forward velocity setting to the currently running action."""
+        if self.current_action is not None:
+            try:
+                self.current_action.set_current_velocity(velocity)
+            except AttributeError:
+                # Current action doesn't support velocity control
+                pass
 
     def __repr__(self) -> str:
         return f"_Repeat(action={repr(self.action)})"
@@ -470,3 +497,12 @@ class StateMachine(CompositeAction):
             # On first evaluation, it's okay to have no matching state
             self._current_action = None
             self._current_pred = None
+
+    def set_current_velocity(self, velocity: tuple[float, float]) -> None:
+        """Forward velocity setting to the currently active action."""
+        if self._current_action is not None:
+            try:
+                self._current_action.set_current_velocity(velocity)
+            except AttributeError:
+                # Current action doesn't support velocity control
+                pass
