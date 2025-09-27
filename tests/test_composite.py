@@ -697,3 +697,191 @@ class TestVelocityForwarding:
 
         # The cloned action should have the new velocity
         assert rep.current_action.current_velocity == (20, 5)
+
+    def test_velocity_forwarding_base_class(self):
+        """Test that base CompositeAction set_current_velocity does nothing."""
+        from actions.base import CompositeAction
+
+        # Create a direct instance of the base CompositeAction
+        base_composite = CompositeAction()
+
+        # This should not raise an error and should do nothing
+        base_composite.set_current_velocity((100, 200))
+
+        # Should complete immediately since base class has no functionality
+        assert True  # Just testing that no exception was raised
+
+    def test_velocity_forwarding_with_attribute_error(self):
+        """Test velocity forwarding gracefully handles actions without set_current_velocity."""
+        from actions.conditional import DelayUntil, MoveUntil, infinite
+
+        sprite = create_test_sprite()
+
+        # Create a custom action that doesn't support velocity control
+        class CustomAction(DelayUntil):
+            """A custom action that explicitly doesn't have set_current_velocity."""
+
+            def __init__(self):
+                super().__init__(duration(1.0))
+                # Ensure it doesn't have the method by deleting it if it exists
+                if hasattr(self, "set_current_velocity"):
+                    delattr(self, "set_current_velocity")
+
+        move_action = MoveUntil((3, 4), infinite)
+        custom_action = CustomAction()
+
+        # Test parallel with action that raises AttributeError
+        par = parallel(move_action, custom_action)
+        par.apply(sprite, tag="error_test")
+
+        # This should not raise an error despite custom_action not supporting velocity
+        par.set_current_velocity((6, 8))
+
+        # The move action should still get the new velocity
+        assert move_action.current_velocity == (6, 8)
+
+    def test_velocity_forwarding_sequence_no_current_action(self):
+        """Test sequence velocity forwarding when there's no current action."""
+        from actions.conditional import DelayUntil
+
+        sprite = create_test_sprite()
+
+        # Create a sequence but don't start it
+        seq = sequence(DelayUntil(duration(0.1)))
+        # Don't apply it to a sprite so current_action remains None
+
+        # This should not raise an error
+        seq.set_current_velocity((10, 20))
+
+        # Should handle gracefully
+        assert seq.current_action is None
+
+    def test_velocity_forwarding_repeat_no_current_action(self):
+        """Test repeat velocity forwarding when there's no current action."""
+        from actions.conditional import DelayUntil
+
+        sprite = create_test_sprite()
+
+        # Create a repeat but don't start it
+        rep = repeat(DelayUntil(duration(0.1)))
+        # Don't apply it to a sprite so current_action remains None
+
+        # This should not raise an error
+        rep.set_current_velocity((30, 40))
+
+        # Should handle gracefully
+        assert rep.current_action is None
+
+    def test_velocity_forwarding_state_machine_no_current_action(self):
+        """Test StateMachine velocity forwarding when there's no current action."""
+        from actions.composite import StateMachine
+        from actions.conditional import DelayUntil, duration
+
+        # Create a StateMachine with no matching states
+        states = [
+            (lambda: False, lambda: DelayUntil(duration(0.1))),  # Never matches
+        ]
+
+        state_machine = StateMachine(states)
+
+        # This should not raise an error
+        state_machine.set_current_velocity((50, 60))
+
+        # Should handle gracefully
+        assert state_machine._current_action is None
+
+    def test_velocity_forwarding_empty_parallel(self):
+        """Test velocity forwarding on empty parallel action."""
+        sprite = create_test_sprite()
+
+        # Create empty parallel
+        par = parallel()
+        par.apply(sprite, tag="empty_test")
+
+        # This should not raise an error
+        par.set_current_velocity((70, 80))
+
+        # Should handle gracefully with empty actions list
+        assert len(par.actions) == 0
+
+    def test_velocity_forwarding_sequence_attribute_error(self):
+        """Test sequence velocity forwarding handles AttributeError from current action."""
+        from actions.conditional import DelayUntil
+
+        sprite = create_test_sprite()
+
+        # Create a custom action that raises AttributeError when set_current_velocity is called
+        class ActionWithoutVelocity(DelayUntil):
+            def __init__(self):
+                super().__init__(duration(0.1))
+                # Remove the method to ensure AttributeError
+                if hasattr(self, "set_current_velocity"):
+                    delattr(self, "set_current_velocity")
+
+        action_without_velocity = ActionWithoutVelocity()
+        seq = sequence(action_without_velocity)
+        seq.apply(sprite, tag="seq_error_test")
+
+        # This should trigger the AttributeError handling in _Sequence.set_current_velocity
+        seq.set_current_velocity((25, 35))
+
+        # Should complete without error
+        assert seq.current_action is action_without_velocity
+
+    def test_velocity_forwarding_repeat_attribute_error(self):
+        """Test repeat velocity forwarding handles AttributeError from current action."""
+        from actions.conditional import DelayUntil
+
+        sprite = create_test_sprite()
+
+        # Create a custom action that raises AttributeError
+        class ActionWithoutVelocity(DelayUntil):
+            def __init__(self):
+                super().__init__(duration(0.1))
+                if hasattr(self, "set_current_velocity"):
+                    delattr(self, "set_current_velocity")
+
+        action_without_velocity = ActionWithoutVelocity()
+        rep = repeat(action_without_velocity)
+        rep.apply(sprite, tag="rep_error_test")
+
+        # Start the repeat so it has a current action (clone)
+        Action.update_all(0.001)
+
+        # The cloned action should also not have set_current_velocity
+        # This should trigger the AttributeError handling in _Repeat.set_current_velocity
+        rep.set_current_velocity((45, 55))
+
+        # Should complete without error
+        assert rep.current_action is not None
+
+    def test_velocity_forwarding_state_machine_attribute_error(self):
+        """Test StateMachine velocity forwarding handles AttributeError from current action."""
+        from actions.composite import StateMachine
+        from actions.conditional import DelayUntil, duration
+
+        sprite = create_test_sprite()
+
+        # Create a custom action that raises AttributeError
+        class ActionWithoutVelocity(DelayUntil):
+            def __init__(self):
+                super().__init__(duration(0.1))
+                if hasattr(self, "set_current_velocity"):
+                    delattr(self, "set_current_velocity")
+
+        # Create a StateMachine with a state that returns an action without velocity support
+        states = [
+            (lambda: True, lambda: ActionWithoutVelocity()),  # Always matches
+        ]
+
+        state_machine = StateMachine(states)
+        state_machine.apply(sprite, tag="sm_error_test")
+
+        # Start the state machine so it has a current action
+        Action.update_all(0.001)
+
+        # This should trigger the AttributeError handling in StateMachine.set_current_velocity
+        state_machine.set_current_velocity((65, 75))
+
+        # Should complete without error
+        assert state_machine._current_action is not None
