@@ -9,6 +9,11 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
+try:
+    from typing import Protocol
+except ImportError:
+    from typing import Protocol
+
 import arcade
 
 if TYPE_CHECKING:
@@ -18,6 +23,14 @@ if TYPE_CHECKING:
 
 
 _T = TypeVar("_T", bound="Action")
+
+
+class VelocityControllable(Protocol):
+    """Protocol for actions that support velocity control."""
+
+    def set_current_velocity(self, velocity: tuple[float, float]) -> None:
+        """Set the current velocity for this action."""
+        ...
 
 
 class Action(ABC, Generic[_T]):
@@ -339,6 +352,17 @@ class CompositeAction(Action):
 
     def reverse_movement(self, axis: str) -> None:
         """Reverse movement for boundary bouncing. Override in subclasses."""
+        pass
+
+    def set_current_velocity(self, velocity: tuple[float, float]) -> None:
+        """Forward velocity setting to all child actions that support it.
+
+        Base implementation does nothing - subclasses override to forward to children.
+
+        Args:
+            velocity: (dx, dy) velocity tuple to apply
+        """
+        # Base composite action has no children to forward to
         pass
 
     def reset(self) -> None:

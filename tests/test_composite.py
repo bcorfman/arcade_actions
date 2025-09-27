@@ -640,3 +640,60 @@ class TestRepeatIntegration:
         # Should still be active
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 1
+
+
+class TestVelocityForwarding:
+    """Test suite for velocity forwarding in composite actions."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_velocity_forwarding_to_children(self):
+        """Test that CompositeActions forward velocity changes to child actions that support it."""
+        from actions.conditional import MoveUntil, infinite
+
+        sprite = create_test_sprite()
+
+        # Test 1: Parallel forwarding
+        move_action1 = MoveUntil((5, 0), infinite)
+        delay_action1 = DelayUntil(duration(1.0))
+
+        par = parallel(move_action1, delay_action1)
+        par.apply(sprite, tag="velocity_test")
+
+        # Verify initial velocity
+        assert move_action1.current_velocity == (5, 0)
+
+        # Test velocity forwarding
+        par.set_current_velocity((10, 3))
+        assert move_action1.current_velocity == (10, 3)
+
+        Action.stop_all()  # Clear actions between tests
+
+        # Test 2: Sequence forwarding (should forward to current action)
+        move_action2 = MoveUntil((7, 1), infinite)
+        delay_action2 = DelayUntil(duration(1.0))
+
+        seq = sequence(move_action2, delay_action2)
+        seq.apply(sprite, tag="sequence_velocity_test")
+
+        # Should forward to the current (first) action
+        seq.set_current_velocity((15, -2))
+        assert move_action2.current_velocity == (15, -2)
+
+        Action.stop_all()  # Clear actions between tests
+
+        # Test 3: Repeat forwarding
+        move_action3 = MoveUntil((8, 2), infinite)
+        rep = repeat(move_action3)
+        rep.apply(sprite, tag="repeat_velocity_test")
+
+        # Start the repeat so it has a current action
+        Action.update_all(0.001)
+
+        # Should forward to the current iteration (which is a clone)
+        rep.set_current_velocity((20, 5))
+
+        # The cloned action should have the new velocity
+        assert rep.current_action.current_velocity == (20, 5)
