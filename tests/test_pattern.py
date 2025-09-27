@@ -1202,3 +1202,57 @@ class TestPatternErrorCases:
         # Test with valid parameters - speed validation causes division by zero bug
         pattern = create_patrol_pattern(start_pos=(0, 0), end_pos=(100, 100), speed=50)
         assert pattern is not None
+
+
+class TestWavePatternValidation:
+    """Validation tests for create_wave_pattern sine-like behavior."""
+
+    def teardown_method(self):
+        Action.stop_all()
+
+    def test_wave_zero_drift_and_amplitude_bounds(self):
+        sprite = create_test_sprite()
+        start_pos = (sprite.center_x, sprite.center_y)
+
+        amplitude = 30
+        length = 120
+        speed = 120
+
+        wave = create_wave_pattern(amplitude=amplitude, length=length, speed=speed)
+        wave.apply(sprite, tag="wave_validation")
+
+        # Track peak/trough Y deltas relative to start
+        max_dy = -1e9
+        min_dy = 1e9
+
+        while not wave.done:
+            prev_y = sprite.center_y
+            Action.update_all(1 / 60)
+            # Relative offset is applied inside the action; capture Y delta
+            dy = sprite.center_y - start_pos[1]
+            max_dy = max(max_dy, dy)
+            min_dy = min(min_dy, dy)
+
+        # Zero drift: return to origin at full cycle end
+        assert pytest.approx(sprite.center_x) == start_pos[0]
+        assert pytest.approx(sprite.center_y) == start_pos[1]
+
+        # Amplitude bounds: dy should stay within [-amplitude, 0] per implementation (dip)
+        assert min_dy >= -amplitude - 0.5
+        assert max_dy <= amplitude * 0.1  # near zero upper crest given dip pattern
+
+    def test_wave_partial_progress_relative_offsets(self):
+        sprite = create_test_sprite()
+        start = (sprite.center_x, sprite.center_y)
+
+        wave = create_wave_pattern(amplitude=20, length=80, speed=80, start_progress=0.25, end_progress=0.5)
+        wave.apply(sprite)
+
+        # Run to completion
+        while not wave.done:
+            Action.update_all(1 / 60)
+
+        # For partial, ensure we moved some in x and y relative to start, but did not snap to origin
+        assert abs(sprite.center_x - start[0]) > 1.0
+        assert abs(sprite.center_y - start[1]) > 1.0
+        assert not (pytest.approx(sprite.center_x) == start[0] and pytest.approx(sprite.center_y) == start[1])

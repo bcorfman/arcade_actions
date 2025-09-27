@@ -206,3 +206,157 @@ class TestMoveUntilBoundaries:
         for sprite in sprites:
             assert sprite.change_x < 0  # All moving left now
             assert sprite.center_x <= 800  # All kept in bounds
+
+    def test_move_until_wrap_vertical_boundaries(self):
+        """Test MoveUntil with vertical wrapping boundaries."""
+        sprite = create_test_sprite()
+        sprite.center_y = 599  # Very close to top boundary
+
+        bounds = (0, 0, 800, 600)
+
+        # Move up - should wrap to bottom
+        move_until(
+            sprite,
+            velocity=(0, 100),
+            condition=time_elapsed(2.0),
+            bounds=bounds,
+            boundary_behavior="wrap",
+            tag="movement_wrap_y",
+        )
+
+        # Update action to set velocity and apply movement
+        Action.update_all(0.1)
+        sprite.update()
+        # Run boundary processing
+        Action.update_all(0.001)
+
+        # Should have wrapped to bottom side
+        assert sprite.center_y == 0
+
+    def test_move_until_wrap_both_axes(self):
+        """Test MoveUntil with wrapping on both axes simultaneously."""
+        sprite = create_test_sprite()
+        sprite.center_x = 799  # Near right
+        sprite.center_y = 599  # Near top
+
+        bounds = (0, 0, 800, 600)
+
+        # Move diagonally up-right - should wrap to (left, bottom)
+        move_until(
+            sprite,
+            velocity=(100, 100),
+            condition=time_elapsed(2.0),
+            bounds=bounds,
+            boundary_behavior="wrap",
+            tag="movement_wrap_xy",
+        )
+
+        # Update action to set velocity and apply movement
+        Action.update_all(0.1)
+        sprite.update()
+        # Run boundary processing
+        Action.update_all(0.001)
+
+        # Should have wrapped on both axes
+        assert sprite.center_x == 0
+        assert sprite.center_y == 0
+
+    def test_move_until_limit_debounce_x(self):
+        """Limit behavior should fire one enter on approach and one exit on retreat (X)."""
+        sprite = create_test_sprite()
+        sprite.center_x = 799  # Near right boundary
+
+        bounds = (0, 0, 800, 600)
+        events: list[tuple[str, str, str]] = []
+
+        def on_enter(s, axis, side):
+            events.append(("enter", axis, side))
+
+        def on_exit(s, axis, side):
+            events.append(("exit", axis, side))
+
+        action = move_until(
+            sprite,
+            velocity=(10, 0),
+            condition=time_elapsed(2.0),
+            bounds=bounds,
+            boundary_behavior="limit",
+            on_boundary_enter=on_enter,
+            on_boundary_exit=on_exit,
+            tag="limit_debounce_x",
+        )
+
+        # Apply initial velocity and movement toward boundary
+        Action.update_all(0.05)
+        sprite.update()
+        Action.update_all(0.001)
+
+        # Should have exactly one enter to right on X
+        assert ("enter", "x", "right") in events
+        assert events.count(("enter", "x", "right")) == 1
+
+        # Continue pushing into the boundary for a few frames - no additional enters
+        for _ in range(3):
+            Action.update_all(0.016)
+            sprite.update()
+            Action.update_all(0.001)
+        assert events.count(("enter", "x", "right")) == 1
+
+        # Now retreat from the boundary by reversing velocity
+        action.set_current_velocity((-10, 0))
+        Action.update_all(0.016)
+        sprite.update()
+        Action.update_all(0.001)
+
+        # Exactly one exit should be recorded
+        assert events.count(("exit", "x", "right")) == 1
+
+    def test_move_until_limit_debounce_y(self):
+        """Limit behavior should fire one enter on approach and one exit on retreat (Y)."""
+        sprite = create_test_sprite()
+        sprite.center_y = 599  # Near top boundary
+
+        bounds = (0, 0, 800, 600)
+        events: list[tuple[str, str, str]] = []
+
+        def on_enter(s, axis, side):
+            events.append(("enter", axis, side))
+
+        def on_exit(s, axis, side):
+            events.append(("exit", axis, side))
+
+        action = move_until(
+            sprite,
+            velocity=(0, 10),
+            condition=time_elapsed(2.0),
+            bounds=bounds,
+            boundary_behavior="limit",
+            on_boundary_enter=on_enter,
+            on_boundary_exit=on_exit,
+            tag="limit_debounce_y",
+        )
+
+        # Apply initial velocity and movement toward boundary
+        Action.update_all(0.05)
+        sprite.update()
+        Action.update_all(0.001)
+
+        # Should have exactly one enter to top on Y
+        assert ("enter", "y", "top") in events
+        assert events.count(("enter", "y", "top")) == 1
+
+        # Continue pushing into the boundary for a few frames - no additional enters
+        for _ in range(3):
+            Action.update_all(0.016)
+            sprite.update()
+            Action.update_all(0.001)
+        assert events.count(("enter", "y", "top")) == 1
+
+        # Now retreat from the boundary by reversing velocity
+        action.set_current_velocity((0, -10))
+        Action.update_all(0.016)
+        sprite.update()
+        Action.update_all(0.001)
+
+        # Exactly one exit should be recorded
+        assert events.count(("exit", "y", "top")) == 1

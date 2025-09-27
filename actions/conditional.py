@@ -1484,7 +1484,6 @@ class ParametricMotionUntil(_Action):
 
             # Debug: detect large single-frame jumps in relative space
             if self._debug:
-                import math
                 import time as _t
 
                 jump_mag = math.hypot(movement_dx, movement_dy)

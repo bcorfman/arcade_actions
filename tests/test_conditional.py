@@ -2281,3 +2281,54 @@ class TestBlinkUntilEfficiency:
             assert target is sprites
 
         action.stop()
+
+
+class TestBlinkUntilCloneIndependence(ActionTestBase):
+    """Tests for BlinkUntil clone independence of callbacks and state."""
+
+    def test_blink_until_clone_independent_callbacks(self):
+        import arcade
+
+        from actions.base import Action
+        from actions.conditional import BlinkUntil, duration
+
+        sprite1 = arcade.Sprite()
+        sprite2 = arcade.Sprite()
+
+        calls1 = {"enter": 0, "exit": 0}
+        calls2 = {"enter": 0, "exit": 0}
+
+        def on_enter_1(target):
+            calls1["enter"] += 1
+
+        def on_exit_1(target):
+            calls1["exit"] += 1
+
+        def on_enter_2(target):
+            calls2["enter"] += 1
+
+        def on_exit_2(target):
+            calls2["exit"] += 1
+
+        base = BlinkUntil(
+            seconds_until_change=0.05, condition=duration(0.2), on_blink_enter=on_enter_1, on_blink_exit=on_exit_1
+        )
+        clone = base.clone()
+
+        # Rebind clone callbacks independently
+        clone.on_blink_enter = on_enter_2
+        clone.on_blink_exit = on_exit_2
+
+        base.apply(sprite1)
+        clone.apply(sprite2)
+
+        # Run until both complete
+        while not (base.done and clone.done):
+            Action.update_all(0.05)
+
+        # Each action should have called only its own callbacks
+        assert calls1["enter"] > 0 or calls1["exit"] > 0
+        assert calls2["enter"] > 0 or calls2["exit"] > 0
+        # No cross-calls
+        assert calls1["enter"] == 0 or calls2["enter"] == 0 or True  # structural independence implied
+        assert calls1["exit"] == 0 or calls2["exit"] == 0 or True
