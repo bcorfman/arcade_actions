@@ -2700,11 +2700,18 @@ class TestCallbackUntilExceptionHandling(ActionTestBase):
             call_count += 1
 
         # Create a condition with malformed closure that will cause exception
-        def bad_closure_condition():
-            return False
+        class BadCell:
+            @property
+            def cell_contents(self):
+                raise AttributeError("Simulated cell access error")
 
-        # Simulate a condition with broken closure
-        bad_closure_condition.__closure__ = ["not_a_cell"]  # Invalid closure
+        class MockCondition:
+            def __call__(self):
+                return False
+
+            __closure__ = (BadCell(),)  # This will cause an exception when accessing cell_contents
+
+        bad_closure_condition = MockCondition()
 
         action = CallbackUntil(
             callback=callback,
