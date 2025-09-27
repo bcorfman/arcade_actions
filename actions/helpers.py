@@ -24,6 +24,7 @@ from arcade import easing
 from actions import (
     Action,
     BlinkUntil,
+    CallbackUntil,
     DelayUntil,
     Ease,
     FadeUntil,
@@ -297,6 +298,38 @@ def fade_until(
 ) -> FadeUntil:
     """Creates and applies a FadeUntil action."""
     action = FadeUntil(fade_velocity=velocity, condition=condition, on_stop=on_stop)
+    action.apply(target, tag=tag)
+    return action
+
+
+def callback_until(
+    target: SpriteTarget,
+    *,
+    callback: Callable[..., None],
+    condition: Callable[[], Any],
+    seconds_between_calls: float | None = None,
+    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
+    tag: str | None = None,
+) -> CallbackUntil:
+    """Creates and applies a CallbackUntil action to the target.
+
+    Args:
+        target: Sprite or SpriteList the callback pertains to (passed as argument)
+        callback: Function called per frame or per interval; receives target when signature allows
+        condition: Function that returns truthy value when callbacks should stop
+        seconds_between_calls: Optional seconds between calls; None → every frame
+        on_stop: Optional callback called when condition is satisfied
+        tag: Optional tag for the action
+
+    Returns:
+        The CallbackUntil action that was created and applied
+    """
+    action = CallbackUntil(
+        callback=callback,
+        condition=condition,
+        seconds_between_calls=seconds_between_calls,
+        on_stop=on_stop,
+    )
     action.apply(target, tag=tag)
     return action
 

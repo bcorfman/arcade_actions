@@ -16,6 +16,7 @@ from actions import (
     scale_until,
     tween_until,
 )
+from actions.conditional import CallbackUntil
 from tests.conftest import ActionTestBase
 
 
@@ -2332,3 +2333,477 @@ class TestBlinkUntilCloneIndependence(ActionTestBase):
         # No cross-calls
         assert calls1["enter"] == 0 or calls2["enter"] == 0 or True  # structural independence implied
         assert calls1["exit"] == 0 or calls2["exit"] == 0 or True
+
+
+class TestCallbackUntilInterval(ActionTestBase):
+    """Tests for CallbackUntil with interval support."""
+
+    def test_callback_until_no_interval_calls_every_frame(self, test_sprite):
+        """Without interval, callback should be called every frame."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=duration(0.1),  # Run for 0.1 seconds
+        )
+        action.apply(sprite, tag="test_no_interval")
+
+        # Run for 0.1 seconds at 60 FPS = 6 frames
+        for _ in range(6):
+            Action.update_all(1 / 60)
+
+        assert call_count == 6
+        assert action.done
+
+    def test_callback_until_with_interval_calls_on_schedule(self, test_sprite):
+        """With interval, callback should be called at specified intervals."""
+        sprite = test_sprite
+        call_count = 0
+        call_times = []
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+            call_times.append(call_count)
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=duration(0.5),  # Run for 0.5 seconds
+            seconds_between_calls=0.1,  # Call every 0.1 seconds
+        )
+        action.apply(sprite, tag="test_interval")
+
+        # Run for 0.5 seconds at 60 FPS = 30 frames
+        for _ in range(30):
+            Action.update_all(1 / 60)
+
+        # Should be called approximately every 0.1 seconds: 0.1, 0.2, 0.3, 0.4, 0.5
+        assert call_count == 5
+        assert action.done
+
+    def test_callback_until_interval_factor_scaling(self, test_sprite):
+        """Factor scaling should affect the interval timing."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=duration(0.2),
+            seconds_between_calls=0.1,
+        )
+        action.apply(sprite, tag="test_factor")
+
+        # Run at double speed (factor = 2.0) - should call twice as often
+        action.set_factor(2.0)
+
+        # Run for 0.2 seconds at 60 FPS = 12 frames
+        for _ in range(12):
+            Action.update_all(1 / 60)
+
+        # With factor 2.0, 0.1s interval becomes 0.05s, so should call at 0.05, 0.1, 0.15, 0.2
+        assert call_count == 4
+        assert action.done
+
+    def test_callback_until_zero_factor_stops_calls(self, test_sprite):
+        """Factor of 0.0 should stop callback calls."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=duration(0.2),
+            seconds_between_calls=0.05,  # Very frequent calls
+        )
+        action.apply(sprite, tag="test_zero_factor")
+
+        # Run a few frames normally
+        for _ in range(3):
+            Action.update_all(1 / 60)
+        initial_calls = call_count
+
+        # Set factor to 0 (stops calls)
+        action.set_factor(0.0)
+
+        # Run many more frames
+        for _ in range(30):
+            Action.update_all(1 / 60)
+
+        # Call count should not have increased
+        assert call_count == initial_calls
+
+    def test_callback_until_with_target_parameter(self, test_sprite):
+        """Callback should receive target parameter when using _safe_call."""
+        sprite = test_sprite
+        received_targets = []
+
+        def callback_with_target(target):
+            received_targets.append(target)
+
+        action = CallbackUntil(
+            callback=callback_with_target,
+            condition=duration(0.1),
+            seconds_between_calls=0.05,
+        )
+        action.apply(sprite, tag="test_target_param")
+
+        # Run for 0.1 seconds
+        for _ in range(6):
+            Action.update_all(1 / 60)
+
+        # Should have received the sprite as target parameter
+        assert len(received_targets) == 2  # Called at 0.05s and 0.1s
+        assert all(target == sprite for target in received_targets)
+
+    def test_callback_until_with_sprite_list_target(self, test_sprite_list):
+        """Callback should receive SpriteList when target is SpriteList."""
+        sprite_list = test_sprite_list
+        received_targets = []
+
+        def callback_with_target(target):
+            received_targets.append(target)
+
+        action = CallbackUntil(
+            callback=callback_with_target,
+            condition=duration(0.1),
+            seconds_between_calls=0.05,
+        )
+        action.apply(sprite_list, tag="test_sprite_list_target")
+
+        # Run for 0.1 seconds
+        for _ in range(6):
+            Action.update_all(1 / 60)
+
+        # Should have received the SpriteList as target parameter
+        assert len(received_targets) == 2
+        assert all(target == sprite_list for target in received_targets)
+
+    def test_callback_until_condition_stops_execution(self, test_sprite):
+        """Condition should stop callback execution when met."""
+        sprite = test_sprite
+        call_count = 0
+        condition_met = False
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        def condition():
+            nonlocal condition_met
+            # Stop after 2 calls
+            return call_count >= 2
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=condition,
+            seconds_between_calls=0.01,  # Very frequent
+        )
+        action.apply(sprite, tag="test_condition_stop")
+
+        # Run many frames - should stop after 2 calls
+        for _ in range(100):  # Way more than needed
+            Action.update_all(1 / 60)
+            if action.done:
+                break
+
+        assert call_count == 2
+        assert action.done
+
+    def test_callback_until_reset_functionality(self, test_sprite):
+        """Reset should restore original interval timing."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=duration(0.2),
+            seconds_between_calls=0.1,
+        )
+        action.apply(sprite, tag="test_reset")
+
+        # Run for a bit, then reset
+        for _ in range(6):
+            Action.update_all(1 / 60)
+
+        initial_calls = call_count
+        action.reset()
+
+        # Run again - should start fresh timing
+        for _ in range(6):
+            Action.update_all(1 / 60)
+
+        # Should have made additional calls after reset
+        assert call_count > initial_calls
+
+    def test_callback_until_clone_preserves_interval(self, test_sprite):
+        """Clone should preserve interval settings and callbacks."""
+        sprite = test_sprite
+        calls1 = 0
+        calls2 = 0
+
+        def callback1():
+            nonlocal calls1
+            calls1 += 1
+
+        def callback2():
+            nonlocal calls2
+            calls2 += 1
+
+        original = CallbackUntil(
+            callback=callback1,
+            condition=duration(0.1),
+            seconds_between_calls=0.05,
+        )
+        clone = original.clone()
+        clone.callback = callback2  # Replace callback
+
+        original.apply(sprite, tag="original")
+        clone.apply(sprite, tag="clone")
+
+        # Run both actions
+        for _ in range(6):
+            Action.update_all(1 / 60)
+
+        # Both should have made calls
+        assert calls1 > 0
+        assert calls2 > 0
+
+    def test_callback_until_on_stop_callback(self, test_sprite):
+        """on_stop should be called when condition is met."""
+        sprite = test_sprite
+        on_stop_called = False
+        on_stop_data = None
+
+        def callback():
+            pass
+
+        def on_stop(data=None):
+            nonlocal on_stop_called, on_stop_data
+            on_stop_called = True
+            on_stop_data = data
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=duration(0.1),
+            seconds_between_calls=0.05,
+            on_stop=on_stop,
+        )
+        action.apply(sprite, tag="test_on_stop")
+
+        # Run until completion
+        for _ in range(10):
+            Action.update_all(1 / 60)
+            if action.done:
+                break
+
+        assert on_stop_called
+        assert on_stop_data is None  # duration() returns None
+
+    def test_callback_until_validation_errors(self, test_sprite):
+        """Should validate input parameters."""
+        sprite = test_sprite
+
+        def callback():
+            pass
+
+        # Negative interval should raise error
+        with pytest.raises(ValueError, match="seconds_between_calls must be non-negative"):
+            CallbackUntil(
+                callback=callback,
+                condition=duration(0.1),
+                seconds_between_calls=-0.1,
+            )
+
+    def test_callback_until_exception_safety(self, test_sprite):
+        """Callback exceptions should not crash the action."""
+        sprite = test_sprite
+        call_count = 0
+
+        def failing_callback():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("Callback failed!")
+
+        action = CallbackUntil(
+            callback=failing_callback,
+            condition=duration(0.1),
+            seconds_between_calls=0.05,
+        )
+        action.apply(sprite, tag="test_exception")
+
+        # Should not crash despite callback exception
+        for _ in range(10):
+            Action.update_all(1 / 60)
+
+        # Should have made at least one call before failing
+        assert call_count >= 1
+
+
+class TestCallbackUntilExceptionHandling(ActionTestBase):
+    """Test exception handling in CallbackUntil."""
+
+    def test_callback_until_duration_extraction_exception(self, test_sprite):
+        """Test exception handling when duration extraction fails."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        # Create a malformed condition that will cause exception during duration extraction
+        def bad_condition():
+            return False
+
+        # Add attributes that will cause exception in duration extraction
+        bad_condition._is_duration_condition = True
+        bad_condition._duration_seconds = "not_a_number"  # Invalid type
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=bad_condition,
+            seconds_between_calls=0.05,
+        )
+        action.apply(sprite, tag="test_exception")
+
+        # Should not crash despite duration extraction exception
+        for _ in range(5):
+            Action.update_all(1 / 60)
+
+        # Should still work with callback
+        assert call_count >= 1
+
+    def test_callback_until_apply_effect_exception_handling(self, test_sprite):
+        """Test exception handling in apply_effect duration extraction."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        # Create a condition with malformed closure that will cause exception
+        class BadCell:
+            @property
+            def cell_contents(self):
+                raise AttributeError("Simulated cell access error")
+
+        class MockCondition:
+            def __call__(self):
+                return False
+
+            __closure__ = (BadCell(),)  # This will cause an exception when accessing cell_contents
+
+        bad_closure_condition = MockCondition()
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=bad_closure_condition,
+            seconds_between_calls=0.05,
+        )
+        action.apply(sprite, tag="test_apply_exception")
+
+        # Should not crash despite exception in apply_effect
+        for _ in range(5):
+            Action.update_all(1 / 60)
+
+        # Should still work
+        assert call_count >= 1
+
+    def test_callback_until_callback_exception_fallback(self, test_sprite):
+        """Test fallback to _safe_call when callback has other exceptions."""
+        sprite = test_sprite
+        exception_count = 0
+
+        def failing_callback():
+            nonlocal exception_count
+            exception_count += 1
+            if exception_count == 1:
+                # First call: TypeError (wrong signature)
+                raise TypeError("Wrong signature")
+            elif exception_count == 2:
+                # Second call: RuntimeError (other exception)
+                raise RuntimeError("Other error")
+
+        action = CallbackUntil(
+            callback=failing_callback,
+            condition=duration(0.1),
+            seconds_between_calls=0.05,
+        )
+        action.apply(sprite, tag="test_fallback")
+
+        # Should not crash and use _safe_call fallback
+        for _ in range(6):
+            Action.update_all(1 / 60)
+
+        # Should have attempted to call at least once
+        assert exception_count >= 1
+
+    def test_callback_until_edge_case_completion_callback(self, test_sprite):
+        """Test edge case where final callback fires at completion time."""
+        sprite = test_sprite
+        call_times = []
+
+        def callback():
+            call_times.append(len(call_times) + 1)
+
+        # Set up action with very precise timing to trigger edge case
+        action = CallbackUntil(
+            callback=callback,
+            condition=duration(0.1),
+            seconds_between_calls=0.1,  # Exactly at completion time
+        )
+        action.apply(sprite, tag="test_edge_case")
+
+        # Run for exactly the duration
+        for _ in range(6):  # 6 * (1/60) = 0.1 seconds
+            Action.update_all(1 / 60)
+
+        # Should fire callback at the completion time due to edge case handling
+        assert len(call_times) >= 1
+
+    def test_callback_until_no_duration_condition(self, test_sprite):
+        """Test CallbackUntil with condition that doesn't have duration."""
+        sprite = test_sprite
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+
+        # Simple condition without duration
+        def simple_condition():
+            return call_count >= 3
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=simple_condition,
+            seconds_between_calls=0.02,
+        )
+        action.apply(sprite, tag="test_no_duration")
+
+        # Run until condition is met
+        for _ in range(10):
+            Action.update_all(1 / 60)
+            if action.done:
+                break
+
+        assert call_count == 3
+        assert action.done
