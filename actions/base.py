@@ -40,6 +40,7 @@ class Action(ABC, Generic[_T]):
     debug_actions: bool = False
     _active_actions: list[Action] = []
     _previous_actions: set[Action] | None = None
+    _warned_bad_callbacks: set[Callable] = set()
 
     def __init__(
         self,
@@ -129,9 +130,9 @@ class Action(ABC, Generic[_T]):
                 self.done = True
                 if self.on_stop:
                     if condition_result is not True:
-                        self.on_stop(condition_result)
+                        self._safe_call(self.on_stop, condition_result)
                     else:
-                        self.on_stop()
+                        self._safe_call(self.on_stop)
 
     def update_effect(self, delta_time: float) -> None:
         """
@@ -291,6 +292,35 @@ class Action(ABC, Generic[_T]):
     def resume(self) -> None:
         """Resume the action."""
         self._paused = False
+
+    @classmethod
+    def _safe_call(cls, fn: Callable, *args) -> None:
+        """
+        Safely call a callback function with exception handling.
+
+        TypeError exceptions get a one-time debug warning about parameter mismatches.
+        All other exceptions are silently caught to prevent crashes.
+        """
+        try:
+            fn(*args)
+        except TypeError as exc:
+            # Warn once per callback function about signature mismatches
+            import os
+
+            if fn not in cls._warned_bad_callbacks and os.getenv("ARCADEACTIONS_DEBUG"):
+                import warnings
+
+                cls._warned_bad_callbacks.add(fn)
+                warnings.warn(
+                    f"Callback '{fn.__name__}' failed with TypeError - "
+                    f"check its parameter list matches the Action callback contract. "
+                    f"Details: {exc}",
+                    RuntimeWarning,
+                    stacklevel=3,
+                )
+        except Exception:
+            # Silently catch all other exceptions to prevent crashes
+            pass
 
 
 class CompositeAction(Action):

@@ -605,24 +605,44 @@ blink_until(
 )
 
 # Advanced: Collision detection management with callbacks
-def enable_collisions(sprite):
-    """Add sprite to collision detection when visible."""
-    if sprite not in collision_sprites:
-        collision_sprites.append(sprite)
+def enable_collisions(target):
+    """Add target to collision detection when visible."""
+    # For single sprite: target is the sprite
+    # For SpriteList: target is the whole list - efficient!
+    if hasattr(target, '__iter__'):  # SpriteList
+        collision_sprites.extend(target)
+    else:  # Single sprite
+        if target not in collision_sprites:
+            collision_sprites.append(target)
 
-def disable_collisions(sprite):
-    """Remove sprite from collision detection when invisible."""
-    if sprite in collision_sprites:
-        collision_sprites.remove(sprite)
+def disable_collisions(target):
+    """Remove target from collision detection when invisible."""
+    if hasattr(target, '__iter__'):  # SpriteList
+        for sprite in target:
+            if sprite in collision_sprites:
+                collision_sprites.remove(sprite)
+    else:  # Single sprite
+        if target in collision_sprites:
+            collision_sprites.remove(target)
 
-# Sprite only participates in collisions while visible
+# Individual sprite
 blink_until(
     player_sprite,
     seconds_until_change=0.2,
     condition=infinite,
-    on_blink_enter=enable_collisions,   # Called when becoming visible
-    on_blink_exit=disable_collisions,   # Called when becoming invisible
-    tag="invulnerability_blink"
+    on_blink_enter=enable_collisions,   # Called with player_sprite
+    on_blink_exit=disable_collisions,   # Called with player_sprite
+    tag="player_invulnerability"
+)
+
+# Formation blinking - callbacks called once per frame, not once per sprite!
+blink_until(
+    enemy_formation,  # SpriteList with 20 sprites
+    seconds_until_change=0.25,
+    condition=infinite,
+    on_blink_enter=enable_collisions,   # Called once with enemy_formation
+    on_blink_exit=disable_collisions,   # Called once with enemy_formation
+    tag="formation_invulnerability"
 )
 
 # Power-up collection effect with status management
@@ -670,6 +690,7 @@ blink_until(
 - **Sprite list support**: Works with both individual sprites and sprite lists
 - **Partial callbacks**: Can use only `on_blink_enter` or only `on_blink_exit`
 - **Clone preservation**: Callback functions are preserved when cloning actions
+- **Debug warnings**: Incorrect callback signatures show helpful one-time warnings when `ARCADEACTIONS_DEBUG=1`
 
 **When to Use BlinkUntil Callbacks:**
 - **Collision detection management**: Turn collision on/off based on visibility
@@ -678,8 +699,8 @@ blink_until(
 - **Performance optimization**: Enable/disable expensive operations based on visibility
 
 **Callback Signatures:**
-- `on_blink_enter(sprite)` - Called when sprite visibility changes to `True`
-- `on_blink_exit(sprite)` - Called when sprite visibility changes to `False`
+- `on_blink_enter(target)` - Called when target visibility changes to `True` (receives Sprite or SpriteList)
+- `on_blink_exit(target)` - Called when target visibility changes to `False` (receives Sprite or SpriteList)
 
 ### When to Add Enter/Exit Callbacks
 
@@ -896,6 +917,7 @@ Unlike the old `on_boundary` callback, these new callbacks are edge-triggered:
 - `on_boundary_enter` fires only **once** when a sprite first contacts a boundary
 - `on_boundary_exit` fires only **once** when a sprite moves away from a boundary
 - This prevents callback spam and enables clean state management
+- **Debug warnings**: Incorrect callback signatures show helpful one-time warnings when `ARCADEACTIONS_DEBUG=1`
 
 #### Example: Speed Boost System
 ```python
@@ -1069,6 +1091,32 @@ set_debug_actions(True)
 ```
 
 Examples may also expose a `--debug-actions` flag that calls `set_debug_actions(True)` for convenience.
+
+### Callback Debug Warnings
+
+When `ARCADEACTIONS_DEBUG=1` is set, the framework provides helpful one-time warnings for common callback mistakes:
+
+```bash
+ARCADEACTIONS_DEBUG=1 uv run python your_game.py
+```
+
+**Common callback signature errors:**
+- `on_blink_enter(target)` and `on_blink_exit(target)` - require 1 parameter (receives Sprite or SpriteList)
+- `on_boundary_enter(sprite, axis, side)` and `on_boundary_exit(sprite, axis, side)` - require 3 parameters  
+- `on_stop(data)` or `on_stop()` - parameter count depends on condition return value
+
+**Warning features:**
+- **One-time only**: Each bad callback function warns once per process, preventing spam
+- **Debug mode only**: No warnings in production unless explicitly enabled
+- **Exception-safe**: Bad callbacks don't crash the game, they just fail silently in production
+- **Helpful details**: Warning includes function name and specific TypeError details
+
+**Example warning:**
+```
+RuntimeWarning: Callback 'bad_callback' failed with TypeError - 
+check its parameter list matches the Action callback contract. 
+Details: bad_callback() takes 0 positional arguments but 1 was given
+```
 
 ## Complete Game Example
 

@@ -114,10 +114,7 @@ class MoveUntil(_Action):
                     # Trigger boundary enter event if not already at boundary
                     if self._boundary_state[sprite_id]["x"] != "right":
                         if self.on_boundary_enter:
-                            try:
-                                self.on_boundary_enter(sprite, "x", "right")
-                            except Exception:
-                                pass
+                            self._safe_call(self.on_boundary_enter, sprite, "x", "right")
                         self._boundary_state[sprite_id]["x"] = "right"
                 elif dx < 0 and sprite.center_x + dx < left:
                     # Would cross left boundary - don't apply velocity
@@ -126,10 +123,7 @@ class MoveUntil(_Action):
                     # Trigger boundary enter event if not already at boundary
                     if self._boundary_state[sprite_id]["x"] != "left":
                         if self.on_boundary_enter:
-                            try:
-                                self.on_boundary_enter(sprite, "x", "left")
-                            except Exception:
-                                pass
+                            self._safe_call(self.on_boundary_enter, sprite, "x", "left")
                         self._boundary_state[sprite_id]["x"] = "left"
                 else:
                     # Safe to apply velocity
@@ -143,10 +137,7 @@ class MoveUntil(_Action):
                     # Trigger boundary enter event if not already at boundary
                     if self._boundary_state[sprite_id]["y"] != "top":
                         if self.on_boundary_enter:
-                            try:
-                                self.on_boundary_enter(sprite, "y", "top")
-                            except Exception:
-                                pass
+                            self._safe_call(self.on_boundary_enter, sprite, "y", "top")
                         self._boundary_state[sprite_id]["y"] = "top"
                 elif dy < 0 and sprite.center_y + dy < bottom:
                     # Would cross bottom boundary - don't apply velocity
@@ -155,10 +146,7 @@ class MoveUntil(_Action):
                     # Trigger boundary enter event if not already at boundary
                     if self._boundary_state[sprite_id]["y"] != "bottom":
                         if self.on_boundary_enter:
-                            try:
-                                self.on_boundary_enter(sprite, "y", "bottom")
-                            except Exception:
-                                pass
+                            self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
                         self._boundary_state[sprite_id]["y"] = "bottom"
                 else:
                     # Safe to apply velocity
@@ -230,10 +218,7 @@ class MoveUntil(_Action):
                             if self._boundary_state[sprite_id]["x"] is not None:
                                 old_side = self._boundary_state[sprite_id]["x"]
                                 if self.on_boundary_exit:
-                                    try:
-                                        self.on_boundary_exit(sprite, "x", old_side)
-                                    except Exception:
-                                        pass
+                                    self._safe_call(self.on_boundary_exit, sprite, "x", old_side)
                                 self._boundary_state[sprite_id]["x"] = None
 
                         # Vertical velocity with boundary limits and events
@@ -265,10 +250,7 @@ class MoveUntil(_Action):
                             if self._boundary_state[sprite_id]["y"] is not None:
                                 old_side = self._boundary_state[sprite_id]["y"]
                                 if self.on_boundary_exit:
-                                    try:
-                                        self.on_boundary_exit(sprite, "y", old_side)
-                                    except Exception:
-                                        pass
+                                    self._safe_call(self.on_boundary_exit, sprite, "y", old_side)
                                 self._boundary_state[sprite_id]["y"] = None
                     else:
                         sprite.change_x = dx
@@ -307,10 +289,7 @@ class MoveUntil(_Action):
                     # Would cross right boundary
                     if current_state["x"] != "right":
                         if self.on_boundary_enter:
-                            try:
-                                self.on_boundary_enter(sprite, "x", "right")
-                            except Exception:
-                                pass
+                            self._safe_call(self.on_boundary_enter, sprite, "x", "right")
                         current_state["x"] = "right"
                     sprite.center_x = right
                     sprite.change_x = 0
@@ -318,10 +297,7 @@ class MoveUntil(_Action):
                     # Would cross left boundary
                     if current_state["x"] != "left":
                         if self.on_boundary_enter:
-                            try:
-                                self.on_boundary_enter(sprite, "x", "left")
-                            except Exception:
-                                pass
+                            self._safe_call(self.on_boundary_enter, sprite, "x", "left")
                         current_state["x"] = "left"
                     sprite.center_x = left
                     sprite.change_x = 0
@@ -329,10 +305,7 @@ class MoveUntil(_Action):
                     # Was at boundary, now moving away
                     old_side = current_state["x"]
                     if self.on_boundary_exit:
-                        try:
-                            self.on_boundary_exit(sprite, "x", old_side)
-                        except Exception:
-                            pass
+                        self._safe_call(self.on_boundary_exit, sprite, "x", old_side)
                     current_state["x"] = None
 
                 # Check vertical movement
@@ -340,10 +313,7 @@ class MoveUntil(_Action):
                     # Would cross top boundary
                     if current_state["y"] != "top":
                         if self.on_boundary_enter:
-                            try:
-                                self.on_boundary_enter(sprite, "y", "top")
-                            except Exception:
-                                pass
+                            self._safe_call(self.on_boundary_enter, sprite, "y", "top")
                         current_state["y"] = "top"
                     sprite.center_y = top
                     sprite.change_y = 0
@@ -351,10 +321,7 @@ class MoveUntil(_Action):
                     # Would cross bottom boundary
                     if current_state["y"] != "bottom":
                         if self.on_boundary_enter:
-                            try:
-                                self.on_boundary_enter(sprite, "y", "bottom")
-                            except Exception:
-                                pass
+                            self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
                         current_state["y"] = "bottom"
                     sprite.center_y = bottom
                     sprite.change_y = 0
@@ -362,10 +329,7 @@ class MoveUntil(_Action):
                     # Was at boundary, now moving away
                     old_side = current_state["y"]
                     if self.on_boundary_exit:
-                        try:
-                            self.on_boundary_exit(sprite, "y", old_side)
-                        except Exception:
-                            pass
+                        self._safe_call(self.on_boundary_exit, sprite, "y", old_side)
                     current_state["y"] = None
             else:
                 # For other boundary behaviors, use the existing method
@@ -408,18 +372,12 @@ class MoveUntil(_Action):
             # Exit event (was on a side, now not or on different side)
             if previous_side is not None:
                 if self.on_boundary_exit:
-                    try:
-                        self.on_boundary_exit(sprite, axis, previous_side)
-                    except Exception:
-                        pass  # Dont let callback errors break the system
+                    self._safe_call(self.on_boundary_exit, sprite, axis, previous_side)
 
             # Enter event (now on a side, was not before or was on different side)
             if current_side is not None:
                 if self.on_boundary_enter:
-                    try:
-                        self.on_boundary_enter(sprite, axis, current_side)
-                    except Exception:
-                        pass  # Dont let callback errors break the system
+                    self._safe_call(self.on_boundary_enter, sprite, axis, current_side)
 
         # Update state
         current_state[axis] = current_side
@@ -1016,7 +974,12 @@ class BlinkUntil(_Action):
         # Determine how many intervals have passed to know whether we should show or hide.
         cycles = int(self._blink_elapsed / self.current_seconds_until_change)
 
+        # Track if any sprites changed visibility this frame
+        any_entered = False
+        any_exited = False
+
         def apply_blink(sprite):
+            nonlocal any_entered, any_exited
             vid = id(sprite)
             # Get the starting visibility state for this sprite
             original_visible = self._original_visibility.get(vid, True)
@@ -1031,21 +994,21 @@ class BlinkUntil(_Action):
             last_visible = self._last_visible.get(vid, original_visible)  # Use original visibility as default
 
             if new_visible != last_visible:
-                if new_visible and self.on_blink_enter:
-                    try:
-                        self.on_blink_enter(sprite)
-                    except Exception:
-                        pass
-                elif not new_visible and self.on_blink_exit:
-                    try:
-                        self.on_blink_exit(sprite)
-                    except Exception:
-                        pass
+                if new_visible:
+                    any_entered = True
+                else:
+                    any_exited = True
 
             sprite.visible = new_visible
             self._last_visible[vid] = new_visible
 
         self.for_each_sprite(apply_blink)
+
+        # Call callbacks once per frame with the target (Sprite or SpriteList)
+        if any_entered and self.on_blink_enter:
+            self._safe_call(self.on_blink_enter, self.target)
+        if any_exited and self.on_blink_exit:
+            self._safe_call(self.on_blink_exit, self.target)
 
     def reset(self) -> None:
         """Reset blinking rate to original target rate."""

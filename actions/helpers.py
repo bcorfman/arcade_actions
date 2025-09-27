@@ -218,8 +218,8 @@ def blink_until(
         seconds_until_change: Seconds to wait before toggling visibility
         condition: Function that returns truthy value when blinking should stop
         on_stop: Optional callback called when condition is satisfied
-        on_blink_enter: Optional callback(sprite) when visibility toggles to True
-        on_blink_exit: Optional callback(sprite) when visibility toggles to False
+        on_blink_enter: Optional callback(target) when visibility toggles to True
+        on_blink_exit: Optional callback(target) when visibility toggles to False
         tag: Optional tag for the action
 
     Returns:
