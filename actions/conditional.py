@@ -1,8 +1,15 @@
 import math
+import os
 from collections.abc import Callable
 from typing import Any
 
 from actions.base import Action as _Action
+
+
+def _debug_log(message: str) -> None:
+    """Log debug message if ARCADEACTIONS_DEBUG is enabled."""
+    if os.getenv("ARCADEACTIONS_DEBUG"):
+        print(f"[DEBUG CallbackUntil] {message}")
 
 
 class MoveUntil(_Action):
@@ -1323,6 +1330,8 @@ class CallbackUntil(_Action):
         self._duration: float | None = None
         self._elapsed = 0.0
 
+        _debug_log(f"__init__: id={id(self)}, callback={callback}, seconds_between_calls={seconds_between_calls}")
+
         # If the condition is a duration() helper, replace it with a simulation-time condition
         try:
             if hasattr(condition, "_is_duration_condition") and condition._is_duration_condition:
@@ -1367,7 +1376,12 @@ class CallbackUntil(_Action):
 
     def update_effect(self, delta_time: float) -> None:
         """Call the callback function respecting optional interval scheduling."""
+        _debug_log(
+            f"update_effect: id={id(self)}, delta_time={delta_time:.4f}, elapsed={self._elapsed:.4f}, done={self.done}"
+        )
+
         if not self.callback:
+            _debug_log(f"update_effect: id={id(self)}, no callback - returning")
             return
 
         # Always advance simulation time first for duration conditions
@@ -1375,6 +1389,7 @@ class CallbackUntil(_Action):
 
         # Per-frame mode
         if self.current_seconds_between_calls is None:
+            _debug_log(f"update_effect: id={id(self)}, per-frame mode - calling callback")
             # Call callback once per frame, trying both signatures
             self._call_callback_with_fallback()
             return
@@ -1383,9 +1398,18 @@ class CallbackUntil(_Action):
         # Bootstrap schedule on first update
         if not hasattr(self, "_next_fire_time") or self._next_fire_time is None:
             self._next_fire_time = self.current_seconds_between_calls or 0.0
+            _debug_log(f"update_effect: id={id(self)}, interval mode - bootstrap next_fire_time={self._next_fire_time}")
 
         # Fire when elapsed meets or exceeds schedule (but not if paused)
-        if self.current_seconds_between_calls != float("inf") and self._elapsed >= self._next_fire_time - 1e-9:
+        should_fire = (
+            self.current_seconds_between_calls != float("inf") and self._elapsed >= self._next_fire_time - 1e-9
+        )
+        _debug_log(
+            f"update_effect: id={id(self)}, interval mode - elapsed={self._elapsed:.4f}, next_fire={self._next_fire_time:.4f}, should_fire={should_fire}"
+        )
+
+        if should_fire:
+            _debug_log(f"update_effect: id={id(self)}, interval mode - calling callback")
             # Call callback once, trying both signatures
             self._call_callback_with_fallback()
 
@@ -1408,6 +1432,7 @@ class CallbackUntil(_Action):
 
     def apply_effect(self) -> None:
         """Initialize duration tracking if condition is a duration()."""
+        _debug_log(f"apply_effect: id={id(self)}, target={self.target}")
         self._elapsed = 0.0
         self._elapsed_since_call = 0.0
         self.current_seconds_between_calls = self.target_seconds_between_calls
@@ -1443,19 +1468,26 @@ class CallbackUntil(_Action):
 
     def _call_callback_with_fallback(self) -> None:
         """Call the callback, trying both with and without target parameter."""
+        _debug_log(f"_call_callback_with_fallback: id={id(self)}, callback={self.callback}, target={self.target}")
         try:
             # Try with target parameter first
+            _debug_log(f"_call_callback_with_fallback: id={id(self)}, trying callback(target)")
             self.callback(self.target)
+            _debug_log(f"_call_callback_with_fallback: id={id(self)}, callback(target) succeeded")
         except TypeError:
             try:
                 # Fall back to no parameters
+                _debug_log(f"_call_callback_with_fallback: id={id(self)}, trying callback()")
                 self.callback()
-            except Exception:
+                _debug_log(f"_call_callback_with_fallback: id={id(self)}, callback() succeeded")
+            except Exception as e:
                 # Use safe call for any other exceptions (includes TypeError)
+                _debug_log(f"_call_callback_with_fallback: id={id(self)}, callback() failed: {e}, using safe_call")
                 self._safe_call(self.callback)
 
     def reset(self) -> None:
         """Reset interval timing to initial state."""
+        _debug_log(f"reset: id={id(self)}")
         self._elapsed_since_call = 0.0
         self.current_seconds_between_calls = self.target_seconds_between_calls
         self._elapsed = 0.0
