@@ -2807,3 +2807,517 @@ class TestCallbackUntilExceptionHandling(ActionTestBase):
 
         assert call_count == 3
         assert action.done
+
+
+class TestCallbackUntilStopAndRestart(ActionTestBase):
+    """Test CallbackUntil with stop and restart functionality."""
+
+    def test_callback_until_stop_and_restart_with_tag(self, test_sprite):
+        """Test CallbackUntil with tag, seconds_between_calls, infinite condition, stop and restart."""
+        sprite = test_sprite
+        call_count_first = 0
+        call_count_second = 0
+
+        def callback_first():
+            nonlocal call_count_first
+            call_count_first += 1
+
+        def callback_second():
+            nonlocal call_count_second
+            call_count_second += 1
+
+        # First test run: Set up CallbackUntil with tag and interval
+        action1 = CallbackUntil(
+            callback=callback_first,
+            condition=infinite(),  # Never-ending condition
+            seconds_between_calls=0.05,  # Call every 0.05 seconds (50ms)
+        )
+        action1.apply(sprite, tag="test_callback_action")
+
+        # Verify the action is active
+        active_actions = Action.get_actions_for_target(sprite, tag="test_callback_action")
+        assert len(active_actions) == 1
+        assert active_actions[0] is action1
+
+        # Let it run and fire a couple of times
+        # At 0.05 second intervals, we need to run for at least 0.1 seconds to get 2+ calls
+        for i in range(10):  # 10 frames at 1/60 = ~0.167 seconds
+            Action.update_all(1 / 60)  # 16.67ms per frame
+
+        # Should have fired at least 2-3 times (0.05s and 0.1s marks, possibly 0.15s)
+        assert call_count_first >= 2, f"Expected at least 2 calls, got {call_count_first}"
+        assert call_count_first <= 4, f"Expected at most 4 calls, got {call_count_first}"  # Allow some tolerance
+
+        # Verify action is still running (infinite condition)
+        assert not action1.done
+
+        # Stop the action
+        action1.stop()
+
+        # Verify action is stopped and no longer active
+        assert action1.done
+        active_actions_after_stop = Action.get_actions_for_target(sprite, tag="test_callback_action")
+        assert len(active_actions_after_stop) == 0
+
+        # Store the call count from first run
+        first_run_calls = call_count_first
+
+        # Wait a bit more to ensure no more calls happen after stop
+        for _ in range(5):
+            Action.update_all(1 / 60)
+        assert call_count_first == first_run_calls, "Callback should not fire after stop"
+
+        # Second test run: Set up the exact same configuration again
+        action2 = CallbackUntil(
+            callback=callback_second,
+            condition=infinite(),  # Same infinite condition
+            seconds_between_calls=0.05,  # Same interval
+        )
+        action2.apply(sprite, tag="test_callback_action")  # Same tag name
+
+        # Verify the new action is active
+        active_actions_restart = Action.get_actions_for_target(sprite, tag="test_callback_action")
+        assert len(active_actions_restart) == 1
+        assert active_actions_restart[0] is action2
+        assert active_actions_restart[0] is not action1  # Different instance
+
+        # Let it run and fire a couple of times again
+        for i in range(10):  # Same duration as first test
+            Action.update_all(1 / 60)
+
+        # Should have fired at least 2-3 times, just like the first run
+        assert call_count_second >= 2, f"Expected at least 2 calls on restart, got {call_count_second}"
+        assert call_count_second <= 4, f"Expected at most 4 calls on restart, got {call_count_second}"
+
+        # Verify second action is still running
+        assert not action2.done
+
+        # Verify first callback counter didn't change
+        assert call_count_first == first_run_calls, "First callback should remain unchanged"
+
+        # Clean up: Stop the second action
+        action2.stop()
+        assert action2.done
+
+        # Final verification: Both callbacks worked independently
+        assert call_count_first > 0, "First callback should have been called"
+        assert call_count_second > 0, "Second callback should have been called"
+        assert call_count_first == first_run_calls, "First callback count should be stable"
+
+    def test_callback_until_in_parallel_stop_and_restart_with_tag(self, test_sprite):
+        """Test CallbackUntil within parallel composition with stop and restart functionality."""
+        from actions.composite import parallel
+        from actions.conditional import DelayUntil, duration
+
+        sprite = test_sprite
+        call_count_first = 0
+        call_count_second = 0
+
+        def callback_first():
+            nonlocal call_count_first
+            call_count_first += 1
+
+        def callback_second():
+            nonlocal call_count_second
+            call_count_second += 1
+
+        # First test run: Set up CallbackUntil within a parallel composition
+        callback_action1 = CallbackUntil(
+            callback=callback_first,
+            condition=infinite(),  # Never-ending condition
+            seconds_between_calls=0.05,  # Call every 0.05 seconds (50ms)
+        )
+
+        # Create a delay action to run alongside the callback
+        delay_action1 = DelayUntil(duration(1.0))  # 1-second delay (longer than our test)
+
+        # Create parallel composition
+        parallel_action1 = parallel(callback_action1, delay_action1)
+        parallel_action1.apply(sprite, tag="test_parallel_callback")
+
+        # Verify the parallel action is active
+        active_actions = Action.get_actions_for_target(sprite, tag="test_parallel_callback")
+        assert len(active_actions) == 1
+        assert active_actions[0] is parallel_action1
+
+        # Let it run and fire a couple of times
+        # At 0.05 second intervals, we need to run for at least 0.1 seconds to get 2+ calls
+        for i in range(10):  # 10 frames at 1/60 = ~0.167 seconds
+            Action.update_all(1 / 60)  # 16.67ms per frame
+
+        # Should have fired at least 2-3 times (0.05s and 0.1s marks, possibly 0.15s)
+        assert call_count_first >= 2, f"Expected at least 2 calls, got {call_count_first}"
+        assert call_count_first <= 4, f"Expected at most 4 calls, got {call_count_first}"  # Allow some tolerance
+
+        # Verify parallel action is still running (both actions should be running)
+        assert not parallel_action1.done
+        assert not callback_action1.done
+        assert not delay_action1.done
+
+        # Stop the parallel action (this should stop both child actions)
+        parallel_action1.stop()
+
+        # Verify parallel action and its children are stopped
+        assert parallel_action1.done
+        assert callback_action1.done
+        assert delay_action1.done
+        active_actions_after_stop = Action.get_actions_for_target(sprite, tag="test_parallel_callback")
+        assert len(active_actions_after_stop) == 0
+
+        # Store the call count from first run
+        first_run_calls = call_count_first
+
+        # Wait a bit more to ensure no more calls happen after stop
+        for _ in range(5):
+            Action.update_all(1 / 60)
+        assert call_count_first == first_run_calls, "Callback should not fire after parallel stop"
+
+        # Second test run: Set up the exact same parallel configuration again
+        callback_action2 = CallbackUntil(
+            callback=callback_second,
+            condition=infinite(),  # Same infinite condition
+            seconds_between_calls=0.05,  # Same interval
+        )
+
+        # Create another delay action
+        delay_action2 = DelayUntil(duration(1.0))  # Same delay duration
+
+        # Create parallel composition with same tag
+        parallel_action2 = parallel(callback_action2, delay_action2)
+        parallel_action2.apply(sprite, tag="test_parallel_callback")  # Same tag name
+
+        # Verify the new parallel action is active
+        active_actions_restart = Action.get_actions_for_target(sprite, tag="test_parallel_callback")
+        assert len(active_actions_restart) == 1
+        assert active_actions_restart[0] is parallel_action2
+        assert active_actions_restart[0] is not parallel_action1  # Different instance
+
+        # Let it run and fire a couple of times again
+        for i in range(10):  # Same duration as first test
+            Action.update_all(1 / 60)
+
+        # Should have fired at least 2-3 times, just like the first run
+        assert call_count_second >= 2, f"Expected at least 2 calls on restart, got {call_count_second}"
+        assert call_count_second <= 4, f"Expected at most 4 calls on restart, got {call_count_second}"
+
+        # Verify second parallel action is still running
+        assert not parallel_action2.done
+        assert not callback_action2.done
+        assert not delay_action2.done
+
+        # Verify first callback counter didn't change
+        assert call_count_first == first_run_calls, "First callback should remain unchanged"
+
+        # Clean up: Stop the second parallel action
+        parallel_action2.stop()
+        assert parallel_action2.done
+        assert callback_action2.done
+        assert delay_action2.done
+
+        # Final verification: Both callbacks worked independently within parallel compositions
+        assert call_count_first > 0, "First callback should have been called"
+        assert call_count_second > 0, "Second callback should have been called"
+        assert call_count_first == first_run_calls, "First callback count should be stable"
+
+    def test_callback_until_wave_pattern_issue(self, test_sprite):
+        """Test CallbackUntil in wave pattern that mimics FlashingForcefieldWave behavior."""
+        from actions.composite import parallel
+        from actions.conditional import BlinkUntil, MoveUntil
+
+        sprite = test_sprite
+        call_count_first = 0
+        call_count_second = 0
+
+        def update_color_first():
+            nonlocal call_count_first
+            call_count_first += 1
+            print(f"update_color_first: {call_count_first}")
+
+        def update_color_second():
+            nonlocal call_count_second
+            call_count_second += 1
+            print(f"update_color_second: {call_count_second}")
+
+        # First wave: Simulate FlashingForcefieldWave pattern exactly
+        move_action1 = MoveUntil(
+            velocity=(50, 0),
+            condition=infinite(),
+        )
+        blink_action1 = BlinkUntil(
+            seconds_until_change=0.5,
+            condition=infinite(),
+        )
+        callback_action1 = CallbackUntil(
+            seconds_between_calls=0.1,
+            callback=update_color_first,
+            condition=infinite(),
+        )
+
+        # Create parallel composition exactly like in FlashingForcefieldWave
+        combined_actions1 = parallel(move_action1, blink_action1, callback_action1)
+        combined_actions1.apply(sprite, tag="forcefield")
+
+        print("=== First wave starting ===")
+
+        # Let it run for several callback cycles
+        for i in range(20):  # 20 frames at 1/60 = ~0.33 seconds, should get 3+ callbacks
+            Action.update_all(1 / 60)
+
+        print(f"First wave callbacks: {call_count_first}")
+        assert call_count_first >= 3, f"Expected at least 3 calls in first wave, got {call_count_first}"
+
+        # Store first run count
+        first_run_calls = call_count_first
+
+        # Stop the wave - this is what cleanup() does
+        combined_actions1.stop()
+        print("=== First wave stopped ===")
+
+        # Verify action is stopped
+        assert combined_actions1.done
+        assert move_action1.done
+        assert blink_action1.done
+        assert callback_action1.done
+
+        # Wait to ensure no more calls happen
+        for _ in range(5):
+            Action.update_all(1 / 60)
+        assert call_count_first == first_run_calls, "No callbacks should fire after stop"
+
+        # Second wave: Create new instances exactly like FlashingForcefieldWave would
+        move_action2 = MoveUntil(
+            velocity=(50, 0),
+            condition=infinite(),
+        )
+        blink_action2 = BlinkUntil(
+            seconds_until_change=0.5,
+            condition=infinite(),
+        )
+        callback_action2 = CallbackUntil(
+            seconds_between_calls=0.1,
+            callback=update_color_second,
+            condition=infinite(),
+        )
+
+        # Create parallel composition exactly like in FlashingForcefieldWave
+        combined_actions2 = parallel(move_action2, blink_action2, callback_action2)
+        combined_actions2.apply(sprite, tag="forcefield")  # Same tag as before
+
+        print("=== Second wave starting ===")
+
+        # Let it run for several callback cycles - this should work but might not
+        for i in range(20):  # Same duration as first test
+            Action.update_all(1 / 60)
+            if i % 5 == 0:  # Print every 5 frames to debug
+                print(f"Frame {i}: Second wave callbacks so far: {call_count_second}")
+
+        print(f"Second wave final callbacks: {call_count_second}")
+
+        # This assertion might fail, revealing the issue
+        assert call_count_second >= 3, f"Expected at least 3 calls in second wave, got {call_count_second}"
+
+        # Verify first callback counter didn't change
+        assert call_count_first == first_run_calls, "First callback should remain unchanged"
+
+        # Clean up
+        combined_actions2.stop()
+
+        print("=== Test completed ===")
+        print(f"Final counts - First: {call_count_first}, Second: {call_count_second}")
+
+    def test_callback_until_spritelist_wave_pattern(self, test_sprite):
+        """Test CallbackUntil with SpriteList exactly like FlashingForcefieldWave."""
+        from actions.composite import parallel
+        from actions.conditional import BlinkUntil, MoveUntil
+
+        # Create a SpriteList like FlashingForcefieldWave does
+        forcefields1 = arcade.SpriteList()
+        forcefields1.append(test_sprite)  # Add a sprite to the list
+
+        call_count_first = 0
+        call_count_second = 0
+
+        def update_color_first():
+            nonlocal call_count_first
+            call_count_first += 1
+            print(f"update_color_first: {call_count_first}")
+
+        def update_color_second():
+            nonlocal call_count_second
+            call_count_second += 1
+            print(f"update_color_second: {call_count_second}")
+
+        # Exactly like FlashingForcefieldWave.build()
+        combined_actions1 = parallel(
+            MoveUntil(
+                velocity=(50, 0),
+                condition=infinite(),
+            ),
+            BlinkUntil(
+                seconds_until_change=0.5,
+                condition=infinite(),
+            ),
+            CallbackUntil(
+                seconds_between_calls=0.1,
+                callback=update_color_first,
+                condition=infinite(),
+            ),
+        )
+        combined_actions1.apply(forcefields1, tag="forcefield")  # Apply to SpriteList
+
+        print("=== First wave starting (SpriteList) ===")
+
+        # Let it run for several callback cycles
+        for i in range(20):  # 20 frames at 1/60 = ~0.33 seconds, should get 3+ callbacks
+            Action.update_all(1 / 60)
+
+        print(f"First wave callbacks: {call_count_first}")
+        assert call_count_first >= 3, f"Expected at least 3 calls in first wave, got {call_count_first}"
+
+        # Store first run count
+        first_run_calls = call_count_first
+
+        # Stop the wave exactly like FlashingForcefieldWave.cleanup()
+        combined_actions1.stop()
+        print("=== First wave stopped (SpriteList) ===")
+
+        # Wait to ensure no more calls happen
+        for _ in range(5):
+            Action.update_all(1 / 60)
+        assert call_count_first == first_run_calls, "No callbacks should fire after stop"
+
+        # Create NEW SpriteList for second wave (simulating new wave instance)
+        forcefields2 = arcade.SpriteList()
+        forcefields2.append(test_sprite)  # Same sprite but new list
+
+        # Second wave: Create new parallel composition exactly like new FlashingForcefieldWave
+        combined_actions2 = parallel(
+            MoveUntil(
+                velocity=(50, 0),
+                condition=infinite(),
+            ),
+            BlinkUntil(
+                seconds_until_change=0.5,
+                condition=infinite(),
+            ),
+            CallbackUntil(
+                seconds_between_calls=0.1,
+                callback=update_color_second,
+                condition=infinite(),
+            ),
+        )
+        combined_actions2.apply(forcefields2, tag="forcefield")  # Same tag, new SpriteList
+
+        print("=== Second wave starting (SpriteList) ===")
+
+        # Let it run for several callback cycles
+        for i in range(20):
+            Action.update_all(1 / 60)
+            if i % 5 == 0:
+                print(f"Frame {i}: Second wave callbacks so far: {call_count_second}")
+
+        print(f"Second wave final callbacks: {call_count_second}")
+
+        # This might fail if there's an issue with SpriteList action management
+        assert call_count_second >= 3, f"Expected at least 3 calls in second wave, got {call_count_second}"
+
+        # Verify first callback counter didn't change
+        assert call_count_first == first_run_calls, "First callback should remain unchanged"
+
+        # Clean up
+        combined_actions2.stop()
+
+        print("=== SpriteList Test completed ===")
+        print(f"Final counts - First: {call_count_first}, Second: {call_count_second}")
+
+    def test_callback_until_class_instance_pattern(self, test_sprite):
+        """Test CallbackUntil with class instances exactly like FlashingForcefieldWave."""
+        from actions.composite import parallel
+        from actions.conditional import BlinkUntil, MoveUntil
+
+        class MockWave:
+            def __init__(self, wave_id):
+                self.wave_id = wave_id
+                self.call_count = 0
+                self._actions = []
+                self._forcefields = arcade.SpriteList()
+                self._forcefields.append(test_sprite)
+
+            def update_color(self):
+                self.call_count += 1
+                print(f"Wave {self.wave_id} update_color: {self.call_count}")
+
+            def build(self):
+                combined_actions = parallel(
+                    MoveUntil(
+                        velocity=(50, 0),
+                        condition=infinite(),
+                    ),
+                    BlinkUntil(
+                        seconds_until_change=0.5,
+                        condition=infinite(),
+                    ),
+                    CallbackUntil(
+                        seconds_between_calls=0.1,
+                        callback=self.update_color,  # Bound method
+                        condition=infinite(),
+                    ),
+                )
+                combined_actions.apply(self._forcefields, tag="forcefield")
+                self._actions.append(combined_actions)
+
+            def cleanup(self):
+                for action in self._actions:
+                    action.stop()
+                self._actions.clear()
+
+        # First wave instance
+        wave1 = MockWave("Wave1")
+        wave1.build()
+
+        print("=== First wave starting (Class instance) ===")
+
+        # Let it run for several callback cycles
+        for i in range(20):
+            Action.update_all(1 / 60)
+
+        print(f"First wave callbacks: {wave1.call_count}")
+        assert wave1.call_count >= 3, f"Expected at least 3 calls in first wave, got {wave1.call_count}"
+
+        # Store first run count
+        first_run_calls = wave1.call_count
+
+        # Stop the wave
+        wave1.cleanup()
+        print("=== First wave stopped (Class instance) ===")
+
+        # Wait to ensure no more calls happen
+        for _ in range(5):
+            Action.update_all(1 / 60)
+        assert wave1.call_count == first_run_calls, "No callbacks should fire after stop"
+
+        # Create completely new wave instance (like your game would)
+        wave2 = MockWave("Wave2")
+        wave2.build()
+
+        print("=== Second wave starting (Class instance) ===")
+
+        # Let it run for several callback cycles
+        for i in range(20):
+            Action.update_all(1 / 60)
+            if i % 5 == 0:
+                print(f"Frame {i}: Second wave callbacks so far: {wave2.call_count}")
+
+        print(f"Second wave final callbacks: {wave2.call_count}")
+
+        # This should work unless there's a bound method issue
+        assert wave2.call_count >= 3, f"Expected at least 3 calls in second wave, got {wave2.call_count}"
+
+        # Verify first wave counter didn't change
+        assert wave1.call_count == first_run_calls, "First wave callback should remain unchanged"
+
+        # Clean up
+        wave2.cleanup()
+
+        print("=== Class instance Test completed ===")
+        print(f"Final counts - Wave1: {wave1.call_count}, Wave2: {wave2.call_count}")

@@ -5,6 +5,7 @@ Actions are used to animate sprites and sprite lists over time.
 
 from __future__ import annotations
 
+import os
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
@@ -23,6 +24,12 @@ if TYPE_CHECKING:
 
 
 _T = TypeVar("_T", bound="Action")
+
+
+def _debug_log_action(action, message: str) -> None:
+    """Log debug message for specific action types if ARCADEACTIONS_DEBUG is enabled."""
+    if os.getenv("ARCADEACTIONS_DEBUG") and type(action).__name__ == "CallbackUntil":
+        print(f"[DEBUG Action] {type(action).__name__} id={id(action)}: {message}")
 
 
 class VelocityControllable(Protocol):
@@ -116,8 +123,10 @@ class Action(ABC, Generic[_T]):
 
     def start(self) -> None:
         """Called when the action begins."""
+        _debug_log_action(self, f"start() called, target={self.target}, tag={self.tag}")
         self._is_active = True
         self.apply_effect()
+        _debug_log_action(self, f"start() completed, _is_active={self._is_active}")
 
     def apply_effect(self) -> None:
         """Apply the action's effect to the target."""
@@ -165,11 +174,14 @@ class Action(ABC, Generic[_T]):
 
     def stop(self) -> None:
         """Stop the action and remove it from the global action manager."""
+        _debug_log_action(self, f"stop() called, done={self.done}, _is_active={self._is_active}")
         if self in Action._active_actions:
             Action._active_actions.remove(self)
+            _debug_log_action(self, "removed from _active_actions")
         self.done = True
         self._is_active = False
         self.remove_effect()
+        _debug_log_action(self, f"stop() completed, done={self.done}, _is_active={self._is_active}")
 
     @staticmethod
     def get_actions_for_target(target: arcade.Sprite | arcade.SpriteList, tag: str | None = None) -> list[Action]:
