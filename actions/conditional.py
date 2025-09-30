@@ -6,10 +6,10 @@ from typing import Any
 from actions.base import Action as _Action
 
 
-def _debug_log(message: str) -> None:
+def _debug_log(message: str, *, action: str = "CallbackUntil") -> None:
     """Log debug message if ARCADEACTIONS_DEBUG is enabled."""
     if os.getenv("ARCADEACTIONS_DEBUG"):
-        print(f"[DEBUG CallbackUntil] {message}")
+        print(f"[DEBUG {action}] {message}")
 
 
 class MoveUntil(_Action):
@@ -62,6 +62,12 @@ class MoveUntil(_Action):
         self._elapsed = 0.0
         self._duration = None
 
+        _debug_log(
+            f"__init__: id={id(self)}, velocity={velocity}, bounds={bounds}, boundary_behavior={boundary_behavior}, "
+            f"velocity_provider={bool(self.velocity_provider)}",
+            action="MoveUntil",
+        )
+
     def set_factor(self, factor: float) -> None:
         """Scale the velocity by the given factor.
 
@@ -72,9 +78,19 @@ class MoveUntil(_Action):
         # Immediately apply the new velocity if action is active
         if not self.done and self.target is not None:
             self.apply_effect()
+        _debug_log(
+            f"set_factor: id={id(self)}, factor={factor}, target_velocity={self.target_velocity}, "
+            f"current_velocity={self.current_velocity}",
+            action="MoveUntil",
+        )
 
     def apply_effect(self) -> None:
         """Apply velocity to all sprites."""
+
+        _debug_log(
+            f"apply_effect: id={id(self)}, target={self.target}, velocity_provider={bool(self.velocity_provider)}",
+            action="MoveUntil",
+        )
 
         # Try to extract duration from the condition function if it's from duration() helper
         self._duration = None
@@ -98,10 +114,23 @@ class MoveUntil(_Action):
         if self.velocity_provider:
             try:
                 dx, dy = self.velocity_provider()
-            except Exception:
+                _debug_log(
+                    f"apply_effect: id={id(self)}, velocity_provider returned {(dx, dy)}",
+                    action="MoveUntil",
+                )
+            except Exception as error:
+                _debug_log(
+                    f"apply_effect: id={id(self)}, velocity_provider exception={error!r} - using current_velocity",
+                    action="MoveUntil",
+                )
                 dx, dy = self.current_velocity  # Fallback on provider error
         else:
             dx, dy = self.current_velocity
+
+        _debug_log(
+            f"apply_effect: id={id(self)}, applying velocity {(dx, dy)}",
+            action="MoveUntil",
+        )
 
         def set_velocity(sprite):
             # For limit boundary behavior, check if velocity would cross boundary
@@ -167,6 +196,11 @@ class MoveUntil(_Action):
 
     def update_effect(self, delta_time: float) -> None:
         """Update movement and handle boundary checking if enabled."""
+        _debug_log(
+            f"update_effect: id={id(self)}, delta_time={delta_time:.4f}, done={self.done}, "
+            f"velocity_provider={bool(self.velocity_provider)}",
+            action="MoveUntil",
+        )
         # Handle duration-based conditions using simulation time
         if self._duration is not None:
             self._elapsed += delta_time
@@ -174,6 +208,10 @@ class MoveUntil(_Action):
             # Check if duration has elapsed
             if self._elapsed >= self._duration:
                 # End immediately and clear velocities to avoid carryover into next actions
+                _debug_log(
+                    f"update_effect: id={id(self)}, duration elapsed ({self._duration:.4f}s) - stopping",
+                    action="MoveUntil",
+                )
                 self._condition_met = True
                 self.remove_effect()
                 self.done = True
@@ -185,6 +223,10 @@ class MoveUntil(_Action):
         if self.velocity_provider:
             try:
                 dx, dy = self.velocity_provider()
+                _debug_log(
+                    f"update_effect: id={id(self)}, velocity_provider returned {(dx, dy)}",
+                    action="MoveUntil",
+                )
 
                 # Apply velocity to all sprites (with boundary limits if needed)
                 def set_velocity(sprite):
@@ -264,17 +306,30 @@ class MoveUntil(_Action):
                         sprite.change_y = dy
 
                 self.for_each_sprite(set_velocity)
-            except Exception:
+            except Exception as error:
+                _debug_log(
+                    f"update_effect: id={id(self)}, velocity_provider exception={error!r} - keeping current velocity",
+                    action="MoveUntil",
+                )
                 pass  # Keep current velocity on provider error
 
         # Check boundaries if configured - handle limiting proactively
         # If a velocity_provider is present, boundary limiting and events
         # are already handled in the provider path above.
         if self.bounds and self.boundary_behavior and not self.velocity_provider:
+            _debug_log(
+                f"update_effect: id={id(self)}, applying boundary limits behavior={self.boundary_behavior}",
+                action="MoveUntil",
+            )
             self._apply_boundary_limits()
 
     def _apply_boundary_limits(self):
         """Apply boundary behavior and trigger events based on intended movement."""
+
+        _debug_log(
+            f"_apply_boundary_limits: id={id(self)}, target={self.target}, boundary_behavior={self.boundary_behavior}",
+            action="MoveUntil",
+        )
 
         def apply_limits(sprite):
             if not self.bounds:
@@ -469,6 +524,8 @@ class MoveUntil(_Action):
     def remove_effect(self) -> None:
         """Clear velocities when the action finishes to avoid carryover between actions."""
 
+        _debug_log(f"remove_effect: id={id(self)}", action="MoveUntil")
+
         def clear_velocity(sprite):
             sprite.change_x = 0
             sprite.change_y = 0
@@ -487,9 +544,15 @@ class MoveUntil(_Action):
         self.current_velocity = velocity
         if not self.done:
             self.apply_effect()  # Immediately apply velocity to sprites
+        _debug_log(
+            f"set_current_velocity: id={id(self)}, velocity={velocity}",
+            action="MoveUntil",
+        )
 
     def remove_effect(self) -> None:
         """Stop movement by clearing velocity on all sprites."""
+
+        _debug_log(f"remove_effect (stop): id={id(self)}", action="MoveUntil")
 
         def clear_velocity(sprite):
             sprite.change_x = 0
@@ -517,9 +580,14 @@ class MoveUntil(_Action):
         """Reset velocity to original target velocity."""
         self.current_velocity = self.target_velocity
         self.apply_effect()
+        _debug_log(
+            f"reset: id={id(self)}, target_velocity={self.target_velocity}",
+            action="MoveUntil",
+        )
 
     def clone(self) -> "MoveUntil":
         """Create a copy of this MoveUntil action."""
+        _debug_log(f"clone: id={id(self)}", action="MoveUntil")
         return MoveUntil(
             self.target_velocity,  # Use target_velocity for cloning
             _clone_condition(self.condition),
