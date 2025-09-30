@@ -711,8 +711,8 @@ class TestVelocityForwarding:
         # Should complete immediately since base class has no functionality
         assert True  # Just testing that no exception was raised
 
-    def test_velocity_forwarding_with_attribute_error(self):
-        """Test velocity forwarding gracefully handles actions without set_current_velocity."""
+    def test_velocity_forwarding_with_noop_velocity(self):
+        """Test velocity forwarding gracefully handles actions using the default no-op setter."""
         from actions.conditional import DelayUntil, MoveUntil, infinite
 
         sprite = create_test_sprite()
@@ -723,9 +723,6 @@ class TestVelocityForwarding:
 
             def __init__(self):
                 super().__init__(duration(1.0))
-                # Ensure it doesn't have the method by deleting it if it exists
-                if hasattr(self, "set_current_velocity"):
-                    delattr(self, "set_current_velocity")
 
         move_action = MoveUntil((3, 4), infinite)
         custom_action = CustomAction()
@@ -804,8 +801,8 @@ class TestVelocityForwarding:
         # Should handle gracefully with empty actions list
         assert len(par.actions) == 0
 
-    def test_velocity_forwarding_sequence_attribute_error(self):
-        """Test sequence velocity forwarding handles AttributeError from current action."""
+    def test_velocity_forwarding_sequence_noop(self):
+        """Test sequence velocity forwarding with actions relying on the default no-op setter."""
         from actions.conditional import DelayUntil
 
         sprite = create_test_sprite()
@@ -814,9 +811,6 @@ class TestVelocityForwarding:
         class ActionWithoutVelocity(DelayUntil):
             def __init__(self):
                 super().__init__(duration(0.1))
-                # Remove the method to ensure AttributeError
-                if hasattr(self, "set_current_velocity"):
-                    delattr(self, "set_current_velocity")
 
         action_without_velocity = ActionWithoutVelocity()
         seq = sequence(action_without_velocity)
@@ -828,8 +822,8 @@ class TestVelocityForwarding:
         # Should complete without error
         assert seq.current_action is action_without_velocity
 
-    def test_velocity_forwarding_repeat_attribute_error(self):
-        """Test repeat velocity forwarding handles AttributeError from current action."""
+    def test_velocity_forwarding_repeat_noop(self):
+        """Test repeat velocity forwarding with actions relying on the default no-op setter."""
         from actions.conditional import DelayUntil
 
         sprite = create_test_sprite()
@@ -838,8 +832,6 @@ class TestVelocityForwarding:
         class ActionWithoutVelocity(DelayUntil):
             def __init__(self):
                 super().__init__(duration(0.1))
-                if hasattr(self, "set_current_velocity"):
-                    delattr(self, "set_current_velocity")
 
         action_without_velocity = ActionWithoutVelocity()
         rep = repeat(action_without_velocity)
@@ -855,8 +847,8 @@ class TestVelocityForwarding:
         # Should complete without error
         assert rep.current_action is not None
 
-    def test_velocity_forwarding_state_machine_attribute_error(self):
-        """Test StateMachine velocity forwarding handles AttributeError from current action."""
+    def test_velocity_forwarding_state_machine_noop(self):
+        """Test StateMachine velocity forwarding with actions relying on the default no-op setter."""
         from actions.composite import StateMachine
         from actions.conditional import DelayUntil, duration
 
@@ -866,8 +858,6 @@ class TestVelocityForwarding:
         class ActionWithoutVelocity(DelayUntil):
             def __init__(self):
                 super().__init__(duration(0.1))
-                if hasattr(self, "set_current_velocity"):
-                    delattr(self, "set_current_velocity")
 
         # Create a StateMachine with a state that returns an action without velocity support
         states = [
