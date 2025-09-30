@@ -318,6 +318,17 @@ class Action(ABC, Generic[_T]):
         """Resume the action."""
         self._paused = False
 
+    def set_current_velocity(self, velocity: tuple[float, float]) -> None:
+        """Set the current velocity for this action.
+
+        Base implementation does nothing. Override in subclasses that support velocity control.
+
+        Args:
+            velocity: (dx, dy) velocity tuple to apply
+        """
+
+        pass
+
     @classmethod
     def _safe_call(cls, fn: Callable, *args) -> None:
         """
@@ -364,17 +375,6 @@ class CompositeAction(Action):
 
     def reverse_movement(self, axis: str) -> None:
         """Reverse movement for boundary bouncing. Override in subclasses."""
-        pass
-
-    def set_current_velocity(self, velocity: tuple[float, float]) -> None:
-        """Forward velocity setting to all child actions that support it.
-
-        Base implementation does nothing - subclasses override to forward to children.
-
-        Args:
-            velocity: (dx, dy) velocity tuple to apply
-        """
-        # Base composite action has no children to forward to
         pass
 
     def reset(self) -> None:

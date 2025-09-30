@@ -184,11 +184,7 @@ class _Parallel(CompositeAction):
     def set_current_velocity(self, velocity: tuple[float, float]) -> None:
         """Forward velocity setting to all child actions that support it."""
         for action in self.actions:
-            try:
-                action.set_current_velocity(velocity)
-            except AttributeError:
-                # Action doesn't support velocity control - continue to next
-                continue
+            action.set_current_velocity(velocity)
 
     def __repr__(self) -> str:
         actions_repr = ", ".join(repr(a) for a in self.actions)
