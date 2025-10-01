@@ -86,7 +86,7 @@ If writing high-level game code appeals to you ... it's why you chose Python in 
 
 ## 🚀 Getting Started
 
-1. **Read the [API Usage Guide](api_usage_guide.md)** to understand the framework
+1. **Read the [API Usage Guide](docs/api_usage_guide.md)** to understand the framework
 2. **Study the working demos in the examples directory** to understand the power of Actions
 3. **Start with simple conditional actions** and build up to complex compositions
 4. **Use formation and pattern functions** for organizing sprite positions and layouts
