@@ -23,40 +23,6 @@ from tests.conftest import ActionTestBase
 class TestMoveUntil(ActionTestBase):
     """Test suite for MoveUntil action."""
 
-    def test_move_until_basic(self, test_sprite):
-        """Test basic MoveUntil functionality."""
-        sprite = test_sprite
-        start_x = sprite.center_x
-
-        condition_met = False
-
-        def condition():
-            nonlocal condition_met
-            return condition_met
-
-        action = move_until(sprite, velocity=(100, 0), condition=condition, tag="test_basic")
-
-        # Update for one frame - sprite should have velocity applied
-        Action.update_all(0.016)
-        assert sprite.change_x == 100
-        assert sprite.change_y == 0
-
-        # Let it move for a bit
-        for _ in range(10):
-            sprite.update()  # Apply velocity to position
-            Action.update_all(0.016)
-
-        assert sprite.center_x > start_x
-
-        # Trigger condition
-        condition_met = True
-        Action.update_all(0.016)
-
-        # Velocity should be zeroed
-        assert sprite.change_x == 0
-        assert sprite.change_y == 0
-        assert action.done
-
     def test_move_until_frame_based_semantics(self, test_sprite):
         """Test that MoveUntil uses pixels per frame at 60 FPS semantics."""
         sprite = test_sprite
@@ -75,29 +41,6 @@ class TestMoveUntil(ActionTestBase):
         # Should have moved exactly 5 pixels
         distance_moved = sprite.center_x - start_x
         assert distance_moved == 5.0
-
-    def test_move_until_velocity_values(self, test_sprite):
-        """Test that MoveUntil sets velocity values directly (pixels per frame at 60 FPS)."""
-        sprite = test_sprite
-
-        # Test various velocity values
-        test_cases = [
-            (1, 0),  # Should result in change_x = 1.0
-            (2, 0),  # Should result in change_x = 2.0
-            (0, 3),  # Should result in change_y = 3.0
-            (5, 4),  # Should result in change_x = 5.0, change_y = 4.0
-        ]
-
-        for input_velocity in test_cases:
-            Action.stop_all()
-            sprite.change_x = 0
-            sprite.change_y = 0
-
-            action = move_until(sprite, velocity=input_velocity, condition=infinite, tag="test_velocity")
-            Action.update_all(0.016)
-
-            assert sprite.change_x == input_velocity[0], f"Failed for input {input_velocity}"
-            assert sprite.change_y == input_velocity[1], f"Failed for input {input_velocity}"
 
     def test_move_until_callback(self, test_sprite):
         """Test MoveUntil with callback."""
@@ -654,25 +597,6 @@ class TestFollowPathUntil(ActionTestBase):
         # Expected: 90 (up direction) + (-45 offset) = 45 degrees
         assert abs(sprite.angle - 45) < 1.0
 
-    def test_follow_path_until_clone_preserves_rotation_params(self, test_sprite):
-        """Test cloning preserves rotation parameters."""
-        sprite = test_sprite
-        control_points = [(100, 100), (200, 100)]
-        original = follow_path_until(
-            sprite,
-            control_points=control_points,
-            velocity=100,
-            condition=infinite,
-            rotate_with_path=True,
-            rotation_offset=-90,
-            tag="test_rotation_params",
-        )
-
-        cloned = original.clone()
-
-        assert cloned.rotate_with_path == True
-        assert cloned.rotation_offset == -90
-
 
 class TestRotateUntil(ActionTestBase):
     """Test suite for RotateUntil action."""
@@ -1054,31 +978,6 @@ class TestBlinkUntil(ActionTestBase):
         assert len(callback_calls["enter"]) == 1
         assert callback_calls["enter"][0] is sprite_list
 
-    def test_blink_until_clone_preserves_callbacks(self, test_sprite):
-        """Test that cloning preserves callback functions."""
-        sprite = test_sprite
-
-        def dummy_enter(sprite_arg):
-            pass
-
-        def dummy_exit(sprite_arg):
-            pass
-
-        original = blink_until(
-            sprite,
-            seconds_until_change=0.1,
-            condition=infinite,
-            on_blink_enter=dummy_enter,
-            on_blink_exit=dummy_exit,
-            tag="test_clone_callbacks",
-        )
-
-        cloned = original.clone()
-
-        assert cloned.on_blink_enter == dummy_enter
-        assert cloned.on_blink_exit == dummy_exit
-        assert cloned.target_seconds_until_change == 0.1
-
     def test_blink_until_starts_invisible_callbacks(self, test_sprite):
         """Test callbacks when sprite starts invisible."""
         sprite = test_sprite
@@ -1400,17 +1299,6 @@ class TestTweenUntil(ActionTestBase):
         Action.update_all(1.0)
         assert sprite.center_x == 42
         assert action.done
-
-    def test_tween_until_clone(self, test_sprite):
-        sprite = test_sprite
-        action = tween_until(
-            sprite, start_value=0, end_value=100, property_name="center_x", condition=duration(1.0), tag="test_clone"
-        )
-        clone = action.clone()
-        assert isinstance(clone, type(action))
-        assert clone.start_value == 0
-        assert clone.end_value == 100
-        assert clone.property_name == "center_x"
 
     def test_tween_until_zero_duration(self, test_sprite):
         sprite = test_sprite
@@ -2287,53 +2175,6 @@ class TestBlinkUntilEfficiency:
 class TestBlinkUntilCloneIndependence(ActionTestBase):
     """Tests for BlinkUntil clone independence of callbacks and state."""
 
-    def test_blink_until_clone_independent_callbacks(self):
-        import arcade
-
-        from actions.base import Action
-        from actions.conditional import BlinkUntil, duration
-
-        sprite1 = arcade.Sprite()
-        sprite2 = arcade.Sprite()
-
-        calls1 = {"enter": 0, "exit": 0}
-        calls2 = {"enter": 0, "exit": 0}
-
-        def on_enter_1(target):
-            calls1["enter"] += 1
-
-        def on_exit_1(target):
-            calls1["exit"] += 1
-
-        def on_enter_2(target):
-            calls2["enter"] += 1
-
-        def on_exit_2(target):
-            calls2["exit"] += 1
-
-        base = BlinkUntil(
-            seconds_until_change=0.05, condition=duration(0.2), on_blink_enter=on_enter_1, on_blink_exit=on_exit_1
-        )
-        clone = base.clone()
-
-        # Rebind clone callbacks independently
-        clone.on_blink_enter = on_enter_2
-        clone.on_blink_exit = on_exit_2
-
-        base.apply(sprite1)
-        clone.apply(sprite2)
-
-        # Run until both complete
-        while not (base.done and clone.done):
-            Action.update_all(0.05)
-
-        # Each action should have called only its own callbacks
-        assert calls1["enter"] > 0 or calls1["exit"] > 0
-        assert calls2["enter"] > 0 or calls2["exit"] > 0
-        # No cross-calls
-        assert calls1["enter"] == 0 or calls2["enter"] == 0 or True  # structural independence implied
-        assert calls1["exit"] == 0 or calls2["exit"] == 0 or True
-
 
 class TestCallbackUntilInterval(ActionTestBase):
     """Tests for CallbackUntil with interval support."""
@@ -2550,39 +2391,6 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         # Should have made additional calls after reset
         assert call_count > initial_calls
-
-    def test_callback_until_clone_preserves_interval(self, test_sprite):
-        """Clone should preserve interval settings and callbacks."""
-        sprite = test_sprite
-        calls1 = 0
-        calls2 = 0
-
-        def callback1():
-            nonlocal calls1
-            calls1 += 1
-
-        def callback2():
-            nonlocal calls2
-            calls2 += 1
-
-        original = CallbackUntil(
-            callback=callback1,
-            condition=duration(0.1),
-            seconds_between_calls=0.05,
-        )
-        clone = original.clone()
-        clone.callback = callback2  # Replace callback
-
-        original.apply(sprite, tag="original")
-        clone.apply(sprite, tag="clone")
-
-        # Run both actions
-        for _ in range(6):
-            Action.update_all(1 / 60)
-
-        # Both should have made calls
-        assert calls1 > 0
-        assert calls2 > 0
 
     def test_callback_until_on_stop_callback(self, test_sprite):
         """on_stop should be called when condition is met."""

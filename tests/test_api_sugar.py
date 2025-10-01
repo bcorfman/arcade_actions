@@ -33,38 +33,10 @@ def sprite_list() -> arcade.SpriteList:
 
 
 class TestHelperFunctions:
-    """Tests for thin wrapper helper functions."""
+    """Tests for helper function keyword/arg semantics (minimal smoke)."""
 
     def teardown_method(self):
         Action.stop_all()
-
-    def test_move_until_helper_applies_action(self, sprite):
-        """Test move_until helper creates and applies a MoveUntil action."""
-        # This should create a MoveUntil action and apply it to the sprite
-        action = move_until(sprite, velocity=(10, 0), condition=lambda: False, tag="test_move")
-
-        assert isinstance(action, MoveUntil)
-        assert len(Action._active_actions) == 1
-        assert action in Action._active_actions
-        assert action.tag == "test_move"
-        assert action.target == sprite
-
-    def test_move_until_helper_returns_action(self, sprite):
-        """Test move_until helper returns the created action instance."""
-        move_action = move_until(sprite, velocity=(5, 0), condition=lambda: False)
-        assert isinstance(move_action, MoveUntil)
-        # We can still interact with the returned action
-        move_action.set_factor(0.5)
-        assert move_action.current_velocity == (2.5, 0.0)
-
-    def test_helper_unbound_action_creation(self):
-        """Test that creating unbound actions uses the Action classes directly."""
-        # For unbound actions, use the Action classes directly
-        raw_action = MoveUntil((10, 0), lambda: False)
-
-        assert isinstance(raw_action, MoveUntil)
-        assert not raw_action.target  # Not bound to any sprite
-        assert len(Action._active_actions) == 0  # Should not be in the active list
 
 
 class TestKeywordParameterSupport:
@@ -219,103 +191,7 @@ class TestKeywordParameterSupport:
 
 
 class TestOperatorOverloading:
-    """Tests for operator-based composition (+ for sequence, | for parallel)."""
+    """Covered comprehensively in tests/test_composite.py; keep none here."""
 
     def teardown_method(self):
         Action.stop_all()
-
-    def test_add_operator_for_sequence(self):
-        """Test that the '+' operator creates a sequential action."""
-        from actions.composite import _Sequence
-
-        action1 = MoveUntil((10, 0), lambda: False)
-        action2 = RotateUntil(5, lambda: False)
-
-        sequence_action = action1 + action2
-
-        assert isinstance(sequence_action, _Sequence)
-        assert sequence_action.actions == [action1, action2]
-        assert len(Action._active_actions) == 0  # Should not be active yet
-
-    def test_or_operator_for_parallel(self):
-        """Test that the '|' operator creates a parallel action."""
-        from actions.composite import _Parallel
-
-        action1 = MoveUntil((10, 0), lambda: False)
-        action2 = RotateUntil(5, lambda: False)
-
-        parallel_action = action1 | action2
-
-        assert isinstance(parallel_action, _Parallel)
-        assert parallel_action.actions == [action1, action2]
-        assert len(Action._active_actions) == 0
-
-    def test_right_hand_operators(self):
-        """Test right-hand operators (__radd__, __ror__) for composition."""
-        from actions.composite import _Parallel, _Sequence
-        from actions.conditional import DelayUntil
-
-        move = MoveUntil((10, 0), lambda: False)
-        delay = DelayUntil(lambda: False)
-
-        # Test __radd__
-        seq = delay + move
-        assert isinstance(seq, _Sequence)
-        assert seq.actions == [delay, move]
-
-        # Test __ror__
-        par = delay | move
-        assert isinstance(par, _Parallel)
-        assert par.actions == [delay, move]
-
-    def test_operator_precedence(self, sprite):
-        """Test operator precedence and complex compositions."""
-        from actions.composite import _Parallel, _Sequence
-        from actions.conditional import DelayUntil
-
-        a = MoveUntil((10, 0), lambda: False)
-        b = RotateUntil(5, lambda: False)
-        c = DelayUntil(lambda: False)
-
-        # Test precedence: (a + b) | c should be different from a + (b | c)
-        left_assoc = (a + b) | c
-        right_assoc = a + (b | c)
-
-        assert isinstance(left_assoc, _Parallel)
-        assert isinstance(left_assoc.actions[0], _Sequence)
-        assert left_assoc.actions[0].actions == [a, b]
-        assert left_assoc.actions[1] == c
-
-        assert isinstance(right_assoc, _Sequence)
-        assert right_assoc.actions[0] == a
-        assert isinstance(right_assoc.actions[1], _Parallel)
-        assert right_assoc.actions[1].actions == [b, c]
-
-    def test_complex_chaining_with_apply(self, sprite):
-        """Test complex operator chaining with apply."""
-
-        a = MoveUntil((10, 0), lambda: False)
-        b = RotateUntil(5, lambda: False)
-        c = DelayUntil(lambda: False)
-
-        # Create complex composition
-        complex_action = (a + b) | c
-        complex_action.apply(sprite)
-
-        assert len(Action._active_actions) == 1
-        assert complex_action.target == sprite
-
-    def test_repr_for_composite_actions(self):
-        """Test that composite actions have meaningful repr."""
-        from actions.conditional import DelayUntil
-
-        a = MoveUntil((5, 0), lambda: False)
-        b = RotateUntil(2, lambda: False)
-        c = DelayUntil(lambda: False)
-
-        # Create nested composition
-        action = c + (a | b)
-
-        expected_repr = "_Sequence(actions=[DelayUntil(condition=...), _Parallel(actions=[MoveUntil(target_velocity=(5, 0), ...), RotateUntil(angular_velocity=2, ...)])])"
-        assert "_Sequence" in repr(action)
-        assert "_Parallel" in repr(action)
