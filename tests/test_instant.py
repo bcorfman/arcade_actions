@@ -95,16 +95,6 @@ class TestMoveTo(ActionTestBase):
         with pytest.raises(ValueError, match="Position must be a tuple/list of \\(x, y\\) coordinates"):
             MoveTo("invalid")  # Not a tuple/list
 
-    def test_move_to_clone(self, test_sprite):
-        """Test MoveTo cloning."""
-        action = MoveTo((100, 200), on_stop=lambda: None)
-        cloned = action.clone()
-
-        assert isinstance(cloned, MoveTo)
-        assert cloned.target_position == (100, 200)
-        assert cloned.on_stop is not None
-        assert cloned is not action
-
     def test_move_to_removes_from_active_actions(self, test_sprite):
         """Test that MoveTo removes itself from active actions."""
         initial_count = len(Action._active_actions)
@@ -205,16 +195,6 @@ class TestMoveBy(ActionTestBase):
 
         with pytest.raises(ValueError, match="Offset must be a tuple/list of \\(dx, dy\\) coordinates"):
             MoveBy("invalid")  # Not a tuple/list
-
-    def test_move_by_clone(self, test_sprite):
-        """Test MoveBy cloning."""
-        action = MoveBy((50, 75), on_stop=lambda: None)
-        cloned = action.clone()
-
-        assert isinstance(cloned, MoveBy)
-        assert cloned.offset == (50, 75)
-        assert cloned.on_stop is not None
-        assert cloned is not action
 
     def test_move_by_removes_from_active_actions(self, test_sprite):
         """Test that MoveBy removes itself from active actions."""

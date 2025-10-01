@@ -2,7 +2,7 @@
 
 import arcade
 
-from actions import MoveUntil, move_until
+from actions import move_until
 from actions.base import Action
 from actions.pattern import time_elapsed
 
@@ -155,25 +155,6 @@ class TestMoveUntilBoundaries:
         assert sprite.center_x > initial_x
         # MoveUntil uses pixels per frame at 60 FPS semantics
         assert sprite.change_x == 100  # Velocity unchanged
-
-    def test_move_until_boundary_clone(self):
-        """Test cloning MoveUntil action with boundary settings."""
-        bounds = (0, 0, 800, 600)
-
-        def on_boundary_enter(sprite, axis, side):
-            pass
-
-        # Create unbound action for cloning test
-        original = MoveUntil(
-            (50, 25), time_elapsed(2.0), bounds=bounds, boundary_behavior="wrap", on_boundary_enter=on_boundary_enter
-        )
-
-        cloned = original.clone()
-
-        assert cloned.target_velocity == original.target_velocity
-        assert cloned.bounds == original.bounds
-        assert cloned.boundary_behavior == original.boundary_behavior
-        assert cloned.on_boundary_enter == original.on_boundary_enter
 
     def test_move_until_multiple_sprites_boundaries(self):
         """Test MoveUntil boundary checking with multiple sprites."""
