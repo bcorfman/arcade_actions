@@ -1095,32 +1095,129 @@ movement_actions = Action.get_actions_for_target(sprite, "movement")
 Action.stop_all()
 ```
 
-### Library-wide Debug Logging
-Enable extra diagnostics that print when new actions are created and when the total active count changes.
+### Configurable Debug Logging
 
-- Environment variable (no code changes):
+ArcadeActions provides a powerful, fine-grained debug logging system with levels and per-Action filtering for focused, useful output without noise.
 
-```bash
-ARCADEACTIONS_DEBUG=1 uv run python your_app.py
-```
+#### Debug Levels
 
-- Programmatic (e.g., app startup or tests):
+- **Level 0**: No debug output (default)
+- **Level 1**: Summary counts only when they change (minimal overhead)
+  - Shows total active actions and per-class counts
+  - Example: `[AA L1 summary] Total=5, MoveUntil=3, RotateUntil=2`
+- **Level 2**: Lifecycle events (creation/removal) for observed actions
+  - Filtered by action class unless `include_all=True`
+  - Example: `[AA L2 MoveUntil] created target=Sprite tag='movement'`
+- **Level 3+**: Verbose per-frame details for observed actions
+  - Fine-grained internal state for debugging complex behaviors
+  - Heavily filtered to prevent log spam
+
+#### Programmatic API (Recommended)
 
 ```python
-from actions import set_debug_actions
+from actions import set_debug_options, observe_actions, clear_observed_actions
 
-set_debug_actions(True)
+# Focused debugging: Level 2, only MoveUntil and CallbackUntil
+set_debug_options(level=2, include=["MoveUntil", "CallbackUntil"])
+
+# Or using class types
+from actions import MoveUntil, CallbackUntil
+set_debug_options(level=2, include=[MoveUntil, CallbackUntil])
+
+# Incrementally add observed actions
+observe_actions(MoveUntil)
+observe_actions("CallbackUntil", "RotateUntil")
+
+# Clear filters
+clear_observed_actions()
+
+# All actions at level 1 (summary only)
+set_debug_options(level=1, include_all=True)
+
+# Fine-grained tracing for MoveUntil only
+set_debug_options(level=3, include=["MoveUntil"])
+
+# Check current settings
+from actions import get_debug_options
+print(get_debug_options())
+# {'level': 2, 'include_all': False, 'include': ['MoveUntil']}
 ```
 
-Examples may also expose a `--debug-actions` flag that calls `set_debug_actions(True)` for convenience.
-
-### Callback Debug Warnings
-
-When `ARCADEACTIONS_DEBUG=1` is set, the framework provides helpful one-time warnings for common callback mistakes:
+#### Environment Variables (Optional)
 
 ```bash
-ARCADEACTIONS_DEBUG=1 uv run python your_game.py
+# Set debug level (0-3+)
+ARCADEACTIONS_DEBUG=2 uv run python your_app.py
+
+# Observe all actions
+ARCADEACTIONS_DEBUG=2 ARCADEACTIONS_DEBUG_ALL=1 uv run python your_app.py
+
+# Observe specific action classes (comma-separated)
+ARCADEACTIONS_DEBUG=2 ARCADEACTIONS_DEBUG_INCLUDE=MoveUntil,CallbackUntil uv run python your_app.py
+
+# Boolean values also work (maps to level 1)
+ARCADEACTIONS_DEBUG=true uv run python your_app.py
 ```
+
+#### Usage Examples
+
+**Example 1: Monitor all action activity (Level 1)**
+```python
+from actions import set_debug_options
+
+# Minimal overhead - only logs when counts change
+set_debug_options(level=1, include_all=True)
+```
+
+Output:
+```
+[AA L1 summary] Total=1, MoveUntil=1
+[AA L1 summary] Total=3, MoveUntil=2, RotateUntil=1
+```
+
+**Example 2: Track specific action lifecycle (Level 2)**
+```python
+from actions import set_debug_options
+
+# See when MoveUntil actions are created/removed
+set_debug_options(level=2, include=["MoveUntil"])
+```
+
+Output:
+```
+[AA L1 summary] Total=1, MoveUntil=1
+[AA L2 MoveUntil] created target=Sprite tag='movement'
+[AA L2 MoveUntil] start() target=<Sprite> tag=movement
+[AA L1 summary] Total=0
+[AA L2 MoveUntil] removed target=Sprite tag='movement'
+```
+
+**Example 3: Deep debugging with verbose output (Level 3)**
+```python
+from actions import set_debug_options
+
+# Internal state logging for MoveUntil only
+set_debug_options(level=3, include=["MoveUntil"])
+```
+
+Output includes per-frame velocity updates, boundary checks, and internal state changes.
+
+**Example 4: Incremental observation during development**
+```python
+from actions import observe_actions, set_debug_options
+
+# Start with level 2
+set_debug_options(level=2)
+
+# Add actions as you need to observe them
+observe_actions("MoveUntil")  # Track movement
+# ... later in development ...
+observe_actions("CallbackUntil")  # Also track callbacks
+```
+
+#### Callback Debug Warnings
+
+At debug level 1 or higher, the framework provides helpful one-time warnings for common callback mistakes:
 
 **Common callback signature errors:**
 - `on_blink_enter(target)` and `on_blink_exit(target)` - require 1 parameter (receives Sprite or SpriteList)
@@ -1129,7 +1226,7 @@ ARCADEACTIONS_DEBUG=1 uv run python your_game.py
 
 **Warning features:**
 - **One-time only**: Each bad callback function warns once per process, preventing spam
-- **Debug mode only**: No warnings in production unless explicitly enabled
+- **Debug mode only**: No warnings when level is 0
 - **Exception-safe**: Bad callbacks don't crash the game, they just fail silently in production
 - **Helpful details**: Warning includes function name and specific TypeError details
 
@@ -1139,6 +1236,14 @@ RuntimeWarning: Callback 'bad_callback' failed with TypeError -
 check its parameter list matches the Action callback contract. 
 Details: bad_callback() takes 0 positional arguments but 1 was given
 ```
+
+#### Best Practices
+
+1. **Start broad, then narrow**: Begin with level 1 + include_all to see overall activity, then focus on specific actions
+2. **Use level 2 for most debugging**: Provides clear lifecycle events without overwhelming detail
+3. **Reserve level 3+ for deep dives**: Only when you need internal state for specific problem actions
+4. **Filter early**: Use `include` to focus on relevant actions - prevents noise and improves performance
+5. **Disable in production**: Keep level at 0 in deployed games for best performance
 
 ## Complete Game Example
 

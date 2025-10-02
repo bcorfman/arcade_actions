@@ -22,6 +22,11 @@ In the tests/ directory:
 * Unit and integration tests for the Actions system
 * Follow testing patterns documented in docs/testing_index.md
 
+Arcade 3.x API Guidelines:
+* Always prefer the modern Arcade 3.x API
+* Text rendering: Use arcade.Text objects that are created once (e.g. in __init__) and drawn with .draw()
+* Avoid arcade.draw_text in the render loop - it incurs a high per-frame CPU cost and triggers performance warnings
+
 Core design principles that must be followed:
 
 CRITICAL API Rule - Velocity Semantics:
@@ -110,3 +115,11 @@ CRITICAL: Python execution rule:
 * This project uses uv for dependency management and virtual environment handling
 * NEVER use `python` directly - it will fail because the virtual environment isn't activated
 * Use `uv run python` for all Python execution commands in this project
+
+CRITICAL: Debug logging system:
+* Use the configurable debug system with levels (0-3+) and per-Action filtering
+* Level 0: off (default), Level 1: summary counts, Level 2: lifecycle events, Level 3+: verbose details
+* Programmatic API: `set_debug_options(level=2, include=["MoveUntil"])` or `observe_actions(MoveUntil)`
+* Environment variables: `ARCADEACTIONS_DEBUG=2`, `ARCADEACTIONS_DEBUG_ALL=1`, `ARCADEACTIONS_DEBUG_INCLUDE=MoveUntil,CallbackUntil`
+* Level 1 summary shows ALL action counts (not filtered) - filters only apply to Level 2+ detailed logging
+* Legacy functions `set_debug_actions(bool)` and `get_debug_actions()` still work but map to levels internally

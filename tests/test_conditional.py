@@ -1924,8 +1924,10 @@ class TestCallbackSignatureWarnings:
         """Test that BlinkUntil warns about bad callback signatures."""
         import warnings
 
+        from actions import set_debug_options
+
         # Enable debug mode for warnings
-        monkeypatch.setenv("ARCADEACTIONS_DEBUG", "1")
+        set_debug_options(level=1)
 
         sprite = test_sprite
         sprite.visible = True
@@ -1967,8 +1969,10 @@ class TestCallbackSignatureWarnings:
         """Test that MoveUntil warns about bad boundary callback signatures."""
         import warnings
 
+        from actions import set_debug_options
+
         # Enable debug mode for warnings
-        monkeypatch.setenv("ARCADEACTIONS_DEBUG", "1")
+        set_debug_options(level=1)
 
         sprite = test_sprite
         sprite.center_x = 95  # Start closer to boundary
@@ -2002,8 +2006,10 @@ class TestCallbackSignatureWarnings:
         """Test that warnings are only issued once per callback function."""
         import warnings
 
+        from actions import set_debug_options
+
         # Enable debug mode for warnings
-        monkeypatch.setenv("ARCADEACTIONS_DEBUG", "1")
+        set_debug_options(level=1)
 
         sprite = test_sprite
         sprite.visible = True
@@ -2041,8 +2047,13 @@ class TestCallbackSignatureWarnings:
         assert "TypeError" in warning_messages[0]
 
     def test_no_warnings_without_debug_mode(self, test_sprite):
-        """Test that no warnings are issued when ARCADEACTIONS_DEBUG is not set."""
+        """Test that no warnings are issued when debug level is 0."""
         import warnings
+
+        from actions import set_debug_options
+
+        # Ensure debug is off
+        set_debug_options(level=0)
 
         sprite = test_sprite
         sprite.visible = True

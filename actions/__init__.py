@@ -40,7 +40,15 @@ from .conditional import (
     duration,
     infinite,
 )
-from .config import apply_environment_configuration, get_debug_actions, set_debug_actions
+from .config import (
+    apply_environment_configuration,
+    clear_observed_actions,
+    get_debug_actions,
+    get_debug_options,
+    observe_actions,
+    set_debug_actions,
+    set_debug_options,
+)
 
 # Display utilities
 from .display import center_window
@@ -109,6 +117,10 @@ __all__ = [
     "set_debug_actions",
     "get_debug_actions",
     "apply_environment_configuration",
+    "set_debug_options",
+    "get_debug_options",
+    "observe_actions",
+    "clear_observed_actions",
     # Conditional actions
     "MoveUntil",
     "RotateUntil",
