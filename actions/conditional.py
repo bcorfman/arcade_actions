@@ -1,15 +1,18 @@
 import math
-import os
 from collections.abc import Callable
 from typing import Any
 
 from actions.base import Action as _Action
 
 
-def _debug_log(message: str, *, action: str = "CallbackUntil") -> None:
-    """Log debug message if ARCADEACTIONS_DEBUG is enabled."""
-    if os.getenv("ARCADEACTIONS_DEBUG"):
-        print(f"[DEBUG {action}] {message}")
+def _debug_log(message: str, *, action: str = "CallbackUntil", level: int = 3) -> None:
+    """Log debug message using centralized config with level and filters."""
+    from actions.base import Action as _ActionBase
+
+    if _ActionBase.debug_level >= level and (
+        _ActionBase.debug_all or (_ActionBase.debug_include_classes and action in _ActionBase.debug_include_classes)
+    ):
+        print(f"[AA L{level} {action}] {message}")
 
 
 class MoveUntil(_Action):

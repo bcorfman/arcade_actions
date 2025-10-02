@@ -112,9 +112,11 @@ docs/
 - **Composition helpers** - `sequence()` and `parallel()` functions
 
 #### Configuration (actions/config.py)
-- **Debug actions logging**: Enable library-wide diagnostics that print when actions are created and the total active count changes.
-- **Environment toggle**: Set `ARCADEACTIONS_DEBUG=1` (or `true/yes/on`) to enable without code changes.
-- **Programmatic API**: Call `from actions import set_debug_actions` and then `set_debug_actions(True)` in your app startup or tests. Current state via `get_debug_actions()`.
+- **Configurable debug logging**: Fine-grained, level-based diagnostics with per-Action filtering for focused output
+- **Debug levels**: Level 0 (off), Level 1 (summary counts), Level 2 (lifecycle events), Level 3+ (verbose per-frame details)
+- **Action filtering**: Observe specific action classes or all actions for targeted debugging
+- **Environment variables**: `ARCADEACTIONS_DEBUG=2`, `ARCADEACTIONS_DEBUG_ALL=1`, `ARCADEACTIONS_DEBUG_INCLUDE=MoveUntil,CallbackUntil`
+- **Programmatic API**: `set_debug_options(level=2, include=["MoveUntil"])` or `observe_actions(MoveUntil, CallbackUntil)` in your app startup
 
 #### Instant Action System (actions/instant.py)
 - **MoveBy** - Relative Sprite or SpriteList positioning

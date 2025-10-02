@@ -5,7 +5,6 @@ Actions are used to animate sprites and sprite lists over time.
 
 from __future__ import annotations
 
-import os
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
@@ -26,10 +25,24 @@ if TYPE_CHECKING:
 _T = TypeVar("_T", bound="Action")
 
 
-def _debug_log_action(action, message: str) -> None:
-    """Log debug message for specific action types if ARCADEACTIONS_DEBUG is enabled."""
-    if os.getenv("ARCADEACTIONS_DEBUG") and type(action).__name__ == "CallbackUntil":
-        print(f"[DEBUG Action] {type(action).__name__} id={id(action)}: {message}")
+def _debug_log_action(action, level: int, message: str) -> None:
+    """Centralized debug logger with level and per-Action filtering."""
+    try:
+        action_name = action if isinstance(action, str) else type(action).__name__
+    except Exception:
+        action_name = "Action"
+
+    # Level gate
+    if Action.debug_level < level:
+        return
+
+    # Filter gate
+    if not Action.debug_all:
+        include = Action.debug_include_classes
+        if not include or action_name not in include:
+            return
+
+    print(f"[AA L{level} {action_name}] {message}")
 
 
 class VelocityControllable(Protocol):
@@ -57,10 +70,13 @@ class Action(ABC, Generic[_T]):
     """
 
     num_active_actions = 0
-    debug_actions: bool = False
+    debug_level: int = 0
+    debug_include_classes: set[str] | None = None
+    debug_all: bool = False
     _active_actions: list[Action] = []
     _previous_actions: set[Action] | None = None
     _warned_bad_callbacks: set[Callable] = set()
+    _last_counts: dict[str, int] | None = None
 
     def __init__(
         self,
@@ -123,10 +139,10 @@ class Action(ABC, Generic[_T]):
 
     def start(self) -> None:
         """Called when the action begins."""
-        _debug_log_action(self, f"start() called, target={self.target}, tag={self.tag}")
+        _debug_log_action(self, 2, f"start() target={self.target} tag={self.tag}")
         self._is_active = True
         self.apply_effect()
-        _debug_log_action(self, f"start() completed, _is_active={self._is_active}")
+        _debug_log_action(self, 2, f"start() completed _is_active={self._is_active}")
 
     def apply_effect(self) -> None:
         """Apply the action's effect to the target."""
@@ -174,14 +190,14 @@ class Action(ABC, Generic[_T]):
 
     def stop(self) -> None:
         """Stop the action and remove it from the global action manager."""
-        _debug_log_action(self, f"stop() called, done={self.done}, _is_active={self._is_active}")
+        _debug_log_action(self, 2, f"stop() called done={self.done} _is_active={self._is_active}")
         if self in Action._active_actions:
             Action._active_actions.remove(self)
-            _debug_log_action(self, "removed from _active_actions")
+            _debug_log_action(self, 2, "removed from _active_actions")
         self.done = True
         self._is_active = False
         self.remove_effect()
-        _debug_log_action(self, f"stop() completed, done={self.done}, _is_active={self._is_active}")
+        _debug_log_action(self, 2, f"stop() completed done={self.done} _is_active={self._is_active}")
 
     @staticmethod
     def get_actions_for_target(target: arcade.Sprite | arcade.SpriteList, tag: str | None = None) -> list[Action]:
@@ -199,24 +215,33 @@ class Action(ABC, Generic[_T]):
     @classmethod
     def update_all(cls, delta_time: float) -> None:
         """Update all active actions. Call this once per frame."""
-        # Optional: debug new actions creation with detailed target info
-        if cls.debug_actions:
+        # Level 1: per-class counts and total, only on change
+        if cls.debug_level >= 1:
+            counts: dict[str, int] = {}
+            for a in cls._active_actions:
+                name = type(a).__name__
+                counts[name] = counts.get(name, 0) + 1
+            if counts != (cls._last_counts or {}):
+                total = sum(counts.values())
+                parts = [f"Total={total}"] + [f"{k}={v}" for k, v in sorted(counts.items())]
+                print("[AA L1 summary] " + ", ".join(parts))
+                cls._last_counts = counts
+
+        # Level 2: creation/removal notifications (filtered)
+        if cls.debug_level >= 2:
             if cls._previous_actions is None:
                 cls._previous_actions = set()
             current_actions = set(cls._active_actions)
             new_actions = current_actions - cls._previous_actions
-            if new_actions:
-                print(f"New actions created ({len(new_actions)}):")
-                for action in new_actions:
-                    target_desc = cls._describe_target(action.target)
-                    print(f"  - {type(action).__name__} on {target_desc}, tag='{action.tag}'")
+            removed_actions = cls._previous_actions - current_actions
+            for a in new_actions:
+                _debug_log_action(a, 2, f"created target={cls._describe_target(a.target)} tag='{a.tag}'")
+            for a in removed_actions:
+                _debug_log_action(a, 2, f"removed target={cls._describe_target(a.target)} tag='{a.tag}'")
             cls._previous_actions = current_actions
 
         # Update all actions
-        num_actions = len(cls._active_actions)
-        if cls.debug_actions and num_actions != cls.num_active_actions:
-            print(f"Total active actions: {num_actions}")
-        for action in cls._active_actions[:]:  # Copy to avoid modification during iteration
+        for action in cls._active_actions[:]:
             action.update(delta_time)
 
         # Remove completed actions
@@ -341,9 +366,8 @@ class Action(ABC, Generic[_T]):
             fn(*args)
         except TypeError as exc:
             # Warn once per callback function about signature mismatches
-            import os
 
-            if fn not in cls._warned_bad_callbacks and os.getenv("ARCADEACTIONS_DEBUG"):
+            if fn not in cls._warned_bad_callbacks and cls.debug_level >= 1:
                 import warnings
 
                 cls._warned_bad_callbacks.add(fn)
