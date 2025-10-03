@@ -110,7 +110,7 @@ class StarfieldView(arcade.View):
             condition=infinite,
             bounds=bounds,
             boundary_behavior="wrap",
-            on_boundary=self.on_stars_wrap,
+            on_boundary_exit=self.on_stars_wrap,
         )
         wrapping_action.apply(self.star_list)
 

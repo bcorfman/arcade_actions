@@ -121,7 +121,7 @@ class EaseDemoView(arcade.View):
     def _launch_missile(self, missile, ease_func, label):
         """Launch a missile with smooth acceleration using Ease wrapper."""
 
-        def on_boundary_hit(sprite, axis):
+        def on_boundary_hit(sprite, axis, side):
             """Reset missile position when it hits the right boundary."""
             sprite.center_x = X_START
             sprite.trail_points.clear()
@@ -134,7 +134,7 @@ class EaseDemoView(arcade.View):
             condition=infinite,  # Never stop on its own
             bounds=bounds,
             boundary_behavior="wrap",
-            on_boundary=on_boundary_hit,
+            on_boundary_exit=on_boundary_hit,
         )
 
         # Wrap with Ease for smooth acceleration to cruise speed
