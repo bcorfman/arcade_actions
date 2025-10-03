@@ -525,9 +525,14 @@ class MoveUntil(_Action):
                 self.target_velocity = (self.target_velocity[0], 0)
 
     def remove_effect(self) -> None:
-        """Clear velocities when the action finishes to avoid carryover between actions."""
+        """Clear velocities and deactivate callbacks when the action finishes."""
 
         _debug_log(f"remove_effect: id={id(self)}", action="MoveUntil")
+
+        # Deactivate boundary callbacks to prevent late execution
+        self.on_boundary_enter = None
+        self.on_boundary_exit = None
+        self._boundary_state.clear()
 
         def clear_velocity(sprite):
             sprite.change_x = 0
@@ -551,17 +556,6 @@ class MoveUntil(_Action):
             f"set_current_velocity: id={id(self)}, velocity={velocity}",
             action="MoveUntil",
         )
-
-    def remove_effect(self) -> None:
-        """Stop movement by clearing velocity on all sprites."""
-
-        _debug_log(f"remove_effect (stop): id={id(self)}", action="MoveUntil")
-
-        def clear_velocity(sprite):
-            sprite.change_x = 0
-            sprite.change_y = 0
-
-        self.for_each_sprite(clear_velocity)
 
     def reverse_movement(self, axis: str) -> None:
         """Reverse movement on the specified axis.

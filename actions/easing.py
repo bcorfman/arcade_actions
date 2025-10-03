@@ -123,10 +123,12 @@ class Ease(Action):
             self.done = True
 
             if self.on_complete:
-                self.on_complete()
+                self._safe_call(self.on_complete)
 
     def remove_effect(self) -> None:
         """Clean up easing - leave wrapped action at final factor."""
+        # Deactivate callback to prevent late execution
+        self.on_complete = None
         # The wrapped action continues running at its final factor
         # This allows the underlying action to continue until its own condition is met
         pass

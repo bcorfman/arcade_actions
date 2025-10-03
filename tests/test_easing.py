@@ -862,9 +862,11 @@ class TestSetFactorEdgeCases(ActionTestBase):
         ease_action = Ease(move, duration=0.1, on_complete=error_callback)
         ease_action.apply(sprite, tag="test_callback_exception")
 
-        # Should propagate callback exception
-        with pytest.raises(RuntimeError, match="Test callback error"):
-            Action.update_all(0.2)  # Complete the easing
+        # Exception should be caught and silenced by _safe_call to prevent crashes
+        Action.update_all(0.2)  # Complete the easing
+
+        # Action should still complete despite callback exception
+        assert ease_action.done
 
     def test_ease_set_factor_extreme_values(self, test_sprite):
         """Test Easing set_factor with extreme values."""

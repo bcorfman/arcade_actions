@@ -16,7 +16,7 @@ from actions import (
     scale_until,
     tween_until,
 )
-from actions.conditional import CallbackUntil
+from actions.conditional import CallbackUntil, MoveUntil
 from tests.conftest import ActionTestBase
 
 
@@ -1990,10 +1990,10 @@ class TestCallbackSignatureWarnings:
         with warnings.catch_warnings(record=True) as caught_warnings:
             warnings.simplefilter("always")
 
-            # Test by directly calling _safe_call with the bad callback
+            # Test by directly calling _execute_callback_impl with the bad callback
             from actions.base import Action
 
-            Action._safe_call(bad_boundary_enter, sprite, "x", "right")
+            Action._execute_callback_impl(bad_boundary_enter, sprite, "x", "right")
 
         # Should have warnings for bad callbacks
         warning_messages = [str(w.message) for w in caught_warnings if issubclass(w.category, RuntimeWarning)]
@@ -3140,3 +3140,185 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
 
         print("=== Class instance Test completed ===")
         print(f"Final counts - Wave1: {wave1.call_count}, Wave2: {wave2.call_count}")
+
+    def test_boundary_callbacks_dont_fire_after_stop(self, test_sprite):
+        """Test that boundary callbacks don't fire after action is stopped.
+
+        This is a regression test for the late callback bug where boundary callbacks
+        from stopped actions could interfere with newly started actions.
+        """
+        sprite = test_sprite
+        sprite.center_x = 95  # Start close to right boundary
+        sprite.center_y = 50
+
+        boundary_enter_count = 0
+        boundary_exit_count = 0
+
+        def on_boundary_enter(sprite, axis, side):
+            nonlocal boundary_enter_count
+            boundary_enter_count += 1
+
+        def on_boundary_exit(sprite, axis, side):
+            nonlocal boundary_exit_count
+            boundary_exit_count += 1
+
+        action = MoveUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=(0, 0, 100, 100),
+            boundary_behavior="limit",
+            on_boundary_enter=on_boundary_enter,
+            on_boundary_exit=on_boundary_exit,
+        )
+        action.apply(sprite)
+
+        # Move until boundary is hit (should only take 1-2 frames from x=95 to x=100)
+        for _ in range(5):
+            Action.update_all(1 / 60)
+            sprite.update()  # Apply velocity to position
+
+        initial_enter_count = boundary_enter_count
+        initial_exit_count = boundary_exit_count
+        assert initial_enter_count >= 1, "Should trigger boundary enter callback"
+
+        # Stop the action
+        action.stop()
+
+        # Verify action is stopped and callbacks are deactivated
+        assert action.done
+        assert not action._is_active
+        assert not action._callbacks_active
+
+        # Continue updating - callbacks should NOT fire
+        for _ in range(10):
+            Action.update_all(1 / 60)
+            sprite.update()
+
+        assert boundary_enter_count == initial_enter_count, "Boundary enter callbacks should not fire after stop"
+        assert boundary_exit_count == initial_exit_count, "Boundary exit callbacks should not fire after stop"
+
+    def test_callbacks_active_flag_lifecycle(self, test_sprite):
+        """Test that _callbacks_active flag follows the correct lifecycle."""
+        sprite = test_sprite
+
+        callback_count = 0
+
+        def callback():
+            nonlocal callback_count
+            callback_count += 1
+
+        # Create action
+        action = CallbackUntil(
+            callback=callback,
+            condition=infinite,
+            seconds_between_calls=0.05,
+        )
+
+        # Before apply - should have _callbacks_active = True
+        assert action._callbacks_active, "Should have _callbacks_active=True after construction"
+
+        action.apply(sprite)
+
+        # After apply - still active
+        assert action._callbacks_active, "Should have _callbacks_active=True after apply"
+        assert action._is_active, "Should be active after apply"
+
+        # Let it run and trigger some callbacks
+        for _ in range(10):
+            Action.update_all(1 / 60)
+
+        assert callback_count > 0, "Callbacks should fire while active"
+        initial_count = callback_count
+
+        # Stop the action
+        action.stop()
+
+        # After stop - callbacks should be deactivated
+        assert not action._callbacks_active, "Should have _callbacks_active=False after stop"
+        assert action.done, "Should be done after stop"
+        assert not action._is_active, "Should not be active after stop"
+
+        # Continue updating - no more callbacks should fire
+        for _ in range(10):
+            Action.update_all(1 / 60)
+
+        assert callback_count == initial_count, "No callbacks should fire after stop"
+
+    def test_three_phase_update_prevents_late_callbacks(self, test_sprite):
+        """Test that the three-phase update mechanism prevents late callbacks.
+
+        This tests the specific fix for the bug where callbacks from stopped
+        actions could fire during the same update_all() call that processes their removal.
+        """
+        sprite = test_sprite
+
+        callback_fired_after_done = False
+
+        def condition_checker():
+            # This will mark the action as done on first call
+            return True
+
+        def callback():
+            nonlocal callback_fired_after_done
+            # This callback should not fire after the action is marked as done
+            # Check if the action is done when callback fires
+            if action.done:
+                callback_fired_after_done = True
+
+        action = CallbackUntil(
+            callback=callback,
+            condition=condition_checker,
+            seconds_between_calls=0.01,  # Fast callbacks
+        )
+        action.apply(sprite)
+
+        # Single update that will:
+        # - Mark action as done (condition returns True)
+        # - Should deactivate callbacks in phase 1
+        # - Should not call callback in phase 2
+        Action.update_all(1 / 60)
+
+        # Verify the action is done
+        assert action.done, "Action should be done after condition is met"
+
+        # Verify callback didn't fire after action was marked done
+        assert not callback_fired_after_done, (
+            "Callback should not fire after action is marked done (three-phase update should prevent this)"
+        )
+
+    def test_boundary_callback_cleanup_on_remove_effect(self, test_sprite):
+        """Test that boundary callbacks are cleared in remove_effect."""
+        sprite = test_sprite
+        sprite.center_x = 50
+        sprite.center_y = 50
+
+        def on_boundary_enter(sprite, axis, side):
+            pass
+
+        def on_boundary_exit(sprite, axis, side):
+            pass
+
+        action = MoveUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=(0, 0, 100, 100),
+            boundary_behavior="limit",
+            on_boundary_enter=on_boundary_enter,
+            on_boundary_exit=on_boundary_exit,
+        )
+        action.apply(sprite)
+
+        # Verify callbacks are registered
+        assert action.on_boundary_enter is not None
+        assert action.on_boundary_exit is not None
+        # Boundary state may be lazily initialized on apply; if present, entries should be None/None
+        for state in action._boundary_state.values():
+            assert state == {"x": None, "y": None}
+
+        # Stop the action (which calls remove_effect)
+        action.stop()
+
+        # Verify callbacks and state are cleared
+        assert action.on_boundary_enter is None, "on_boundary_enter should be cleared"
+        assert action.on_boundary_exit is None, "on_boundary_exit should be cleared"
+        assert len(action._boundary_state) == 0, "_boundary_state should be cleared"
