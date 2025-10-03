@@ -6,6 +6,10 @@
 <em style="display: block; width: 400px; text-align: center;">Space Clutter! - A game prototype demonstrating grid formations, wave patterns, and MoveUntil actions</em>
 </td>
 <td align="center" style="border: none; padding: 10px; vertical-align: bottom;">
+<img src="https://github.com/bcorfman/gif_resources/blob/main/laser_gates.gif?raw=true" style="width: 400px"/>
+<br/>
+<em style="display: block; width: 400px; text-align: center;">A <a href="https://github.com/bcorfman/laser_gates">full game</a> under development, using Actions</em>
+<br/>
 <img src="https://github.com/bcorfman/gif_resources/blob/main/pattern_demo.gif?raw=true" style="width: 400px"/>
 <br/>
 <em style="display: block; width: 400px; text-align: center;">Pattern Demo - Showcasing various movement patterns and formation arrangements</em>
