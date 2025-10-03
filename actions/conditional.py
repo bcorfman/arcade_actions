@@ -140,10 +140,8 @@ class MoveUntil(_Action):
             if self.boundary_behavior == "limit" and self.bounds:
                 left, bottom, right, top = self.bounds
                 sprite_id = id(sprite)
-
-                # Initialize boundary state if needed
-                if sprite_id not in self._boundary_state:
-                    self._boundary_state[sprite_id] = {"x": None, "y": None}
+                # Initialize boundary state if needed (robust against concurrent clears)
+                state = self._boundary_state.setdefault(sprite_id, {"x": None, "y": None})
 
                 # Check if applying velocity would cross horizontal boundary
                 if dx > 0 and sprite.center_x + dx > right:
@@ -151,19 +149,19 @@ class MoveUntil(_Action):
                     sprite.change_x = 0
                     sprite.center_x = right  # Set to boundary
                     # Trigger boundary enter event if not already at boundary
-                    if self._boundary_state[sprite_id]["x"] != "right":
+                    if state["x"] != "right":
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "x", "right")
-                        self._boundary_state[sprite_id]["x"] = "right"
+                        state["x"] = "right"
                 elif dx < 0 and sprite.center_x + dx < left:
                     # Would cross left boundary - don't apply velocity
                     sprite.change_x = 0
                     sprite.center_x = left  # Set to boundary
                     # Trigger boundary enter event if not already at boundary
-                    if self._boundary_state[sprite_id]["x"] != "left":
+                    if state["x"] != "left":
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "x", "left")
-                        self._boundary_state[sprite_id]["x"] = "left"
+                        state["x"] = "left"
                 else:
                     # Safe to apply velocity
                     sprite.change_x = dx
@@ -174,19 +172,19 @@ class MoveUntil(_Action):
                     sprite.change_y = 0
                     sprite.center_y = top  # Set to boundary
                     # Trigger boundary enter event if not already at boundary
-                    if self._boundary_state[sprite_id]["y"] != "top":
+                    if state["y"] != "top":
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "y", "top")
-                        self._boundary_state[sprite_id]["y"] = "top"
+                        state["y"] = "top"
                 elif dy < 0 and sprite.center_y + dy < bottom:
                     # Would cross bottom boundary - don't apply velocity
                     sprite.change_y = 0
                     sprite.center_y = bottom  # Set to boundary
                     # Trigger boundary enter event if not already at boundary
-                    if self._boundary_state[sprite_id]["y"] != "bottom":
+                    if state["y"] != "bottom":
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
-                        self._boundary_state[sprite_id]["y"] = "bottom"
+                        state["y"] = "bottom"
                 else:
                     # Safe to apply velocity
                     sprite.change_y = dy
@@ -237,73 +235,72 @@ class MoveUntil(_Action):
                         left, bottom, right, top = self.bounds
                         sprite_id = id(sprite)
 
-                        # Initialize boundary state if needed
-                        if sprite_id not in self._boundary_state:
-                            self._boundary_state[sprite_id] = {"x": None, "y": None}
+                        # Initialize boundary state and get reference
+                        state = self._boundary_state.setdefault(sprite_id, {"x": None, "y": None})
 
                         # Horizontal velocity with boundary limits and events
                         if dx > 0 and sprite.center_x + dx > right:
                             sprite.change_x = 0
                             sprite.center_x = right
                             # Trigger boundary enter event if not already at boundary
-                            if self._boundary_state[sprite_id]["x"] != "right":
+                            if state["x"] != "right":
                                 if self.on_boundary_enter:
                                     try:
                                         self.on_boundary_enter(sprite, "x", "right")
                                     except Exception:
                                         pass
-                                self._boundary_state[sprite_id]["x"] = "right"
+                                state["x"] = "right"
                         elif dx < 0 and sprite.center_x + dx < left:
                             sprite.change_x = 0
                             sprite.center_x = left
                             # Trigger boundary enter event if not already at boundary
-                            if self._boundary_state[sprite_id]["x"] != "left":
+                            if state["x"] != "left":
                                 if self.on_boundary_enter:
                                     try:
                                         self.on_boundary_enter(sprite, "x", "left")
                                     except Exception:
                                         pass
-                                self._boundary_state[sprite_id]["x"] = "left"
+                                state["x"] = "left"
                         else:
                             sprite.change_x = dx
                             # Check if we're exiting a boundary
-                            if self._boundary_state[sprite_id]["x"] is not None:
-                                old_side = self._boundary_state[sprite_id]["x"]
+                            if state["x"] is not None:
+                                old_side = state["x"]
                                 if self.on_boundary_exit:
                                     self._safe_call(self.on_boundary_exit, sprite, "x", old_side)
-                                self._boundary_state[sprite_id]["x"] = None
+                                state["x"] = None
 
                         # Vertical velocity with boundary limits and events
                         if dy > 0 and sprite.center_y + dy > top:
                             sprite.change_y = 0
                             sprite.center_y = top
                             # Trigger boundary enter event if not already at boundary
-                            if self._boundary_state[sprite_id]["y"] != "top":
+                            if state["y"] != "top":
                                 if self.on_boundary_enter:
                                     try:
                                         self.on_boundary_enter(sprite, "y", "top")
                                     except Exception:
                                         pass
-                                self._boundary_state[sprite_id]["y"] = "top"
+                                state["y"] = "top"
                         elif dy < 0 and sprite.center_y + dy < bottom:
                             sprite.change_y = 0
                             sprite.center_y = bottom
                             # Trigger boundary enter event if not already at boundary
-                            if self._boundary_state[sprite_id]["y"] != "bottom":
+                            if state["y"] != "bottom":
                                 if self.on_boundary_enter:
                                     try:
                                         self.on_boundary_enter(sprite, "y", "bottom")
                                     except Exception:
                                         pass
-                                self._boundary_state[sprite_id]["y"] = "bottom"
+                                state["y"] = "bottom"
                         else:
                             sprite.change_y = dy
                             # Check if we're exiting a boundary
-                            if self._boundary_state[sprite_id]["y"] is not None:
-                                old_side = self._boundary_state[sprite_id]["y"]
+                            if state["y"] is not None:
+                                old_side = state["y"]
                                 if self.on_boundary_exit:
                                     self._safe_call(self.on_boundary_exit, sprite, "y", old_side)
-                                self._boundary_state[sprite_id]["y"] = None
+                                state["y"] = None
                     else:
                         sprite.change_x = dx
                         sprite.change_y = dy
@@ -414,7 +411,7 @@ class MoveUntil(_Action):
         if sprite_id not in self._boundary_state:
             self._boundary_state[sprite_id] = {"x": None, "y": None}
 
-        current_state = self._boundary_state[sprite_id]
+        current_state = self._boundary_state.setdefault(sprite_id, {"x": None, "y": None})
 
         # Check each axis independently for enter/exit events
         self._process_axis_boundary_events(sprite, sprite.center_x, left, right, "x", current_state)
