@@ -402,6 +402,39 @@ class TestAction:
         action2.stop()
         assert len(Action._active_actions) == initial_count
 
+    def test_apply_during_update_is_deferred(self):
+        """Actions applied from within an on_stop callback are not activated until end of update."""
+        sprite = create_test_sprite()
+
+        started_in_callback = None
+        new_action_ref = None
+
+        def on_stop(_data=None):
+            nonlocal started_in_callback, new_action_ref
+            # Apply a new action from within update cycle
+            new_action = MockAction(duration=0.05, name="deferred")
+            new_action_ref = new_action
+            new_action.apply(sprite, tag="deferred")
+            # Must not be started immediately (it should be deferred until end of update)
+            started_in_callback = new_action.started
+
+        # This action completes immediately to trigger on_stop in the same update
+        def immediate():
+            return True
+
+        action = MockAction(condition=immediate, on_stop=on_stop, name="starter")
+        action.apply(sprite, tag="starter")
+
+        # Run one update; this will stop the first action and schedule the second
+        Action.update_all(0.016)
+
+        # The action applied inside the callback should not have started at callback time
+        assert started_in_callback is False
+        # After update_all completes, it should now be active and started
+        assert new_action_ref is not None
+        assert new_action_ref.started is True
+        assert new_action_ref in Action._active_actions
+
     def test_action_target_cleanup(self):
         """Test that actions handle target cleanup appropriately."""
         import gc

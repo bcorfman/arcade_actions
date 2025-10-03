@@ -74,6 +74,8 @@ class Action(ABC, Generic[_T]):
     debug_include_classes: set[str] | None = None
     debug_all: bool = False
     _active_actions: list[Action] = []
+    _pending_actions: list[Action] = []
+    _is_updating: bool = False
     _previous_actions: set[Action] | None = None
     _warned_bad_callbacks: set[Callable] = set()
     _last_counts: dict[str, int] | None = None
@@ -134,8 +136,12 @@ class Action(ABC, Generic[_T]):
         """
         self.target = target
         self.tag = tag
-        Action._active_actions.append(self)
-        self.start()
+        if Action._is_updating:
+            # Defer activation until end of update loop
+            Action._pending_actions.append(self)
+        else:
+            Action._active_actions.append(self)
+            self.start()
         return self
 
     def start(self) -> None:
@@ -217,43 +223,60 @@ class Action(ABC, Generic[_T]):
     @classmethod
     def update_all(cls, delta_time: float) -> None:
         """Update all active actions. Call this once per frame."""
-        # Level 1: per-class counts and total, only on change
-        if cls.debug_level >= 1:
-            counts: dict[str, int] = {}
-            for a in cls._active_actions:
-                name = type(a).__name__
-                counts[name] = counts.get(name, 0) + 1
-            if counts != (cls._last_counts or {}):
-                total = sum(counts.values())
-                parts = [f"Total={total}"] + [f"{k}={v}" for k, v in sorted(counts.items())]
-                print("[AA L1 summary] " + ", ".join(parts))
-                cls._last_counts = counts
+        cls._is_updating = True
+        try:
+            # Level 1: per-class counts and total, only on change
+            if cls.debug_level >= 1:
+                counts: dict[str, int] = {}
+                for a in cls._active_actions:
+                    name = type(a).__name__
+                    counts[name] = counts.get(name, 0) + 1
+                if counts != (cls._last_counts or {}):
+                    total = sum(counts.values())
+                    parts = [f"Total={total}"] + [f"{k}={v}" for k, v in sorted(counts.items())]
+                    print("[AA L1 summary] " + ", ".join(parts))
+                    cls._last_counts = counts
 
-        # Level 2: creation/removal notifications (filtered)
-        if cls.debug_level >= 2:
-            if cls._previous_actions is None:
-                cls._previous_actions = set()
-            current_actions = set(cls._active_actions)
-            new_actions = current_actions - cls._previous_actions
-            removed_actions = cls._previous_actions - current_actions
-            for a in new_actions:
-                _debug_log_action(a, 2, f"created target={cls._describe_target(a.target)} tag='{a.tag}'")
-            for a in removed_actions:
-                _debug_log_action(a, 2, f"removed target={cls._describe_target(a.target)} tag='{a.tag}'")
-            cls._previous_actions = current_actions
+            # Level 2: creation/removal notifications (filtered)
+            if cls.debug_level >= 2:
+                if cls._previous_actions is None:
+                    cls._previous_actions = set()
+                current_actions = set(cls._active_actions)
+                new_actions = current_actions - cls._previous_actions
+                removed_actions = cls._previous_actions - current_actions
+                for a in new_actions:
+                    _debug_log_action(a, 2, f"created target={cls._describe_target(a.target)} tag='{a.tag}'")
+                for a in removed_actions:
+                    _debug_log_action(a, 2, f"removed target={cls._describe_target(a.target)} tag='{a.tag}'")
+                cls._previous_actions = current_actions
 
-        # Phase 1: Deactivate callbacks for actions marked as done
-        for action in cls._active_actions[:]:
-            if action.done:
-                action._callbacks_active = False
+            # Phase 1: Deactivate callbacks for actions marked as done
+            for action in cls._active_actions[:]:
+                if action.done:
+                    action._callbacks_active = False
 
-        # Phase 2: Update all actions (stopped actions' callbacks won't fire)
-        for action in cls._active_actions[:]:
-            action.update(delta_time)
+            # Phase 2: Update all actions (stopped actions' callbacks won't fire)
+            # Update easing/wrapper actions first so they can adjust factors before wrapped actions run
+            current = cls._active_actions[:]
+            wrappers = [a for a in current if hasattr(a, "wrapped_action")]
+            non_wrappers = [a for a in current if not hasattr(a, "wrapped_action")]
+            for action in wrappers:
+                action.update(delta_time)
+            for action in non_wrappers:
+                action.update(delta_time)
 
-        # Phase 3: Remove completed actions (safe, callbacks already deactivated)
-        cls._active_actions[:] = [action for action in cls._active_actions if not action.done]
-        cls.num_active_actions = len(cls._active_actions)
+            # Phase 3: Remove completed actions (safe, callbacks already deactivated)
+            cls._active_actions[:] = [action for action in cls._active_actions if not action.done]
+            cls.num_active_actions = len(cls._active_actions)
+
+            # Phase 4: Activate any actions that were applied during this update
+            if cls._pending_actions:
+                for action in cls._pending_actions:
+                    cls._active_actions.append(action)
+                    action.start()
+                cls._pending_actions.clear()
+        finally:
+            cls._is_updating = False
 
     @classmethod
     def _describe_target(cls, target: arcade.Sprite | arcade.SpriteList | None) -> str:
