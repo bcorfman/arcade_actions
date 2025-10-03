@@ -47,10 +47,7 @@ class MoveTo(_Action):
         self._condition_met = True
         self.done = True
         if self.on_stop:
-            try:
-                self.on_stop(None)
-            except TypeError:
-                self.on_stop()
+            self._safe_call(self.on_stop, None)
         # Remove from active actions immediately
         self.stop()
 
@@ -93,10 +90,7 @@ class MoveBy(_Action):
         self._condition_met = True
         self.done = True
         if self.on_stop:
-            try:
-                self.on_stop(None)
-            except TypeError:
-                self.on_stop()
+            self._safe_call(self.on_stop, None)
         # Remove from active actions immediately
         self.stop()
 

@@ -90,6 +90,7 @@ class Action(ABC, Generic[_T]):
         self.tag = tag
         self.done = False
         self._is_active = False
+        self._callbacks_active = True
         self._paused = False
         self._factor = 1.0  # Multiplier for speed/rate, 1.0 = normal
         self._condition_met = False
@@ -194,6 +195,7 @@ class Action(ABC, Generic[_T]):
         if self in Action._active_actions:
             Action._active_actions.remove(self)
             _debug_log_action(self, 2, "removed from _active_actions")
+        self._callbacks_active = False
         self.done = True
         self._is_active = False
         self.remove_effect()
@@ -240,11 +242,16 @@ class Action(ABC, Generic[_T]):
                 _debug_log_action(a, 2, f"removed target={cls._describe_target(a.target)} tag='{a.tag}'")
             cls._previous_actions = current_actions
 
-        # Update all actions
+        # Phase 1: Deactivate callbacks for actions marked as done
+        for action in cls._active_actions[:]:
+            if action.done:
+                action._callbacks_active = False
+
+        # Phase 2: Update all actions (stopped actions' callbacks won't fire)
         for action in cls._active_actions[:]:
             action.update(delta_time)
 
-        # Remove completed actions
+        # Phase 3: Remove completed actions (safe, callbacks already deactivated)
         cls._active_actions[:] = [action for action in cls._active_actions if not action.done]
         cls.num_active_actions = len(cls._active_actions)
 
@@ -354,23 +361,78 @@ class Action(ABC, Generic[_T]):
 
         pass
 
-    @classmethod
-    def _safe_call(cls, fn: Callable, *args) -> None:
+    def _safe_call(self, fn: Callable, *args) -> None:
         """
         Safely call a callback function with exception handling.
 
+        Guards against callbacks executing after action has been stopped.
         TypeError exceptions get a one-time debug warning about parameter mismatches.
         All other exceptions are silently caught to prevent crashes.
         """
-        try:
-            fn(*args)
-        except TypeError as exc:
-            # Warn once per callback function about signature mismatches
+        # Guard against stopped actions - do not execute callbacks
+        # Check if this is an instance call (has _callbacks_active) vs class call (for testing)
+        if hasattr(self, "_callbacks_active") and not self._callbacks_active:
+            return
 
-            if fn not in cls._warned_bad_callbacks and cls.debug_level >= 1:
+        Action._execute_callback_impl(fn, *args)
+
+    @staticmethod
+    def _execute_callback_impl(fn: Callable, *args) -> None:
+        """Execute callback with exception handling - for internal use and testing.
+
+        Optimized to try no-parameter callbacks first (most common case),
+        then fall back to with-parameter callbacks if that fails.
+        """
+        try:
+            # If no args or only None provided, optimize for no-parameter callbacks
+            if not args or (len(args) == 1 and args[0] is None):
+                # Try without parameters first (common case)
+                try:
+                    fn()
+                    return
+                except TypeError as exc:
+                    # Callback expects parameters, try with them if provided
+                    if args:
+                        # Warn about signature mismatch if debug enabled
+                        if fn not in Action._warned_bad_callbacks and Action.debug_level >= 1:
+                            import warnings
+
+                            Action._warned_bad_callbacks.add(fn)
+                            warnings.warn(
+                                f"Callback '{fn.__name__}' failed with TypeError - "
+                                f"check its parameter list matches the Action callback contract. "
+                                f"Details: {exc}",
+                                RuntimeWarning,
+                                stacklevel=3,
+                            )
+                        fn(*args)
+                    else:
+                        raise  # Re-raise if no args to try
+            else:
+                # Meaningful data provided - try with parameters first
+                try:
+                    fn(*args)
+                    return
+                except TypeError as exc:
+                    # Callback doesn't accept parameters, warn and try without
+                    if fn not in Action._warned_bad_callbacks and Action.debug_level >= 1:
+                        import warnings
+
+                        Action._warned_bad_callbacks.add(fn)
+                        warnings.warn(
+                            f"Callback '{fn.__name__}' failed with TypeError - "
+                            f"check its parameter list matches the Action callback contract. "
+                            f"Details: {exc}",
+                            RuntimeWarning,
+                            stacklevel=3,
+                        )
+                    fn()
+        except TypeError as exc:
+            # Both attempts failed - warn about signature mismatch
+            if fn not in Action._warned_bad_callbacks and Action.debug_level >= 1:
                 import warnings
 
-                cls._warned_bad_callbacks.add(fn)
+                Action._warned_bad_callbacks.add(fn)
                 warnings.warn(
                     f"Callback '{fn.__name__}' failed with TypeError - "
                     f"check its parameter list matches the Action callback contract. "
