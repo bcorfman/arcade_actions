@@ -298,6 +298,7 @@ def main():
     """Main function."""
     window = FormationDemo()
     window.setup()
+    x = 1 / 0
     arcade.run()
 
 
