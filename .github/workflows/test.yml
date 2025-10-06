@@ -48,21 +48,35 @@ jobs:
           sudo apt-get install -y xvfb x11-utils libxkbcommon-x11-0 libgl1 libglu1-mesa mesa-utils
           /sbin/start-stop-daemon --start --quiet --pidfile /tmp/xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
 
+      - name: Verify Xvfb is running (Linux Python 3.11 only)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        env:
+          DISPLAY: ':99.0'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          xdpyinfo >/dev/null
+          glxinfo -B || true
+
       - name: Smoke test examples (Linux Python 3.11 only)
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         env:
           DISPLAY: ':99.0'
           LIBGL_ALWAYS_SOFTWARE: '1'
         run: |
-          set -e
           for f in examples/*.py; do
             echo "Running $f for 5s"
-            timeout 5s uv run python "$f" || rc=$?
-            if [ "${rc:-0}" -ne 0 ] && [ "${rc:-0}" -ne 124 ]; then
-              echo "Example failed: $f (exit $rc)"
+            set +e
+            timeout 5s uv run python "$f"
+            rc=$?
+            set -e
+            if [ $rc -eq 124 ]; then
+              echo "OK: $f ran and timed out after 5s as expected"
+            elif [ $rc -eq 0 ]; then
+              echo "OK: $f exited cleanly within 5s"
+            else
+              echo "FAIL: $f exited with $rc"
               exit $rc
             fi
-            rc=0
           done
 
       - name: Run tests with coverage (Linux Python 3.11 only)
