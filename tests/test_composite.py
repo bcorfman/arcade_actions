@@ -769,24 +769,6 @@ class TestVelocityForwarding:
         # Should handle gracefully
         assert rep.current_action is None
 
-    def test_velocity_forwarding_state_machine_no_current_action(self):
-        """Test StateMachine velocity forwarding when there's no current action."""
-        from actions.composite import StateMachine
-        from actions.conditional import DelayUntil, duration
-
-        # Create a StateMachine with no matching states
-        states = [
-            (lambda: False, lambda: DelayUntil(duration(0.1))),  # Never matches
-        ]
-
-        state_machine = StateMachine(states)
-
-        # This should not raise an error
-        state_machine.set_current_velocity((50, 60))
-
-        # Should handle gracefully
-        assert state_machine._current_action is None
-
     def test_velocity_forwarding_empty_parallel(self):
         """Test velocity forwarding on empty parallel action."""
         sprite = create_test_sprite()
@@ -846,32 +828,3 @@ class TestVelocityForwarding:
 
         # Should complete without error
         assert rep.current_action is not None
-
-    def test_velocity_forwarding_state_machine_noop(self):
-        """Test StateMachine velocity forwarding with actions relying on the default no-op setter."""
-        from actions.composite import StateMachine
-        from actions.conditional import DelayUntil, duration
-
-        sprite = create_test_sprite()
-
-        # Create a custom action that raises AttributeError
-        class ActionWithoutVelocity(DelayUntil):
-            def __init__(self):
-                super().__init__(duration(0.1))
-
-        # Create a StateMachine with a state that returns an action without velocity support
-        states = [
-            (lambda: True, lambda: ActionWithoutVelocity()),  # Always matches
-        ]
-
-        state_machine = StateMachine(states)
-        state_machine.apply(sprite, tag="sm_error_test")
-
-        # Start the state machine so it has a current action
-        Action.update_all(0.001)
-
-        # This should trigger the AttributeError handling in StateMachine.set_current_velocity
-        state_machine.set_current_velocity((65, 75))
-
-        # Should complete without error
-        assert state_machine._current_action is not None

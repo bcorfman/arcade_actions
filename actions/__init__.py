@@ -23,7 +23,7 @@ Actions available:
 from .base import Action
 
 # Composition functions
-from .composite import StateMachine, parallel, repeat, sequence
+from .composite import parallel, repeat, sequence
 
 # Conditional actions
 from .conditional import (
@@ -140,7 +140,6 @@ __all__ = [
     # Easing wrappers
     "Ease",
     # Composition functions
-    "StateMachine",
     "sequence",
     "parallel",
     "repeat",
