@@ -12,13 +12,14 @@ transitions are triggered differently:
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import arcade
 from statemachine import State, StateMachine
 
-from actions import Action, CycleTexturesUntil, DelayUntil, StateMachine, center_window, duration
+from actions import Action, callback_until, center_window, cycle_textures_until, infinite
 
 # ---------------------------------------------------------------------------
 # Constants & helpers
@@ -42,9 +43,9 @@ def load_animation(state: str, info: AnimInfo, folder: Path, flip_vertical: bool
     """Load textures from sprite sheet."""
     sheet = arcade.SpriteSheet(folder / f"{state}.png")
     textures = sheet.get_texture_grid(
-        (128, 128),
-        1,
-        info.frame_count,
+        size=(128, 128),
+        columns=info.frame_count,
+        count=info.frame_count,
     )
     if flip_vertical:
         textures = [texture.flip_left_right() for texture in textures]
@@ -62,10 +63,7 @@ class BaseAmazon(arcade.Sprite):
         self.state_info = state_info
         for state, info in self.state_info.items():
             self.state_info[state].frames = load_animation(state, info, sprites_dir, flip_vertical)
-        super().__init__(self.state_info["Idle"].frames[0], scale=scale, hit_box_algorithm="None")
-
-        # StateMachine
-        self.machine = self._setup_states()
+        super().__init__(self.state_info["Idle"].frames, scale=scale, hit_box_algorithm="None")
 
     # ------------------------------------------------------------------
     # Animation helpers
@@ -83,21 +81,89 @@ class BaseAmazon(arcade.Sprite):
         raise NotImplementedError
 
 
-class AmazonStateMachine(StateMachine):
-    idle = State(initial=True)
-    idle_2 = State()
+class DuelContext:
+    def __init__(self, figure: BaseAmazon):
+        self.figure = figure
+
+
+class PlayerStateMachine(StateMachine):
+    idle = State()
+    idle_2 = State(initial=True)
 
     cycle = idle.to(idle_2) | idle_2.to(idle)
 
-    def __init__(self, sprite: AmazonFighter):
+    def __init__(self, ctx: DuelContext):
+        self.ctx = ctx
         super().__init__()
-        self.sprite = sprite
+
+    def setup_cycle(self, info: AnimInfo):
+        def on_cycle_complete():
+            if random.random() < 0.1:
+                self.idle()
+
+        cycle_duration = len(info.frames) / info.fps
+        cycle_textures_until(self.ctx.figure, textures=info.frames, frames_per_second=info.fps, tag="enemy")
+        callback_until(
+            self.ctx.figure,
+            callback=on_cycle_complete,
+            condition=infinite,
+            seconds_between_calls=cycle_duration,
+            tag="enemy",
+        )
 
     def on_enter_idle(self):
-        self.sprite.play_animation("Idle")
+        self.setup_cycle(self.ctx.figure.state_info["Idle"])
+
+    def on_exit_idle(self):
+        Action.stop_actions_for_target(self.ctx.figure, "player")
 
     def on_enter_idle_2(self):
-        self.sprite.play_animation("Idle_2")
+        self.setup_cycle(self.ctx.figure.state_info["Idle_2"])
+
+    def on_exit_idle_2(self):
+        Action.stop_actions_for_target(self.ctx.figure, "player")
+
+
+class EnemyStateMachine(StateMachine):
+    idle = State()
+    idle_2 = State(initial=True)
+
+    cycle = idle.to(idle_2) | idle_2.to(idle)
+
+    def __init__(self, ctx: DuelContext):
+        self.ctx = ctx
+        super().__init__()
+
+    def setup_cycle(self, info: AnimInfo):
+        def on_cycle_complete():
+            if random.random() < 0.1:
+                self.idle()
+
+        cycle_duration = len(info.frames) / info.fps
+        cycle_textures_until(self.ctx.figure, textures=info.frames, frames_per_second=info.fps, tag="enemy")
+        callback_until(
+            self.ctx.figure,
+            callback=on_cycle_complete,
+            condition=infinite,
+            seconds_between_calls=cycle_duration,
+            tag="enemy",
+        )
+
+    def on_enter_idle(self):
+        print("on_enter_idle")
+        self.setup_cycle(self.ctx.figure.state_info["Idle"])
+
+    def on_exit_idle(self):
+        print("on_exit_idle")
+        Action.stop_actions_for_target(self.ctx.figure, "enemy")
+
+    def on_enter_idle_2(self):
+        print("on_enter_idle2")
+        self.setup_cycle(self.ctx.figure.state_info["Idle_2"])
+
+    def on_exit_idle_2(self):
+        print("on_exit_idle2")
+        Action.stop_actions_for_target(self.ctx.figure, "enemy")
 
 
 class AmazonFighter(BaseAmazon):
@@ -109,7 +175,7 @@ class AmazonFighter(BaseAmazon):
         "Dead": AnimInfo(fps=10, frame_count=4),
         "Hurt": AnimInfo(fps=10, frame_count=3),
         "Idle": AnimInfo(fps=3, frame_count=6),
-        "Idle_2": AnimInfo(fps=3, frame_count=6),
+        "Idle_2": AnimInfo(fps=6, frame_count=6),
         "Jump": AnimInfo(fps=10, frame_count=11),
         "Run": AnimInfo(fps=10, frame_count=10),
         "Special": AnimInfo(fps=10, frame_count=6),
@@ -123,32 +189,8 @@ class AmazonFighter(BaseAmazon):
         self.jump = False
         self.want_jump = False
         self.want_attack = False
-
-    def _setup_states(self):
-        states = [
-            ("Attack_1", lambda: DelayUntil(duration(1.0))),
-            ("Attack_2", lambda: DelayUntil(duration(1.0))),
-            ("Dead", lambda: DelayUntil(duration(1.0))),
-            ("Hurt", lambda: DelayUntil(duration(1.0))),
-            (
-                "Idle",
-                lambda: CycleTexturesUntil(
-                    textures=self.PLAYER_ANIM_INFO["Idle"].frames, frames_per_second=self.PLAYER_ANIM_INFO["Idle"].fps
-                ),
-            ),
-            (
-                "Idle_2",
-                lambda: CycleTexturesUntil(
-                    textures=self.PLAYER_ANIM_INFO["Idle_2"].frames,
-                    frames_per_second=self.PLAYER_ANIM_INFO["Idle_2"].fps,
-                ),
-            ),
-            ("Jump", lambda: DelayUntil(duration(1.0))),
-            ("Run", lambda: DelayUntil(duration(1.0))),
-            ("Special", lambda: DelayUntil(duration(1.0))),
-            ("Walk", lambda: DelayUntil(duration(1.0))),
-        ]
-        self.machine = StateMachine(states)
+        self.ctx = DuelContext(self)
+        self.state_machine = PlayerStateMachine(self.ctx)
 
     def grounded(self) -> bool:
         return abs(self.center_y - 64) < 1
@@ -169,25 +211,16 @@ class AmazonFighter(BaseAmazon):
     # Input handling
     # ------------------------------------------------------------------
     def on_input(self, key: int, pressed: bool):
-        m = self.machine
-        if key == arcade.key.LEFT:
-            if pressed and m.state == "Idle":
-                m.change_state("Run")
-            elif not pressed and m.state == "Run":
-                m.change_state("Idle")
-        elif key == arcade.key.RIGHT:
-            self.change_x = self.SPEED if pressed else 0
-            if pressed and m.state == "Idle":
-                m.change_state("Run")
-            elif not pressed and m.state == "Run":
-                m.change_state("Idle")
+        sm = self.state_machine
+        if key == arcade.key.LEFT or key == arcade.key.RIGHT:
+            if pressed and sm.idle.is_active:
+                sm.run()
+            elif not pressed and sm.run.is_active:
+                sm.idle()
         elif key == arcade.key.SPACE and pressed and self.grounded:
-            m.change_state("Jump")
+            sm.jump()
         elif key == arcade.key.LCTRL and pressed:
-            m.change_state("Attack")
-
-    def update(self, delta_time: float):
-        super().update(delta_time)
+            sm.attack()
 
 
 class AmazonEnemy(BaseAmazon):
@@ -199,7 +232,7 @@ class AmazonEnemy(BaseAmazon):
         "Dead": AnimInfo(fps=10, frame_count=4),
         "Hurt": AnimInfo(fps=10, frame_count=4),
         "Idle": AnimInfo(fps=10, frame_count=6),
-        "Idle_2": AnimInfo(fps=10, frame_count=5),
+        "Idle_2": AnimInfo(fps=6, frame_count=5),
         "Jump": AnimInfo(fps=10, frame_count=11),
         "Run": AnimInfo(fps=10, frame_count=10),
         "Special": AnimInfo(fps=10, frame_count=5),
@@ -208,36 +241,8 @@ class AmazonEnemy(BaseAmazon):
 
     def __init__(self, scale: float = 1.0):
         super().__init__(self.ENEMY_ANIM_INFO, ENEMY_ASSETS_ROOT, scale, flip_vertical=True)
-
-    def _setup_states(self):
-        states = [
-            ("Attack_1", DelayUntil(duration(1.0))),
-            ("Attack_2", DelayUntil(duration(1.0))),
-            ("Dead", DelayUntil(duration(1.0))),
-            ("Hurt", DelayUntil(duration(1.0))),
-            (
-                "Idle",
-                CycleTexturesUntil(
-                    textures=self.ENEMY_ANIM_INFO["Idle"].frames,
-                    frames_per_second=self.ENEMY_ANIM_INFO["Idle"].fps,
-                ),
-            ),
-            (
-                "Idle_2",
-                CycleTexturesUntil(
-                    textures=self.ENEMY_ANIM_INFO["Idle_2"].frames,
-                    frames_per_second=self.ENEMY_ANIM_INFO["Idle_2"].fps,
-                ),
-            ),
-            ("Jump", DelayUntil(duration(1.0))),
-            ("Run", DelayUntil(duration(1.0))),
-            ("Special", DelayUntil(duration(1.0))),
-            ("Walk", DelayUntil(duration(1.0))),
-        ]
-        return StateMachine(states)
-
-    def update(self, delta_time: float):
-        super().update(delta_time)
+        self.ctx = DuelContext(self)
+        self.state_machine = EnemyStateMachine(self.ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +276,7 @@ class DuelView(arcade.View):
     def on_key_press(self, key, modifiers):
         if key == arcade.key.ESCAPE:
             self.window.close()
-        if len(self.player_list):
+        if self.player_list:
             self.player_list[0].on_input(key, True)
 
     def on_key_release(self, key, modifiers):
@@ -283,17 +288,13 @@ class DuelView(arcade.View):
     # ------------------------------------------------------------------
     def on_update(self, dt):
         Action.update_all(dt)
-        if self.player_list:
-            self.player_list.update(dt)
-        if self.enemy_list:
-            self.enemy_list.update(dt)
+        self.player_list.update(dt)
+        self.enemy_list.update(dt)
 
     def on_draw(self):
         self.clear()
-        if self.player_list:
-            self.player_list.draw()
-        if self.enemy_list:
-            self.enemy_list.draw()
+        self.player_list.draw()
+        self.enemy_list.draw()
 
 
 def main():

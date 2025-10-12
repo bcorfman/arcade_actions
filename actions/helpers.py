@@ -25,6 +25,7 @@ from actions import (
     Action,
     BlinkUntil,
     CallbackUntil,
+    CycleTexturesUntil,
     DelayUntil,
     Ease,
     FadeUntil,
@@ -388,7 +389,7 @@ def cycle_textures_until(
             condition=duration(3.0)
         )
     """
-    from actions.conditional import CycleTexturesUntil, infinite
+    from actions.conditional import infinite
 
     if condition is None:
         condition = infinite
