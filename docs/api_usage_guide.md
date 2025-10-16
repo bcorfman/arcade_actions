@@ -763,123 +763,117 @@ scale_until(sprite, scale_velocity=0.1, condition=check_scale_threshold, on_stop
 This pattern could be thoughtfully applied to other conditional actions where clear binary state transitions exist.
 
 ### Pattern 8: State Machines for Animation and Behavior
-For managing sprite animation states like idle/walk/die or other behavior switching:
+For managing sprite animation states like idle/walk/die or other behavior switching, use StateMachine as a sprite component:
 
 ```python
-from actions import (
-    StateMachine, DelayUntil, MoveUntil, RotateUntil, FadeUntil,
-    duration, infinite, sequence, parallel
-)
+from actions import StateMachine, CycleTexturesUntil, MoveUntil, RotateUntil, infinite
 
-# Classic sprite animation state machine
-def create_character_state_machine(sprite):
-    """Create a state machine for character animations."""
+# Create a sprite class with a state machine component
+class AnimatedCharacter(arcade.Sprite):
+    """Character with state-based animation."""
     
-    # Define state predicates
-    def is_dead():
-        return sprite.health <= 0
+    def __init__(self, idle_textures, walk_textures):
+        super().__init__(idle_textures[0])
+        self.idle_textures = idle_textures
+        self.walk_textures = walk_textures
+        self.health = 100
+        
+        # Define state transitions with predicates
+        states = [
+            (self.is_dead, lambda: CycleTexturesUntil(
+                textures=self.dead_textures, 
+                frames_per_second=10, 
+                condition=infinite
+            )),
+            (self.is_moving, lambda: CycleTexturesUntil(
+                textures=self.walk_textures, 
+                frames_per_second=10, 
+                condition=infinite
+            )),
+            (lambda: True, lambda: CycleTexturesUntil(  # Default: idle
+                textures=self.idle_textures, 
+                frames_per_second=3, 
+                condition=infinite
+            ))
+        ]
+        
+        # Create state machine as a sprite component
+        self.machine = StateMachine(self, states, debug=True)
     
-    def is_moving():
-        return sprite.change_x != 0 or sprite.change_y != 0
+    def is_dead(self):
+        return self.health <= 0
     
-    def is_idle():
-        return not is_dead() and not is_moving()
+    def is_moving(self):
+        return abs(self.change_x) > 0.1 or abs(self.change_y) > 0.1
     
-    # Define state actions (these would typically be animation actions)
-    states = [
-        (is_dead, lambda: DelayUntil(duration(2.0))),       # Die animation (2 seconds)
-        (is_moving, lambda: MoveUntil((3, 0), infinite)),   # Walk animation + movement
-        (is_idle, lambda: DelayUntil(infinite))             # Idle animation (no movement)
-    ]
-    
-    # Create and apply state machine
-    state_machine = StateMachine(states, debug=True)  # debug=True shows state transitions
-    state_machine.apply(sprite, tag="character_animation")
+    def update(self, delta_time=1/60):
+        super().update()
+        # Sprite updates its own state machine
+        self.machine.update(delta_time)
 
-# Enemy AI state machine
-def create_enemy_ai_state_machine(enemy_sprite, player_sprite):
-    """Create a state machine for enemy AI behavior."""
+
+# Enemy AI with state machine component
+class Enemy(arcade.Sprite):
+    """Enemy with AI behavior state machine."""
     
-    def player_nearby():
-        distance = ((enemy_sprite.center_x - player_sprite.center_x) ** 2 + 
-                   (enemy_sprite.center_y - player_sprite.center_y) ** 2) ** 0.5
+    def __init__(self, player_sprite):
+        super().__init__(":resources:images/enemy.png")
+        self.player = player_sprite
+        self.health = 100
+        
+        states = [
+            (self.health_low, lambda: MoveUntil((-50, 0), infinite)),  # Flee
+            (self.player_nearby, lambda: RotateUntil(180, infinite)),  # Attack
+            (lambda: True, lambda: MoveUntil((20, 0), infinite))       # Patrol
+        ]
+        
+        self.machine = StateMachine(self, states)
+    
+    def health_low(self):
+        return self.health < 30
+    
+    def player_nearby(self):
+        distance = ((self.center_x - self.player.center_x) ** 2 + 
+                   (self.center_y - self.player.center_y) ** 2) ** 0.5
         return distance < 150
     
-    def health_low():
-        return enemy_sprite.health < 30
-    
-    def default_state():
-        return True  # Always true as fallback
-    
-    states = [
-        (health_low, lambda: MoveUntil((-50, 0), infinite)),      # Flee when health low
-        (player_nearby, lambda: RotateUntil(180, infinite)),      # Attack when player near
-        (default_state, lambda: MoveUntil((20, 0), infinite))     # Patrol normally
-    ]
-    
-    state_machine = StateMachine(states)
-    state_machine.apply(enemy_sprite, tag="enemy_ai")
+    def update(self, delta_time=1/60):
+        super().update()
+        self.machine.update(delta_time)
 
-# Power-up behavior state machine
-def create_powerup_state_machine(powerup_sprite):
-    """Create a state machine for power-up behavior."""
-    
-    collected = {"value": False}  # Mutable state for condition checking
-    
-    def is_collected():
-        return collected["value"]
-    
-    def is_active():
-        return not collected["value"]
-    
-    states = [
-        (is_collected, lambda: sequence(
-            FadeUntil(-200, duration(0.5)),  # Fade out over 0.5 seconds
-            DelayUntil(duration(0.1))        # Brief delay before removal
-        )),
-        (is_active, lambda: parallel(
-            RotateUntil(180, infinite),      # Spin continuously
-            MoveUntil((0, 10), infinite)     # Bob up and down (would need bounce behavior)
-        ))
-    ]
-    
-    # Store collection function for external use
-    powerup_sprite.collect = lambda: collected.update({"value": True})
-    
-    state_machine = StateMachine(states)
-    state_machine.apply(powerup_sprite, tag="powerup_behavior")
 
-# Usage in game
-player = arcade.Sprite(":resources:images/player.png")
-player.health = 100
-create_character_state_machine(player)
+# Simple example without custom sprite class
+sprite = arcade.Sprite()
 
-enemies = arcade.SpriteList()
-for i in range(5):
-    enemy = arcade.Sprite(":resources:images/enemy.png") 
-    enemy.health = 100
-    create_enemy_ai_state_machine(enemy, player)
-    enemies.append(enemy)
+def is_moving():
+    return sprite.change_x != 0
 
-powerups = arcade.SpriteList()
-for i in range(3):
-    powerup = arcade.Sprite(":resources:images/powerup.png")
-    create_powerup_state_machine(powerup)
-    powerups.append(powerup)
+states = [
+    (is_moving, lambda: MoveUntil((5, 0), infinite)),
+    (lambda: True, lambda: DelayUntil(infinite))  # Idle
+]
+
+machine = StateMachine(sprite, states)
+
+# In your game loop:
+def on_update(delta_time):
+    sprite.update()
+    machine.update(delta_time)  # Update the state machine
 ```
 
 **StateMachine Key Features:**
+- **Sprite component pattern**: Owned by sprites, not registered globally
 - **Simple predicate evaluation**: Checks conditions in order, selects first match
-- **Automatic state switching**: Changes actions when conditions change  
+- **Automatic state switching**: Changes actions when predicates change  
 - **Debug support**: Set `debug=True` to see state transitions in console
 - **Lightweight**: Not a full FSM - perfect for simple animation/behavior states
-- **Composable**: Works with sequence, parallel, and other actions
+- **Manual updates**: Sprites update their own state machines in their update() method
 
 **When to use StateMachine vs other approaches:**
-- Use StateMachine for: idle/walk/die animations, simple AI behaviors, power-up states
-- Use sequence() for: fixed multi-step animations, cutscenes, tutorials
-- Use parallel() for: simultaneous effects, complex animations with multiple components
-- Use individual actions for: simple single-purpose behaviors
+- Use StateMachine for: idle/walk/die animations, simple AI behaviors, sprite-specific state logic
+- Use sequence() for: fixed multi-step animations, cutscenes, tutorials (with global actions)
+- Use parallel() for: simultaneous effects, complex animations (with global actions)
+- Use individual actions for: simple single-purpose behaviors (with global actions)
 
 ### Pattern 8: Boundary Interactions
 For arcade-style movement with boundary detection:
@@ -1369,7 +1363,7 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 | Sprite group actions | Helper functions on SpriteList | `move_until(sprite_list, velocity=(5, 0), condition=cond)` |
 | Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
 | Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), FadeUntil(...))` |
-| Animation/behavior states | `StateMachine` | `StateMachine([(is_moving, move_action), (is_idle, idle_action)])` |
+| Animation/behavior states | `StateMachine` (sprite component) | `machine = StateMachine(sprite, [(is_moving, move_action)])` |
 | Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
 | Triangle formations | `arrange_triangle` | `arrange_triangle(count=10, apex_x=400, apex_y=500)` |
 | Hexagonal grids | `arrange_hexagonal_grid` | `arrange_hexagonal_grid(rows=4, cols=6)` |

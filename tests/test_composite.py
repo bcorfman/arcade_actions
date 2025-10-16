@@ -769,24 +769,6 @@ class TestVelocityForwarding:
         # Should handle gracefully
         assert rep.current_action is None
 
-    def test_velocity_forwarding_state_machine_no_current_action(self):
-        """Test StateMachine velocity forwarding when there's no current action."""
-        from actions.composite import StateMachine
-        from actions.conditional import DelayUntil, duration
-
-        # Create a StateMachine with no matching states
-        states = [
-            (lambda: False, lambda: DelayUntil(duration(0.1))),  # Never matches
-        ]
-
-        state_machine = StateMachine(states)
-
-        # This should not raise an error
-        state_machine.set_current_velocity((50, 60))
-
-        # Should handle gracefully
-        assert state_machine._current_action is None
-
     def test_velocity_forwarding_empty_parallel(self):
         """Test velocity forwarding on empty parallel action."""
         sprite = create_test_sprite()
@@ -847,31 +829,313 @@ class TestVelocityForwarding:
         # Should complete without error
         assert rep.current_action is not None
 
-    def test_velocity_forwarding_state_machine_noop(self):
-        """Test StateMachine velocity forwarding with actions relying on the default no-op setter."""
-        from actions.composite import StateMachine
-        from actions.conditional import DelayUntil, duration
+
+class TestCompositeReset:
+    """Test suite for reset() functionality on composite actions."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_base_composite_action_reset(self):
+        """Test that base CompositeAction.reset() resets flags."""
+        from actions.base import CompositeAction
+
+        # Create a minimal concrete subclass for testing
+        class TestComposite(CompositeAction):
+            def clone(self):
+                return TestComposite()
+
+        action = TestComposite()
+
+        # Simulate completion
+        action.done = True
+        action._on_complete_called = True
+
+        # Reset
+        action.reset()
+
+        # Verify base flags are reset
+        assert action.done is False
+        assert action._on_complete_called is False
+
+    def test_sequence_reset_basic(self):
+        """Test that sequence.reset() resets state and calls reset on child actions."""
+        from actions.conditional import CycleTexturesUntil
 
         sprite = create_test_sprite()
 
-        # Create a custom action that raises AttributeError
-        class ActionWithoutVelocity(DelayUntil):
-            def __init__(self):
-                super().__init__(duration(0.1))
+        # Use CycleTexturesUntil which properly resets done flag
+        textures = [arcade.Texture.create_empty(f"tex{i}", (10, 10)) for i in range(2)]
+        action1 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        action2 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        seq = sequence(action1, action2)
 
-        # Create a StateMachine with a state that returns an action without velocity support
-        states = [
-            (lambda: True, lambda: ActionWithoutVelocity()),  # Always matches
-        ]
+        seq.apply(sprite, tag="test_reset")
 
-        state_machine = StateMachine(states)
-        state_machine.apply(sprite, tag="sm_error_test")
+        # Run until first action completes
+        Action.update_all(0.06)
 
-        # Start the state machine so it has a current action
-        Action.update_all(0.001)
+        assert action1.done
+        assert seq.current_index == 1
+        assert seq.current_action == action2
 
-        # This should trigger the AttributeError handling in StateMachine.set_current_velocity
-        state_machine.set_current_velocity((65, 75))
+        # Reset
+        seq.reset()
 
-        # Should complete without error
-        assert state_machine._current_action is not None
+        # Verify sequence state is reset
+        assert seq.current_index == 0
+        assert seq.current_action is None
+        assert seq.done is False
+        assert seq._on_complete_called is False
+
+        # Verify child actions were reset (reset() called on them)
+        assert action1.done is False  # CycleTexturesUntil resets done
+        assert action2.done is False
+
+    def test_sequence_reset_after_completion(self):
+        """Test that sequence can be reset after completion."""
+        from actions.conditional import CycleTexturesUntil
+
+        sprite = create_test_sprite()
+
+        textures = [arcade.Texture.create_empty(f"tex{i}", (10, 10)) for i in range(2)]
+        action1 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        action2 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        seq = sequence(action1, action2)
+
+        seq.apply(sprite, tag="test_reset_reuse")
+
+        # Complete the sequence
+        Action.update_all(0.06)  # Complete first action
+        Action.update_all(0.06)  # Complete second action
+
+        assert seq.done
+        assert action1.done
+        assert action2.done
+
+        # Reset
+        seq.reset()
+
+        # Verify state is reset
+        assert seq.done is False
+        assert seq.current_index == 0
+        assert seq.current_action is None
+        assert action1.done is False
+        assert action2.done is False
+
+    def test_parallel_reset_basic(self):
+        """Test that parallel.reset() resets state and child actions."""
+        from actions.conditional import CycleTexturesUntil
+
+        sprite = create_test_sprite()
+
+        textures = [arcade.Texture.create_empty(f"tex{i}", (10, 10)) for i in range(2)]
+        action1 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        action2 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.1))
+        par = parallel(action1, action2)
+
+        par.apply(sprite, tag="test_parallel_reset")
+
+        # Run until first action completes
+        Action.update_all(0.06)
+
+        assert action1.done
+        assert not action2.done
+        assert not par.done
+
+        # Reset
+        par.reset()
+
+        # Verify parallel state is reset
+        assert par.done is False
+        assert par._on_complete_called is False
+
+        # Verify child actions are reset
+        assert action1.done is False
+        assert action2.done is False
+
+    def test_parallel_reset_after_completion(self):
+        """Test that parallel can be reset after completion."""
+        from actions.conditional import CycleTexturesUntil
+
+        sprite = create_test_sprite()
+
+        textures = [arcade.Texture.create_empty(f"tex{i}", (10, 10)) for i in range(2)]
+        action1 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        action2 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        par = parallel(action1, action2)
+
+        par.apply(sprite, tag="test_parallel_reuse")
+
+        # Complete the parallel
+        Action.update_all(0.06)
+
+        assert par.done
+        assert action1.done
+        assert action2.done
+
+        # Reset
+        par.reset()
+
+        # Verify state is reset
+        assert par.done is False
+        assert action1.done is False
+        assert action2.done is False
+
+    def test_repeat_reset_basic(self):
+        """Test that repeat.reset() resets state and child action."""
+        sprite = create_test_sprite()
+
+        action = DelayUntil(duration(0.05))
+        rep = repeat(action)
+
+        rep.apply(sprite, tag="test_repeat_reset")
+
+        # Run until first iteration completes
+        Action.update_all(0.06)
+
+        # First iteration should complete, but repeat continues
+        assert rep.current_action is not None
+        assert rep.current_action is not action  # It's a clone
+
+        # Reset
+        rep.reset()
+
+        # Verify repeat state is reset
+        assert rep.current_action is None
+        assert rep.done is False
+        assert rep._on_complete_called is False
+
+    def test_repeat_reset_clears_current_action(self):
+        """Test that repeat.reset() clears and resets the current cloned action."""
+        from actions.conditional import CycleTexturesUntil
+
+        sprite = create_test_sprite()
+
+        textures = [arcade.Texture.create_empty(f"tex{i}", (10, 10)) for i in range(2)]
+        action = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        rep = repeat(action)
+
+        rep.apply(sprite, tag="test_repeat_current")
+
+        # Run one iteration
+        Action.update_all(0.06)
+
+        # Verify there's a current action (it's a clone, not the original)
+        assert rep.current_action is not None
+        assert rep.current_action is not action  # It's a clone
+
+        # Reset the repeat
+        rep.reset()
+
+        # Verify the repeat state is reset
+        assert rep.current_action is None
+        assert rep.done is False
+        assert rep._on_complete_called is False
+
+    def test_nested_sequence_reset(self):
+        """Test that nested sequences reset properly."""
+        from actions.conditional import CycleTexturesUntil
+
+        sprite = create_test_sprite()
+
+        textures = [arcade.Texture.create_empty(f"tex{i}", (10, 10)) for i in range(2)]
+        action1 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        action2 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        inner_seq = sequence(action1, action2)
+
+        action3 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        outer_seq = sequence(inner_seq, action3)
+
+        outer_seq.apply(sprite, tag="test_nested_reset")
+
+        # Run until inner sequence completes
+        Action.update_all(0.06)  # Complete action1
+        Action.update_all(0.06)  # Complete action2, inner_seq done
+
+        assert inner_seq.done
+        assert action1.done
+        assert action2.done
+
+        # Reset outer sequence
+        outer_seq.reset()
+
+        # Verify inner sequence and its children are reset
+        assert outer_seq.done is False
+        assert inner_seq.done is False
+        assert action1.done is False
+        assert action2.done is False
+        assert action3.done is False
+
+    def test_parallel_with_sequences_reset(self):
+        """Test that parallel containing sequences resets properly."""
+        from actions.conditional import CycleTexturesUntil
+
+        sprite = create_test_sprite()
+
+        textures = [arcade.Texture.create_empty(f"tex{i}", (10, 10)) for i in range(2)]
+        action1 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        action2 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        seq1 = sequence(action1, action2)
+
+        action3 = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(0.05))
+        seq2 = sequence(action3)
+
+        par = parallel(seq1, seq2)
+        par.apply(sprite, tag="test_parallel_seq_reset")
+
+        # Run until both sequences complete
+        Action.update_all(0.06)  # Complete action1 and action3
+        Action.update_all(0.06)  # Complete action2, both sequences done
+
+        assert par.done
+        assert seq1.done
+        assert seq2.done
+
+        # Reset
+        par.reset()
+
+        # Verify everything is reset
+        assert par.done is False
+        assert seq1.done is False
+        assert seq2.done is False
+        assert action1.done is False
+        assert action2.done is False
+        assert action3.done is False
+
+    def test_empty_sequence_reset(self):
+        """Test that empty sequence reset works."""
+        seq = sequence()
+
+        # Empty sequence completes immediately
+        sprite = create_test_sprite()
+        seq.apply(sprite, tag="empty")
+
+        assert seq.done
+
+        # Reset
+        seq.reset()
+
+        # Verify it's reset
+        assert seq.done is False
+        assert seq._on_complete_called is False
+        assert seq.current_index == 0
+        assert seq.current_action is None
+
+    def test_empty_parallel_reset(self):
+        """Test that empty parallel reset works."""
+        par = parallel()
+
+        # Empty parallel completes immediately
+        sprite = create_test_sprite()
+        par.apply(sprite, tag="empty")
+
+        assert par.done
+
+        # Reset
+        par.reset()
+
+        # Verify it's reset
+        assert par.done is False
+        assert par._on_complete_called is False

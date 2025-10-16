@@ -40,6 +40,14 @@ Repository = "https://github.com/bcorfman/arcade_actions"
 Documentation = "https://github.com/bcorfman/arcade_actions/blob/main/docs/"
 Issues = "https://github.com/bcorfman/arcade_actions/issues"
 
+[project.optional-dependencies]
+statemachine = [
+    "python-statemachine>=2.5.0",
+]
+statemachine_diagrams = [
+    "python-statemachine[diagrams]>=2.5.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3.3",

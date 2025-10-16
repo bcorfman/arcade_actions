@@ -586,17 +586,20 @@ class TestAction:
         result = Action._get_sprite_list_name(sprite_list)
         assert "SpriteList(len=5)" in result
 
-    def test_get_sprite_list_name_exception_handling(self):
-        """Test _get_sprite_list_name exception handling."""
+    def test_get_sprite_list_name_len_exception_propagates(self):
+        """Test _get_sprite_list_name propagates exceptions from len()."""
+        import pytest
 
-        # Create a mock sprite list that raises exceptions
+        # Create a mock sprite list that raises exceptions on len()
         class MockSpriteList:
             def __len__(self):
-                raise Exception("Test exception")
+                raise RuntimeError("Corrupted sprite list")
 
         sprite_list = MockSpriteList()
-        result = Action._get_sprite_list_name(sprite_list)
-        assert result == "SpriteList"
+
+        # With revised strategy, exceptions should propagate (not be swallowed)
+        with pytest.raises(RuntimeError, match="Corrupted sprite list"):
+            Action._get_sprite_list_name(sprite_list)
 
     def test_radd_operator(self):
         """Test right-hand addition operator."""

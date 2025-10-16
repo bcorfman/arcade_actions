@@ -7,19 +7,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
-
-try:
-    from typing import Protocol
-except ImportError:
-    from typing import Protocol
+from typing import Any, Generic, Protocol, TypeVar
 
 import arcade
 
-if TYPE_CHECKING:
-    import arcade
-
-    SpriteTarget = arcade.Sprite | arcade.SpriteList
+SpriteTarget = arcade.Sprite | arcade.SpriteList
 
 
 _T = TypeVar("_T", bound="Action")
@@ -292,30 +284,29 @@ class Action(ABC, Generic[_T]):
         """Attempt to find an attribute name that refers to this SpriteList.
 
         This is best-effort and only used for debug output.
-        """
-        try:
-            import gc  # Imported here to avoid overhead unless debugging is enabled
 
-            for obj in gc.get_objects():
-                try:
-                    # Use EAFP - try to access __dict__ directly
-                    obj_dict = obj.__dict__
-                    for attr_name, attr_value in obj_dict.items():
-                        if attr_value is sprite_list:
-                            return f"{type(obj).__name__}.{attr_name}"
-                except AttributeError:
-                    # Object has no __dict__, skip it
-                    continue
-                except Exception:
-                    # Best-effort only; ignore objects that raise during inspection
-                    continue
-        except Exception:
-            pass
-        # Fallback description
-        try:
-            return f"SpriteList(len={len(sprite_list)})"
-        except Exception:
-            return "SpriteList"
+        Exception Strategy:
+        - AttributeError: Expected for objects without __dict__, handled silently
+        - Other exceptions: Propagate - they indicate real bugs that should be visible in debug mode
+
+        Note: Uses gc.get_objects() which is expensive. Only called at debug_level >= 2.
+        """
+        import gc  # Imported here to avoid overhead unless debugging is enabled
+
+        # Try to find which object holds this sprite_list
+        for obj in gc.get_objects():
+            try:
+                # Use EAFP - try to access __dict__ directly
+                obj_dict = obj.__dict__
+                for attr_name, attr_value in obj_dict.items():
+                    if attr_value is sprite_list:
+                        return f"{type(obj).__name__}.{attr_name}"
+            except AttributeError:
+                # Object has no __dict__, skip it
+                continue
+
+        # Fallback to simple description
+        return f"SpriteList(len={len(sprite_list)})"
 
     @classmethod
     def stop_all(cls) -> None:
@@ -403,69 +394,54 @@ class Action(ABC, Generic[_T]):
     def _execute_callback_impl(fn: Callable, *args) -> None:
         """Execute callback with exception handling - for internal use and testing.
 
-        Optimized to try no-parameter callbacks first (most common case),
-        then fall back to with-parameter callbacks if that fails.
+        Exception Strategy:
+        - TypeError (signature mismatch): Warn once per callback, try fallback signature
+        - Other exceptions: Catch to prevent crashes, log at debug level 2+
+        - Successful execution: Return immediately
+
+        Supports both no-parameter and with-parameter callback signatures.
+        Optimizes for the expected signature based on whether args are provided.
         """
-        try:
-            # If no args or only None provided, optimize for no-parameter callbacks
-            if not args or (len(args) == 1 and args[0] is None):
-                # Try without parameters first (common case)
-                try:
-                    fn()
-                    return
-                except TypeError as exc:
-                    # Callback expects parameters, try with them if provided
-                    if args:
-                        # Warn about signature mismatch if debug enabled
-                        if fn not in Action._warned_bad_callbacks and Action.debug_level >= 1:
-                            import warnings
 
-                            Action._warned_bad_callbacks.add(fn)
-                            warnings.warn(
-                                f"Callback '{fn.__name__}' failed with TypeError - "
-                                f"check its parameter list matches the Action callback contract. "
-                                f"Details: {exc}",
-                                RuntimeWarning,
-                                stacklevel=3,
-                            )
-                        fn(*args)
-                    else:
-                        raise  # Re-raise if no args to try
-            else:
-                # Meaningful data provided - try with parameters first
-                try:
-                    fn(*args)
-                    return
-                except TypeError as exc:
-                    # Callback doesn't accept parameters, warn and try without
-                    if fn not in Action._warned_bad_callbacks and Action.debug_level >= 1:
-                        import warnings
-
-                        Action._warned_bad_callbacks.add(fn)
-                        warnings.warn(
-                            f"Callback '{fn.__name__}' failed with TypeError - "
-                            f"check its parameter list matches the Action callback contract. "
-                            f"Details: {exc}",
-                            RuntimeWarning,
-                            stacklevel=3,
-                        )
-                    fn()
-        except TypeError as exc:
-            # Both attempts failed - warn about signature mismatch
+        def _warn_signature_mismatch(exc: TypeError) -> None:
+            """Warn about callback signature mismatch (once per callback)."""
             if fn not in Action._warned_bad_callbacks and Action.debug_level >= 1:
                 import warnings
 
                 Action._warned_bad_callbacks.add(fn)
                 warnings.warn(
-                    f"Callback '{fn.__name__}' failed with TypeError - "
-                    f"check its parameter list matches the Action callback contract. "
-                    f"Details: {exc}",
+                    f"Callback '{fn.__name__}' failed with TypeError - signature mismatch: {exc}",
                     RuntimeWarning,
-                    stacklevel=3,
+                    stacklevel=4,
                 )
-        except Exception:
-            # Silently catch all other exceptions to prevent crashes
-            pass
+
+        try:
+            # Determine preferred signature based on args
+            has_meaningful_args = args and not (len(args) == 1 and args[0] is None)
+
+            try:
+                # Try preferred signature first
+                if has_meaningful_args:
+                    fn(*args)
+                else:
+                    fn()
+                return
+            except TypeError as exc:
+                # Try alternative signature as fallback
+                _warn_signature_mismatch(exc)
+                try:
+                    if has_meaningful_args:
+                        fn()  # Fallback: try without args
+                    elif args:
+                        fn(*args)  # Fallback: try with args if available
+                except TypeError:
+                    # Both signatures failed - already warned, give up silently
+                    pass
+        except Exception as exc:
+            # Catch other exceptions to prevent action system crashes
+            # Log them at debug level 2+ to help troubleshoot bad callbacks
+            if Action.debug_level >= 2:
+                print(f"[AA] Callback '{fn.__name__}' raised {type(exc).__name__}: {exc}")
 
 
 class CompositeAction(Action):
