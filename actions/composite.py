@@ -174,8 +174,7 @@ class _Parallel(CompositeAction):
     def reset(self) -> None:
         for action in self.actions:
             action.reset()
-        self.done = False
-        self._on_complete_called = False
+        super().reset()
 
     def clone(self) -> "_Parallel":
         """Create a copy of this _Parallel action."""
