@@ -7,19 +7,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
-
-try:
-    from typing import Protocol
-except ImportError:
-    from typing import Protocol
+from typing import Any, Generic, Protocol, TypeVar
 
 import arcade
 
-if TYPE_CHECKING:
-    import arcade
-
-    SpriteTarget = arcade.Sprite | arcade.SpriteList
+SpriteTarget = arcade.Sprite | arcade.SpriteList
 
 
 _T = TypeVar("_T", bound="Action")
