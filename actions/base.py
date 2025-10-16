@@ -284,30 +284,29 @@ class Action(ABC, Generic[_T]):
         """Attempt to find an attribute name that refers to this SpriteList.
 
         This is best-effort and only used for debug output.
-        """
-        try:
-            import gc  # Imported here to avoid overhead unless debugging is enabled
 
-            for obj in gc.get_objects():
-                try:
-                    # Use EAFP - try to access __dict__ directly
-                    obj_dict = obj.__dict__
-                    for attr_name, attr_value in obj_dict.items():
-                        if attr_value is sprite_list:
-                            return f"{type(obj).__name__}.{attr_name}"
-                except AttributeError:
-                    # Object has no __dict__, skip it
-                    continue
-                except Exception:
-                    # Best-effort only; ignore objects that raise during inspection
-                    continue
-        except Exception:
-            pass
-        # Fallback description
-        try:
-            return f"SpriteList(len={len(sprite_list)})"
-        except Exception:
-            return "SpriteList"
+        Exception Strategy:
+        - AttributeError: Expected for objects without __dict__, handled silently
+        - Other exceptions: Propagate - they indicate real bugs that should be visible in debug mode
+
+        Note: Uses gc.get_objects() which is expensive. Only called at debug_level >= 2.
+        """
+        import gc  # Imported here to avoid overhead unless debugging is enabled
+
+        # Try to find which object holds this sprite_list
+        for obj in gc.get_objects():
+            try:
+                # Use EAFP - try to access __dict__ directly
+                obj_dict = obj.__dict__
+                for attr_name, attr_value in obj_dict.items():
+                    if attr_value is sprite_list:
+                        return f"{type(obj).__name__}.{attr_name}"
+            except AttributeError:
+                # Object has no __dict__, skip it
+                continue
+
+        # Fallback to simple description
+        return f"SpriteList(len={len(sprite_list)})"
 
     @classmethod
     def stop_all(cls) -> None:
