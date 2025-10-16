@@ -16,7 +16,7 @@ class TestHelperFunctions(ActionTestBase):
         start_x = sprite.center_x
         start_y = sprite.center_y
 
-        action = move_by(sprite, dx_or_offset=(50, 30))
+        action = move_by(sprite, (50, 30))
 
         # Action should be applied and complete immediately
         assert action.target == sprite
@@ -32,7 +32,7 @@ class TestHelperFunctions(ActionTestBase):
         start_x = sprite.center_x
         start_y = sprite.center_y
 
-        action = move_by(sprite, dx_or_offset=25, dy=15)
+        action = move_by(sprite, 25, 15)
 
         # Action should be applied and complete immediately
         assert action.target == sprite
@@ -47,7 +47,7 @@ class TestHelperFunctions(ActionTestBase):
         sprite_list = test_sprite_list
         start_positions = [(sprite.center_x, sprite.center_y) for sprite in sprite_list]
 
-        action = move_by(sprite_list, dx_or_offset=(10, 20))
+        action = move_by(sprite_list, (10, 20))
 
         # Action should be applied and complete immediately
         assert action.target == sprite_list
@@ -69,7 +69,7 @@ class TestHelperFunctions(ActionTestBase):
             nonlocal callback_called
             callback_called = True
 
-        action = move_by(sprite, dx_or_offset=(10, 5), on_stop=on_stop)
+        action = move_by(sprite, (10, 5), on_stop=on_stop)
 
         # Update to apply the movement
         Action.update_all(0.016)
@@ -81,7 +81,7 @@ class TestHelperFunctions(ActionTestBase):
         """Test move_to with tuple position."""
         sprite = test_sprite
 
-        action = move_to(sprite, x_or_position=(200, 300))
+        action = move_to(sprite, (200, 300))
 
         # Action should be applied and complete immediately
         assert action.target == sprite
@@ -95,7 +95,7 @@ class TestHelperFunctions(ActionTestBase):
         """Test move_to with separate x, y arguments."""
         sprite = test_sprite
 
-        action = move_to(sprite, x_or_position=150, y=250)
+        action = move_to(sprite, 150, 250)
 
         # Action should be applied and complete immediately
         assert action.target == sprite
@@ -109,7 +109,7 @@ class TestHelperFunctions(ActionTestBase):
         """Test move_to with sprite list."""
         sprite_list = test_sprite_list
 
-        action = move_to(sprite_list, x_or_position=(100, 200))
+        action = move_to(sprite_list, (100, 200))
 
         # Action should be applied and complete immediately
         assert action.target == sprite_list
@@ -129,7 +129,7 @@ class TestHelperFunctions(ActionTestBase):
             nonlocal callback_called
             callback_called = True
 
-        action = move_to(sprite, x_or_position=(50, 75), on_stop=on_stop)
+        action = move_to(sprite, (50, 75), on_stop=on_stop)
 
         # Update to apply the movement
         Action.update_all(0.016)
@@ -141,7 +141,7 @@ class TestHelperFunctions(ActionTestBase):
         """Test that move_by returns the action instance."""
         sprite = test_sprite
 
-        action = move_by(sprite, dx_or_offset=(10, 20))
+        action = move_by(sprite, (10, 20))
 
         # Should return the action instance
         assert action is not None
@@ -152,7 +152,7 @@ class TestHelperFunctions(ActionTestBase):
         """Test that move_to returns the action instance."""
         sprite = test_sprite
 
-        action = move_to(sprite, x_or_position=(100, 200))
+        action = move_to(sprite, (100, 200))
 
         # Should return the action instance
         assert action is not None

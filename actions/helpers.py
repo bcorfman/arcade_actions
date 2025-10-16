@@ -39,7 +39,7 @@ from actions import (
 SpriteTarget = arcade.Sprite | arcade.SpriteList
 
 
-def move_by(target: SpriteTarget, *, dx_or_offset, dy=None, on_stop: Any | None = None):
+def move_by(target: SpriteTarget, dx_or_offset, dy=None, *, on_stop: Any | None = None):
     """Instantly offset a sprite or all sprites in a sprite list by (dx, dy).
 
     Usage:
@@ -53,7 +53,7 @@ def move_by(target: SpriteTarget, *, dx_or_offset, dy=None, on_stop: Any | None 
     return action
 
 
-def move_to(target: SpriteTarget, *, x_or_position, y=None, on_stop: Any | None = None):
+def move_to(target: SpriteTarget, x_or_position, y=None, *, on_stop: Any | None = None):
     """Instantly move a sprite or all sprites in a sprite list to an absolute position.
     Probably not useful for a sprite list. but there you go.
 
