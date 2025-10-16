@@ -141,7 +141,7 @@ docs/
 #### Composite Actions (actions/composite.py)
 - **Sequential actions** - Run actions one after another (use `sequence()`)
 - **Parallel actions** - Run actions in parallel (use `parallel()`)
-- **StateMachine** - Simple predicate-based state switcher for animation and behavior states
+- **Repeat actions** - Repeat an action indefinitely (use `repeat()`)
 
 #### Boundary Handling (actions/conditional.py)
 - **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
@@ -155,6 +155,13 @@ docs/
 #### Movement Patterns (actions/pattern.py)
 - **Movement pattern functions** - Zigzag, wave, spiral, figure-8, orbit, bounce, and patrol patterns
 - **Condition helpers** - Time-based and sprite count conditions for conditional actions
+
+#### State Machine Integration
+ArcadeActions integrates seamlessly with the external [`python-statemachine`](https://github.com/fgmacedo/python-statemachine) library for complex state-driven game logic. See the [amazon-warriors](https://github.com/bcorfman/amazon-warriors) project for a complete example demonstrating:
+- Character animation states (idle/walk/attack/die)
+- Game flow management with state transitions
+- AI behavior states integrated with ArcadeActions
+
 ### ♻️ Zero-Allocation Gameplay (experimental)
 
 ArcadeActions now provides an optional zero-allocation workflow to eliminate per-wave sprite creation.
