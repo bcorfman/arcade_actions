@@ -19,7 +19,7 @@ wheels = [
 
 [[package]]
 name = "arcade-actions"
-version = "0.8.3"
+version = "0.8.5"
 source = { editable = "." }
 dependencies = [
     { name = "arcade" },
@@ -455,11 +455,11 @@ wheels = [
 
 [[package]]
 name = "pyglet"
-version = "2.1.6"
+version = "2.1.9"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f7/bc/0533ccb30566ee59b540d700dbbf916dafa89132a4d582d0fd1fe158243d/pyglet-2.1.6.tar.gz", hash = "sha256:18483880b1411b39692eaf7756819285797b1aaf9ef63d40eb9f9b5d01c63416", size = 6546705, upload-time = "2025-04-27T01:12:30.995Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/98/c8c7c8ac2911ba7c547dfb2be3d9ce69ed0fa98b166d0c8a6cf7c01f44cd/pyglet-2.1.9.tar.gz", hash = "sha256:855bb55ffe05d98e95a7e4ad72969cb2ba8d57edbd6a7515db51a0479287f014", size = 6593094, upload-time = "2025-09-21T09:27:05.403Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/ad/e16f9b56c4a935934341e385753d0d0a2a83b7d320e52906b44f32698feb/pyglet-2.1.6-py3-none-any.whl", hash = "sha256:52ef9e75f3969b6a28bfa5c223e50ff03a05c2baa67bfe00d2a9eec4e831a7c5", size = 983998, upload-time = "2025-04-27T01:12:26.307Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/bf/68770984180ce5974e9f89a266db6a5678ff9c8b31c1116352d04be00b54/pyglet-2.1.9-py3-none-any.whl", hash = "sha256:ddd621c97729f8a344822792b4d51a600a8dd2113cde196d46376bdbcb6f1567", size = 1031866, upload-time = "2025-09-21T09:27:01.026Z" },
 ]
 
 [[package]]
