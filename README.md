@@ -90,6 +90,39 @@ If writing high-level game code appeals to you ... it's why you chose Python in 
 
 ## 🚀 Getting Started
 
+### 🛠️ Installation
+
+**For Library Users:**
+```bash
+# Basic installation (most games)
+uv add arcade-actions
+
+# With optional state machine support (platformers/character action games)
+uv add arcade-actions[statemachine]
+
+# With state machine diagram generation
+uv add arcade-actions[statemachine_diagrams]
+```
+
+**For Contributors:**
+```bash
+# Clone the repository
+git clone https://github.com/bcorfman/arcade_actions.git
+cd arcade_actions
+
+# Install for development (includes all optional dependencies and dev tools)
+make devinstall
+
+# Run tests
+make test
+
+# Run linter
+make lint
+
+# Format code
+make format
+```
+
 ### Quick Start by Game Type
 
 **Simple Arcade Games (no physics):**
@@ -99,19 +132,20 @@ If writing high-level game code appeals to you ... it's why you chose Python in 
 4. **Build up to sequences** for complex behaviors
 
 **Platformers / Physics Games:**
-1. **Start with `examples/pymunk_demo_platformer.py`** - complete reference implementation
-2. **Study the patterns**:
+1. **Install with state machine support**: `uv add arcade-actions[statemachine]` (see Installation section above)
+2. **Start with `examples/pymunk_demo_platformer.py`** - complete reference implementation
+3. **Study the patterns**:
    - InputState with @dataclass
    - DUMB View / SMART State Machine architecture
    - Centralized physics in state machine
    - `cycle_textures_until` for animations
-3. **Install dependencies**: `uv add python-statemachine`
 4. **Follow the architecture guide** (see Decision Matrix below)
 
 **Character Action Games:**
-1. **See [amazon-warriors](https://github.com/bcorfman/amazon-warriors)** for advanced patterns
-2. **Use python-statemachine** for animation states
-3. **Integrate ArcadeActions** for movements and effects
+1. **Install with state machine support**: `uv add arcade-actions[statemachine]` (see Installation section above)
+2. **See [amazon-warriors](https://github.com/bcorfman/amazon-warriors)** for advanced patterns
+3. **Use python-statemachine** for animation states
+4. **Integrate ArcadeActions** for movements and effects
 
 ## 📖 Documentation Structure
 

@@ -33,13 +33,12 @@ dependencies = [
     "screeninfo>=0.8.1",
     # Optional; provides Python bindings and wheels for SDL2 on many platforms
     "PySDL2>=0.9.16",
-    "python-statemachine>=2.5.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/bcorfman/arcade_actions"
 Repository = "https://github.com/bcorfman/arcade_actions"
-Documentation = "https://github.com/bcorfman/arcade_actions/blob/main/docs/"
+Documentation = "https://deepwiki.com/bcorfman/arcade_actions"
 Issues = "https://github.com/bcorfman/arcade_actions/issues"
 
 [project.optional-dependencies]
