@@ -1350,6 +1350,76 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 
 The ArcadeActions framework provides a clean, declarative way to create complex game behaviors while leveraging Arcade's native sprite system!
 
+## Optional Physics Integration (Arcade 3.x + PyMunk)
+
+ArcadeActions can optionally route movement and rotation through `arcade.PymunkPhysicsEngine` when you provide an engine to the global update. This keeps the public API unchanged and preserves current behaviour when no engine is supplied.
+
+Key points:
+- Velocity semantics remain Arcade-native: pixels per frame at 60 FPS (no conversion).
+- Without an engine: actions set `sprite.change_x/change_y/change_angle` directly (unchanged).
+- With a `PymunkPhysicsEngine`:
+  - `MoveUntil` routes velocity via `engine.set_velocity(sprite, (dx, dy))`
+  - `RotateUntil` routes via `engine.set_angular_velocity(sprite, omega)`
+  - `FollowPathUntil` with `use_physics=True` uses steering impulses to follow paths naturally within physics simulation
+- Other Arcade physics engines like `PhysicsEngineSimple/Platformer` already operate on `change_x/change_y`; you can continue using them as-is, with or without passing an engine.
+
+Example (PyMunk with MoveUntil):
+
+```python
+import arcade
+from actions import Action, MoveUntil, infinite
+
+window = arcade.Window(800, 600, "Physics Example")
+player = arcade.Sprite(":resources:images/animated_characters/female_adventurer/femaleAdventurer_idle.png")
+
+# Set up Pymunk physics engine
+physics = arcade.PymunkPhysicsEngine(damping=1.0, gravity=(0, -200))
+physics.add_sprite(player, mass=1.0, moment=arcade.PymunkPhysicsEngine.MOMENT_INF)
+
+# Apply ArcadeActions movement (pixels per frame)
+MoveUntil((5, 0), infinite).apply(player)
+
+def on_update(delta_time):
+    # Provide the engine to enable physics-aware routing
+    Action.update_all(delta_time, physics_engine=physics)
+    physics.step()
+```
+
+Example (PyMunk with FollowPathUntil):
+
+```python
+import arcade
+from actions import Action, FollowPathUntil, infinite
+
+window = arcade.Window(800, 600, "Physics Path Following")
+enemy = arcade.Sprite(":resources:images/enemies/slimeBlue.png")
+
+# Set up Pymunk physics engine
+physics = arcade.PymunkPhysicsEngine(damping=0.5, gravity=(0, 0))
+physics.add_sprite(enemy, mass=2.0, moment=arcade.PymunkPhysicsEngine.MOMENT_INF)
+
+# Physics-based path following with steering
+path_points = [(100, 100), (300, 200), (500, 100), (300, 50)]
+FollowPathUntil(
+    control_points=path_points,
+    velocity=150,  # Desired speed along path
+    condition=infinite,
+    use_physics=True,  # Enable physics steering
+    steering_gain=5.0,  # Tunable responsiveness
+    rotate_with_path=True,  # Rotate to face movement direction
+).apply(enemy)
+
+def on_update(delta_time):
+    Action.update_all(delta_time, physics_engine=physics)
+    physics.step()
+```
+
+Notes:
+- Boundary-limit logic within actions may clamp positions/velocities directly to keep behaviour simple and deterministic.
+- Physics-based path following uses steering impulses, allowing natural interaction with other physics forces and collisions.
+- The `steering_gain` parameter controls how aggressively the sprite steers toward the path (higher = more responsive, lower = smoother but may lag).
+- If you don't pass a `physics_engine`, ArcadeActions behaves exactly as before.
+
 ## Runtime-checking-free patterns
 
 Key conventions:

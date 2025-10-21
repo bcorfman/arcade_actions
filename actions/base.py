@@ -213,8 +213,25 @@ class Action(ABC, Generic[_T]):
             action.stop()
 
     @classmethod
-    def update_all(cls, delta_time: float) -> None:
-        """Update all active actions. Call this once per frame."""
+    def update_all(cls, delta_time: float, *, physics_engine=None) -> None:
+        """Update all active actions. Call this once per frame.
+
+        Args:
+            delta_time: Time elapsed since last update in seconds.
+            physics_engine: Physics engine for physics-aware action routing.
+                When provided, velocity-based actions like MoveUntil and RotateUntil
+                will route their operations through the engine. When omitted, actions
+                manipulate sprite attributes directly.
+        """
+        # Provide engine context for adapter-powered actions
+        try:
+            from actions.physics_adapter import set_current_engine  # local import to avoid hard dep
+        except Exception:
+            set_current_engine = None
+
+        if set_current_engine is not None:
+            set_current_engine(physics_engine)
+
         cls._is_updating = True
         try:
             # Level 1: per-class counts and total, only on change
@@ -269,6 +286,8 @@ class Action(ABC, Generic[_T]):
                 cls._pending_actions.clear()
         finally:
             cls._is_updating = False
+            if set_current_engine is not None:
+                set_current_engine(None)
 
     @classmethod
     def _describe_target(cls, target: arcade.Sprite | arcade.SpriteList | None) -> str:
