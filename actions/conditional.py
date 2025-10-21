@@ -1433,6 +1433,7 @@ class CallbackUntil(_Action):
         _debug_log(f"__init__: id={id(self)}, callback={callback}, seconds_between_calls={seconds_between_calls}")
 
         # If the condition is a duration() helper, replace it with a simulation-time condition
+        # for more accurate timing. If optimization fails, fall back to original condition.
         try:
             if hasattr(condition, "_is_duration_condition") and condition._is_duration_condition:
                 seconds = getattr(condition, "_duration_seconds", None)
@@ -1446,8 +1447,9 @@ class CallbackUntil(_Action):
                     _sim_condition._is_duration_condition = True
                     _sim_condition._duration_seconds = self._duration
                     self.condition = _sim_condition
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            # Duration optimization failed, fall back to original condition
+            _debug_log(f"__init__: id={id(self)}, duration optimization failed: {e}, using original condition")
 
     def set_factor(self, factor: float) -> None:
         """Scale the callback interval by the given factor.
