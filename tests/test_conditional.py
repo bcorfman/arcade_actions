@@ -16,8 +16,23 @@ from actions import (
     scale_until,
     tween_until,
 )
-from actions.conditional import CallbackUntil, MoveUntil
+from actions.conditional import (
+    BlinkUntil,
+    CallbackUntil,
+    FollowPathUntil,
+    MoveUntil,
+    TweenUntil,
+    _extract_duration_seconds,
+)
 from tests.conftest import ActionTestBase
+
+
+def create_test_sprite() -> arcade.Sprite:
+    """Create a sprite with texture for testing."""
+    sprite = arcade.Sprite(":resources:images/items/star.png")
+    sprite.center_x = 100
+    sprite.center_y = 100
+    return sprite
 
 
 class TestMoveUntil(ActionTestBase):
@@ -3322,3 +3337,309 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
         assert action.on_boundary_enter is None, "on_boundary_enter should be cleared"
         assert action.on_boundary_exit is None, "on_boundary_exit should be cleared"
         assert len(action._boundary_state) == 0, "_boundary_state should be cleared"
+
+
+class TestPriority7_TweenUntilSetDuration:
+    """Test TweenUntil.set_duration raises NotImplementedError - covers line 1323."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_tween_set_duration_not_implemented(self):
+        """Test that TweenUntil.set_duration() raises NotImplementedError - line 1323."""
+        sprite = create_test_sprite()
+
+        action = TweenUntil(0, 100, "center_x", duration(1.0))
+        action.apply(sprite, tag="tween")
+
+        with pytest.raises(NotImplementedError):
+            action.set_duration(2.0)
+
+
+class TestPriority8_CallbackUntilEdgeCases:
+    """Test CallbackUntil edge cases - covers lines 1374-1375, 1385-1386, 1400, 1409-1410."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_callback_until_condition_without_duration_attribute(self):
+        """Test CallbackUntil when condition doesn't have _duration_seconds - line 1374-1375."""
+        sprite = create_test_sprite()
+        call_count = [0]
+
+        def callback():
+            call_count[0] += 1
+
+        # Use a simple lambda without duration attributes
+        def simple_condition():
+            return call_count[0] >= 5
+
+        action = CallbackUntil(callback, simple_condition)
+        action.apply(sprite, tag="callback")
+
+        # Run for several frames
+        for _ in range(10):
+            Action.update_all(1 / 60)
+
+        # Should have called callback until condition met
+        assert call_count[0] == 5
+
+    def test_callback_until_set_factor_with_interval_zero(self):
+        """Test set_factor with interval mode and factor of zero - line 1385-1390."""
+        sprite = create_test_sprite()
+        call_count = [0]
+
+        def callback():
+            call_count[0] += 1
+
+        action = CallbackUntil(callback, duration(1.0), seconds_between_calls=0.1)
+        action.apply(sprite, tag="callback")
+
+        # Set factor to 0 - should pause callbacks
+        action.set_factor(0.0)
+
+        # Run for several frames
+        for _ in range(20):
+            Action.update_all(1 / 60)
+
+        # Should not have called callback (paused)
+        assert call_count[0] == 0
+
+    def test_callback_until_reschedule_next_fire_time(self):
+        """Test rescheduling next fire time when factor changes - line 1400."""
+        sprite = create_test_sprite()
+        call_count = [0]
+
+        def callback():
+            call_count[0] += 1
+
+        action = CallbackUntil(callback, duration(1.0), seconds_between_calls=0.2)
+        action.apply(sprite, tag="callback")
+
+        # Run one frame to initialize next_fire_time
+        Action.update_all(0.01)
+
+        # Change factor - should update next fire time
+        action.set_factor(2.0)  # Double speed
+
+        # Run for several frames
+        for _ in range(20):
+            Action.update_all(1 / 60)
+
+        # Should have called callback more frequently due to higher factor
+        assert call_count[0] > 0
+
+    def test_callback_until_without_callback(self):
+        """Test CallbackUntil when callback is None returns early - line 1408-1410."""
+        sprite = create_test_sprite()
+
+        call_count = [0]
+
+        def callback_func():
+            call_count[0] += 1
+
+        action = CallbackUntil(callback_func, duration(0.1))
+        action.apply(sprite, tag="callback")
+
+        # Set callback to None after action starts
+        action.callback = None
+
+        # Update a few times - should not call the callback
+        for _ in range(5):
+            Action.update_all(1 / 60)
+
+        # Callback should not have been called since it was set to None
+        assert call_count[0] == 0
+
+        # Action should still be able to complete via its condition
+        # Restore callback and run to completion
+        action.callback = callback_func
+        for _ in range(10):
+            Action.update_all(1 / 60)
+
+        assert action.done
+
+
+class TestPriority9_BlinkUntilEdgeCases:
+    """Test BlinkUntil edge cases - covers line 968."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_blink_until_invalid_seconds_until_change(self):
+        """Test BlinkUntil with invalid seconds_until_change - line 968."""
+        sprite = create_test_sprite()
+
+        with pytest.raises(ValueError, match="seconds_until_change must be positive"):
+            BlinkUntil(0, duration(1.0))
+
+        with pytest.raises(ValueError, match="seconds_until_change must be positive"):
+            BlinkUntil(-0.5, duration(1.0))
+
+
+class TestPriority10_FollowPathUntilEdgeCases:
+    """Test FollowPathUntil edge cases - covers lines 765-766."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_follow_path_remove_effect_exception_handling(self):
+        """Test FollowPathUntil.remove_effect handles exceptions - line 765-766."""
+        sprite = create_test_sprite()
+
+        action = FollowPathUntil([(100, 100), (200, 200)], velocity=150, condition=duration(0.1))
+        action.apply(sprite, tag="path")
+
+        # Corrupt the control points to cause _bezier_point to raise exception
+        action.control_points = []
+
+        # This should not raise an error
+        action.remove_effect()
+
+        # Should complete gracefully
+
+    def test_follow_path_with_minimum_control_points(self):
+        """Test FollowPathUntil with minimum control points (2)."""
+        sprite = create_test_sprite()
+
+        action = FollowPathUntil([(100, 100), (200, 200)], velocity=150, condition=duration(0.1))
+        action.apply(sprite, tag="path")
+
+        # Should work with just 2 points
+        for _ in range(10):
+            Action.update_all(1 / 60)
+
+        # Should complete successfully
+
+    def test_follow_path_insufficient_control_points(self):
+        """Test FollowPathUntil with insufficient control points."""
+        with pytest.raises(ValueError, match="Must specify at least 2 control points"):
+            FollowPathUntil([(100, 100)], velocity=150, condition=duration(0.1))
+
+
+class TestPriority6_ExtractDurationSeconds:
+    """Test _extract_duration_seconds helper - covers lines 1746-1750."""
+
+    def test_extract_duration_with_valid_attribute(self):
+        """Test extracting duration from condition with _duration_seconds - lines 1746-1750."""
+        cond = duration(2.5)
+        result = _extract_duration_seconds(cond)
+        assert result == 2.5
+
+    def test_extract_duration_with_invalid_attribute(self):
+        """Test extracting duration from condition without attribute."""
+
+        def simple_condition():
+            return False
+
+        result = _extract_duration_seconds(simple_condition)
+        assert result is None
+
+    def test_extract_duration_with_negative_duration(self):
+        """Test extracting duration with negative value returns None."""
+
+        def bad_condition():
+            return False
+
+        bad_condition._duration_seconds = -1.0
+
+        result = _extract_duration_seconds(bad_condition)
+        assert result is None
+
+    def test_extract_duration_with_non_numeric(self):
+        """Test extracting duration with non-numeric value returns None."""
+
+        def bad_condition():
+            return False
+
+        bad_condition._duration_seconds = "not a number"
+
+        result = _extract_duration_seconds(bad_condition)
+        assert result is None
+
+
+class TestPriority8_TweenUntilConditionResult:
+    """Test TweenUntil condition result handling - covers lines 1218-1221."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_tween_until_condition_with_non_true_result(self):
+        """Test TweenUntil passes non-True condition result to callback - lines 1218-1221."""
+        sprite = create_test_sprite()
+
+        callback_data = []
+
+        def on_stop(data):
+            callback_data.append(data)
+
+        frame_count = [0]
+
+        def condition_with_data():
+            frame_count[0] += 1
+            if frame_count[0] >= 3:
+                return {"frames": frame_count[0], "status": "complete"}
+            return False
+
+        action = TweenUntil(100, 200, "center_x", condition_with_data, on_stop=on_stop)
+        action.apply(sprite, tag="tween")
+
+        # Run until condition met
+        for _ in range(5):
+            Action.update_all(1 / 60)
+
+        # Callback should receive condition data
+        assert len(callback_data) == 1
+        assert callback_data[0] == {"frames": 3, "status": "complete"}
+
+    def test_tween_until_condition_with_true_result(self):
+        """Test TweenUntil with True condition result."""
+        sprite = create_test_sprite()
+
+        callback_called = [False]
+
+        def on_stop():
+            callback_called[0] = True
+
+        frame_count = [0]
+
+        def simple_condition():
+            frame_count[0] += 1
+            return frame_count[0] >= 3
+
+        action = TweenUntil(100, 200, "center_x", simple_condition, on_stop=on_stop)
+        action.apply(sprite, tag="tween")
+
+        # Run until condition met
+        for _ in range(5):
+            Action.update_all(1 / 60)
+
+        # Callback should be called
+        assert callback_called[0]
+
+
+class TestPriority9_DurationResetFunction:
+    """Test duration() helper reset function - covers line 1553."""
+
+    def test_duration_reset_function(self):
+        """Test duration condition has _reset_duration function - line 1553."""
+        cond = duration(2.0)
+
+        # Should have reset function
+        assert hasattr(cond, "_reset_duration")
+
+        # Call the condition to set start_time
+        result1 = cond()
+        assert result1 is False  # Not elapsed yet
+
+        # Reset the duration
+        cond._reset_duration()
+
+        # Should work again after reset
+        result2 = cond()
+        assert result2 is False

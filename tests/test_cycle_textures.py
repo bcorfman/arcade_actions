@@ -4,6 +4,7 @@ import arcade
 import pytest
 
 from actions import Action, duration, infinite
+from actions.conditional import CycleTexturesUntil
 from tests.conftest import ActionTestBase
 
 
@@ -16,6 +17,14 @@ def create_test_textures(count: int = 5) -> list[arcade.Texture]:
         texture = arcade.Texture.create_empty(f"test_texture_{i}", (10, 10), color)
         textures.append(texture)
     return textures
+
+
+def create_test_sprite() -> arcade.Sprite:
+    """Create a sprite with texture for testing."""
+    sprite = arcade.Sprite(":resources:images/items/star.png")
+    sprite.center_x = 100
+    sprite.center_y = 100
+    return sprite
 
 
 class TestCycleTexturesUntil(ActionTestBase):
@@ -824,3 +833,42 @@ class TestCycleTexturesUntilDurationSupport(ActionTestBase):
 
         assert action.done
         assert abs(action._elapsed - 0.1) < 1e-9
+
+
+class TestPriority7_CycleTexturesDurationExtraction:
+    """Test CycleTexturesUntil apply_effect duration extraction - covers lines 1817-1819."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_cycle_textures_apply_effect_extracts_duration(self):
+        """Test apply_effect extracts duration from condition - lines 1817-1819."""
+        sprite = create_test_sprite()
+        textures = [arcade.Texture.create_empty(f"tex{i}", (10, 10)) for i in range(2)]
+
+        # Create action with duration condition
+        action = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(2.0))
+
+        # Duration should be None initially
+        action._duration = None
+
+        action.apply(sprite, tag="cycle")
+
+        # apply_effect should extract duration
+        assert action._duration == 2.0
+
+    def test_cycle_textures_apply_effect_with_existing_duration(self):
+        """Test apply_effect when duration is already set."""
+        sprite = create_test_sprite()
+        textures = [arcade.Texture.create_empty(f"tex{i}", (10, 10)) for i in range(2)]
+
+        action = CycleTexturesUntil(textures, frames_per_second=60, direction=1, condition=duration(2.0))
+
+        # Manually set duration
+        action._duration = 5.0
+
+        action.apply(sprite, tag="cycle")
+
+        # Should keep existing duration
+        assert action._duration == 5.0
