@@ -146,3 +146,5 @@ cython_debug/
 
 # log files
 demo.log
+
+*.code-workspace

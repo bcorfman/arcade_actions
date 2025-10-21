@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 
 [[package]]
@@ -19,12 +19,13 @@ wheels = [
 
 [[package]]
 name = "arcade-actions"
-version = "0.8.5"
+version = "0.9"
 source = { editable = "." }
 dependencies = [
     { name = "arcade" },
     { name = "pyglet" },
     { name = "pysdl2" },
+    { name = "python-statemachine" },
     { name = "screeninfo" },
 ]
 
@@ -50,6 +51,7 @@ requires-dist = [
     { name = "arcade", specifier = ">=3.0.0.dev35" },
     { name = "pyglet", specifier = ">=2.1.dev5" },
     { name = "pysdl2", specifier = ">=0.9.16" },
+    { name = "python-statemachine", specifier = ">=2.5.0" },
     { name = "python-statemachine", marker = "extra == 'statemachine'", specifier = ">=2.5.0" },
     { name = "python-statemachine", extras = ["diagrams"], marker = "extra == 'statemachine-diagrams'", specifier = ">=2.5.0" },
     { name = "screeninfo", specifier = ">=0.8.1" },

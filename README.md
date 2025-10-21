@@ -90,10 +90,28 @@ If writing high-level game code appeals to you ... it's why you chose Python in 
 
 ## 🚀 Getting Started
 
+### Quick Start by Game Type
+
+**Simple Arcade Games (no physics):**
 1. **Read the [API Usage Guide](docs/api_usage_guide.md)** to understand the framework
-2. **Study the working demos in the examples directory** to understand the power of Actions
-3. **Start with simple conditional actions** and build up to complex compositions
-4. **Use formation and pattern functions** for organizing sprite positions and layouts
+2. **Study working demos** to see Actions in practice
+3. **Start with simple helper functions** (`move_until`, `rotate_until`)
+4. **Build up to sequences** for complex behaviors
+
+**Platformers / Physics Games:**
+1. **Start with `examples/pymunk_demo_platformer.py`** - complete reference implementation
+2. **Study the patterns**:
+   - InputState with @dataclass
+   - DUMB View / SMART State Machine architecture
+   - Centralized physics in state machine
+   - `cycle_textures_until` for animations
+3. **Install dependencies**: `uv add python-statemachine`
+4. **Follow the architecture guide** (see Decision Matrix below)
+
+**Character Action Games:**
+1. **See [amazon-warriors](https://github.com/bcorfman/amazon-warriors)** for advanced patterns
+2. **Use python-statemachine** for animation states
+3. **Integrate ArcadeActions** for movements and effects
 
 ## 📖 Documentation Structure
 
@@ -157,10 +175,16 @@ docs/
 - **Condition helpers** - Time-based and sprite count conditions for conditional actions
 
 #### State Machine Integration
-ArcadeActions integrates seamlessly with the external [`python-statemachine`](https://github.com/fgmacedo/python-statemachine) library for complex state-driven game logic. See the [amazon-warriors](https://github.com/bcorfman/amazon-warriors) project for a complete example demonstrating:
-- Character animation states (idle/walk/attack/die)
-- Game flow management with state transitions
-- AI behavior states integrated with ArcadeActions
+ArcadeActions integrates seamlessly with the external [`python-statemachine`](https://github.com/fgmacedo/python-statemachine) library for complex state-driven game logic.
+
+**Complete Example:** See `examples/pymunk_demo_platformer.py` for the canonical implementation showing:
+- InputState with @dataclass (amazon-warriors pattern)
+- State machine with guard conditions and named events
+- Physics force application centralized in state machine
+- CycleTexturesUntil for walk/climb animations
+- Zero state flags - state machine as single source of truth
+
+**Additional Reference:** The [amazon-warriors](https://github.com/bcorfman/amazon-warriors) project demonstrates advanced patterns for character animation and AI behaviors.
 
 ### ♻️ Zero-Allocation Gameplay (experimental)
 
@@ -209,12 +233,16 @@ Arrange functions contract:
 #### Optional Physics Integration (actions/physics_adapter.py)
 - **PyMunk Physics Support** - Optional integration with `arcade.PymunkPhysicsEngine` for physics-driven movement
 - **Zero API Changes** - Existing code works unchanged; physics is opt-in via `Action.update_all(dt, physics_engine=engine)`
+- **Automatic Kinematic Sync** - **NEW:** Kinematic bodies automatically synced (eliminates manual `set_velocity()` loops)
 - **Automatic Routing** - `MoveUntil` and `RotateUntil` automatically use physics when engine is provided
 - **Physics-Based Path Following** - `FollowPathUntil` with `use_physics=True` uses steering impulses for natural physics interaction
 - **Fallback Behavior** - Actions work normally without a physics engine (direct sprite attribute manipulation)
-- **See the [API Usage Guide](docs/api_usage_guide.md#optional-physics-integration-arcade-3x--pymunk)** for examples
+- **Complete Example** - See `examples/pymunk_demo_platformer.py` for state machine + physics + actions integration
+- **See the [API Usage Guide](docs/api_usage_guide.md#optional-physics-integration-arcade-3x--pymunk)** for detailed examples
 
-## 📋 Decision Matrix
+## 📋 Decision Matrix: When to Use What
+
+### Basic Actions & Composition
 
 | Scenario | Use | Example |
 |----------|-----|---------|
@@ -222,12 +250,53 @@ Arrange functions contract:
 | Sprite group actions | Helper functions on SpriteList | `move_until(enemies, ..., tag="formation")` |
 | Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
 | Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), RotateUntil(...))` |
-| Instant actions | Position initialization in a sequence | sequence(MoveBy(...), MoveUntil(...)) |
 | Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
 | Curved path movement | `follow_path_until` helper | `follow_path_until(sprite, points, ...)` |
-| Visibility blinking | `blink_until` helper | `blink_until(sprite, seconds_until_change=0.25, condition=...)` |
-| Boundary detection | `move_until` with bounds | `move_until(sprite, ..., bounds=bounds, boundary_behavior="bounce")` |
-| Smooth acceleration | `ease()` helper | `ease(sprite, action, ...)` |
-| Complex curved movement | `ease()` + `follow_path_until` | `ease(sprite, follow_path_until(...), ...)` |
+| Visibility blinking | `blink_until` helper | `blink_until(sprite, seconds_until_change=0.25, ...)` |
+| Boundary detection | `move_until` with bounds | `move_until(sprite, bounds=b, boundary_behavior="bounce")` |
+| Smooth acceleration | `ease()` helper | `ease(sprite, action, duration=2.0)` |
 | Property animation | `tween_until` helper | `tween_until(sprite, 0, 100, "center_x", ...)` |
-| Standard sprites (no actions) | arcade.Sprite + arcade.SpriteList | Regular Arcade usage |
+
+### State Machine Integration
+
+| Scenario | Use | Example/Reference |
+|----------|-----|-------------------|
+| **Character animation states** | `python-statemachine` + `cycle_textures_until` | See `examples/pymunk_demo_platformer.py` |
+| Input handling | `@dataclass` InputState | Simple fields + computed properties |
+| Physics + animation + input | State machine with guards + centralized forces | State machine calls `physics.apply_force()` |
+| Walk/climb animations | `cycle_textures_until` in enter callbacks | Start in `on_enter_walk`, stop in `on_exit_walk` |
+| Jump physics | Physics in state enter callback | `on_enter_jump` calls `apply_impulse` |
+| Complex platformer mechanics | State machine + physics callbacks | `pymunk_moved` triggers state transitions |
+
+### Physics Integration
+
+| Scenario | Use | Pattern |
+|----------|-----|---------|
+| **Kinematic moving platforms** | `move_until` + bounce + physics | Automatic kinematic sync (no manual loop) |
+| Player with physics forces | State machine + `apply_physics_forces()` | Centralize in state machine method |
+| Dynamic sprites | PyMunk with gravity | Use PyMunk directly (masses, collisions) |
+| Physics path following | `FollowPathUntil` with `use_physics=True` | Steering impulses for natural movement |
+
+### Architecture Decision Guide
+
+| Your Game Type | Recommended Stack | Rationale |
+|----------------|-------------------|-----------|
+| **Simple arcade (Asteroids, Space Invaders)** | ArcadeActions alone | `sequence()`, `move_until`, formations |
+| **Platformer with physics** | python-statemachine + ArcadeActions + PyMunk | See `pymunk_demo_platformer.py` |
+| **Character action game** | python-statemachine + ArcadeActions | See amazon-warriors project |
+| **Puzzle/strategy game** | ArcadeActions alone | `tween_until`, `sequence()`, `parallel()` |
+| **Physics-heavy game** | PyMunk + ArcadeActions (optional) | Physics primary, actions for effects |
+| **Cutscenes/tutorials** | `sequence()` + `parallel()` | Complex multi-step choreography |
+
+### View Architecture Pattern
+
+| Component | Responsibility | Complexity |
+|-----------|----------------|------------|
+| **DUMB View (Window)** | Route input, call state machine events | Simple: 2-3 lines per handler |
+| **SMART State Machine** | Guards, transitions, physics forces, animations | Complex: all game logic |
+| **@dataclass InputState** | Hold input data, computed properties | Simple: fields + properties |
+| **PlayerSprite** | Hold textures, forward to state machine | Medium: setup + callbacks |
+
+**Golden Rule:** If you have logic in `on_key_press`/`on_update` beyond routing, move it to the state machine.
+
+**See:** `examples/pymunk_demo_platformer.py` for complete implementation of this pattern.

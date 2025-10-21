@@ -766,82 +766,206 @@ This pattern could be thoughtfully applied to other conditional actions where cl
 
 **Note:** ArcadeActions does not include a built-in StateMachine class. For state machine functionality, use the external [`python-statemachine`](https://github.com/fgmacedo/python-statemachine) library, which integrates seamlessly with ArcadeActions.
 
-**Example Integration:** See the [amazon-warriors](https://github.com/bcorfman/amazon-warriors) project for a complete demonstration of integrating `python-statemachine` with ArcadeActions for character animation states, AI behaviors, and game flow management.
+**Complete Example:** See `examples/pymunk_demo_platformer.py` for the canonical reference implementation demonstrating python-statemachine + ArcadeActions + PyMunk physics integration.
 
-For managing sprite animation states like idle/walk/die or other behavior switching with ArcadeActions:
+**Additional Reference:** The [amazon-warriors](https://github.com/bcorfman/amazon-warriors) project demonstrates advanced integration patterns for character animation states, AI behaviors, and game flow management.
+
+### Best Practices: InputState with @dataclass
+
+Use Python's `@dataclass` for clean input state containers (amazon-warriors pattern):
 
 ```python
-# Install python-statemachine: uv add python-statemachine
-from statemachine import State, StateMachine
-from actions import Action, CallbackUntil, CycleTexturesUntil, MoveUntil, infinite
+from dataclasses import dataclass
 
-# Example: Game state machine that manages ArcadeActions
-class GameFlowStateMachine(StateMachine):
-    """Game flow state machine integrated with ArcadeActions."""
+@dataclass
+class InputState:
+    """Input state container (amazon-warriors pattern)."""
+    left: bool = False
+    right: bool = False
+    up: bool = False
+    down: bool = False
+    shift: bool = False
+    direction: int = 1  # 1 for right, -1 for left
+    
+    @property
+    def moving(self) -> bool:
+        return self.left or self.right
+    
+    @property
+    def horizontal_input(self) -> int:
+        """Returns -1 (left), 0 (none), or 1 (right)."""
+        if self.left and not self.right:
+            return -1
+        elif self.right and not self.left:
+            return 1
+        return 0
+    
+    @property
+    def vertical_input(self) -> int:
+        """Returns -1 (down), 0 (none), or 1 (up)."""
+        if self.up and not self.down:
+            return 1
+        elif self.down and not self.up:
+            return -1
+        return 0
+
+# In your View (Arcade Window):
+def on_key_press(self, key, modifiers):
+    """DUMB View: just update state and trigger events."""
+    if key in (arcade.key.LEFT, arcade.key.A):
+        self.input_state.left = True
+        self.input_state.direction = -1
+    elif key in (arcade.key.RIGHT, arcade.key.D):
+        self.input_state.right = True
+        self.input_state.direction = 1
+    elif key in (arcade.key.UP, arcade.key.W):
+        self.input_state.up = True
+        self.player.animation_state.jump_action()
+    # Trigger movement transitions after updating input
+    self.player.animation_state.movement()
+```
+
+**Key principles:**
+- **@dataclass**: Eliminates boilerplate `__init__` while keeping type hints clear
+- **Properties**: Derive complex state from simple fields (no manual methods)
+- **No state flags**: Just data fields and computed properties
+- **View is DUMB**: Only routes input, no physics or game logic
+
+### State Machine + Physics Integration
+
+For games combining character animation, physics simulation, and player input:
+
+```python
+from statemachine import State, StateMachine
+from actions import Action, cycle_textures_until, infinite
+
+class PlayerAnimationState(StateMachine):
+    """SMART state machine: handles all logic."""
     
     idle = State(initial=True)
-    active = State()
+    walk = State()
+    jump = State()
+    fall = State()
     
-    # Transitions
-    activate = idle.to(active)
-    deactivate = active.to(idle)
+    # Declarative transitions
+    movement = (
+        idle.to(walk, cond="moving and on_ground")
+        | walk.to(idle, cond="not moving and on_ground")
+    )
     
-    def __init__(self):
+    jump_action = (
+        idle.to(jump, cond="on_ground")
+        | walk.to(jump, cond="on_ground")
+    )
+    
+    physics_update = (
+        jump.to(fall, cond="falling")
+        | fall.to(idle, cond="on_ground and not moving")
+        | fall.to(walk, cond="on_ground and moving")
+    )
+    
+    def __init__(self, player, input_state, physics_engine):
+        self.player = player
+        self.input = input_state
+        self.physics = physics_engine
         super().__init__()
-        self.sprite = None
-        self.callback_count = 0
+        self.allow_event_without_transition = True
     
-    def on_enter_idle(self):
-        """Set up sprite and actions when entering idle state."""
-        self.sprite = arcade.Sprite(":resources:images/player.png")
-        self.sprite.center_x = 100
-        
-        # Apply ArcadeActions to the sprite
-        def idle_callback():
-            self.callback_count += 1
-        
-        CallbackUntil(idle_callback, condition=infinite).apply(
-            self.sprite, tag="idle_action"
-        )
+    # Guard conditions as properties
+    @property
+    def moving(self) -> bool:
+        return self.input.moving
     
-    def on_enter_active(self):
-        """Set up sprite and actions when entering active state."""
-        # Stop previous state's actions
-        Action.stop_actions_for_target(self.sprite)
+    @property
+    def on_ground(self) -> bool:
+        try:
+            return self.physics.is_on_ground(self.player)
+        except (KeyError, AttributeError):
+            return False
+    
+    @property
+    def falling(self) -> bool:
+        return self.player.last_dy < -0.1
+    
+    # State enter callbacks: animation + physics
+    def on_enter_walk(self):
+        textures = [pair[0 if self.input.direction == 1 else 1] for pair in self.player.walk_textures]
+        cycle_textures_until(self.player, textures=textures, frames_per_second=10.0, tag="animation")
+    
+    def on_enter_jump(self):
+        self.player.texture = self.player.jump_texture_pair[0 if self.input.direction == 1 else 1]
+        # Physics logic lives with state transitions!
+        self.physics.apply_impulse(self.player, (0, 1800))
+    
+    def on_exit_walk(self):
+        # Stop animation when leaving walk state
+        Action.stop_actions_for_target(self.player, tag="animation")
+    
+    def apply_physics_forces(self):
+        """Centralized physics force application (called from update loop)."""
+        horizontal = self.input.horizontal_input
         
-        # Apply new actions for active state
-        MoveUntil((100, 0), infinite).apply(self.sprite, tag="move_action")
+        if horizontal != 0:
+            force = horizontal * 8000 if self.on_ground else horizontal * 900
+            self.physics.apply_force(self.player, (force, 0))
+            self.physics.set_friction(self.player, 0)
+        else:
+            self.physics.set_friction(self.player, 1.0)
 
-# In your game loop:
-def setup(self):
-    self.state_machine = GameFlowStateMachine()
+# In your PlayerSprite:
+class PlayerSprite(arcade.Sprite):
+    def __init__(self, input_state, physics_engine):
+        super().__init__()
+        # ... load textures ...
+        self.last_dy = 0.0
+        self.animation_state = PlayerAnimationState(self, input_state, physics_engine)
+    
+    def pymunk_moved(self, physics_engine, dx, dy, d_angle):
+        """Physics callback: track velocity and trigger state transitions."""
+        self.last_dy = dy
+        self.animation_state.movement()
+        if not self.animation_state.current_state == self.animation_state.climb:
+            self.animation_state.physics_update()
 
+# In your game window:
 def on_update(self, delta_time):
-    # Update ArcadeActions (handles all sprite actions)
-    Action.update_all(delta_time)
+    # State machine applies all physics forces
+    self.player.animation_state.apply_physics_forces()
     
-    # State machine handles state transitions based on game logic
-    if some_condition:
-        self.state_machine.activate()
+    # Actions update + automatic kinematic sync
+    Action.update_all(delta_time, physics_engine=self.physics_engine)
+    self.physics_engine.step()
 ```
+
+**Architecture principles:**
+- **DUMB View (Window)**: Routes input to state machine, no logic
+- **SMART State Machine**: Guards, transitions, physics forces, animation
+- **Zero state flags**: State machine current_state is single source of truth
+- **Dependency injection**: Pass InputState and physics_engine to state machine
+- **Centralized physics**: All force application in `apply_physics_forces()` method
+- **State-driven animation**: Use `cycle_textures_until` in enter callbacks, stop in exit callbacks
 
 **Integration Pattern:**
 - **python-statemachine**: Manages high-level game states and transitions
 - **ArcadeActions**: Handles sprite animations, movements, and effects within each state
-- **Separation of concerns**: State machine controls which actions are active; ArcadeActions executes them
+- **PyMunk Physics**: Handles forces, collisions, and realistic movement
+- **Separation of concerns**: State machine controls which actions/forces are active; ArcadeActions and physics execute them
 
-**When to use python-statemachine with ArcadeActions:**
-- Character animation states (idle/walk/attack/die)
-- Game flow states (menu/playing/paused/game-over)
-- AI behavior states (patrol/chase/attack/flee)
-- Complex state-driven game logic
+**When to use python-statemachine + physics:**
+- Character animation states with physics (idle/walk/jump/fall/climb)
+- Complex platformer mechanics (ladders, jumping, climbing)
+- Physics-driven AI behaviors (patrol/chase/attack/flee with forces)
+- Games requiring realistic physics simulation with state-based controls
 
 **When to use ArcadeActions alone:**
-- Use sequence() for: fixed multi-step animations, cutscenes, tutorials
-- Use parallel() for: simultaneous effects, complex animations
+- Use `sequence()` for: fixed multi-step animations, cutscenes, tutorials
+- Use `parallel()` for: simultaneous effects, complex animations
 - Use individual actions for: simple single-purpose behaviors
+- Non-physics games: top-down shooters, puzzle games, simple arcade games
 
-### Pattern 8: Boundary Interactions
+**Complete Example:** See `examples/pymunk_demo_platformer.py` for a full implementation showing all these patterns working together.
+
+### Pattern 9: Boundary Interactions
 For arcade-style movement with boundary detection:
 
 ```python
@@ -1354,16 +1478,73 @@ The ArcadeActions framework provides a clean, declarative way to create complex 
 
 ArcadeActions can optionally route movement and rotation through `arcade.PymunkPhysicsEngine` when you provide an engine to the global update. This keeps the public API unchanged and preserves current behaviour when no engine is supplied.
 
-Key points:
+### Automatic Kinematic Sync
+
+**NEW:** When you pass `physics_engine` to `Action.update_all()`, ArcadeActions automatically syncs Arcade velocities (`change_x`/`change_y`) to Pymunk for all kinematic bodies. This eliminates manual `set_velocity()` boilerplate.
+
+```python
+def on_update(self, delta_time):
+    # Actions update sprites (automatic kinematic sync when engine provided)
+    Action.update_all(delta_time, physics_engine=self.physics_engine)
+    
+    # Physics engine advances simulation (explicit control)
+    self.physics_engine.step()
+```
+
+**Why `step()` stays explicit:**
+- Matches Arcade's standard API patterns
+- Gives you explicit control over simulation timing
+- Clear separation: actions update behaviors, physics steps simulation
+- Enables advanced patterns (sub-stepping, conditional stepping, etc.)
+
+### Key Integration Points
+
 - Velocity semantics remain Arcade-native: pixels per frame at 60 FPS (no conversion).
 - Without an engine: actions set `sprite.change_x/change_y/change_angle` directly (unchanged).
 - With a `PymunkPhysicsEngine`:
   - `MoveUntil` routes velocity via `engine.set_velocity(sprite, (dx, dy))`
   - `RotateUntil` routes via `engine.set_angular_velocity(sprite, omega)`
+  - **Kinematic bodies**: Automatically synced after all actions update (eliminates manual loops)
   - `FollowPathUntil` with `use_physics=True` uses steering impulses to follow paths naturally within physics simulation
 - Other Arcade physics engines like `PhysicsEngineSimple/Platformer` already operate on `change_x/change_y`; you can continue using them as-is, with or without passing an engine.
 
-Example (PyMunk with MoveUntil):
+### Example: Kinematic Moving Platforms
+
+```python
+import arcade
+from actions import Action, move_until, infinite
+
+# Set up physics
+physics = arcade.PymunkPhysicsEngine(damping=1.0, gravity=(0, -1500))
+
+# Load platforms from tilemap
+tile_map = arcade.load_tilemap(":resources:/tiled_maps/pymunk_test_map.json", 0.5)
+moving_platforms = tile_map.sprite_lists["Moving Platforms"]
+
+# Add platforms as kinematic (user-controlled velocity)
+physics.add_sprite_list(moving_platforms, body_type=arcade.PymunkPhysicsEngine.KINEMATIC)
+
+# Apply MoveUntil with bounce to each platform
+for sprite in moving_platforms:
+    velocity = (sprite.change_x, sprite.change_y)  # From tilemap
+    bounds = (
+        sprite.boundary_left or float('-inf'),
+        sprite.boundary_bottom or float('-inf'),
+        sprite.boundary_right or float('inf'),
+        sprite.boundary_top or float('inf'),
+    )
+    move_until(sprite, velocity=velocity, condition=infinite, boundary_behavior="bounce", bounds=bounds)
+
+def on_update(delta_time):
+    # MoveUntil updates change_x/change_y with bounce logic
+    # Action.update_all automatically syncs to Pymunk kinematic velocities
+    Action.update_all(delta_time, physics_engine=physics)
+    physics.step()
+```
+
+**No manual velocity sync needed!** The kinematic sync happens automatically inside `Action.update_all()`.
+
+### Example: Player with Physics Forces
 
 ```python
 import arcade
@@ -1380,12 +1561,12 @@ physics.add_sprite(player, mass=1.0, moment=arcade.PymunkPhysicsEngine.MOMENT_IN
 MoveUntil((5, 0), infinite).apply(player)
 
 def on_update(delta_time):
-    # Provide the engine to enable physics-aware routing
+    # Actions update, physics advances
     Action.update_all(delta_time, physics_engine=physics)
     physics.step()
 ```
 
-Example (PyMunk with FollowPathUntil):
+### Example: Physics-Based Path Following
 
 ```python
 import arcade
@@ -1414,10 +1595,12 @@ def on_update(delta_time):
     physics.step()
 ```
 
-Notes:
+### Notes on Physics Integration
+
 - Boundary-limit logic within actions may clamp positions/velocities directly to keep behaviour simple and deterministic.
 - Physics-based path following uses steering impulses, allowing natural interaction with other physics forces and collisions.
 - The `steering_gain` parameter controls how aggressively the sprite steers toward the path (higher = more responsive, lower = smoother but may lag).
+- Kinematic sync happens automatically for all sprites in the physics engine - no manual loops needed.
 - If you don't pass a `physics_engine`, ArcadeActions behaves exactly as before.
 
 ## Runtime-checking-free patterns

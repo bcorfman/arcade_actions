@@ -220,8 +220,10 @@ class Action(ABC, Generic[_T]):
             delta_time: Time elapsed since last update in seconds.
             physics_engine: Physics engine for physics-aware action routing.
                 When provided, velocity-based actions like MoveUntil and RotateUntil
-                will route their operations through the engine. When omitted, actions
-                manipulate sprite attributes directly.
+                will route their operations through the engine. Additionally, Arcade
+                velocities (change_x/change_y) are automatically synced to Pymunk
+                for all kinematic bodies, eliminating the need for manual set_velocity
+                calls. When omitted, actions manipulate sprite attributes directly.
         """
         # Provide engine context for adapter-powered actions
         try:
@@ -284,6 +286,22 @@ class Action(ABC, Generic[_T]):
                     cls._active_actions.append(action)
                     action.start()
                 cls._pending_actions.clear()
+
+            # Phase 5: Sync Arcade velocities to Pymunk for kinematic bodies
+            # This allows MoveUntil/RotateUntil to work seamlessly with kinematic sprites
+            if physics_engine is not None:
+                try:
+                    # Access internal sprites dict to find kinematic bodies
+                    for sprite in physics_engine._sprites.keys():
+                        body = physics_engine._sprites[sprite]
+                        # Only sync for kinematic bodies (user controls velocity)
+                        if body.body_type == physics_engine.KINEMATIC:
+                            # Convert Arcade's px/frame to Pymunk's px/sec
+                            velocity = (sprite.change_x / delta_time, sprite.change_y / delta_time)
+                            physics_engine.set_velocity(sprite, velocity)
+                except (AttributeError, KeyError):
+                    # Physics engine doesn't have expected structure, skip sync
+                    pass
         finally:
             cls._is_updating = False
             if set_current_engine is not None:
