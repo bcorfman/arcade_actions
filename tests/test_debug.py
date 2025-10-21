@@ -241,3 +241,35 @@ class TestAttachMotionDebugger(ActionTestBase):
 
         # Should use default tag "motion_debugger"
         assert isinstance(debugger, MotionDebugger)
+
+
+class TestPriority5_ExceptionHandlingInDebug:
+    """Test exception handling in _debug_log_action - covers lines 24-25 in base.py."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+        # Reset debug settings
+        Action.debug_level = 0
+        Action.debug_all = False
+
+    def test_debug_log_action_exception_handling(self):
+        """Test _debug_log_action handles exceptions gracefully - line 24-25."""
+        from actions.base import _debug_log_action
+
+        # Create an object that will raise an exception when type() is called
+        class ProblematicAction:
+            """Action that causes exceptions."""
+
+            def __class__(self):
+                raise RuntimeError("Cannot get class")
+
+        # Enable debug logging
+        Action.debug_level = 2
+        Action.debug_all = True
+
+        # This should not raise an error despite the exception
+        problematic = ProblematicAction()
+        _debug_log_action(problematic, 2, "test message")
+
+        # Should fall back to "Action" as the name

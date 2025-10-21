@@ -4,6 +4,7 @@ import arcade
 
 from actions import move_until
 from actions.base import Action
+from actions.conditional import MoveUntil, infinite
 from actions.pattern import time_elapsed
 
 
@@ -341,3 +342,306 @@ class TestMoveUntilBoundaries:
 
         # Exactly one exit should be recorded
         assert events.count(("exit", "y", "top")) == 1
+
+
+class TestPriority3_BoundaryBehaviorMethods:
+    """Test boundary behavior methods - covers lines 469-501 in conditional.py."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_wrap_behavior_left_to_right(self):
+        """Test wrap boundary behavior when crossing left boundary - line 469-476."""
+        sprite = create_test_sprite()
+        sprite.center_x = 5  # Start just inside left boundary
+
+        bounds = (0, 0, 800, 600)
+        action = MoveUntil((-100, 0), infinite, bounds=bounds, boundary_behavior="wrap")
+        action.apply(sprite, tag="move")
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Should have wrapped to right side
+        assert sprite.center_x >= 700  # Should be near right boundary (800)
+
+    def test_wrap_behavior_right_to_left(self):
+        """Test wrap boundary behavior when crossing right boundary."""
+        sprite = create_test_sprite()
+        sprite.center_x = 795  # Start near right boundary
+
+        bounds = (0, 0, 800, 600)
+        action = MoveUntil((100, 0), infinite, bounds=bounds, boundary_behavior="wrap")
+        action.apply(sprite, tag="move")
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Should have wrapped to left side
+        assert sprite.center_x == 0  # Wrapped to left boundary
+
+    def test_wrap_behavior_bottom_to_top(self):
+        """Test wrap boundary behavior when crossing bottom boundary."""
+        sprite = create_test_sprite()
+        sprite.center_y = 5  # Start near bottom boundary
+
+        bounds = (0, 0, 800, 600)
+        action = MoveUntil((0, -100), infinite, bounds=bounds, boundary_behavior="wrap")
+        action.apply(sprite, tag="move")
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Should have wrapped to top side
+        assert sprite.center_y >= 500  # Should be near top boundary (600)
+
+    def test_wrap_behavior_top_to_bottom(self):
+        """Test wrap boundary behavior when crossing top boundary."""
+        sprite = create_test_sprite()
+        sprite.center_y = 595  # Start near top boundary
+
+        bounds = (0, 0, 800, 600)
+        action = MoveUntil((0, 100), infinite, bounds=bounds, boundary_behavior="wrap")
+        action.apply(sprite, tag="move")
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Should have wrapped to bottom side
+        assert sprite.center_y == 0  # Wrapped to bottom boundary
+
+    def test_limit_behavior_left_boundary(self):
+        """Test limit boundary behavior at left boundary - covers lines 480-501."""
+        sprite = create_test_sprite()
+        sprite.center_x = 50  # Start left of boundary
+
+        bounds = (100, 0, 800, 600)
+        action = MoveUntil((-5, 0), infinite, bounds=bounds, boundary_behavior="limit")
+        action.apply(sprite, tag="move")
+
+        # Update action - should immediately snap to boundary
+        Action.update_all(1 / 60)
+
+        # Should be clamped at boundary with zero velocity applied
+        assert sprite.center_x == 100
+        assert sprite.change_x == 0
+
+    def test_limit_behavior_bottom_boundary(self):
+        """Test limit boundary behavior at bottom boundary - covers lines 492-496."""
+        sprite = create_test_sprite()
+        sprite.center_y = 50  # Start below boundary
+
+        bounds = (0, 100, 800, 600)
+        action = MoveUntil((0, -5), infinite, bounds=bounds, boundary_behavior="limit")
+        action.apply(sprite, tag="move")
+
+        # Update action - should immediately snap to boundary
+        Action.update_all(1 / 60)
+
+        # Should be clamped at boundary with zero velocity applied
+        assert sprite.center_y == 100
+        assert sprite.change_y == 0
+
+    def test_limit_behavior_top_boundary(self):
+        """Test limit boundary behavior at top boundary - covers lines 497-501."""
+        sprite = create_test_sprite()
+        sprite.center_y = 650  # Start above boundary
+
+        bounds = (0, 0, 800, 600)
+        action = MoveUntil((0, 5), infinite, bounds=bounds, boundary_behavior="limit")
+        action.apply(sprite, tag="move")
+
+        # Should immediately snap to boundary
+        Action.update_all(1 / 60)
+
+        # Should be clamped at boundary with zero velocity
+        assert sprite.center_y == 600
+        assert sprite.change_y == 0
+
+
+class TestPriority1_VelocityProviderBoundaryCallbacks:
+    """Test MoveUntil with velocity_provider and boundary callbacks - covers lines 238-248, 260-282."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_velocity_provider_boundary_enter_right(self):
+        """Test velocity provider triggers boundary enter on right - lines 238-240."""
+        sprite = create_test_sprite()
+        sprite.center_x = 795
+
+        enter_calls = []
+
+        def on_enter(s, axis, side):
+            enter_calls.append((axis, side))
+
+        def velocity_provider():
+            return (100, 0)
+
+        bounds = (0, 0, 800, 600)
+        action = MoveUntil(
+            (100, 0),
+            infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+            velocity_provider=velocity_provider,
+            on_boundary_enter=on_enter,
+        )
+        action.apply(sprite, tag="move")
+
+        # One update should hit right boundary
+        Action.update_all(1 / 60)
+
+        assert len(enter_calls) > 0
+        assert ("x", "right") in enter_calls
+
+    def test_velocity_provider_boundary_enter_left(self):
+        """Test velocity provider triggers boundary enter on left - lines 242-248."""
+        sprite = create_test_sprite()
+        sprite.center_x = 5
+
+        enter_calls = []
+
+        def on_enter(s, axis, side):
+            enter_calls.append((axis, side))
+
+        def velocity_provider():
+            return (-100, 0)
+
+        bounds = (0, 0, 800, 600)
+        action = MoveUntil(
+            (-100, 0),
+            infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+            velocity_provider=velocity_provider,
+            on_boundary_enter=on_enter,
+        )
+        action.apply(sprite, tag="move")
+
+        # One update should hit left boundary
+        Action.update_all(1 / 60)
+
+        assert len(enter_calls) > 0
+        assert ("x", "left") in enter_calls
+
+    def test_velocity_provider_boundary_enter_top(self):
+        """Test velocity provider triggers boundary enter on top - lines 260-266."""
+        sprite = create_test_sprite()
+        sprite.center_y = 595
+
+        enter_calls = []
+
+        def on_enter(s, axis, side):
+            enter_calls.append((axis, side))
+
+        def velocity_provider():
+            return (0, 100)
+
+        bounds = (0, 0, 800, 600)
+        action = MoveUntil(
+            (0, 100),
+            infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+            velocity_provider=velocity_provider,
+            on_boundary_enter=on_enter,
+        )
+        action.apply(sprite, tag="move")
+
+        # One update should hit top boundary
+        Action.update_all(1 / 60)
+
+        assert len(enter_calls) > 0
+        assert ("y", "top") in enter_calls
+
+    def test_velocity_provider_boundary_enter_bottom(self):
+        """Test velocity provider triggers boundary enter on bottom - lines 267-274."""
+        sprite = create_test_sprite()
+        sprite.center_y = 5
+
+        enter_calls = []
+
+        def on_enter(s, axis, side):
+            enter_calls.append((axis, side))
+
+        def velocity_provider():
+            return (0, -100)
+
+        bounds = (0, 0, 800, 600)
+        action = MoveUntil(
+            (0, -100),
+            infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+            velocity_provider=velocity_provider,
+            on_boundary_enter=on_enter,
+        )
+        action.apply(sprite, tag="move")
+
+        # One update should hit bottom boundary
+        Action.update_all(1 / 60)
+
+        assert len(enter_calls) > 0
+        assert ("y", "bottom") in enter_calls
+
+    def test_velocity_provider_boundary_exit_vertical(self):
+        """Test velocity provider triggers boundary exit on vertical - lines 279-282."""
+        sprite = create_test_sprite()
+        sprite.center_y = 605  # Start beyond top boundary
+
+        exit_calls = []
+        enter_calls = []
+
+        def on_enter(s, axis, side):
+            enter_calls.append((axis, side))
+
+        def on_exit(s, axis, side):
+            exit_calls.append((axis, side))
+
+        # First move down to enter boundary
+        def velocity_provider():
+            return (0, 100)
+
+        bounds = (0, 0, 800, 600)
+        action = MoveUntil(
+            (0, 100),
+            infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+            velocity_provider=velocity_provider,
+            on_boundary_enter=on_enter,
+            on_boundary_exit=on_exit,
+        )
+        action.apply(sprite, tag="move")
+
+        # First update - enter boundary
+        Action.update_all(1 / 60)
+        assert len(enter_calls) > 0
+
+        # Change direction to exit boundary
+        action.velocity_provider = lambda: (0, -100)
+
+        # Next update - exit boundary
+        Action.update_all(1 / 60)
+
+        assert len(exit_calls) > 0
+        assert ("y", "top") in exit_calls

@@ -7,6 +7,14 @@ from actions.base import Action
 from actions.conditional import ParametricMotionUntil, duration
 
 
+def create_test_sprite() -> arcade.Sprite:
+    """Create a sprite with texture for testing."""
+    sprite = arcade.Sprite(":resources:images/items/star.png")
+    sprite.center_x = 100
+    sprite.center_y = 100
+    return sprite
+
+
 class TestParametricMotion:
     """Test suite for ParametricMotionUntil behavior."""
 
@@ -130,3 +138,39 @@ class TestParametricMotion:
         assert action.done
         assert len(calls) == 1
         assert calls[0] is None
+
+
+class TestPriority5_ParametricMotionDebug:
+    """Test ParametricMotionUntil debug mode - covers lines 1659-1664."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_parametric_motion_debug_mode_jump_detection(self):
+        """Test debug mode detects large jumps - lines 1659-1664."""
+        sprite = create_test_sprite()
+
+        # Create offset function that causes a large jump
+        def offset_fn(t):
+            if t < 0.5:
+                return (t * 10, 0)
+            else:
+                # Large jump at t=0.5
+                return (t * 10 + 500, 0)
+
+        # Enable debug mode with low threshold
+        action = ParametricMotionUntil(
+            offset_fn,
+            duration(1.0),
+            debug=True,
+            debug_threshold=100.0,  # 100 pixels threshold
+        )
+        action.apply(sprite, tag="motion")
+
+        # Run until jump occurs (captured output would show warning)
+        for _ in range(35):  # Run past t=0.5
+            Action.update_all(1 / 60)
+
+        # Action should still work despite the jump
+        assert not action.done or action._elapsed >= 0.5

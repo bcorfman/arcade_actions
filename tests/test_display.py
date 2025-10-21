@@ -121,23 +121,20 @@ class TestDisplayPlatformSpecific:
         window = MockWindow(800, 600)
 
         # Test with different platform strings to cover missing lines
-        with patch.object(sys, "platform", "win32"):
-            with patch("actions.display._load_sdl2", return_value=None):
-                with patch("actions.display._center_with_screeninfo", return_value=True):
-                    result = center_window(window)
-                    assert result is True
+        with patch.object(sys, "platform", "win32"), patch("actions.display._load_sdl2", return_value=None):
+            with patch("actions.display._center_with_screeninfo", return_value=True):
+                result = center_window(window)
+                assert result is True
 
-        with patch.object(sys, "platform", "darwin"):
-            with patch("actions.display._load_sdl2", return_value=None):
-                with patch("actions.display._center_with_screeninfo", return_value=False):
-                    result = center_window(window)
-                    assert result is False
+        with patch.object(sys, "platform", "darwin"), patch("actions.display._load_sdl2", return_value=None):
+            with patch("actions.display._center_with_screeninfo", return_value=False):
+                result = center_window(window)
+                assert result is False
 
-        with patch.object(sys, "platform", "linux"):
-            with patch("actions.display._load_sdl2", return_value=None):
-                with patch("actions.display._center_with_screeninfo", return_value=True):
-                    result = center_window(window)
-                    assert result is True
+        with patch.object(sys, "platform", "linux"), patch("actions.display._load_sdl2", return_value=None):
+            with patch("actions.display._center_with_screeninfo", return_value=True):
+                result = center_window(window)
+                assert result is True
 
     def test_load_sdl2_osError_handling(self):
         """Test SDL2 loading OSError handling (lines 72-74)."""

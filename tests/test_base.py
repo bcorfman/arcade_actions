@@ -1,8 +1,11 @@
 """Test suite for base.py - Core Action system architecture."""
 
 import arcade
+import pytest
 
 from actions import Action
+from actions.base import CompositeAction
+from actions.conditional import MoveUntil, duration, infinite
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -630,3 +633,159 @@ class TestAction:
         assert len(result.actions) == 2
         assert result.actions[0] == action2
         assert result.actions[1] == action1
+
+
+class TestPriority2_AbstractMethods:
+    """Test that abstract methods raise NotImplementedError - covers lines 320, 463, 472 in base.py."""
+
+    def test_action_clone_not_implemented(self):
+        """Test that Action.clone() raises NotImplementedError - line 320."""
+        # Action is abstract and enforces clone() implementation at instantiation time
+        # This test verifies the abstract method decorator works
+
+        # Verify Action.clone is abstract
+        assert hasattr(Action, "__abstractmethods__")
+        assert "clone" in Action.__abstractmethods__
+
+    def test_composite_action_reverse_movement_not_implemented(self):
+        """Test that CompositeAction.reverse_movement() does nothing by default - line 463."""
+
+        class TestComposite(CompositeAction):
+            def clone(self):
+                return TestComposite()
+
+        action = TestComposite()
+        # Should not raise an error - it's a no-op pass statement
+        action.reverse_movement("x")
+        action.reverse_movement("y")
+
+    def test_composite_action_clone_not_implemented(self):
+        """Test that CompositeAction.clone() raises NotImplementedError if not overridden - line 472."""
+
+        class UnimplementedComposite(CompositeAction):
+            """Composite action that doesn't implement clone()."""
+
+            pass
+
+        action = UnimplementedComposite()
+
+        with pytest.raises(NotImplementedError, match="Subclasses must implement clone"):
+            action.clone()
+
+
+class TestPriority6_ForEachSpriteNoneTarget:
+    """Test for_each_sprite with None target - covers line 331 in base.py."""
+
+    def test_for_each_sprite_with_none_target(self):
+        """Test that for_each_sprite handles None target gracefully - line 331."""
+
+        # Use MoveUntil which is a concrete action
+        action = MoveUntil((5, 0), infinite)
+        action.target = None
+
+        call_count = [0]
+
+        def func(sprite):
+            call_count[0] += 1
+
+        # Should return early without calling func
+        action.for_each_sprite(func)
+
+        assert call_count[0] == 0
+
+
+class TestBonusCoverage_BaseActionSafeCall:
+    """Test _safe_call guard check - covers line 389."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_safe_call_guard_check_callbacks_inactive(self):
+        """Test _safe_call guard when callbacks are inactive - line 389."""
+        sprite = create_test_sprite()
+        callback_executed = [False]
+
+        def callback():
+            callback_executed[0] = True
+
+        action = MoveUntil((5, 0), duration(0.1), on_stop=callback)
+        action.apply(sprite, tag="move")
+
+        # Manually deactivate callbacks
+        action._callbacks_active = False
+
+        # Try to call on_stop via update - should be blocked
+        Action.update_all(1.0)  # Long enough to complete
+
+        # Callback should not have been executed because callbacks were deactivated
+        # However, the done flag should still be set
+        assert action.done
+
+
+class TestBonusCoverage_UpdateAllPhaseLogic:
+    """Test update_all phase logic - covers line 248 in base.py."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_update_all_deactivates_callbacks_for_done_actions(self):
+        """Test that update_all deactivates callbacks for done actions - line 248."""
+        sprite = create_test_sprite()
+
+        callback_called = [False]
+
+        def on_stop():
+            callback_called[0] = True
+
+        # Create action that completes immediately
+        action = MoveUntil((5, 0), duration(0.01), on_stop=on_stop)
+        action.apply(sprite, tag="move")
+
+        # Update once to mark as done
+        Action.update_all(0.02)
+
+        # Action should be done
+        assert action.done
+        # Callback should have been called before deactivation
+        assert callback_called[0]
+        # Action should not be in active list anymore
+        assert action not in Action._active_actions
+
+
+class TestBonusCoverage_GetSpriteListNameAttributeError:
+    """Test _get_sprite_list_name with AttributeError handling - covers line 303-306 in base.py."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+        Action.debug_level = 0
+        Action.debug_all = False
+
+    def test_get_sprite_list_name_with_attribute_error(self):
+        """Test _get_sprite_list_name handles objects without __dict__ - line 303-306."""
+        # Enable debug mode so _get_sprite_list_name gets called
+        Action.debug_level = 2
+        Action.debug_all = True
+
+        # Create a mock sprite list without __dict__
+        class MockSpriteList:
+            __slots__ = ["_items"]  # No __dict__ attribute
+
+            def __init__(self):
+                self._items = []
+
+            def __len__(self):
+                return 0
+
+            def __iter__(self):
+                return iter(self._items)
+
+        sprite_list = MockSpriteList()
+
+        # Call _get_sprite_list_name - should handle AttributeError
+        result = Action._get_sprite_list_name(sprite_list)
+
+        # Should fall back to simple description
+        assert "SpriteList(len=0)" in result

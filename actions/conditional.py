@@ -95,21 +95,12 @@ class MoveUntil(_Action):
             action="MoveUntil",
         )
 
-        # Try to extract duration from the condition function if it's from duration() helper
+        # Try to extract duration from explicit attribute if it's from duration() helper
         self._duration = None
-        try:
-            # Check if condition is from duration() helper by looking for closure
-            if (
-                hasattr(self.condition, "__closure__")
-                and self.condition.__closure__
-                and len(self.condition.__closure__) >= 1
-            ):
-                # Get the seconds value from the closure
-                seconds = self.condition.__closure__[0].cell_contents
-                if isinstance(seconds, (int, float)) and seconds > 0:
-                    self._duration = seconds
-        except (AttributeError, IndexError, TypeError):
-            pass
+        if hasattr(self.condition, "_duration_seconds"):
+            seconds = self.condition._duration_seconds
+            if isinstance(seconds, (int, float)) and seconds > 0:
+                self._duration = seconds
 
         self._elapsed = 0.0
 
@@ -245,10 +236,7 @@ class MoveUntil(_Action):
                             # Trigger boundary enter event if not already at boundary
                             if state["x"] != "right":
                                 if self.on_boundary_enter:
-                                    try:
-                                        self.on_boundary_enter(sprite, "x", "right")
-                                    except Exception:
-                                        pass
+                                    self._safe_call(self.on_boundary_enter, sprite, "x", "right")
                                 state["x"] = "right"
                         elif dx < 0 and sprite.center_x + dx < left:
                             sprite.change_x = 0
@@ -256,10 +244,7 @@ class MoveUntil(_Action):
                             # Trigger boundary enter event if not already at boundary
                             if state["x"] != "left":
                                 if self.on_boundary_enter:
-                                    try:
-                                        self.on_boundary_enter(sprite, "x", "left")
-                                    except Exception:
-                                        pass
+                                    self._safe_call(self.on_boundary_enter, sprite, "x", "left")
                                 state["x"] = "left"
                         else:
                             sprite.change_x = dx
@@ -277,10 +262,7 @@ class MoveUntil(_Action):
                             # Trigger boundary enter event if not already at boundary
                             if state["y"] != "top":
                                 if self.on_boundary_enter:
-                                    try:
-                                        self.on_boundary_enter(sprite, "y", "top")
-                                    except Exception:
-                                        pass
+                                    self._safe_call(self.on_boundary_enter, sprite, "y", "top")
                                 state["y"] = "top"
                         elif dy < 0 and sprite.center_y + dy < bottom:
                             sprite.change_y = 0
@@ -288,10 +270,7 @@ class MoveUntil(_Action):
                             # Trigger boundary enter event if not already at boundary
                             if state["y"] != "bottom":
                                 if self.on_boundary_enter:
-                                    try:
-                                        self.on_boundary_enter(sprite, "y", "bottom")
-                                    except Exception:
-                                        pass
+                                    self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
                                 state["y"] = "bottom"
                         else:
                             sprite.change_y = dy
@@ -1116,21 +1095,12 @@ class DelayUntil(_Action):
 
     def apply_effect(self) -> None:
         """Initialize delay timing."""
-        # Try to extract duration from the condition function if it's from duration() helper
+        # Try to extract duration from explicit attribute if it's from duration() helper
         self._duration = None
-        try:
-            # Check if condition is from duration() helper by looking for closure
-            if (
-                hasattr(self.condition, "__closure__")
-                and self.condition.__closure__
-                and len(self.condition.__closure__) >= 1
-            ):
-                # Get the seconds value from the closure
-                seconds = self.condition.__closure__[0].cell_contents
-                if isinstance(seconds, (int, float)) and seconds > 0:
-                    self._duration = seconds
-        except (AttributeError, IndexError, TypeError):
-            pass
+        if hasattr(self.condition, "_duration_seconds"):
+            seconds = self.condition._duration_seconds
+            if isinstance(seconds, (int, float)) and seconds > 0:
+                self._duration = seconds
 
         self._elapsed = 0.0
 
@@ -1259,16 +1229,12 @@ class TweenUntil(_Action):
         self._factor = factor
 
     def apply_effect(self):
-        # Extract duration (explicit or closure) FIRST
+        # Extract duration from explicit attribute
         duration_val = 1.0
-        try:
-            # EAFP: Try to get duration from the closure of the `duration` helper.
-            # This is more Pythonic and robust than checking function name with hasattr.
-            if self.condition.__name__ == "condition":
-                duration_val = self.condition.__closure__[0].cell_contents
-        except (AttributeError, IndexError, TypeError):
-            # This is expected if condition is not from `duration()` or has no closure.
-            pass
+        if hasattr(self.condition, "_duration_seconds"):
+            seconds = self.condition._duration_seconds
+            if isinstance(seconds, (int, float)):
+                duration_val = seconds
 
         # An explicitly set duration should override the one from the condition.
         if self._duration is not None:
@@ -1278,13 +1244,10 @@ class TweenUntil(_Action):
         if self._duration < 0:
             raise ValueError("Duration must be non-negative")
 
-        # Define a helper to set the initial value, using EAFP for property validation.
+        # Define a helper to set the initial value.
         def set_initial_value(sprite):
             """Set the initial value of the property on a single sprite."""
-            try:
-                setattr(sprite, self.property_name, self.start_value)
-            except AttributeError:
-                raise AttributeError(f"Target sprite does not have property '{self.property_name}'")
+            setattr(sprite, self.property_name, self.start_value)
 
         if self._duration == 0:
             # If duration is zero, immediately set to the end value.
@@ -1499,34 +1462,12 @@ class CallbackUntil(_Action):
         self._elapsed_since_call = 0.0
         self.current_seconds_between_calls = self.target_seconds_between_calls
         self._next_fire_time = None
-        # Try to extract duration from the condition function if it's from duration() helper
+        # Try to extract duration from explicit attribute if it's from duration() helper
         self._duration = None
-        # Prefer attribute set by duration() helper if available
-        try:
-            if hasattr(self.condition, "_duration_seconds"):
-                seconds = self.condition._duration_seconds
-                if isinstance(seconds, (int, float)) and seconds >= 0:
-                    self._duration = seconds
-        except Exception:
-            pass
-        if self._duration is None:
-            try:
-                if (
-                    hasattr(self.condition, "__closure__")
-                    and self.condition.__closure__
-                    and len(self.condition.__closure__) >= 1
-                ):
-                    seconds = self.condition.__closure__[0].cell_contents
-                    if isinstance(seconds, (int, float)) and seconds >= 0:
-                        self._duration = seconds
-            except (AttributeError, IndexError, TypeError):
-                pass
-        # Fallback to helper if still None
-        if self._duration is None:
-            try:
-                self._duration = _extract_duration_seconds(self.condition)
-            except Exception:
-                self._duration = None
+        if hasattr(self.condition, "_duration_seconds"):
+            seconds = self.condition._duration_seconds
+            if isinstance(seconds, (int, float)) and seconds >= 0:
+                self._duration = seconds
 
     def _call_callback_with_fallback(self) -> None:
         """Call the callback, trying both with and without target parameter."""
@@ -1684,24 +1625,15 @@ class ParametricMotionUntil(_Action):
         self.for_each_sprite(capture_origin)
 
         if self._duration is None:
-            # Try to extract duration from the condition function if it's from duration() helper
-            try:
-                # Check if condition is from duration() helper by looking for closure
-                if (
-                    hasattr(self.condition, "__closure__")
-                    and self.condition.__closure__
-                    and len(self.condition.__closure__) >= 1
-                ):
-                    # Get the seconds value from the closure
-                    seconds = self.condition.__closure__[0].cell_contents
-                    if isinstance(seconds, (int, float)) and seconds > 0:
-                        self._duration = seconds
-            except (AttributeError, IndexError, TypeError):
-                pass
+            # Try to extract duration from explicit attribute if it's from duration() helper
+            if hasattr(self.condition, "_duration_seconds"):
+                seconds = self.condition._duration_seconds
+                if isinstance(seconds, (int, float)) and seconds > 0:
+                    self._duration = seconds
 
-            # Fallback to the helper function if the above didn't work
+            # If still None, default to 0.0
             if self._duration is None or self._duration == 0:
-                self._duration = _extract_duration_seconds(self.condition) or 0.0
+                self._duration = 0.0
 
         # Do not pre-position sprites; offsets are relative to captured origins
         self._prev_offset = self._offset_fn(0.0)
@@ -1810,11 +1742,11 @@ def _apply_offset(sprite, dx: float, dy: float, origins: dict[int, tuple[float, 
 
 
 def _extract_duration_seconds(cond: _Callable[[], _Any]) -> float | None:
-    try:
-        if cond.__name__ == "condition":
-            return cond.__closure__[0].cell_contents  # type: ignore[index]
-    except Exception:
-        pass
+    """Extract duration from explicit attribute if available."""
+    if hasattr(cond, "_duration_seconds"):
+        seconds = cond._duration_seconds
+        if isinstance(seconds, (int, float)) and seconds >= 0:
+            return seconds
     return None
 
 
@@ -1857,27 +1789,22 @@ class CycleTexturesUntil(_Action):
         self._elapsed = 0.0
         self._duration: float | None = None
 
-        # Try to extract duration from duration() helper functions
-        try:
-            if hasattr(condition, "__name__") and condition.__name__ == "condition":
-                if hasattr(condition, "__closure__") and condition.__closure__:
-                    seconds = condition.__closure__[0].cell_contents
-                    if isinstance(seconds, (int, float)) and seconds >= 0:
-                        self._duration = float(seconds)
+        # Try to extract duration from explicit attribute if it's from duration() helper
+        if hasattr(condition, "_duration_seconds"):
+            seconds = condition._duration_seconds
+            if isinstance(seconds, (int, float)) and seconds >= 0:
+                self._duration = float(seconds)
 
-                        def _sim_condition() -> bool:
-                            return self._elapsed >= (self._duration or 0.0) - 1e-9
+                def _sim_condition() -> bool:
+                    return self._elapsed >= (self._duration or 0.0) - 1e-9
 
-                        # Preserve attributes so cloning and tools can still introspect
-                        _sim_condition._is_duration_condition = True
-                        _sim_condition._original_condition = condition
-                        _sim_condition._duration_seconds = self._duration
+                # Preserve attributes so cloning and tools can still introspect
+                _sim_condition._is_duration_condition = True
+                _sim_condition._original_condition = condition
+                _sim_condition._duration_seconds = self._duration
 
-                        # Replace the condition with simulation-time version
-                        self.condition = _sim_condition
-        except Exception:
-            # If duration extraction fails, use original condition
-            pass
+                # Replace the condition with simulation-time version
+                self.condition = _sim_condition
 
     def apply_effect(self) -> None:
         """Initialize textures on the target sprite(s)."""
@@ -1886,14 +1813,10 @@ class CycleTexturesUntil(_Action):
 
         # Try duration extraction again in case condition wasn't extractable during __init__
         if self._duration is None:
-            try:
-                if hasattr(self.condition, "__name__") and self.condition.__name__ == "condition":
-                    if hasattr(self.condition, "__closure__") and self.condition.__closure__:
-                        seconds = self.condition.__closure__[0].cell_contents
-                        if isinstance(seconds, (int, float)) and seconds >= 0:
-                            self._duration = float(seconds)
-            except Exception:
-                pass
+            if hasattr(self.condition, "_duration_seconds"):
+                seconds = self.condition._duration_seconds
+                if isinstance(seconds, (int, float)) and seconds >= 0:
+                    self._duration = float(seconds)
 
         def set_initial_texture(sprite):
             sprite.textures = self._textures

@@ -1139,3 +1139,204 @@ class TestCompositeReset:
         # Verify it's reset
         assert par.done is False
         assert par._on_complete_called is False
+
+
+class TestPriority1_EmptyCompositeRepresentation:
+    """Test __repr__ methods for composite actions."""
+
+    def test_sequence_repr(self):
+        """Test sequence __repr__ method - covers line 108-109 in composite.py."""
+        action1 = DelayUntil(duration(0.1))
+        action2 = DelayUntil(duration(0.2))
+        seq = sequence(action1, action2)
+
+        repr_str = repr(seq)
+        assert "_Sequence" in repr_str
+        assert "actions=" in repr_str
+
+    def test_parallel_repr(self):
+        """Test parallel __repr__ method - covers line 189-190 in composite.py."""
+        action1 = DelayUntil(duration(0.1))
+        action2 = DelayUntil(duration(0.2))
+        par = parallel(action1, action2)
+
+        repr_str = repr(par)
+        assert "_Parallel" in repr_str
+        assert "actions=" in repr_str
+
+    def test_repeat_repr(self):
+        """Test repeat __repr__ method - covers line 287 in composite.py."""
+        action = DelayUntil(duration(0.1))
+        rep = repeat(action)
+
+        repr_str = repr(rep)
+        assert "_Repeat" in repr_str
+        assert "action=" in repr_str
+
+
+class TestPriority4_AttributeErrorHandling:
+    """Test AttributeError handling in composite actions - covers lines 103-105, 282-284."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_sequence_set_current_velocity_attribute_error(self):
+        """Test sequence handles AttributeError when action doesn't support velocity - line 103-105."""
+        sprite = create_test_sprite()
+
+        # DelayUntil doesn't support velocity control in meaningful way
+        action = DelayUntil(duration(1.0))
+        seq = sequence(action)
+        seq.apply(sprite, tag="test")
+
+        # This should not raise an error even though DelayUntil's set_current_velocity is a no-op
+        seq.set_current_velocity((10, 20))
+
+        # Should complete without error
+        assert seq.current_action is action
+
+    def test_repeat_set_current_velocity_attribute_error(self):
+        """Test repeat handles AttributeError when action doesn't support velocity - line 282-284."""
+        sprite = create_test_sprite()
+
+        # DelayUntil doesn't support velocity control
+        action = DelayUntil(duration(1.0))
+        rep = repeat(action)
+        rep.apply(sprite, tag="test")
+
+        # Start the repeat so it has a current action
+        Action.update_all(0.001)
+
+        # This should not raise an error
+        rep.set_current_velocity((30, 40))
+
+        # Should handle gracefully
+        assert rep.current_action is not None
+
+
+class TestPriority2_SequenceEdgeCases:
+    """Test Sequence edge cases - covers lines 49-52, 56-58 in composite.py."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_sequence_update_with_empty_actions(self):
+        """Test sequence update when actions list is empty - lines 49-52."""
+        sprite = create_test_sprite()
+        seq = sequence()
+        seq.apply(sprite, tag="empty")
+
+        # Update should handle empty actions gracefully
+        Action.update_all(1 / 60)
+
+        assert seq.done
+
+    def test_sequence_current_action_none_starts_next(self):
+        """Test sequence starts next action when current is None - lines 56-58."""
+        sprite = create_test_sprite()
+
+        action1 = DelayUntil(duration(0.05))
+        action2 = DelayUntil(duration(0.05))
+        seq = sequence(action1, action2)
+
+        seq.target = sprite
+        seq.start()
+
+        # Complete first action
+        seq.update(0.06)
+
+        # At this point current_action should transition
+        assert action1.done
+        # Second action should now be current
+        assert seq.current_action == action2
+
+
+class TestPriority3_ParallelEmptyHandling:
+    """Test Parallel empty handling during update - covers lines 148-151 in composite.py."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_parallel_update_with_empty_actions(self):
+        """Test parallel update when actions list is empty - lines 148-151."""
+        sprite = create_test_sprite()
+        par = parallel()
+        par.apply(sprite, tag="empty")
+
+        # Update should handle empty actions gracefully
+        Action.update_all(1 / 60)
+
+        assert par.done
+
+
+class TestPriority4_RepeatEdgeCases:
+    """Test Repeat edge cases - covers lines 235-238, 253-255 in composite.py."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_repeat_update_with_no_action(self):
+        """Test repeat update when action is None - lines 235-238."""
+        sprite = create_test_sprite()
+        rep = repeat(None)
+        rep.apply(sprite, tag="no_action")
+
+        # Update should handle None action gracefully
+        Action.update_all(1 / 60)
+
+        assert rep.done
+
+    def test_repeat_current_action_none_starts_clone(self):
+        """Test repeat starts clone when current_action is None - lines 253-255."""
+        sprite = create_test_sprite()
+
+        action = DelayUntil(duration(0.05))
+        rep = repeat(action)
+
+        rep.target = sprite
+        rep.start()
+
+        # Current action should be set after start
+        first_action = rep.current_action
+        assert first_action is not None
+        assert first_action is not action  # Should be a clone
+
+        # Complete current action
+        rep.update(0.06)
+
+        # Should have started a new clone
+        assert rep.current_action is not None
+        assert rep.current_action is not first_action
+
+
+class TestPriority10_CompositeEmptyHandling:
+    """Additional composite action empty handling tests."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_sequence_repr_with_empty_actions(self):
+        """Test sequence __repr__ with empty actions list."""
+        seq = sequence()
+        repr_str = repr(seq)
+        assert "_Sequence" in repr_str
+        assert "[]" in repr_str or "actions=" in repr_str
+
+    def test_parallel_repr_with_empty_actions(self):
+        """Test parallel __repr__ with empty actions list."""
+        par = parallel()
+        repr_str = repr(par)
+        assert "_Parallel" in repr_str
+        assert "[]" in repr_str or "actions=" in repr_str
+
+    def test_repeat_repr_with_none_action(self):
+        """Test repeat __repr__ with None action."""
+        rep = repeat(None)
+        repr_str = repr(rep)
+        assert "_Repeat" in repr_str
+        assert "None" in repr_str
