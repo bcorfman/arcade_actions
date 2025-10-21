@@ -873,4 +873,155 @@ def test_action_cleanup(self, test_sprite):
     assert len(Action._active_actions) < initial_count
     assert action.done
     assert sprite.change_x == 0  # Velocity cleared
-``` 
+```
+
+## Physics Integration Testing
+
+When testing physics-aware actions, use a stub physics engine to verify routing behavior:
+
+### Testing Physics Routing
+
+```python
+from actions import Action, MoveUntil, RotateUntil, FollowPathUntil, infinite
+import arcade
+
+class StubPhysicsEngine:
+    """Minimal stub for testing physics routing."""
+    
+    def __init__(self):
+        self._sprites = {}
+        self.calls = []  # Track method calls
+    
+    def add_sprite(self, sprite, mass=1.0):
+        self._sprites[id(sprite)] = sprite
+    
+    def has_sprite(self, sprite):
+        return id(sprite) in self._sprites
+    
+    def set_velocity(self, sprite, velocity):
+        self.calls.append(("set_velocity", sprite, velocity))
+    
+    def get_velocity(self, sprite):
+        self.calls.append(("get_velocity", sprite))
+        return (0.0, 0.0)
+    
+    def apply_impulse(self, sprite, impulse):
+        self.calls.append(("apply_impulse", sprite, impulse))
+    
+    def set_angular_velocity(self, sprite, omega):
+        self.calls.append(("set_angular_velocity", sprite, omega))
+
+def test_moveuntil_with_physics(monkeypatch):
+    """Test MoveUntil routes through physics engine."""
+    from actions import physics_adapter as pa
+    
+    engine = StubPhysicsEngine()
+    sprite = arcade.Sprite()
+    engine.add_sprite(sprite)
+    
+    # Patch detect_engine to return our stub
+    original_detect = pa.detect_engine
+    def fake_detect(sprite, *, provided=None):
+        if engine.has_sprite(sprite):
+            return engine
+        return original_detect(sprite, provided=provided)
+    
+    monkeypatch.setattr(pa, "detect_engine", fake_detect)
+    
+    # Apply action
+    action = MoveUntil((5, 0), infinite)
+    action.apply(sprite)
+    
+    Action.update_all(1/60)
+    
+    # Verify physics engine method was called
+    assert any(call[0] == "set_velocity" for call in engine.calls)
+
+def test_followpath_physics_steering():
+    """Test FollowPathUntil physics steering mode."""
+    engine = StubPhysicsEngine()
+    sprite = arcade.Sprite()
+    sprite.center_x = 100
+    sprite.center_y = 100
+    engine.add_sprite(sprite)
+    
+    path = [(100, 100), (200, 100)]
+    action = FollowPathUntil(
+        control_points=path,
+        velocity=100,
+        condition=infinite,
+        use_physics=True,        # Enable physics mode
+        steering_gain=5.0,
+        rotate_with_path=True
+    )
+    action.apply(sprite)
+    
+    # Update with physics engine
+    Action.update_all(1/60, physics_engine=engine)
+    
+    # Verify steering impulses were applied
+    assert any(call[0] == "apply_impulse" for call in engine.calls)
+    # Verify rotation via physics
+    assert any(call[0] == "set_angular_velocity" for call in engine.calls)
+```
+
+### Testing Physics Fallback
+
+Test that actions fall back gracefully when no physics engine is present:
+
+```python
+def test_moveuntil_fallback_without_engine():
+    """Test MoveUntil falls back to direct velocity when no physics."""
+    sprite = arcade.Sprite()
+    
+    action = MoveUntil((7, -3), infinite)
+    action.apply(sprite)
+    
+    Action.update_all(1/60)
+    
+    # Should set sprite attributes directly
+    assert sprite.change_x == 7
+    assert sprite.change_y == -3
+
+def test_followpath_kinematic_mode():
+    """Test FollowPathUntil defaults to kinematic movement."""
+    sprite = arcade.Sprite()
+    sprite.center_x = 100
+    sprite.center_y = 100
+    initial_x = sprite.center_x
+    
+    path = [(100, 100), (200, 100)]
+    action = FollowPathUntil(
+        control_points=path,
+        velocity=100,
+        condition=infinite,
+        use_physics=False  # Explicit kinematic mode
+    )
+    action.apply(sprite)
+    
+    Action.update_all(1/60)
+    
+    # Position should be updated directly
+    assert sprite.center_x > initial_x
+```
+
+### Testing with Action.update_all Physics Parameter
+
+```python
+def test_physics_engine_parameter():
+    """Test passing physics engine to Action.update_all."""
+    engine = StubPhysicsEngine()
+    sprite = arcade.Sprite()
+    engine.add_sprite(sprite)
+    
+    action = MoveUntil((5, 0), infinite)
+    action.apply(sprite)
+    
+    # Pass engine via update_all
+    Action.update_all(1/60, physics_engine=engine)
+    
+    # Engine methods should be called
+    assert len(engine.calls) > 0
+```
+
+See `tests/test_pymunk_integration.py` and `tests/test_physics_followpath.py` for complete examples. 

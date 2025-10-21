@@ -2,6 +2,7 @@ import math
 from collections.abc import Callable
 from typing import Any
 
+from actions import physics_adapter as _pa
 from actions.base import Action as _Action
 
 
@@ -53,7 +54,7 @@ class MoveUntil(_Action):
         self.bounds = bounds  # (left, bottom, right, top)
         self.boundary_behavior = boundary_behavior
 
-        # New API: Velocity provider and boundary event callbacks
+        # Velocity provider and boundary event callbacks
         self.velocity_provider = velocity_provider
         self.on_boundary_enter = on_boundary_enter
         self.on_boundary_exit = on_boundary_exit
@@ -181,8 +182,7 @@ class MoveUntil(_Action):
                     sprite.change_y = dy
             else:
                 # Normal behavior for other boundary types or no boundaries
-                sprite.change_x = dx
-                sprite.change_y = dy
+                _pa.set_velocity(sprite, (dx, dy))
 
         self.for_each_sprite(set_velocity)
 
@@ -582,6 +582,10 @@ class FollowPathUntil(_Action):
     The action supports automatic sprite rotation to face the movement direction, with
     calibration offset for sprites that aren't naturally drawn pointing to the right.
 
+    Optional physics integration: When use_physics=True and a PymunkPhysicsEngine is
+    available, the action uses steering impulses to follow the path, allowing natural
+    interaction with other physics forces and collisions.
+
     Args:
         control_points: List of (x, y) points defining the Bezier curve (minimum 2 points)
         velocity: Speed in pixels per second along the curve
@@ -595,6 +599,11 @@ class FollowPathUntil(_Action):
             - -90.0: Sprite artwork points up
             - 180.0: Sprite artwork points left
             - 90.0: Sprite artwork points down
+        use_physics: When True, uses physics steering with impulses instead of kinematic
+            movement. Requires a PymunkPhysicsEngine. Default: False.
+        steering_gain: Tunable gain parameter for physics steering responsiveness.
+            Higher values = more responsive but may overshoot. Lower values = smoother
+            but may lag behind path. Default: 5.0. Only used when use_physics=True.
 
     Examples:
         # Basic path following without rotation
@@ -618,6 +627,12 @@ class FollowPathUntil(_Action):
             bezier_points, velocity=200, condition=lambda: sprite.center_x > 400,
             rotate_with_path=True
         )
+
+        # Physics-based path following with steering
+        action = FollowPathUntil(
+            [(100, 100), (300, 200), (500, 100)], velocity=150, condition=infinite,
+            use_physics=True, steering_gain=5.0, rotate_with_path=True
+        )
     """
 
     def __init__(
@@ -628,6 +643,8 @@ class FollowPathUntil(_Action):
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
         rotate_with_path: bool = False,
         rotation_offset: float = 0.0,
+        use_physics: bool = False,
+        steering_gain: float = 5.0,
     ):
         super().__init__(condition, on_stop)
         if len(control_points) < 2:
@@ -638,6 +655,8 @@ class FollowPathUntil(_Action):
         self.current_velocity = velocity  # Current velocity (can be scaled)
         self.rotate_with_path = rotate_with_path  # Enable automatic sprite rotation
         self.rotation_offset = rotation_offset  # Degrees to offset for sprite artwork orientation
+        self.use_physics = use_physics  # Enable physics-based steering
+        self.steering_gain = steering_gain  # Steering force multiplier for physics mode
 
         # Track last applied movement angle to smooth out rotations when
         # the incremental movement vector becomes (nearly) zero – e.g. when
@@ -714,7 +733,18 @@ class FollowPathUntil(_Action):
         # Calculate new position on curve
         current_point = self._bezier_point(self._curve_progress)
 
-        # Apply relative movement to sprite(s)
+        # Check if physics engine is available for steering mode
+        engine = None
+        if self.use_physics and self.target is not None:
+            # Check if any sprite in target has physics
+            def check_engine(sprite):
+                nonlocal engine
+                if engine is None:
+                    engine = _pa.detect_engine(sprite)
+
+            self.for_each_sprite(check_engine)
+
+        # Apply movement using physics steering or kinematic mode
         if self._last_position:
             dx = current_point[0] - self._last_position[0]
             dy = current_point[1] - self._last_position[1]
@@ -734,15 +764,58 @@ class FollowPathUntil(_Action):
                     # Re-use the previous angle to maintain continuity
                     movement_angle = self._prev_movement_angle
 
-            def apply_movement(sprite):
-                # Move sprite along the path
-                sprite.center_x += dx
-                sprite.center_y += dy
-                # Rotate sprite to face movement direction if enabled
-                if movement_angle is not None:
-                    sprite.angle = movement_angle
+            if engine is not None:
+                # Physics steering mode: apply impulses to steer toward path
+                def apply_physics_steering(sprite):
+                    # Get current sprite position and desired target
+                    current_pos = (sprite.center_x, sprite.center_y)
 
-            self.for_each_sprite(apply_movement)
+                    # Compute desired velocity toward next point on curve
+                    direction_length = math.sqrt(dx * dx + dy * dy)
+                    if direction_length > 1e-6:
+                        desired_vx = (dx / direction_length) * self.current_velocity
+                        desired_vy = (dy / direction_length) * self.current_velocity
+                    else:
+                        desired_vx = desired_vy = 0.0
+
+                    # Get current velocity from physics engine
+                    current_vx, current_vy = _pa.get_velocity(sprite)
+
+                    # Compute steering impulse (desired - current) * gain
+                    # Note: In a real physics engine, we'd multiply by mass here,
+                    # but for simplicity we use a tunable gain parameter
+                    steering_x = (desired_vx - current_vx) * self.steering_gain * delta_time
+                    steering_y = (desired_vy - current_vy) * self.steering_gain * delta_time
+
+                    # Apply steering impulse
+                    _pa.apply_impulse(sprite, (steering_x, steering_y))
+
+                    # Handle rotation via physics engine if enabled
+                    if movement_angle is not None:
+                        # For physics mode, we set angular velocity to reach target angle
+                        # Calculate difference and apply proportional angular velocity
+                        angle_diff = movement_angle - sprite.angle
+                        # Normalize to [-180, 180]
+                        while angle_diff > 180:
+                            angle_diff -= 360
+                        while angle_diff < -180:
+                            angle_diff += 360
+                        # Apply angular velocity proportional to angle difference
+                        angular_vel = angle_diff * 5.0  # Simple proportional controller
+                        _pa.set_angular_velocity(sprite, angular_vel)
+
+                self.for_each_sprite(apply_physics_steering)
+            else:
+                # Kinematic mode: directly set position (original behavior)
+                def apply_movement(sprite):
+                    # Move sprite along the path
+                    sprite.center_x += dx
+                    sprite.center_y += dy
+                    # Rotate sprite to face movement direction if enabled
+                    if movement_angle is not None:
+                        sprite.angle = movement_angle
+
+                self.for_each_sprite(apply_movement)
 
         self._last_position = current_point
 
@@ -780,6 +853,8 @@ class FollowPathUntil(_Action):
             self.on_stop,
             self.rotate_with_path,
             self.rotation_offset,
+            self.use_physics,
+            self.steering_gain,
         )
 
 
@@ -817,7 +892,7 @@ class RotateUntil(_Action):
         """Apply angular velocity to all sprites."""
 
         def set_angular_velocity(sprite):
-            sprite.change_angle = self.current_angular_velocity
+            _pa.set_angular_velocity(sprite, self.current_angular_velocity)
 
         self.for_each_sprite(set_angular_velocity)
 
@@ -1358,6 +1433,7 @@ class CallbackUntil(_Action):
         _debug_log(f"__init__: id={id(self)}, callback={callback}, seconds_between_calls={seconds_between_calls}")
 
         # If the condition is a duration() helper, replace it with a simulation-time condition
+        # for more accurate timing. If optimization fails, fall back to original condition.
         try:
             if hasattr(condition, "_is_duration_condition") and condition._is_duration_condition:
                 seconds = getattr(condition, "_duration_seconds", None)
@@ -1371,8 +1447,9 @@ class CallbackUntil(_Action):
                     _sim_condition._is_duration_condition = True
                     _sim_condition._duration_seconds = self._duration
                     self.condition = _sim_condition
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            # Duration optimization failed, fall back to original condition
+            _debug_log(f"__init__: id={id(self)}, duration optimization failed: {e}, using original condition")
 
     def set_factor(self, factor: float) -> None:
         """Scale the callback interval by the given factor.

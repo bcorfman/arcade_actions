@@ -184,13 +184,31 @@ def follow_path_until(
         condition: The condition to stop following the path.
         on_stop: An optional callback.
         tag: An optional tag.
+        **kwargs: Additional parameters passed to FollowPathUntil:
+            - rotate_with_path (bool): Enable automatic sprite rotation (default: False)
+            - rotation_offset (float): Rotation offset in degrees (default: 0.0)
+            - use_physics (bool): Enable physics-based steering with impulses (default: False)
+            - steering_gain (float): Steering responsiveness for physics mode (default: 5.0)
 
     Returns:
         The created FollowPathUntil action instance.
 
-    Example:
+    Examples:
+        # Basic path following
         path_points = [(100, 100), (200, 200), (300, 100)]
-        follow_path_until(sprite, path_points, velocity=200, condition=duration(3.0))
+        follow_path_until(sprite, control_points=path_points, velocity=200, condition=duration(3.0))
+
+        # Path following with rotation
+        follow_path_until(
+            sprite, control_points=path_points, velocity=200,
+            condition=duration(3.0), rotate_with_path=True
+        )
+
+        # Physics-based path following with steering
+        follow_path_until(
+            sprite, control_points=path_points, velocity=200,
+            condition=infinite, use_physics=True, steering_gain=5.0
+        )
     """
     action = FollowPathUntil(
         control_points=control_points,

@@ -127,9 +127,9 @@ docs/
 - **MoveTo** - Absolute positioning
 
 #### Conditional Actions (actions/conditional.py)
-- **MoveUntil** - Velocity-based movement until condition met
-- **FollowPathUntil** - Follow Bezier curve paths with optional automatic sprite rotation
-- **RotateUntil** - Angular velocity rotation
+- **MoveUntil** - Velocity-based movement until condition met (optional PyMunk physics integration)
+- **FollowPathUntil** - Follow Bezier curve paths with optional automatic sprite rotation (optional PyMunk physics steering with `use_physics=True`)
+- **RotateUntil** - Angular velocity rotation (optional PyMunk physics integration)
 - **ScaleUntil** - Scale velocity changes  
 - **FadeUntil** - Alpha velocity changes
 - **CycleTexturesUntil** - Cycle through a list of textures at a specific frame rate with simulation time duration support
@@ -205,6 +205,14 @@ Arrange functions contract:
 - **Ease wrapper** - Apply smooth acceleration/deceleration curves to any conditional action
 - **Multiple easing functions** - Built-in ease_in, ease_out, ease_in_out support
 - **Custom easing** - Create specialized easing curves and nested easing effects
+
+#### Optional Physics Integration (actions/physics_adapter.py)
+- **PyMunk Physics Support** - Optional integration with `arcade.PymunkPhysicsEngine` for physics-driven movement
+- **Zero API Changes** - Existing code works unchanged; physics is opt-in via `Action.update_all(dt, physics_engine=engine)`
+- **Automatic Routing** - `MoveUntil` and `RotateUntil` automatically use physics when engine is provided
+- **Physics-Based Path Following** - `FollowPathUntil` with `use_physics=True` uses steering impulses for natural physics interaction
+- **Fallback Behavior** - Actions work normally without a physics engine (direct sprite attribute manipulation)
+- **See the [API Usage Guide](docs/api_usage_guide.md#optional-physics-integration-arcade-3x--pymunk)** for examples
 
 ## 📋 Decision Matrix
 

@@ -91,12 +91,12 @@ def on_update(self, delta_time):
 - Global action management system
 - Unit and integration test coverage for actions and patterns
 - Example patterns for common game behaviors
+- Optional PyMunk physics integration (MoveUntil, RotateUntil velocity routing; FollowPathUntil steering)
 
 ---
 
 ## 🚫 Out-of-Scope Items
 
-- Full-featured physics integration (Pymunk, collisions, impulses)
 - Advanced pathfinding or AI (A*)
 - Visual editor or GUI tools for creating action sequences
 - Multiplayer or networking features

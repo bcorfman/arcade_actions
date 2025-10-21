@@ -147,8 +147,8 @@ class TestPriority5_ParametricMotionDebug:
         """Clean up after each test."""
         Action.stop_all()
 
-    def test_parametric_motion_debug_mode_jump_detection(self):
-        """Test debug mode detects large jumps - lines 1659-1664."""
+    def test_parametric_motion_debug_mode_jump_detection(self, capsys):
+        """Test debug mode detects large jumps and prints warning."""
         sprite = create_test_sprite()
 
         # Create offset function that causes a large jump
@@ -156,21 +156,29 @@ class TestPriority5_ParametricMotionDebug:
             if t < 0.5:
                 return (t * 10, 0)
             else:
-                # Large jump at t=0.5
+                # Large jump at t=0.5 (500+ pixels)
                 return (t * 10 + 500, 0)
 
-        # Enable debug mode with low threshold
+        # Enable debug mode with low threshold AND rotation
+        # (debug output only prints when rotate_with_path=True)
         action = ParametricMotionUntil(
             offset_fn,
             duration(1.0),
             debug=True,
             debug_threshold=100.0,  # 100 pixels threshold
+            rotate_with_path=True,  # Required for debug output
         )
         action.apply(sprite, tag="motion")
 
-        # Run until jump occurs (captured output would show warning)
+        # Run until jump occurs
         for _ in range(35):  # Run past t=0.5
             Action.update_all(1 / 60)
+
+        # Verify debug output was printed (lines 1736-1741)
+        captured = capsys.readouterr()
+        assert "[ParametricMotionUntil:jump]" in captured.out
+        assert "Δ=" in captured.out  # Verify jump magnitude printed
+        assert "thr=100.0" in captured.out  # Verify threshold printed
 
         # Action should still work despite the jump
         assert not action.done or action._elapsed >= 0.5
