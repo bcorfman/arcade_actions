@@ -1467,6 +1467,7 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 | Visibility blinking | `blink_until` helper | `blink_until(sprite, seconds_until_change=0.25, condition=cond)` |
 | Visibility callbacks | `blink_until` with callbacks | `blink_until(sprite, ..., on_blink_enter=enable_fn, on_blink_exit=disable_fn)` |
 | Periodic callbacks | `callback_until` helper | `callback_until(sprite, callback=update_fn, condition=cond, seconds_between_calls=0.1)` |
+| Shader/particle effects | `callback_until` for temporal control | `callback_until(sprite, lambda: emitter.update(), condition=cond)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, velocity=vel, condition=cond, bounds=b)` |
 | Delayed execution | Direct classes in sequences | `sequence(DelayUntil(duration(1.0)), action)` |
 | Smooth acceleration | `ease` helper | `ease(sprite, action, duration=2.0)` |
@@ -1771,6 +1772,142 @@ action.set_factor(0.0)  # Callbacks stop
 
 # Resume at normal speed
 action.set_factor(1.0)  # Back to every 0.1 seconds
+```
+
+### Shader and Particle Integration
+
+`CallbackUntil` excels at managing temporal shader effects and particle systems, eliminating manual state tracking. The key pattern is to encapsulate state in objects that update themselves, similar to the laser_gates forcefield color cycling example:
+
+```python
+from actions import CallbackUntil, callback_until, duration, infinite
+
+# Particle emitter management
+thruster_emitter = arcade.Emitter(...)
+
+def update_thruster():
+    thruster_emitter.center_x = rocket.center_x
+    thruster_emitter.center_y = rocket.center_y
+    thruster_emitter.update()
+
+# Emit particles while thrusting
+CallbackUntil(
+    callback=update_thruster,
+    condition=lambda: not rocket.is_thrusting
+).apply(rocket, tag="thruster")
+
+# Dynamic shader uniform updates with state tracking
+class ShieldEffect:
+    def __init__(self):
+        self.glow_intensity = 0.0
+        self.time_elapsed = 0.0
+        
+    def update_glow(self):
+        self.time_elapsed += 0.016  # Approximate frame time
+        self.glow_intensity = 0.5 + 0.5 * math.sin(self.time_elapsed * 3)
+        shield_shader.set_uniform('glow', self.glow_intensity)
+
+shield_effect = ShieldEffect()
+
+# Shield glow effect for 5 seconds
+callback_until(
+    player,
+    callback=shield_effect.update_glow,
+    condition=duration(5.0),
+    tag="shield_glow"
+)
+
+# Conditional lighting effects
+def update_raycast_shadows():
+    light_layer.update()
+
+callback_until(
+    player,
+    callback=update_raycast_shadows,
+    condition=lambda: not lights_enabled,
+    tag="dynamic_lighting"
+)
+
+# Pattern from laser_gates: Periodic state updates with encapsulated logic
+class ColorCycler:
+    def __init__(self, colors, sprites):
+        self.colors = colors
+        self.sprites = sprites
+        self.current_index = 0
+        
+    def cycle_colors(self):
+        """Update all sprites to the next color in sequence."""
+        for sprite in self.sprites:
+            sprite.color = self.colors[self.current_index]
+        self.current_index = (self.current_index + 1) % len(self.colors)
+
+# Create color cycler for enemy formation
+enemy_colors = [arcade.color.RED, arcade.color.BLUE, arcade.color.GREEN]
+color_cycler = ColorCycler(enemy_colors, enemy_formation)
+
+# Cycle colors every 0.1 seconds for 5 seconds
+callback_until(
+    enemy_formation,
+    callback=color_cycler.cycle_colors,
+    condition=duration(5.0),
+    seconds_between_calls=0.1,
+    tag="enemy_color_cycle"
+)
+```
+
+**Benefits over manual management:**
+- ✅ No state flags (`thruster_active`, `shield_glow_time`)
+- ✅ Automatic lifecycle (start, run, cleanup)
+- ✅ Declarative intent (update until condition)
+- ✅ Composable with other actions
+- ✅ Tag-based control for easy enable/disable
+
+**Comparison:**
+
+```python
+# ❌ WITHOUT CallbackUntil - Manual state management
+class MyGame:
+    def __init__(self):
+        self.thruster_active = False
+        self.shield_glow_time = 0
+        self.shield_active = False
+        
+    def on_update(self, delta_time):
+        if self.player.is_thrusting:
+            self.thruster_active = True
+            self.thruster_emitter.update()
+        else:
+            self.thruster_active = False
+            
+        if self.shield_active:
+            self.shield_glow_time += delta_time
+            glow = 0.5 + 0.5 * math.sin(self.shield_glow_time * 3)
+            self.shield_shader.set_uniform('glow', glow)
+            if self.shield_glow_time > 5.0:
+                self.shield_active = False
+                self.shield_glow_time = 0
+
+# ✅ WITH CallbackUntil - Declarative and clean
+class MyGame:
+    def __init__(self):
+        self.shield_effect = ShieldEffect()
+        
+    def setup_effects(self):
+        callback_until(
+            self.player,
+            callback=lambda: self.thruster_emitter.update(),
+            condition=lambda: not self.player.is_thrusting,
+            tag="thruster"
+        )
+        
+        callback_until(
+            self.player,
+            callback=self.shield_effect.update_glow,
+            condition=duration(5.0),
+            tag="shield"
+        )
+    
+    def on_update(self, delta_time):
+        Action.update_all(delta_time)  # That's it!
 ```
 
 ### Best Practices
