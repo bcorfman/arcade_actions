@@ -91,3 +91,180 @@ class TestGlowUntil:
         # Simulate window resize
         action.on_resize(123, 456)
         assert fake.resize_calls and fake.resize_calls[-1] == (123, 456)
+
+
+class TestGlowUntilErrorHandling:
+    """Test GlowUntil error handling and edge cases."""
+
+    def teardown_method(self):
+        Action.stop_all()
+
+    def test_factory_failure(self):
+        """Test GlowUntil handles shader factory failure gracefully."""
+        from actions.conditional import GlowUntil
+
+        def failing_factory(size):
+            raise RuntimeError("Shader creation failed")
+
+        action = GlowUntil(
+            shadertoy_factory=failing_factory,
+            condition=duration(0.05),
+        )
+        action.apply(types.SimpleNamespace())
+
+        # Should not crash, shader should be None
+        assert action._shader is None
+
+        # Update should handle None shader gracefully
+        Action.update_all(0.016)
+        assert not action.done  # Should still be running
+
+    def test_no_shader_update(self):
+        """Test update_effect handles None shader."""
+        from actions.conditional import GlowUntil
+
+        action = GlowUntil(
+            shadertoy_factory=lambda size: None,  # Returns None
+            condition=duration(0.05),
+        )
+        action.apply(types.SimpleNamespace())
+
+        # Should not crash on update
+        Action.update_all(0.016)
+        assert not action.done
+
+    def test_on_stop_callback_exception(self):
+        """Test GlowUntil handles on_stop callback exceptions."""
+        from actions.conditional import GlowUntil
+
+        fake = FakeShadertoy()
+
+        def failing_callback(data):
+            raise ValueError("Callback failed")
+
+        action = GlowUntil(
+            shadertoy_factory=make_shadertoy_factory(fake),
+            condition=duration(0.01),  # Very short duration
+            on_stop=failing_callback,
+        )
+        action.apply(types.SimpleNamespace())
+
+        # Should complete without crashing despite callback failure
+        Action.update_all(0.02)
+        assert action.done
+
+    def test_uniforms_provider_failure(self):
+        """Test GlowUntil handles uniforms_provider exceptions."""
+        from actions.conditional import GlowUntil
+
+        fake = FakeShadertoy()
+
+        def failing_uniforms_provider(shader, target):
+            raise RuntimeError("Uniforms failed")
+
+        action = GlowUntil(
+            shadertoy_factory=make_shadertoy_factory(fake),
+            condition=duration(0.05),
+            uniforms_provider=failing_uniforms_provider,
+        )
+        action.apply(types.SimpleNamespace())
+
+        # Should not crash, should continue rendering
+        Action.update_all(0.016)
+        assert fake.render_calls >= 1
+
+    def test_camera_correction_failure(self):
+        """Test GlowUntil handles camera correction exceptions."""
+        from actions.conditional import GlowUntil
+
+        fake = FakeShadertoy()
+
+        def uniforms_provider(shader, target):
+            return {"lightPosition": (100.0, 200.0)}
+
+        def failing_camera_provider():
+            raise RuntimeError("Camera failed")
+
+        action = GlowUntil(
+            shadertoy_factory=make_shadertoy_factory(fake),
+            condition=duration(0.05),
+            uniforms_provider=uniforms_provider,
+            get_camera_bottom_left=failing_camera_provider,
+        )
+        action.apply(types.SimpleNamespace())
+
+        # Should not crash, should use original coordinates
+        Action.update_all(0.016)
+        assert fake.program["lightPosition"] == (100.0, 200.0)
+
+    def test_render_failure(self):
+        """Test GlowUntil handles render exceptions."""
+        from actions.conditional import GlowUntil
+
+        class FailingShadertoy(FakeShadertoy):
+            def render(self):
+                raise RuntimeError("Render failed")
+
+        fake = FailingShadertoy()
+
+        action = GlowUntil(
+            shadertoy_factory=make_shadertoy_factory(fake),
+            condition=duration(0.05),
+        )
+        action.apply(types.SimpleNamespace())
+
+        # Should not crash on render failure
+        Action.update_all(0.016)
+        assert not action.done
+
+    def test_resize_failure(self):
+        """Test GlowUntil handles resize exceptions."""
+        from actions.conditional import GlowUntil
+
+        class FailingShadertoy(FakeShadertoy):
+            def resize(self, size):
+                raise RuntimeError("Resize failed")
+
+        fake = FailingShadertoy()
+
+        action = GlowUntil(
+            shadertoy_factory=make_shadertoy_factory(fake),
+            condition=duration(0.05),
+            auto_resize=True,
+        )
+        action.apply(types.SimpleNamespace())
+
+        # Should not crash on resize failure
+        action.on_resize(800, 600)
+        assert not action.done
+
+    def test_clone_method(self):
+        """Test GlowUntil clone method."""
+        from actions.conditional import GlowUntil
+
+        fake = FakeShadertoy()
+
+        def uniforms_provider(shader, target):
+            return {"test": 1.0}
+
+        def camera_provider():
+            return (10.0, 20.0)
+
+        original = GlowUntil(
+            shadertoy_factory=make_shadertoy_factory(fake),
+            condition=duration(0.05),
+            uniforms_provider=uniforms_provider,
+            get_camera_bottom_left=camera_provider,
+            auto_resize=False,
+            draw_order="before",
+        )
+
+        cloned = original.clone()
+
+        # Should have same configuration
+        assert cloned._factory == original._factory
+        assert cloned._uniforms_provider == original._uniforms_provider
+        assert cloned._camera_bottom_left_provider == original._camera_bottom_left_provider
+        assert cloned._auto_resize == original._auto_resize
+        assert cloned._draw_order == original._draw_order
+        assert cloned.condition != original.condition  # Different condition instance

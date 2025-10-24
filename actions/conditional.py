@@ -2144,7 +2144,10 @@ class EmitParticlesUntil(_Action):
                 self.remove_effect()
                 self.done = True
                 if self.on_stop:
-                    self.on_stop()
+                    try:
+                        self.on_stop()
+                    except Exception:
+                        pass
                 return
 
         def update_for_sprite(sprite):
