@@ -1954,3 +1954,239 @@ class CycleTexturesUntil(_Action):
         if hasattr(self, "_duration"):
             cloned._duration = self._duration
         return cloned
+
+
+class GlowUntil(_Action):
+    """Render a Shadertoy-style full-screen effect until a condition is met.
+
+    Dependencies are injected via factory callables for testability.
+
+    Args:
+        shadertoy_factory: Callable that receives an (width, height) tuple and
+            returns a Shadertoy-like object exposing `program` (dict-like),
+            `resize((w, h))` and `render()`.
+        condition: Stop condition (see duration(), infinite, etc.)
+        on_stop: Optional callback when stopping
+        uniforms_provider: Optional callable (shader, target) -> dict of uniforms
+        get_camera_bottom_left: Optional callable returning (x, y) used to
+            convert world-space points such as "lightPosition" into screen-space
+        auto_resize: Whether on_resize(width, height) should resize the shader
+        draw_order: Placeholder for future composition (not used internally)
+    """
+
+    def __init__(
+        self,
+        *,
+        shadertoy_factory,
+        condition,
+        on_stop=None,
+        uniforms_provider=None,
+        get_camera_bottom_left=None,
+        auto_resize: bool = True,
+        draw_order: str = "after",
+    ):
+        super().__init__(condition, on_stop)
+        self._factory = shadertoy_factory
+        self._shader = None
+        self._uniforms_provider = uniforms_provider
+        self._camera_bottom_left_provider = get_camera_bottom_left
+        self._auto_resize = auto_resize
+        self._draw_order = draw_order
+        self._elapsed = 0.0
+        self._duration: float | None = None
+
+    def apply_effect(self) -> None:
+        # Initial size is unknown here; pass a sentinel, factory may ignore.
+        try:
+            self._shader = self._factory((0, 0))
+        except Exception as e:
+            _debug_log(f"GlowUntil factory failed: {e!r}", action="GlowUntil")
+            self._shader = None
+
+        # Extract simulation-time duration if provided by duration() helper
+        self._duration = None
+        if hasattr(self.condition, "_duration_seconds"):
+            seconds = self.condition._duration_seconds
+            if isinstance(seconds, (int, float)) and seconds >= 0:
+                self._duration = float(seconds)
+        self._elapsed = 0.0
+
+    def update_effect(self, delta_time: float) -> None:
+        if not self._shader:
+            return
+
+        # Simulation-time duration handling first
+        if self._duration is not None:
+            self._elapsed += delta_time
+            if self._elapsed >= self._duration - 1e-9:
+                # Stop without rendering this frame
+                self._condition_met = True
+                self.done = True
+                if self.on_stop:
+                    try:
+                        self.on_stop(None)
+                    except Exception:
+                        pass
+                return
+
+        # Prepare uniforms
+        if self._uniforms_provider:
+            try:
+                uniforms = self._uniforms_provider(self._shader, self.target)
+            except Exception as e:
+                _debug_log(f"GlowUntil uniforms_provider failed: {e!r}", action="GlowUntil")
+                uniforms = None
+            if isinstance(uniforms, dict):
+                # Camera correction for common uniform key names
+                if self._camera_bottom_left_provider and "lightPosition" in uniforms:
+                    try:
+                        cam_left, cam_bottom = self._camera_bottom_left_provider()
+                        px, py = uniforms["lightPosition"]
+                        uniforms["lightPosition"] = (px - cam_left, py - cam_bottom)
+                    except Exception:
+                        # Best-effort only; leave as-is on failure
+                        pass
+
+                for key, value in uniforms.items():
+                    self._shader.program[key] = value
+
+        # Render once per update
+        try:
+            self._shader.render()
+        except Exception as e:
+            _debug_log(f"GlowUntil render failed: {e!r}", action="GlowUntil")
+
+    # Optional hook from window to propagate resize
+    def on_resize(self, width: int, height: int) -> None:
+        if self._auto_resize and self._shader and hasattr(self._shader, "resize"):
+            try:
+                self._shader.resize((width, height))
+            except Exception as e:
+                _debug_log(f"GlowUntil resize failed: {e!r}", action="GlowUntil")
+
+    def clone(self) -> "GlowUntil":
+        return GlowUntil(
+            shadertoy_factory=self._factory,
+            condition=_clone_condition(self.condition),
+            on_stop=self.on_stop,
+            uniforms_provider=self._uniforms_provider,
+            get_camera_bottom_left=self._camera_bottom_left_provider,
+            auto_resize=self._auto_resize,
+            draw_order=self._draw_order,
+        )
+
+
+class EmitParticlesUntil(_Action):
+    """Manage one emitter per sprite, updating position/rotation until a condition.
+
+    Args:
+        emitter_factory: Callable receiving the sprite and returning an emitter
+            with attributes center_x/center_y/angle and methods update(), destroy().
+        anchor: "center" or (dx, dy) offset relative to sprite center.
+        follow_rotation: If True, set emitter.angle from sprite.angle each frame.
+        start_paused: Reserved for future usage (no-op for now).
+        destroy_on_stop: If True, call destroy() on all emitters at stop.
+    """
+
+    def __init__(
+        self,
+        *,
+        emitter_factory,
+        condition,
+        on_stop=None,
+        anchor="center",
+        follow_rotation: bool = False,
+        start_paused: bool = False,
+        destroy_on_stop: bool = True,
+    ):
+        super().__init__(condition, on_stop)
+        self._factory = emitter_factory
+        self._anchor = anchor
+        self._follow_rotation = follow_rotation
+        self._start_paused = start_paused
+        self._destroy_on_stop = destroy_on_stop
+
+        self._emitters: dict[int, object] = {}
+        self._emitters_snapshot: dict[int, object] = {}
+        self._elapsed = 0.0
+        self._duration: float | None = None
+
+    def apply_effect(self) -> None:
+        self._emitters.clear()
+
+        def create_for_sprite(sprite):
+            emitter = self._factory(sprite)
+            self._emitters[id(sprite)] = emitter
+
+        self.for_each_sprite(create_for_sprite)
+
+        # Extract simulation-time duration if provided by duration() helper
+        self._duration = None
+        if hasattr(self.condition, "_duration_seconds"):
+            self._duration = self.condition._duration_seconds
+        self._elapsed = 0.0
+
+    def _resolve_anchor(self, sprite) -> tuple[float, float]:
+        if isinstance(self._anchor, tuple):
+            dx, dy = self._anchor
+            return (sprite.center_x + dx, sprite.center_y + dy)
+        # Default and string anchors: implement center only for now
+        return (sprite.center_x, sprite.center_y)
+
+    def update_effect(self, delta_time: float) -> None:
+        # Track elapsed time for duration-based conditions
+        if self._duration is not None:
+            self._elapsed += delta_time
+
+            # Check if duration has elapsed
+            if self._elapsed >= self._duration:
+                self._condition_met = True
+                self.remove_effect()
+                self.done = True
+                if self.on_stop:
+                    try:
+                        self.on_stop()
+                    except Exception:
+                        pass
+                return
+
+        def update_for_sprite(sprite):
+            emitter = self._emitters.get(id(sprite))
+            if not emitter:
+                return
+            x, y = self._resolve_anchor(sprite)
+            try:
+                emitter.center_x = x
+                emitter.center_y = y
+                if self._follow_rotation:
+                    emitter.angle = getattr(sprite, "angle")
+                if hasattr(emitter, "update"):
+                    emitter.update()
+            except Exception as e:
+                _debug_log(f"EmitParticlesUntil update failed: {e!r}", action="EmitParticlesUntil")
+
+        self.for_each_sprite(update_for_sprite)
+
+    def remove_effect(self) -> None:
+        # Preserve emitters for tests/diagnostics before cleanup
+        self._emitters_snapshot = dict(self._emitters)
+
+        if self._destroy_on_stop:
+            for emitter in list(self._emitters.values()):
+                try:
+                    if hasattr(emitter, "destroy"):
+                        emitter.destroy()
+                except Exception as e:
+                    _debug_log(f"EmitParticlesUntil destroy failed: {e!r}", action="EmitParticlesUntil")
+        self._emitters.clear()
+
+    def clone(self) -> "EmitParticlesUntil":
+        return EmitParticlesUntil(
+            emitter_factory=self._factory,
+            condition=_clone_condition(self.condition),
+            on_stop=self.on_stop,
+            anchor=self._anchor,
+            follow_rotation=self._follow_rotation,
+            start_paused=self._start_paused,
+            destroy_on_stop=self._destroy_on_stop,
+        )

@@ -368,6 +368,212 @@ class TestVelocityProvider:
         assert call_count == 11  # 1 from apply + 10 from updates
 ```
 
+## Testing Shader and Particle Actions
+
+### Testing GlowUntil with Fake Shadertoy
+
+Test shader effects without OpenGL dependencies using fakes:
+
+```python
+from actions import Action, GlowUntil, duration
+
+class FakeShadertoy:
+    """Minimal stand-in for arcade.experimental.Shadertoy."""
+    
+    def __init__(self, size=(800, 600)):
+        self.size = size
+        self.program = {}  # Dict-like for uniforms
+        self.resize_calls = []
+        self.render_calls = 0
+    
+    def resize(self, size):
+        self.size = size
+        self.resize_calls.append(size)
+    
+    def render(self):
+        self.render_calls += 1
+
+
+def test_glow_renders_and_sets_uniforms(test_sprite):
+    """Test GlowUntil renders and sets uniforms correctly."""
+    fake = FakeShadertoy()
+    
+    def shader_factory(size):
+        return fake
+    
+    def uniforms_provider(shader, target):
+        return {"time": 1.5, "intensity": 0.8}
+    
+    action = GlowUntil(
+        shadertoy_factory=shader_factory,
+        condition=duration(0.05),
+        uniforms_provider=uniforms_provider,
+    )
+    action.apply(test_sprite)
+    
+    # Drive updates
+    Action.update_all(0.016)
+    Action.update_all(0.016)
+    
+    # Verify rendering
+    assert fake.render_calls >= 1
+    
+    # Verify uniforms were set
+    assert "time" in fake.program
+    assert fake.program["time"] == 1.5
+    
+    # Complete the action
+    Action.update_all(0.06)
+    assert action.done
+
+
+def test_glow_camera_offset_correction(test_sprite):
+    """Test GlowUntil corrects world coords to screen coords."""
+    fake = FakeShadertoy()
+    
+    camera_x, camera_y = 100.0, 50.0
+    
+    def shader_factory(size):
+        return fake
+    
+    def uniforms_provider(shader, target):
+        return {"lightPosition": (400.0, 300.0)}  # World coords
+    
+    def get_camera_pos():
+        return (camera_x, camera_y)
+    
+    action = GlowUntil(
+        shadertoy_factory=shader_factory,
+        condition=duration(0.05),
+        uniforms_provider=uniforms_provider,
+        get_camera_bottom_left=get_camera_pos,
+    )
+    action.apply(test_sprite)
+    
+    Action.update_all(0.016)
+    
+    # Camera offset should be subtracted from world coords
+    assert fake.program["lightPosition"] == (300.0, 250.0)  # (400-100, 300-50)
+```
+
+### Testing EmitParticlesUntil with Fake Emitters
+
+Test particle emitters without Arcade's particle system:
+
+```python
+from actions import Action, EmitParticlesUntil, duration
+
+class FakeEmitter:
+    """Minimal stand-in for arcade particle emitters."""
+    
+    def __init__(self):
+        self.center_x = 0.0
+        self.center_y = 0.0
+        self.angle = 0.0
+        self.update_calls = 0
+        self.destroy_calls = 0
+    
+    def update(self):
+        self.update_calls += 1
+    
+    def destroy(self):
+        self.destroy_calls += 1
+
+
+def test_emitter_per_sprite_follows_position(test_sprite_list):
+    """Test EmitParticlesUntil creates and updates emitters per sprite."""
+    
+    def emitter_factory(sprite):
+        return FakeEmitter()
+    
+    action = EmitParticlesUntil(
+        emitter_factory=emitter_factory,
+        condition=duration(0.05),
+        anchor="center",
+        follow_rotation=False,
+    )
+    action.apply(test_sprite_list)
+    
+    # Verify one emitter per sprite
+    assert len(action._emitters) == len(test_sprite_list)
+    
+    # Update a few times
+    Action.update_all(0.016)
+    Action.update_all(0.016)
+    
+    # Verify emitters follow sprite positions
+    for sprite in test_sprite_list:
+        emitter = action._emitters[id(sprite)]
+        assert emitter.center_x == sprite.center_x
+        assert emitter.center_y == sprite.center_y
+        assert emitter.update_calls >= 1
+    
+    # Complete and verify cleanup
+    Action.update_all(0.06)
+    for sprite in test_sprite_list:
+        emitter = action._emitters_snapshot[id(sprite)]
+        assert emitter.destroy_calls == 1
+    assert action.done
+
+
+def test_emitter_follows_rotation(test_sprite):
+    """Test EmitParticlesUntil updates emitter angle when follow_rotation=True."""
+    test_sprite.angle = 45.0
+    
+    def emitter_factory(sprite):
+        return FakeEmitter()
+    
+    action = EmitParticlesUntil(
+        emitter_factory=emitter_factory,
+        condition=duration(0.05),
+        anchor="center",
+        follow_rotation=True,
+    )
+    action.apply(test_sprite)
+    
+    Action.update_all(0.016)
+    
+    emitter = next(iter(action._emitters.values()))
+    assert emitter.angle == 45.0
+    
+    # Change sprite angle
+    test_sprite.angle = 90.0
+    Action.update_all(0.016)
+    
+    assert emitter.angle == 90.0
+
+
+def test_custom_anchor_offset(test_sprite):
+    """Test EmitParticlesUntil with custom anchor offset."""
+    test_sprite.center_x = 200
+    test_sprite.center_y = 300
+    
+    offset = (5.0, -3.0)
+    
+    def emitter_factory(sprite):
+        return FakeEmitter()
+    
+    action = EmitParticlesUntil(
+        emitter_factory=emitter_factory,
+        condition=duration(0.02),
+        anchor=offset,
+    )
+    action.apply(test_sprite)
+    
+    Action.update_all(0.016)
+    
+    emitter = next(iter(action._emitters.values()))
+    assert emitter.center_x == test_sprite.center_x + offset[0]
+    assert emitter.center_y == test_sprite.center_y + offset[1]
+```
+
+**Key Points:**
+- Use fakes to avoid GL/particle system dependencies
+- Test lifecycle: creation, updates, cleanup
+- Verify position/rotation tracking
+- Check `_emitters_snapshot` for post-completion verification
+- Validate anchor offset calculations
+
 ## Testing BlinkUntil with Visibility Callbacks
 
 Test BlinkUntil callback functionality for collision management and game state synchronization:
