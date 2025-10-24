@@ -1053,6 +1053,136 @@ move_until(
 )
 ```
 
+## Shader and Particle Effects
+
+### Pattern 10: Full-Screen Shader Effects with GlowUntil
+
+`GlowUntil` provides a declarative wrapper around Arcade's Shadertoy system, simplifying full-screen shader effects:
+
+```python
+from arcade.experimental import Shadertoy
+from actions import GlowUntil, duration
+
+# Create shader factory
+def make_glow_shader(size):
+    return Shadertoy.create_from_file(size, "glow_shader.glsl")
+
+# Apply glow effect for 5 seconds
+GlowUntil(
+    shadertoy_factory=make_glow_shader,
+    condition=duration(5.0),
+    on_stop=lambda: print("Glow effect ended")
+).apply(sprite, tag="glow")
+
+# In your on_draw():
+# GlowUntil automatically calls shader.render()
+```
+
+**With Camera Offset and Uniforms:**
+
+```python
+def get_uniforms(shader, target):
+    # Return dict of uniforms to set on the shader
+    return {
+        "lightPosition": (player.center_x, player.center_y),  # World coords
+        "lightRadius": 200.0,
+    }
+
+def get_camera_pos():
+    return (camera.position[0], camera.position[1])
+
+GlowUntil(
+    shadertoy_factory=make_glow_shader,
+    condition=duration(3.0),
+    uniforms_provider=get_uniforms,
+    get_camera_bottom_left=get_camera_pos,  # Converts world → screen coords
+    auto_resize=True,  # Handles window resize
+).apply(sprite, tag="dynamic_glow")
+```
+
+**Helper Function:**
+
+```python
+from actions import glow_until
+
+# Same as above, with automatic application
+glow_until(
+    sprite,
+    shadertoy_factory=make_glow_shader,
+    condition=duration(3.0),
+    tag="quick_glow"
+)
+```
+
+### Pattern 11: Per-Sprite Particle Emitters with EmitParticlesUntil
+
+`EmitParticlesUntil` manages particle emitters that follow sprites with customizable anchors and rotation:
+
+```python
+from arcade import make_burst_emitter
+from actions import EmitParticlesUntil, duration
+
+# Factory receives the sprite and returns an emitter
+def create_thrust_emitter(sprite):
+    return make_burst_emitter(
+        center_xy=(0, 0),  # Will be updated to sprite position
+        filenames_and_textures=[":resources:images/pinball/pool_cue_ball.png"],
+        particle_count=50,
+        particle_speed=2.0,
+        particle_lifetime_max=1.0,
+    )
+
+# Emit particles from sprite center for 2 seconds
+EmitParticlesUntil(
+    emitter_factory=create_thrust_emitter,
+    condition=duration(2.0),
+    anchor="center",  # Or (dx, dy) offset
+    follow_rotation=True,  # Emitter.angle = sprite.angle
+    destroy_on_stop=True,  # Clean up emitter when done
+).apply(rocket, tag="thrust")
+```
+
+**For SpriteList (one emitter per sprite):**
+
+```python
+# When applied to SpriteList, creates one emitter per sprite
+EmitParticlesUntil(
+    emitter_factory=create_explosion_emitter,
+    condition=duration(1.5),
+    anchor="center",
+).apply(enemy_ships, tag="explosions")
+
+# Each sprite gets its own emitter that follows it
+```
+
+**Custom Anchor Offset:**
+
+```python
+# Emit from back of ship (offset from center)
+EmitParticlesUntil(
+    emitter_factory=create_thrust_emitter,
+    condition=duration(2.0),
+    anchor=(-20, 0),  # 20 pixels left of center
+    follow_rotation=True,
+).apply(rocket, tag="rear_thrust")
+```
+
+**Helper Function:**
+
+```python
+from actions import emit_particles_until
+
+# Same as above, with automatic application
+emit_particles_until(
+    rocket,
+    emitter_factory=create_thrust_emitter,
+    condition=duration(2.0),
+    anchor="center",
+    follow_rotation=True,
+    tag="quick_particles"
+)
+```
+
 ## Easing Effects
 
 ### Overview
@@ -1645,6 +1775,138 @@ def handle_bullet_collision(collision_data):
 
 move_until(bullet, velocity=(0, BULLET_SPEED), condition=bullet_collision_check, on_stop=handle_bullet_collision)
 ```
+
+## Per-Axis Motion
+
+ArcadeActions provides axis-specific movement actions that enable safe composition of orthogonal motion patterns. This is particularly useful for creating complex movement behaviors where different axes need different boundary behaviors or velocities.
+
+### Axis-Specific Actions
+
+**MoveXUntil** and **MoveYUntil** are specialized versions of MoveUntil that only affect their respective axes:
+
+- **MoveXUntil**: Only modifies `sprite.change_x`, never touches `sprite.change_y`
+- **MoveYUntil**: Only modifies `sprite.change_y`, never touches `sprite.change_x`
+
+This allows you to compose orthogonal movements safely using `parallel()`:
+
+```python
+from actions import MoveXUntil, MoveYUntil, parallel, infinite
+
+# X-axis scrolling with limit boundary behavior
+scroll_x = MoveXUntil(
+    velocity=(-3, 0),  # Only X velocity
+    condition=infinite,
+    bounds=(0, 0, 800, 600),
+    boundary_behavior="limit"
+)
+
+# Y-axis bouncing with bounce boundary behavior  
+bob_y = MoveYUntil(
+    velocity=(0, 2),  # Only Y velocity
+    condition=infinite,
+    bounds=(0, 0, 800, 600),
+    boundary_behavior="bounce"
+)
+
+# Compose both movements safely
+parallel(scroll_x, bob_y).apply(sprite)
+# Result: sprite.change_x = -3, sprite.change_y = 2
+# X-axis limited at boundaries, Y-axis bounces
+```
+
+### Axis-Specific Helper Functions
+
+For convenience, use the target-first helper functions:
+
+```python
+from actions import move_x_until, move_y_until, infinite
+
+# X-axis movement only
+scroll = move_x_until(
+    target=sprite,
+    dx=-4,
+    condition=infinite,
+    bounds=(0, 0, 800, 600),
+    boundary_behavior="limit"
+)
+
+# Y-axis movement only
+bob = move_y_until(
+    target=sprite,
+    dy=2,
+    condition=infinite,
+    bounds=(0, 0, 800, 600),
+    boundary_behavior="bounce"
+)
+
+# Both movements are applied independently
+# sprite.change_x = -4, sprite.change_y = 2
+```
+
+### Axis-Aware Pattern Factories
+
+Pattern factories now support an `axis` parameter for creating axis-specific patterns:
+
+```python
+from actions import create_bounce_pattern, create_patrol_pattern
+
+# X-axis only bouncing
+bounce_x = create_bounce_pattern(
+    velocity=(150, 0),  # Only X velocity matters
+    bounds=(0, 0, 800, 600),
+    axis="x"
+)
+
+# Y-axis only patrol
+patrol_y = create_patrol_pattern(
+    start_pos=(100, 200),
+    end_pos=(100, 400),  # Vertical patrol
+    speed=120,
+    axis="y"
+)
+
+# Compose with other movements
+move_x_until(sprite, dx=5, condition=infinite).apply(sprite)
+patrol_y.apply(sprite)
+# X-axis continues at 5 px/frame, Y-axis patrols vertically
+```
+
+### Velocity Semantics
+
+All velocity values use Arcade's native "pixels per frame at 60 FPS" semantics:
+
+- `move_x_until(sprite, dx=5, condition=infinite)` means 5 pixels per frame
+- `move_y_until(sprite, dy=2, condition=infinite)` means 2 pixels per frame
+- This maintains perfect consistency with Arcade's `sprite.change_x/change_y` system
+
+### Common Use Cases
+
+**Scrolling Background with Bouncing Elements:**
+```python
+# Background scrolls left, elements bounce vertically
+scroll = move_x_until(background_sprites, dx=-2, condition=infinite)
+bounce = move_y_until(element_sprites, dy=1, condition=infinite, 
+                     bounds=(0, 0, 800, 600), boundary_behavior="bounce")
+```
+
+**Platformer Movement:**
+```python
+# Horizontal movement with gravity
+move_horizontal = move_x_until(player, dx=3, condition=infinite)
+apply_gravity = move_y_until(player, dy=-1, condition=infinite,
+                           bounds=(0, 0, 800, 600), boundary_behavior="limit")
+```
+
+**Formation Movement:**
+```python
+# Formation moves as a unit horizontally, individual bobbing
+formation_move = move_x_until(formation, dx=-1, condition=infinite)
+for sprite in formation:
+    bob = move_y_until(sprite, dy=0.5, condition=infinite,
+                      bounds=(0, 0, 800, 600), boundary_behavior="bounce")
+```
+
+This approach ensures that orthogonal movements don't interfere with each other, making complex movement patterns predictable and composable.
 
 This pattern ensures collision checks are only performed once per frame, and all relevant data is passed directly to the handler—no need for extra state or repeated queries. This is the recommended approach for efficient, event-driven collision handling in ArcadeActions.
 

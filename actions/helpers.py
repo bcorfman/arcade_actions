@@ -25,9 +25,11 @@ from actions import (
     Action,
     BlinkUntil,
     CallbackUntil,
+    EmitParticlesUntil,
     CycleTexturesUntil,
     DelayUntil,
     Ease,
+    GlowUntil,
     FadeUntil,
     FollowPathUntil,
     MoveUntil,
@@ -35,6 +37,7 @@ from actions import (
     ScaleUntil,
     TweenUntil,
 )
+from actions.axis_move import MoveXUntil, MoveYUntil
 
 SpriteTarget = arcade.Sprite | arcade.SpriteList
 
@@ -418,6 +421,185 @@ def cycle_textures_until(
         direction=direction,
         condition=condition,
         on_stop=on_stop,
+    )
+    action.apply(target, tag=tag)
+    return action
+
+
+def glow_until(
+    target: SpriteTarget,
+    *,
+    shadertoy_factory,
+    condition: Callable[[], Any],
+    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
+    uniforms_provider: Callable[[Any, Any], dict[str, Any]] | None = None,
+    get_camera_bottom_left: Callable[[], tuple[float, float]] | None = None,
+    auto_resize: bool = True,
+    draw_order: str = "after",
+    tag: str | None = None,
+) -> GlowUntil:
+    """Creates and applies a GlowUntil action to the target.
+
+    All dependencies are provided via callables for testability.
+    """
+    action = GlowUntil(
+        shadertoy_factory=shadertoy_factory,
+        condition=condition,
+        on_stop=on_stop,
+        uniforms_provider=uniforms_provider,
+        get_camera_bottom_left=get_camera_bottom_left,
+        auto_resize=auto_resize,
+        draw_order=draw_order,
+    )
+    action.apply(target, tag=tag)
+    return action
+
+
+def emit_particles_until(
+    target: SpriteTarget,
+    *,
+    emitter_factory,
+    condition: Callable[[], Any],
+    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
+    anchor: str | tuple[float, float] = "center",
+    follow_rotation: bool = False,
+    start_paused: bool = False,
+    destroy_on_stop: bool = True,
+    tag: str | None = None,
+) -> EmitParticlesUntil:
+    """Creates and applies an EmitParticlesUntil action to the target.
+
+    One emitter per sprite when target is a SpriteList; emitter follows sprite
+    position (optionally rotation) until the condition is met.
+    """
+    action = EmitParticlesUntil(
+        emitter_factory=emitter_factory,
+        condition=condition,
+        on_stop=on_stop,
+        anchor=anchor,
+        follow_rotation=follow_rotation,
+        start_paused=start_paused,
+        destroy_on_stop=destroy_on_stop,
+    )
+    action.apply(target, tag=tag)
+    return action
+
+
+def move_x_until(
+    target: SpriteTarget,
+    *,
+    dx: float,
+    condition: Callable[[], Any],
+    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
+    tag: str | None = None,
+    velocity_provider: Callable[[], tuple[float, float]] | None = None,
+    on_boundary_enter: Callable[[Any, str, str], None] | None = None,
+    on_boundary_exit: Callable[[Any, str, str], None] | None = None,
+    **kwargs,
+) -> MoveXUntil:
+    """
+    Creates and applies a MoveXUntil action to the target.
+
+    This is a convenience wrapper for the MoveXUntil class that immediately applies
+    the action to the target sprite or sprite list. Only affects the X axis (change_x),
+    leaving Y-axis movement untouched for safe composition.
+
+    Args:
+        target: The sprite (arcade.Sprite) or sprite list (arcade.SpriteList) to move.
+        dx: The X-axis velocity (dy component is ignored).
+        condition: The condition to stop moving.
+        on_stop: An optional callback to run when the condition is met.
+        tag: An optional tag for the action.
+        velocity_provider: Optional function returning (dx, dy) velocity each frame.
+        on_boundary_enter: Optional callback(sprite, axis, side) for boundary enter events.
+        on_boundary_exit: Optional callback(sprite, axis, side) for boundary exit events.
+        **kwargs: Additional arguments passed to MoveXUntil (bounds, boundary_behavior, etc.)
+
+    Returns:
+        The created MoveXUntil action instance.
+
+    Example:
+        # Basic X-axis movement
+        move_x_until(sprite, dx=5, condition=lambda: sprite.center_x > 500)
+
+        # With boundary callbacks
+        move_x_until(
+            sprite,
+            dx=-4,
+            condition=infinite,
+            bounds=(0, 0, 800, 600),
+            boundary_behavior="limit",
+            on_boundary_enter=lambda s, axis, side: print(f"Hit {side} {axis} boundary")
+        )
+    """
+    action = MoveXUntil(
+        velocity=(dx, 0),
+        condition=condition,
+        on_stop=on_stop,
+        velocity_provider=velocity_provider,
+        on_boundary_enter=on_boundary_enter,
+        on_boundary_exit=on_boundary_exit,
+        **kwargs,
+    )
+    action.apply(target, tag=tag)
+    return action
+
+
+def move_y_until(
+    target: SpriteTarget,
+    *,
+    dy: float,
+    condition: Callable[[], Any],
+    on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
+    tag: str | None = None,
+    velocity_provider: Callable[[], tuple[float, float]] | None = None,
+    on_boundary_enter: Callable[[Any, str, str], None] | None = None,
+    on_boundary_exit: Callable[[Any, str, str], None] | None = None,
+    **kwargs,
+) -> MoveYUntil:
+    """
+    Creates and applies a MoveYUntil action to the target.
+
+    This is a convenience wrapper for the MoveYUntil class that immediately applies
+    the action to the target sprite or sprite list. Only affects the Y axis (change_y),
+    leaving X-axis movement untouched for safe composition.
+
+    Args:
+        target: The sprite (arcade.Sprite) or sprite list (arcade.SpriteList) to move.
+        dy: The Y-axis velocity (dx component is ignored).
+        condition: The condition to stop moving.
+        on_stop: An optional callback to run when the condition is met.
+        tag: An optional tag for the action.
+        velocity_provider: Optional function returning (dx, dy) velocity each frame.
+        on_boundary_enter: Optional callback(sprite, axis, side) for boundary enter events.
+        on_boundary_exit: Optional callback(sprite, axis, side) for boundary exit events.
+        **kwargs: Additional arguments passed to MoveYUntil (bounds, boundary_behavior, etc.)
+
+    Returns:
+        The created MoveYUntil action instance.
+
+    Example:
+        # Basic Y-axis movement
+        move_y_until(sprite, dy=5, condition=lambda: sprite.center_y > 500)
+
+        # With boundary callbacks
+        move_y_until(
+            sprite,
+            dy=2,
+            condition=infinite,
+            bounds=(0, 0, 800, 600),
+            boundary_behavior="bounce",
+            on_boundary_enter=lambda s, axis, side: print(f"Hit {side} {axis} boundary")
+        )
+    """
+    action = MoveYUntil(
+        velocity=(0, dy),
+        condition=condition,
+        on_stop=on_stop,
+        velocity_provider=velocity_provider,
+        on_boundary_enter=on_boundary_enter,
+        on_boundary_exit=on_boundary_exit,
+        **kwargs,
     )
     action.apply(target, tag=tag)
     return action

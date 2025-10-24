@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arcade-actions"
-version = "0.9.1"
+version = "0.10"
 description = "Extension library for Arcade 3.x, providing a high-level way to animate sprites with conditional actions."
 authors = [
     {name = "Brandon Corfman", email = "teacup_canny.5l@icloud.com"}

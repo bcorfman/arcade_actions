@@ -180,6 +180,8 @@ docs/
 - **CallbackUntil** - Execute callback functions at specified intervals or every frame until condition is met
 - **DelayUntil** - Wait for condition to be met
 - **TweenUntil** - Direct property animation from start to end value
+- **GlowUntil** - Render full-screen Shadertoy effects with camera offset support
+- **EmitParticlesUntil** - Manage per-sprite particle emitters with anchor and rotation following
 
 #### Composite Actions (actions/composite.py)
 - **Sequential actions** - Run actions one after another (use `sequence()`)
