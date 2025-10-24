@@ -14,11 +14,10 @@ from collections.abc import Callable
 import arcade
 
 from actions import DelayUntil, FollowPathUntil, MoveUntil, duration, sequence
-from actions.conditional import ParametricMotionUntil
 
 
-def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segments: int = 4) -> "ParametricMotionUntil":
-    """Create a zigzag movement pattern using a ParametricMotionUntil action.
+def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segments: int = 4):
+    """Create a zigzag movement pattern using sequences of MoveUntil actions.
 
     Args:
         width: Horizontal distance for each zigzag segment
@@ -27,7 +26,7 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
         segments: Number of zigzag segments to create
 
     Returns:
-        ParametricMotionUntil action that creates zigzag movement
+        Sequence action that creates zigzag movement
 
     Example:
         zigzag = create_zigzag_pattern(dimensions=(100, 50), speed=150, segments=6)
@@ -100,7 +99,7 @@ def create_wave_pattern(
     end_progress: float = 1.0,
     debug: bool = False,
     debug_threshold: float | None = None,
-) -> "ParametricMotionUntil":
+):
     """Galaga-style sway with *formation slots in the middle of the dip*.
 
     The Action returned is a ParametricMotionUntil instance implemented with
@@ -192,7 +191,7 @@ def create_wave_pattern(
 
 def create_spiral_pattern(
     center: tuple[float, float], max_radius: float, revolutions: float, speed: float, direction: str = "outward"
-) -> "FollowPathUntil":
+):
     """Create an outward or inward spiral pattern.
 
     Args:
@@ -240,9 +239,7 @@ def create_spiral_pattern(
     )
 
 
-def create_figure_eight_pattern(
-    center: tuple[float, float], width: float, height: float, speed: float
-) -> "ParametricMotionUntil":
+def create_figure_eight_pattern(center: tuple[float, float], width: float, height: float, speed: float):
     """Create a figure-8 (infinity) movement pattern.
 
     Args:
@@ -292,9 +289,7 @@ def create_figure_eight_pattern(
     return action
 
 
-def create_orbit_pattern(
-    center: tuple[float, float], radius: float, speed: float, clockwise: bool = True
-) -> "SingleOrbitAction":
+def create_orbit_pattern(center: tuple[float, float], radius: float, speed: float, clockwise: bool = True):
     """Create a single circular orbit pattern (one full revolution).
 
     Args:
@@ -428,43 +423,24 @@ def create_orbit_pattern(
     return SingleOrbitAction()
 
 
-def create_bounce_pattern(
-    velocity: tuple[float, float], bounds: tuple[float, float, float, float], *, axis: str = "both"
-) -> "MoveUntil":
+def create_bounce_pattern(velocity: tuple[float, float], bounds: tuple[float, float, float, float]):
     """Create a bouncing movement pattern within boundaries.
 
     Args:
         velocity: (dx, dy) initial velocity vector
         bounds: (left, bottom, right, top) boundary box
-        axis: Axis to apply movement to ("both", "x", or "y"). Defaults to "both" for legacy behavior.
 
     Returns:
-        MoveUntil, MoveXUntil, or MoveYUntil action with bouncing behavior
+        MoveUntil action with bouncing behavior
 
     Example:
         bounce = create_bounce_pattern((150, 100), bounds=(0, 0, 800, 600))
         bounce.apply(sprite, tag="bouncing")
-
-        # X-axis only bouncing
-        bounce_x = create_bounce_pattern((150, 0), bounds=(0, 0, 800, 600), axis="x")
     """
     # Local import to avoid potential circular dependency with main actions module
     from .conditional import infinite
-    from .axis_move import MoveXUntil, MoveYUntil
 
-    # Validate axis parameter
-    if axis not in {"both", "x", "y"}:
-        raise ValueError(f"axis must be one of {{'both', 'x', 'y'}}, got {axis!r}")
-
-    # Choose the appropriate class based on axis
-    if axis == "both":
-        cls = MoveUntil
-    elif axis == "x":
-        cls = MoveXUntil
-    else:  # axis == "y"
-        cls = MoveYUntil
-
-    return cls(
+    return MoveUntil(
         velocity,
         infinite,  # Continue indefinitely
         bounds=bounds,
@@ -479,7 +455,6 @@ def create_patrol_pattern(
     *,
     start_progress: float = 0.0,
     end_progress: float = 1.0,
-    axis: str = "both",
 ):
     """Create a back-and-forth patrol pattern between two points.
 
@@ -492,7 +467,6 @@ def create_patrol_pattern(
         speed: Movement speed in pixels per frame (Arcade semantics)
         start_progress: Starting progress along the patrol cycle [0.0, 1.0], default 0.0
         end_progress: Ending progress along the patrol cycle [0.0, 1.0], default 1.0
-        axis: Axis to apply movement to ("both", "x", or "y"). Defaults to "both" for legacy behavior.
 
     The patrol cycle progresses as:
         0.0: Start position (left boundary)
@@ -500,16 +474,13 @@ def create_patrol_pattern(
         1.0: Back to start position (left boundary)
 
     Returns:
-        MoveUntil, MoveXUntil, or MoveYUntil action with boundary bouncing
+        MoveUntil action with boundary bouncing
 
     Example:
         # Sprite at center, move to left boundary then do full patrol
         quarter = create_patrol_pattern(left_pos, right_pos, 2, start_progress=0.75, end_progress=1.0)
         full = create_patrol_pattern(left_pos, right_pos, 2, start_progress=0.0, end_progress=1.0)
         sequence(quarter, repeat(full)).apply(sprite)
-
-        # X-axis only patrol
-        patrol_x = create_patrol_pattern(left_pos, right_pos, 2, axis="x")
     """
     # Validate progress parameters
     if not (0.0 <= start_progress <= 1.0 and 0.0 <= end_progress <= 1.0):
@@ -528,13 +499,8 @@ def create_patrol_pattern(
     if distance == 0:
         return sequence()
 
-    # Validate axis parameter
-    if axis not in {"both", "x", "y"}:
-        raise ValueError(f"axis must be one of {{'both', 'x', 'y'}}, got {axis!r}")
-
     # Local imports to avoid circular dependencies
     from .conditional import MoveUntil, duration
-    from .axis_move import MoveXUntil, MoveYUntil
 
     # Set boundaries at the patrol endpoints
     left = min(start_pos[0], end_pos[0])
@@ -559,20 +525,12 @@ def create_patrol_pattern(
     progress_distance = total_distance * (end_progress - start_progress)
     duration_seconds = progress_distance / speed / 60.0
 
-    # Choose the appropriate class based on axis
-    if axis == "both":
-        cls = MoveUntil
-    elif axis == "x":
-        cls = MoveXUntil
-    else:  # axis == "y"
-        cls = MoveYUntil
-
-    # Create action with boundary bouncing (like create_bounce_pattern)
-    return cls(velocity, duration(duration_seconds), bounds=bounds, boundary_behavior="bounce")
+    # Create MoveUntil with boundary bouncing (like create_bounce_pattern)
+    return MoveUntil(velocity, duration(duration_seconds), bounds=bounds, boundary_behavior="bounce")
 
 
 # Condition helper functions
-def time_elapsed(seconds: float) -> "Callable":
+def time_elapsed(seconds: float) -> Callable:
     """Create a condition function that returns True after the specified time.
 
     Args:
@@ -598,7 +556,7 @@ def time_elapsed(seconds: float) -> "Callable":
     return condition
 
 
-def sprite_count(sprite_list: arcade.SpriteList, target_count: int, comparison: str = "<=") -> "Callable":
+def sprite_count(sprite_list: arcade.SpriteList, target_count: int, comparison: str = "<=") -> Callable:
     """Create a condition function that checks sprite list count.
 
     Args:
@@ -663,7 +621,7 @@ def _calculate_velocity_to_target(
 
 
 # Create precision movement action that stops exactly at target
-def _create_precision_condition_and_callback(target_position, sprite_ref) -> "Callable":
+def _create_precision_condition_and_callback(target_position, sprite_ref):
     def precision_condition():
         # Calculate distance to target
         dx = target_position[0] - sprite_ref.center_x
@@ -709,7 +667,7 @@ def _validate_entry_kwargs(kwargs: dict) -> dict:
     return validated
 
 
-def _determine_min_spacing(target_formation) -> float:
+def _determine_min_spacing(target_formation):
     """Compute a reasonable minimum spacing based on largest sprite dimension."""
     max_sprite_dimension = 64  # Default fallback
     # Get the maximum dimension from the first sprite as a reference
@@ -885,7 +843,7 @@ def create_formation_entry_from_sprites(
     return entry_actions
 
 
-def _generate_arc_spawn_positions(target_formation, window_bounds, min_spacing) -> list[tuple[float, float]]:
+def _generate_arc_spawn_positions(target_formation, window_bounds, min_spacing):
     num_sprites = len(target_formation)
     left, bottom, right, top = window_bounds
     arc_center_x = (left + right) / 2  # Center horizontally
@@ -918,7 +876,7 @@ def _generate_arc_spawn_positions(target_formation, window_bounds, min_spacing) 
     return spawn_positions
 
 
-def _find_nearest(spawn_positions, target_positions) -> list[tuple[float, int, int]]:
+def _find_nearest(spawn_positions, target_positions):
     """Find the optimal assignment of spawn positions to target positions.
 
     Uses a greedy approach to assign each target position to its nearest
