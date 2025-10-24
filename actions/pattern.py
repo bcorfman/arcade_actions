@@ -292,9 +292,7 @@ def create_figure_eight_pattern(
     return action
 
 
-def create_orbit_pattern(
-    center: tuple[float, float], radius: float, speed: float, clockwise: bool = True
-) -> "SingleOrbitAction":
+def create_orbit_pattern(center: tuple[float, float], radius: float, speed: float, clockwise: bool = True):
     """Create a single circular orbit pattern (one full revolution).
 
     Args:
