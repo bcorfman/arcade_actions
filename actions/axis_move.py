@@ -61,6 +61,15 @@ class MoveXUntil(MoveUntil):
     def apply_effect(self) -> None:
         """Apply X-axis only movement to sprites."""
 
+        # Extract duration from condition if present (for duration-based conditions)
+        self._duration = None
+        if hasattr(self.condition, "_duration_seconds"):
+            seconds = self.condition._duration_seconds
+            if isinstance(seconds, (int, float)) and seconds > 0:
+                self._duration = seconds
+
+        self._elapsed = 0.0
+
         def apply_to_sprite(sprite):
             # Get current velocity (from provider or current)
             if self.velocity_provider:
@@ -228,6 +237,15 @@ class MoveYUntil(MoveUntil):
 
     def apply_effect(self) -> None:
         """Apply Y-axis only movement to sprites."""
+
+        # Extract duration from condition if present (for duration-based conditions)
+        self._duration = None
+        if hasattr(self.condition, "_duration_seconds"):
+            seconds = self.condition._duration_seconds
+            if isinstance(seconds, (int, float)) and seconds > 0:
+                self._duration = seconds
+
+        self._elapsed = 0.0
 
         def apply_to_sprite(sprite):
             # Get current velocity (from provider or current)
