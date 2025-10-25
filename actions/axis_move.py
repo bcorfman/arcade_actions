@@ -82,10 +82,47 @@ class MoveXUntil(MoveUntil):
 
     def update_effect(self, delta_time: float) -> None:
         """Update X-axis movement and handle X-axis boundary behavior only."""
-        # Call parent update for basic movement logic
-        super().update_effect(delta_time)
+        _debug_log(
+            f"MoveXUntil.update_effect: id={id(self)}, delta_time={delta_time:.4f}, done={self.done}",
+            action="MoveXUntil",
+        )
 
-        # Override boundary handling to only affect X axis
+        # Handle duration-based conditions using simulation time
+        if self._duration is not None:
+            self._elapsed += delta_time
+            if self._elapsed >= self._duration:
+                _debug_log(
+                    f"MoveXUntil.update_effect: duration elapsed ({self._duration:.4f}s) - stopping",
+                    action="MoveXUntil",
+                )
+                self._condition_met = True
+                self.remove_effect()
+                self.done = True
+                if self.on_stop:
+                    self.on_stop()
+                return
+
+        # Re-apply velocity from provider if available (X-axis only)
+        if self.velocity_provider:
+            try:
+                dx, dy = self.velocity_provider()
+                _debug_log(
+                    f"MoveXUntil.update_effect: velocity_provider returned dx={dx}",
+                    action="MoveXUntil",
+                )
+
+                def set_velocity(sprite):
+                    sprite.change_x = dx  # Only set X, preserve Y
+
+                self.for_each_sprite(set_velocity)
+            except Exception as error:
+                _debug_log(
+                    f"MoveXUntil.update_effect: velocity_provider exception={error!r} - keeping current velocity",
+                    action="MoveXUntil",
+                )
+                pass  # Keep current velocity on provider error
+
+        # Handle X-axis boundaries only
         if self.bounds and self.boundary_behavior:
             self._handle_x_boundaries()
 
@@ -213,10 +250,47 @@ class MoveYUntil(MoveUntil):
 
     def update_effect(self, delta_time: float) -> None:
         """Update Y-axis movement and handle Y-axis boundary behavior only."""
-        # Call parent update for basic movement logic
-        super().update_effect(delta_time)
+        _debug_log(
+            f"MoveYUntil.update_effect: id={id(self)}, delta_time={delta_time:.4f}, done={self.done}",
+            action="MoveYUntil",
+        )
 
-        # Override boundary handling to only affect Y axis
+        # Handle duration-based conditions using simulation time
+        if self._duration is not None:
+            self._elapsed += delta_time
+            if self._elapsed >= self._duration:
+                _debug_log(
+                    f"MoveYUntil.update_effect: duration elapsed ({self._duration:.4f}s) - stopping",
+                    action="MoveYUntil",
+                )
+                self._condition_met = True
+                self.remove_effect()
+                self.done = True
+                if self.on_stop:
+                    self.on_stop()
+                return
+
+        # Re-apply velocity from provider if available (Y-axis only)
+        if self.velocity_provider:
+            try:
+                dx, dy = self.velocity_provider()
+                _debug_log(
+                    f"MoveYUntil.update_effect: velocity_provider returned dy={dy}",
+                    action="MoveYUntil",
+                )
+
+                def set_velocity(sprite):
+                    sprite.change_y = dy  # Only set Y, preserve X
+
+                self.for_each_sprite(set_velocity)
+            except Exception as error:
+                _debug_log(
+                    f"MoveYUntil.update_effect: velocity_provider exception={error!r} - keeping current velocity",
+                    action="MoveYUntil",
+                )
+                pass  # Keep current velocity on provider error
+
+        # Handle Y-axis boundaries only
         if self.bounds and self.boundary_behavior:
             self._handle_y_boundaries()
 
