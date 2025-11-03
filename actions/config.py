@@ -122,7 +122,9 @@ def apply_environment_configuration() -> None:
         return
 
     level: int
-    if normalized.isdigit():
+    # Use ASCII-only check to avoid triggering unicodedata dependency
+    # isdigit() can trigger unicodedata for Unicode digits; manual ASCII check avoids this
+    if normalized and normalized[0] in '0123456789' and all(c in '0123456789' for c in normalized):
         level = int(normalized)
     elif normalized in {"true", "yes", "on"}:
         level = 1
