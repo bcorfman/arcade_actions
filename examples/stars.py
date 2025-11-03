@@ -14,6 +14,7 @@ from __future__ import annotations
 import random
 
 import arcade
+from arcade import easing
 
 from actions import (
     Action,
@@ -129,7 +130,7 @@ class StarfieldView(arcade.View):
                     end_value=-4,
                     property_name="change_y",
                     condition=duration(2.0),
-                    ease_function=arcade.easing.ease_in,
+                    ease_function=easing.ease_in,
                 ),
                 # 3. Hold forward speed for 5 seconds.
                 DelayUntil(duration(5.0)),
@@ -139,7 +140,7 @@ class StarfieldView(arcade.View):
                     end_value=14,
                     property_name="change_y",
                     condition=duration(0.5),
-                    ease_function=arcade.easing.ease_out,
+                    ease_function=easing.ease_out,
                 ),
                 # 5. Hold reverse speed for 1.5 seconds.
                 DelayUntil(duration(1.5)),
@@ -150,7 +151,7 @@ class StarfieldView(arcade.View):
                     end_value=0,
                     property_name="change_y",
                     condition=duration(2.0),
-                    ease_function=arcade.easing.ease_out,
+                    ease_function=easing.ease_out,
                 ),
             )
         )

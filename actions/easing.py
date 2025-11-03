@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from arcade import easing
-
 from actions import Action
 
 
@@ -81,6 +79,8 @@ class Ease(Action):
 
         # Set default easing function if None provided
         if ease_function is None:
+            from arcade import easing
+
             ease_function = easing.ease_in_out
         self.ease_function = ease_function
         self.on_complete = on_complete

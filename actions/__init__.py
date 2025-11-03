@@ -61,20 +61,8 @@ from .easing import (
     Ease,
 )
 
-# Formation arrangement functions
-from .formation import (
-    arrange_arc,
-    arrange_arrow,
-    arrange_circle,
-    arrange_concentric_rings,
-    arrange_cross,
-    arrange_diamond,
-    arrange_grid,
-    arrange_hexagonal_grid,
-    arrange_line,
-    arrange_triangle,
-    arrange_v_formation,
-)
+# Formation arrangement functions - LAZY LOADED (see __getattr__ below)
+# from .formation import (...)
 
 # Helper functions
 from .helpers import (
@@ -100,19 +88,8 @@ from .helpers import (
 # Instant actions
 from .instant import MoveBy, MoveTo
 
-# Movement patterns and condition helpers
-from .pattern import (
-    create_bounce_pattern,
-    create_figure_eight_pattern,
-    create_formation_entry_from_sprites,
-    create_orbit_pattern,
-    create_patrol_pattern,
-    create_spiral_pattern,
-    create_wave_pattern,
-    create_zigzag_pattern,
-    sprite_count,
-    time_elapsed,
-)
+# Movement patterns and condition helpers - LAZY LOADED (see __getattr__ below)
+# from .pattern import (...)
 
 # Experimental pools module
 from .pools import SpritePool
@@ -206,3 +183,47 @@ __all__ = [
 # enable debugging via ARCADEACTIONS_DEBUG without additional code changes.
 # This remains opt-in and side-effect free beyond toggling debug output.
 apply_environment_configuration()
+
+
+# Lazy loading for formation and pattern modules to avoid pulling in arcade
+# until these functions are actually used
+_LAZY_IMPORTS = {
+    # Formation functions
+    "arrange_arc": "formation",
+    "arrange_arrow": "formation",
+    "arrange_circle": "formation",
+    "arrange_concentric_rings": "formation",
+    "arrange_cross": "formation",
+    "arrange_diamond": "formation",
+    "arrange_grid": "formation",
+    "arrange_hexagonal_grid": "formation",
+    "arrange_line": "formation",
+    "arrange_triangle": "formation",
+    "arrange_v_formation": "formation",
+    # Pattern functions
+    "create_bounce_pattern": "pattern",
+    "create_figure_eight_pattern": "pattern",
+    "create_formation_entry_from_sprites": "pattern",
+    "create_orbit_pattern": "pattern",
+    "create_patrol_pattern": "pattern",
+    "create_spiral_pattern": "pattern",
+    "create_wave_pattern": "pattern",
+    "create_zigzag_pattern": "pattern",
+    "sprite_count": "pattern",
+    "time_elapsed": "pattern",
+}
+
+
+def __getattr__(name: str):
+    """Lazy-load formation and pattern modules to avoid importing arcade until needed."""
+    if name in _LAZY_IMPORTS:
+        module_name = _LAZY_IMPORTS[name]
+        if module_name == "formation":
+            from . import formation
+
+            return getattr(formation, name)
+        elif module_name == "pattern":
+            from . import pattern
+
+            return getattr(pattern, name)
+    raise AttributeError(f"module 'actions' has no attribute '{name}'")
