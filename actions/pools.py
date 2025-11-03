@@ -20,8 +20,10 @@ allocating new sprites during gameplay, supporting patterns like:
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING
 
-import arcade
+if TYPE_CHECKING:
+    import arcade
 
 
 class SpritePool:

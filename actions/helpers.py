@@ -16,10 +16,14 @@ potential chaining or modification.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import arcade
-from arcade import easing
+if TYPE_CHECKING:
+    import arcade
+
+    SpriteTarget = arcade.Sprite | arcade.SpriteList
+else:
+    SpriteTarget = Any  # Runtime fallback
 
 from actions import (
     Action,
@@ -38,8 +42,6 @@ from actions import (
     TweenUntil,
 )
 from actions.axis_move import MoveXUntil, MoveYUntil
-
-SpriteTarget = arcade.Sprite | arcade.SpriteList
 
 
 def move_by(target: SpriteTarget, dx_or_offset, dy=None, *, on_stop: Any | None = None):
@@ -361,11 +363,15 @@ def ease(
     action: Action,
     duration: float,
     *,
-    ease_function: Callable[[float], float] | None = easing.ease_in_out,
+    ease_function: Callable[[float], float] | None = None,
     on_complete: Callable[[], Any] | None = None,
     tag: str | None = None,
 ) -> Ease:
     """Creates and applies an Ease action."""
+    if ease_function is None:
+        from arcade import easing
+
+        ease_function = easing.ease_in_out
     ease_action = Ease(action, duration=duration, ease_function=ease_function, on_complete=on_complete, tag=tag)
     ease_action.apply(target, tag=tag)
     return ease_action
