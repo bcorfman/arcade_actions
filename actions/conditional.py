@@ -1,4 +1,3 @@
-import math
 from collections.abc import Callable
 from typing import Any
 
@@ -679,17 +678,21 @@ class FollowPathUntil(_Action):
 
     def _bezier_point(self, t: float) -> tuple[float, float]:
         """Calculate point on Bezier curve at parameter t (0-1)."""
+        from math import comb
+
         n = len(self.control_points) - 1
         x = y = 0
         for i, point in enumerate(self.control_points):
             # Binomial coefficient * (1-t)^(n-i) * t^i
-            coef = math.comb(n, i) * (1 - t) ** (n - i) * t**i
+            coef = comb(n, i) * (1 - t) ** (n - i) * t**i
             x += point[0] * coef
             y += point[1] * coef
         return (x, y)
 
     def _calculate_curve_length(self, samples: int = 100) -> float:
         """Approximate curve length by sampling points."""
+        from math import sqrt
+
         length = 0.0
         prev_point = self._bezier_point(0.0)
 
@@ -698,7 +701,7 @@ class FollowPathUntil(_Action):
             current_point = self._bezier_point(t)
             dx = current_point[0] - prev_point[0]
             dy = current_point[1] - prev_point[1]
-            length += math.sqrt(dx * dx + dy * dy)
+            length += sqrt(dx * dx + dy * dy)
             prev_point = current_point
 
         return length
@@ -722,6 +725,8 @@ class FollowPathUntil(_Action):
 
     def update_effect(self, delta_time: float) -> None:
         """Update path following with constant velocity and optional rotation."""
+        from math import atan2, degrees, sqrt
+
         if self._curve_length <= 0:
             return
 
@@ -757,7 +762,7 @@ class FollowPathUntil(_Action):
                 # effectively stationary for one frame; using such a vector for
                 # direction calculation causes a visible rotation jump.
                 if abs(dx) > 1e-6 or abs(dy) > 1e-6:
-                    direction_angle = math.degrees(math.atan2(dy, dx))
+                    direction_angle = degrees(atan2(dy, dx))
                     movement_angle = direction_angle + self.rotation_offset
                     self._prev_movement_angle = movement_angle
                 else:
@@ -771,7 +776,7 @@ class FollowPathUntil(_Action):
                     current_pos = (sprite.center_x, sprite.center_y)
 
                     # Compute desired velocity toward next point on curve
-                    direction_length = math.sqrt(dx * dx + dy * dy)
+                    direction_length = sqrt(dx * dx + dy * dy)
                     if direction_length > 1e-6:
                         desired_vx = (dx / direction_length) * self.current_velocity
                         desired_vy = (dy / direction_length) * self.current_velocity
@@ -1716,6 +1721,8 @@ class ParametricMotionUntil(_Action):
         self._prev_offset = self._offset_fn(0.0)
 
     def update_effect(self, delta_time: float) -> None:  # noqa: D401
+        from math import hypot, degrees, atan2
+
         self._elapsed += delta_time * self._factor
         progress = min(1.0, self._elapsed / self._duration) if self._duration > 0 else 1.0
 
@@ -1735,7 +1742,7 @@ class ParametricMotionUntil(_Action):
             if self._debug:
                 import time as _t
 
-                jump_mag = math.hypot(movement_dx, movement_dy)
+                jump_mag = hypot(movement_dx, movement_dy)
                 if jump_mag > self._debug_threshold:
                     stamp = f"{_t.time():.3f}"
                     print(
@@ -1744,7 +1751,7 @@ class ParametricMotionUntil(_Action):
                     )
             # Only calculate angle if there's significant movement
             if abs(movement_dx) > 1e-6 or abs(movement_dy) > 1e-6:
-                angle = math.degrees(math.atan2(movement_dy, movement_dx))
+                angle = degrees(atan2(movement_dy, movement_dx))
                 sprite_angle = angle + self.rotation_offset
 
         # Apply movement and rotation
@@ -1907,6 +1914,8 @@ class CycleTexturesUntil(_Action):
 
     def update_effect(self, dt: float) -> None:
         """Update texture cycling."""
+        from math import floor
+
         # Update simulation time (respects factor scaling)
         scaled_dt = dt * self._factor
         self._elapsed += scaled_dt
@@ -1915,7 +1924,7 @@ class CycleTexturesUntil(_Action):
         self._cursor = (self._cursor + self._fps * scaled_dt) % self._count
 
         # Get current texture index (floor of cursor)
-        texture_index = int(math.floor(self._cursor)) % self._count
+        texture_index = int(floor(self._cursor)) % self._count
         current_texture = self._textures[texture_index]
 
         def set_texture(sprite):
