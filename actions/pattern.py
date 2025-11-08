@@ -129,7 +129,7 @@ def create_wave_pattern(
         create_wave_pattern(20, 80, 4, start_progress=0.75, end_progress=1.0)
     """
 
-    from actions.conditional import ParametricMotionUntil, duration  # local import to avoid cycles
+    from actions.conditional import ParametricMotionUntil, infinite  # local import to avoid cycles
 
     # Validate progress parameters
     if not (0.0 <= start_progress <= 1.0 and 0.0 <= end_progress <= 1.0):
@@ -141,7 +141,8 @@ def create_wave_pattern(
     def _param(offset_fn, dur):
         return ParametricMotionUntil(
             offset_fn,
-            duration(dur),
+            infinite,
+            explicit_duration=dur,
             debug=debug,
             debug_threshold=debug_threshold if debug_threshold is not None else length * 1.2,
         )
@@ -175,11 +176,14 @@ def create_wave_pattern(
         p = start_progress + span * t
         dx, dy = _full_offset(p)
 
-        # For sequence continuity: if end_progress is 1.0 (full cycle end),
-        # ensure we end at (0,0) regardless of the pattern's natural end position
-        if end_progress >= 1.0 and t >= 1.0:
-            # Force end position to (0, 0) for seamless sequence transitions
-            return 0.0 - _base_dx, 0.0 - _base_dy
+        # For sequence continuity: if we're completing a full cycle (end_progress=1.0),
+        # force the final offset to (0, 0) to ensure perfect position reset.
+        # This prevents drift when the pattern repeats.
+        # Only apply this snap when the pattern starts at the beginning of the cycle.
+        # Partial ranges (e.g. 0.75→1.0) must retain their relative offset so that
+        # transitional segments (like the initial quarter-wave) connect seamlessly.
+        if start_progress <= 1e-6 and end_progress >= 0.999 and t >= 0.999:
+            return 0.0, 0.0
 
         return dx - _base_dx, dy - _base_dy
 
@@ -471,125 +475,37 @@ def create_bounce_pattern(
 
 
 def create_patrol_pattern(
-    start_pos: tuple[float, float],
-    end_pos: tuple[float, float],
-    speed: float,
+    velocity: tuple[float, float],
+    bounds: tuple[float, float, float, float],
     *,
-    start_progress: float = 0.0,
-    end_progress: float = 1.0,
     axis: str = "both",
-):
-    """Create a back-and-forth patrol pattern between two points.
+) -> "MoveUntil":
+    """Create a back-and-forth patrol pattern within boundaries.
 
-    The sprite starts from its current position and executes the specified
-    portion of the patrol cycle using boundary bouncing. Bounds are edge-based,
-    meaning the sprite's edges (not center) will reach the specified positions.
-
-    IMPORTANT: With edge-based bounds, the patrol span (edge-to-edge distance)
-    must be larger than the sprite's dimensions. For horizontal patrols, the
-    span must exceed the sprite width. For vertical patrols, the span must
-    exceed the sprite height. This is validated when the action is applied.
+    This factory mirrors :func:`create_bounce_pattern` by accepting a velocity
+    vector and edge-based bounds. Bounds are specified using sprite edges
+    (not centers) so patrol spans must exceed sprite dimensions.
 
     Args:
-        start_pos: (x, y) left/bottom boundary position (sprite edge will reach here)
-        end_pos: (x, y) right/top boundary position (sprite edge will reach here)
-        speed: Movement speed in pixels per frame (Arcade semantics)
-        start_progress: Starting progress along the patrol cycle [0.0, 1.0], default 0.0
-        end_progress: Ending progress along the patrol cycle [0.0, 1.0], default 1.0
-        axis: Axis to apply movement to ("both", "x", or "y"). Defaults to "both" for legacy behavior.
-
-    The patrol cycle progresses as:
-        0.0: Start position (left/bottom boundary, left/bottom edge at start_pos)
-        0.5: End position (right/top boundary, right/top edge at end_pos)
-        1.0: Back to start position (left/bottom boundary, left/bottom edge at start_pos)
+        velocity: (dx, dy) initial velocity vector in pixels per frame.
+        bounds: (left, bottom, right, top) boundary box using edge-based coordinates.
+        axis: Axis to apply movement to ("both", "x", or "y"). Defaults to "both".
 
     Returns:
-        MoveUntil, MoveXUntil, or MoveYUntil action with boundary bouncing
+        MoveUntil, MoveXUntil, or MoveYUntil action with bouncing patrol behavior.
 
     Raises:
-        ValueError: If patrol span is smaller than sprite dimensions (checked on apply)
-
-    Example:
-        # Edge-based coordinates: sprite edges will reach these positions
-        # For a 128px wide sprite patrolling from x=36 to x=364:
-        # - Left edge reaches x=36 (center at x=100)
-        # - Right edge reaches x=364 (center at x=300)
-        # - Center travels 200px (364-36-128 = 200)
-        quarter = create_patrol_pattern((36, 200), (364, 200), 2, start_progress=0.75, end_progress=1.0)
-        full = create_patrol_pattern((36, 200), (364, 200), 2)
-        sequence(quarter, repeat(full)).apply(sprite)
-
-        # X-axis only patrol
-        patrol_x = create_patrol_pattern((36, 200), (364, 200), 2, axis="x")
+        ValueError: If patrol span is smaller than sprite dimensions (checked on apply).
     """
-    # Validate progress parameters
-    if not (0.0 <= start_progress <= 1.0 and 0.0 <= end_progress <= 1.0):
-        raise ValueError("start_progress and end_progress must be within [0.0, 1.0]")
-    if end_progress < start_progress:
-        raise ValueError("end_progress must be >= start_progress (no wrap or reverse supported)")
+    from .axis_move import MoveXUntil, MoveYUntil
+    from .conditional import MoveUntil, infinite
 
-    # Handle edge cases
-    if start_progress == end_progress:
-        return sequence()
-
-    dx = end_pos[0] - start_pos[0]
-    dy = end_pos[1] - start_pos[1]
-    distance = math.hypot(dx, dy)
-
-    if distance == 0:
-        return sequence()
-
-    # Validate axis parameter
     if axis not in {"both", "x", "y"}:
         raise ValueError(f"axis must be one of {{'both', 'x', 'y'}}, got {axis!r}")
 
-    # Local imports to avoid circular dependencies
-    from .conditional import MoveUntil, duration
-    from .axis_move import MoveXUntil, MoveYUntil
+    cls = MoveUntil if axis == "both" else MoveXUntil if axis == "x" else MoveYUntil
 
-    # Set boundaries at the patrol endpoints
-    # With edge-based bounds, we need to be careful when start and end have the same coordinate on an axis
-    # Use wide bounds for axes with no movement to avoid impossible constraints
-    left = min(start_pos[0], end_pos[0])
-    right = max(start_pos[0], end_pos[0])
-    bottom = min(start_pos[1], end_pos[1])
-    top = max(start_pos[1], end_pos[1])
-
-    # If horizontal patrol (no vertical movement), use wide vertical bounds
-    if abs(dy) < 0.01:  # essentially horizontal
-        bottom, top = -1e9, 1e9
-    # If vertical patrol (no horizontal movement), use wide horizontal bounds
-    if abs(dx) < 0.01:  # essentially vertical
-        left, right = -1e9, 1e9
-
-    bounds = (left, bottom, right, top)
-
-    # Determine initial direction based on start_progress
-    # start_progress < 0.5 means we're on the forward leg (toward end_pos)
-    # start_progress >= 0.5 means we're on the return leg (toward start_pos)
-    dir_x, dir_y = dx / distance, dy / distance
-    if start_progress < 0.5:
-        # Moving toward end_pos (right boundary)
-        velocity = (dir_x * speed, dir_y * speed)
-    else:
-        # Moving toward start_pos (left boundary)
-        velocity = (-dir_x * speed, -dir_y * speed)
-
-    # Calculate duration for the progress range
-    total_distance = distance * 2  # full round trip distance
-    progress_distance = total_distance * (end_progress - start_progress)
-    duration_seconds = progress_distance / speed / 60.0
-
-    # Choose the appropriate class based on axis
-    if axis == "both":
-        cls = MoveUntil
-    elif axis == "x":
-        cls = MoveXUntil
-    else:  # axis == "y"
-        cls = MoveYUntil
-
-    # Create action with boundary bouncing (like create_bounce_pattern)
-    return cls(velocity, duration(duration_seconds), bounds=bounds, boundary_behavior="bounce")
+    return cls(velocity, infinite, bounds=bounds, boundary_behavior="bounce")
 
 
 # Condition helper functions

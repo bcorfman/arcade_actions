@@ -470,11 +470,6 @@ class MoveUntil(_Action):
 
         current_state = self._boundary_state.setdefault(sprite_id, {"x": None, "y": None})
 
-        _debug_log(
-            f"_check_boundaries: sprite.left={sprite.left}, sprite.right={sprite.right}, left={left}, right={right}",
-            action="MoveUntil",
-        )
-
         # Check each axis independently for enter/exit events using edge positions
         self._process_axis_boundary_events(sprite, sprite.left, sprite.right, left, right, "x", current_state)
         self._process_axis_boundary_events(sprite, sprite.bottom, sprite.top, bottom, top, "y", current_state)
@@ -488,10 +483,6 @@ class MoveUntil(_Action):
             current_side = "left" if axis == "x" else "bottom"
         elif high_edge >= high_bound:
             current_side = "right" if axis == "x" else "top"
-            _debug_log(
-                f"_process_axis_boundary_events: {axis} boundary detected! high_edge={high_edge}, high_bound={high_bound}, current_side={current_side}",
-                action="MoveUntil",
-            )
 
         previous_side = current_state[axis]
 
@@ -560,18 +551,9 @@ class MoveUntil(_Action):
         if axis == "x":
             # When left edge crosses left bound, wrap so right edge is at right bound
             if low_edge <= low_bound:
-                _debug_log(
-                    f"_wrap_behavior: wrapping left edge, sprite.right={sprite.right} -> {high_bound}",
-                    action="MoveUntil",
-                )
                 sprite.right = high_bound
             # When right edge crosses right bound, wrap so left edge is at left bound
             elif high_edge >= high_bound:
-                _debug_log(
-                    f"_wrap_behavior: wrapping right edge, sprite.left={sprite.left} -> {low_bound}, "
-                    f"high_edge={high_edge}, high_bound={high_bound}",
-                    action="MoveUntil",
-                )
                 sprite.left = low_bound
         else:  # axis == "y"
             # When bottom edge crosses bottom bound, wrap so top edge is at top bound

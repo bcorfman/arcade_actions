@@ -468,9 +468,8 @@ repeating_wave.apply(enemy_sprite)
 # - Right edge at x=564 (center would be at x=500)
 # - Sprite center travels 400px (564-36-128 = 400)
 patrol_movement = create_patrol_pattern(
-    start_pos=(36, 200),   # left edge position
-    end_pos=(564, 200),    # right edge position
-    speed=80
+    velocity=(2, 0),  # 2 pixels per frame horizontally
+    bounds=(36, 0, 564, 600)  # left, bottom, right, top (edge positions)
 )
 patrol_movement.apply(guard_sprite)
 ```
@@ -1868,9 +1867,8 @@ bounce_x = create_bounce_pattern(
 
 # Y-axis only patrol
 patrol_y = create_patrol_pattern(
-    start_pos=(100, 200),
-    end_pos=(100, 400),  # Vertical patrol
-    speed=120,
+    velocity=(0, 2),  # 2 pixels per frame vertically
+    bounds=(0, 200, 800, 400),  # left, bottom, right, top
     axis="y"
 )
 

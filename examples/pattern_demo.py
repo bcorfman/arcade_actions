@@ -189,12 +189,11 @@ class PatternDemo(arcade.Window):
         Edge-based: left = center-40-24.75 = center-64.75
                     right = center+40+24.75 = center+64.75
         """
-        # Edge-based coordinates: sprite edges will reach these positions
-        start_pos = (sprite.center_x - 64.75, sprite.center_y)  # left edge
-        end_pos = (sprite.center_x + 64.75, sprite.center_y)  # right edge
-        quarter_patrol = create_patrol_pattern(start_pos, end_pos, speed=2, start_progress=0.75, end_progress=1.0)
-        full_patrol = create_patrol_pattern(start_pos, end_pos, speed=2)
-        sequence(quarter_patrol, repeat(full_patrol)).apply(sprite)
+        # Edge-based bounds: sprite edges will reach these positions
+        bounds = (sprite.center_x - 64.75, 0.0, sprite.center_x + 64.75, 600.0)
+        velocity = (2.0, 0.0)  # 2 pixels per frame to the right
+        patrol = create_patrol_pattern(velocity, bounds)
+        patrol.apply(sprite)
 
     def on_draw(self):
         """Draw everything."""

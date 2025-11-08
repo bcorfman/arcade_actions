@@ -130,7 +130,9 @@ class EaseDemoView(arcade.View):
         # Note: Don't apply the action yet - Ease will apply it
         from actions.conditional import MoveUntil
 
-        bounds = (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+        # Edge-based bounds: missile is 16px wide (radius=8), so add half-width to boundaries
+        # This allows the sprite center to reach the full window width
+        bounds = (-8, -8, WINDOW_WIDTH + 8, WINDOW_HEIGHT + 8)
         continuous_flight = MoveUntil(
             velocity=(MISSILE_VELOCITY, 0),  # Cruise velocity
             condition=infinite,  # Never stop on its own
