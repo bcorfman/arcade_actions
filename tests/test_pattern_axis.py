@@ -222,16 +222,21 @@ class TestPatrolPatternAxis:
             create_patrol_pattern(start_pos, end_pos, speed, axis="invalid")
 
     def test_create_patrol_pattern_x_axis_composition(self, test_sprite):
-        """Test that X-axis patrol pattern composes with separate Y motion."""
+        """Test that X-axis patrol pattern composes with separate Y motion.
+
+        Sprite is 128x128, so patrol span must be >= 128px.
+        """
         test_sprite.change_x = 0
         test_sprite.change_y = 0
-        test_sprite.center_x = 100
-        test_sprite.center_y = 100
+        test_sprite.center_x = 200
+        test_sprite.center_y = 200
 
         # Create X-axis patrol pattern
+        # Sprite is 128px wide, so span needs to be at least 128px
+        # Left edge: 36, Right edge: 364 (span = 328px > 128px)
         patrol_x = create_patrol_pattern(
-            start_pos=(100, 100),
-            end_pos=(200, 100),  # Only X movement
+            start_pos=(36, 200),
+            end_pos=(364, 200),  # Only X movement
             speed=50,
             axis="x",
         )
@@ -248,16 +253,21 @@ class TestPatrolPatternAxis:
         assert test_sprite.change_y == 25
 
     def test_create_patrol_pattern_y_axis_composition(self, test_sprite):
-        """Test that Y-axis patrol pattern composes with separate X motion."""
+        """Test that Y-axis patrol pattern composes with separate X motion.
+
+        Sprite is 128x128, so patrol span must be >= 128px.
+        """
         test_sprite.change_x = 0
         test_sprite.change_y = 0
-        test_sprite.center_x = 100
+        test_sprite.center_x = 200
         test_sprite.center_y = 100
 
         # Create Y-axis patrol pattern
+        # Sprite is 128px tall, so span needs to be at least 128px
+        # Bottom edge: 36, Top edge: 364 (span = 328px > 128px)
         patrol_y = create_patrol_pattern(
-            start_pos=(100, 100),
-            end_pos=(100, 200),  # Only Y movement
+            start_pos=(200, 36),
+            end_pos=(200, 364),  # Only Y movement
             speed=50,
             axis="y",
         )
@@ -342,19 +352,24 @@ class TestPatternAxisIntegration:
         Action.stop_all()
 
     def test_pattern_factories_with_parallel_composition(self, test_sprite):
-        """Test composing axis-specific patterns with parallel actions."""
+        """Test composing axis-specific patterns with parallel actions.
+
+        Sprite is 128x128, so patrol span must be >= 128px.
+        """
         from actions.composite import parallel
 
         test_sprite.change_x = 0
         test_sprite.change_y = 0
-        test_sprite.center_x = 100
-        test_sprite.center_y = 100
+        test_sprite.center_x = 200
+        test_sprite.center_y = 200
 
         # Create axis-specific patterns
         bounce_x = create_bounce_pattern(velocity=(150, 0), bounds=(0, 0, 800, 600), axis="x")
+        # Sprite is 128px tall, so span needs to be at least 128px
+        # Bottom edge: 36, Top edge: 364 (span = 328px > 128px)
         patrol_y = create_patrol_pattern(
-            start_pos=(100, 100),
-            end_pos=(100, 200),
+            start_pos=(200, 36),
+            end_pos=(200, 364),
             speed=50,
             axis="y",
         )
@@ -392,13 +407,16 @@ class TestPatternAxisIntegration:
             assert sprite.change_y == 75
 
     def test_pattern_factories_example_usage(self, test_sprite):
-        """Test the example usage pattern from the prompt."""
+        """Test the example usage pattern from the prompt.
+
+        Sprite is 128x128, so patrol span must be >= 128px.
+        """
         from actions.composite import parallel
 
         test_sprite.change_x = 0
         test_sprite.change_y = 0
-        test_sprite.center_x = 100
-        test_sprite.center_y = 100
+        test_sprite.center_x = 200
+        test_sprite.center_y = 200
 
         # Example: scrolling background with bobbing sprites
         scroll = create_bounce_pattern(
@@ -407,9 +425,11 @@ class TestPatternAxisIntegration:
             axis="x",
         )
 
+        # Sprite is 128px tall, so span needs to be at least 128px
+        # Bottom edge: 36, Top edge: 364 (span = 328px > 128px)
         bob = create_patrol_pattern(
-            start_pos=(100, 100),
-            end_pos=(100, 200),
+            start_pos=(200, 36),
+            end_pos=(200, 364),
             speed=2,
             axis="y",
         )

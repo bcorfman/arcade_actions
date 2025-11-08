@@ -482,32 +482,45 @@ def create_patrol_pattern(
     """Create a back-and-forth patrol pattern between two points.
 
     The sprite starts from its current position and executes the specified
-    portion of the patrol cycle using boundary bouncing.
+    portion of the patrol cycle using boundary bouncing. Bounds are edge-based,
+    meaning the sprite's edges (not center) will reach the specified positions.
+
+    IMPORTANT: With edge-based bounds, the patrol span (edge-to-edge distance)
+    must be larger than the sprite's dimensions. For horizontal patrols, the
+    span must exceed the sprite width. For vertical patrols, the span must
+    exceed the sprite height. This is validated when the action is applied.
 
     Args:
-        start_pos: (x, y) left boundary position
-        end_pos: (x, y) right boundary position
+        start_pos: (x, y) left/bottom boundary position (sprite edge will reach here)
+        end_pos: (x, y) right/top boundary position (sprite edge will reach here)
         speed: Movement speed in pixels per frame (Arcade semantics)
         start_progress: Starting progress along the patrol cycle [0.0, 1.0], default 0.0
         end_progress: Ending progress along the patrol cycle [0.0, 1.0], default 1.0
         axis: Axis to apply movement to ("both", "x", or "y"). Defaults to "both" for legacy behavior.
 
     The patrol cycle progresses as:
-        0.0: Start position (left boundary)
-        0.5: End position (right boundary)
-        1.0: Back to start position (left boundary)
+        0.0: Start position (left/bottom boundary, left/bottom edge at start_pos)
+        0.5: End position (right/top boundary, right/top edge at end_pos)
+        1.0: Back to start position (left/bottom boundary, left/bottom edge at start_pos)
 
     Returns:
         MoveUntil, MoveXUntil, or MoveYUntil action with boundary bouncing
 
+    Raises:
+        ValueError: If patrol span is smaller than sprite dimensions (checked on apply)
+
     Example:
-        # Sprite at center, move to left boundary then do full patrol
-        quarter = create_patrol_pattern(left_pos, right_pos, 2, start_progress=0.75, end_progress=1.0)
-        full = create_patrol_pattern(left_pos, right_pos, 2, start_progress=0.0, end_progress=1.0)
+        # Edge-based coordinates: sprite edges will reach these positions
+        # For a 128px wide sprite patrolling from x=36 to x=364:
+        # - Left edge reaches x=36 (center at x=100)
+        # - Right edge reaches x=364 (center at x=300)
+        # - Center travels 200px (364-36-128 = 200)
+        quarter = create_patrol_pattern((36, 200), (364, 200), 2, start_progress=0.75, end_progress=1.0)
+        full = create_patrol_pattern((36, 200), (364, 200), 2)
         sequence(quarter, repeat(full)).apply(sprite)
 
         # X-axis only patrol
-        patrol_x = create_patrol_pattern(left_pos, right_pos, 2, axis="x")
+        patrol_x = create_patrol_pattern((36, 200), (364, 200), 2, axis="x")
     """
     # Validate progress parameters
     if not (0.0 <= start_progress <= 1.0 and 0.0 <= end_progress <= 1.0):
@@ -535,10 +548,20 @@ def create_patrol_pattern(
     from .axis_move import MoveXUntil, MoveYUntil
 
     # Set boundaries at the patrol endpoints
+    # With edge-based bounds, we need to be careful when start and end have the same coordinate on an axis
+    # Use wide bounds for axes with no movement to avoid impossible constraints
     left = min(start_pos[0], end_pos[0])
     right = max(start_pos[0], end_pos[0])
     bottom = min(start_pos[1], end_pos[1])
     top = max(start_pos[1], end_pos[1])
+
+    # If horizontal patrol (no vertical movement), use wide vertical bounds
+    if abs(dy) < 0.01:  # essentially horizontal
+        bottom, top = -1e9, 1e9
+    # If vertical patrol (no horizontal movement), use wide horizontal bounds
+    if abs(dx) < 0.01:  # essentially vertical
+        left, right = -1e9, 1e9
+
     bounds = (left, bottom, right, top)
 
     # Determine initial direction based on start_progress

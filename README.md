@@ -189,7 +189,7 @@ docs/
 - **Repeat actions** - Repeat an action indefinitely (use `repeat()`)
 
 #### Boundary Handling (actions/conditional.py)
-- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
+- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors using edge-based coordinates
 
 #### Formation Management (actions/formation.py)
 - **Formation functions** - Grid, line, circle, diamond, V-formation, triangle, hexagonal grid, arc, concentric rings, cross, and arrow positioning

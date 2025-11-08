@@ -83,7 +83,7 @@ class TestMoveUntilCoverage:
         assert sprite.change_y == 20
 
     def test_limit_behavior_reaches_left_boundary(self):
-        """Test _limit_behavior when sprite reaches left boundary."""
+        """Test _limit_behavior when sprite reaches left boundary using edge-based bounds."""
         sprite = arcade.Sprite()
         sprite.center_x = 50
         sprite.center_y = 100
@@ -96,12 +96,12 @@ class TestMoveUntilCoverage:
         for _ in range(20):
             Action.update_all(1 / 60)
 
-        # Should be clamped at left boundary
-        assert sprite.center_x == 100
+        # Should be clamped at left boundary (edge-based)
+        assert sprite.left == 100
         assert sprite.change_x == 0
 
     def test_limit_behavior_reaches_right_boundary(self):
-        """Test _limit_behavior when sprite reaches right boundary - covers lines 147-155, 501-511."""
+        """Test _limit_behavior when sprite reaches right boundary using edge-based bounds."""
         sprite = arcade.Sprite()
         sprite.center_x = 796  # Start closer to boundary
         sprite.center_y = 100
@@ -110,12 +110,16 @@ class TestMoveUntilCoverage:
         action = MoveUntil((5, 0), infinite, bounds=bounds, boundary_behavior="limit")
         action.apply(sprite, tag="move")
 
-        # apply_effect checks if 796 + 5 > 800 and clamps immediately
-        assert sprite.center_x == 800
+        # Update to let sprite move toward boundary
+        for _ in range(5):
+            Action.update_all(1 / 60)
+
+        # Should be clamped at right boundary (edge-based)
+        assert sprite.right == 800
         assert sprite.change_x == 0
 
     def test_limit_behavior_reaches_bottom_boundary(self):
-        """Test _limit_behavior when sprite reaches bottom boundary."""
+        """Test _limit_behavior when sprite reaches bottom boundary using edge-based bounds."""
         sprite = arcade.Sprite()
         sprite.center_x = 100
         sprite.center_y = 50
@@ -128,12 +132,12 @@ class TestMoveUntilCoverage:
         for _ in range(20):
             Action.update_all(1 / 60)
 
-        # Should be clamped at bottom boundary
-        assert sprite.center_y == 100
+        # Should be clamped at bottom boundary (edge-based)
+        assert sprite.bottom == 100
         assert sprite.change_y == 0
 
     def test_limit_behavior_reaches_top_boundary(self):
-        """Test _limit_behavior when sprite reaches top boundary."""
+        """Test _limit_behavior when sprite reaches top boundary using edge-based bounds."""
         sprite = arcade.Sprite()
         sprite.center_x = 100
         sprite.center_y = 596  # Start closer to boundary
@@ -142,11 +146,12 @@ class TestMoveUntilCoverage:
         action = MoveUntil((0, 5), infinite, bounds=bounds, boundary_behavior="limit")
         action.apply(sprite, tag="move")
 
-        # First frame should clamp to boundary (596 + 5 > 600)
-        Action.update_all(1 / 60)
+        # Update to let sprite move toward boundary
+        for _ in range(5):
+            Action.update_all(1 / 60)
 
-        # Should be clamped at top boundary
-        assert sprite.center_y == 600
+        # Should be clamped at top boundary (edge-based)
+        assert sprite.top == 600
         assert sprite.change_y == 0
 
     def test_duration_elapsed_calls_on_stop(self):

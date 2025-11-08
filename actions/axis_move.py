@@ -23,7 +23,9 @@ class MoveXUntil(MoveUntil):
         velocity: (dx, dy) velocity vector to apply to sprites (dy is ignored)
         condition: Function that returns truthy value when movement should stop
         on_stop: Optional callback called when condition is satisfied
-        bounds: Optional (left, bottom, right, top) boundary box for bouncing/wrapping/limiting
+        bounds: Optional (left, bottom, right, top) boundary box using edge-based coordinates.
+            Only left and right bounds are checked. When sprite.left hits left bound or
+            sprite.right hits right bound, the X-axis boundary behavior is triggered.
         boundary_behavior: "bounce", "wrap", "limit", or None (default: None)
         velocity_provider: Optional function returning (dx, dy) to dynamically provide velocity
         on_boundary_enter: Optional callback(sprite, axis, side) called when sprite enters a boundary
@@ -60,6 +62,10 @@ class MoveXUntil(MoveUntil):
 
     def apply_effect(self) -> None:
         """Apply X-axis only movement to sprites."""
+
+        # Validate edge-based bounds against sprite dimensions
+        if self.bounds and self.boundary_behavior in ("bounce", "wrap", "limit"):
+            self._validate_bounds_for_sprite_dimensions()
 
         # Extract duration from condition if present (for duration-based conditions)
         self._duration = None
@@ -136,38 +142,40 @@ class MoveXUntil(MoveUntil):
             self._handle_x_boundaries()
 
     def _handle_x_boundaries(self) -> None:
-        """Handle boundary behavior only for X axis."""
+        """Handle boundary behavior only for X axis using edge-based coordinates."""
 
         def handle_sprite_boundaries(sprite):
             left, bottom, right, top = self.bounds
 
-            # Only check X boundaries
-            if sprite.center_x <= left:
+            # Only check X boundaries using edge positions
+            if sprite.left <= left:
                 if self.boundary_behavior == "bounce":
                     sprite.change_x = abs(sprite.change_x)
+                    sprite.left = left
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "x", "left")
                 elif self.boundary_behavior == "wrap":
-                    sprite.center_x = right
+                    sprite.right = right
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "x", "left")
                 elif self.boundary_behavior == "limit":
-                    sprite.center_x = left
+                    sprite.left = left
                     sprite.change_x = 0
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "x", "left")
 
-            elif sprite.center_x >= right:
+            elif sprite.right >= right:
                 if self.boundary_behavior == "bounce":
                     sprite.change_x = -abs(sprite.change_x)
+                    sprite.right = right
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "x", "right")
                 elif self.boundary_behavior == "wrap":
-                    sprite.center_x = left
+                    sprite.left = left
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "x", "right")
                 elif self.boundary_behavior == "limit":
-                    sprite.center_x = right
+                    sprite.right = right
                     sprite.change_x = 0
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "x", "right")
@@ -200,7 +208,9 @@ class MoveYUntil(MoveUntil):
         velocity: (dx, dy) velocity vector to apply to sprites (dx is ignored)
         condition: Function that returns truthy value when movement should stop
         on_stop: Optional callback called when condition is satisfied
-        bounds: Optional (left, bottom, right, top) boundary box for bouncing/wrapping/limiting
+        bounds: Optional (left, bottom, right, top) boundary box using edge-based coordinates.
+            Only bottom and top bounds are checked. When sprite.bottom hits bottom bound or
+            sprite.top hits top bound, the Y-axis boundary behavior is triggered.
         boundary_behavior: "bounce", "wrap", "limit", or None (default: None)
         velocity_provider: Optional function returning (dx, dy) to dynamically provide velocity
         on_boundary_enter: Optional callback(sprite, axis, side) called when sprite enters a boundary
@@ -237,6 +247,10 @@ class MoveYUntil(MoveUntil):
 
     def apply_effect(self) -> None:
         """Apply Y-axis only movement to sprites."""
+
+        # Validate edge-based bounds against sprite dimensions
+        if self.bounds and self.boundary_behavior in ("bounce", "wrap", "limit"):
+            self._validate_bounds_for_sprite_dimensions()
 
         # Extract duration from condition if present (for duration-based conditions)
         self._duration = None
@@ -313,38 +327,40 @@ class MoveYUntil(MoveUntil):
             self._handle_y_boundaries()
 
     def _handle_y_boundaries(self) -> None:
-        """Handle boundary behavior only for Y axis."""
+        """Handle boundary behavior only for Y axis using edge-based coordinates."""
 
         def handle_sprite_boundaries(sprite):
             left, bottom, right, top = self.bounds
 
-            # Only check Y boundaries
-            if sprite.center_y <= bottom:
+            # Only check Y boundaries using edge positions
+            if sprite.bottom <= bottom:
                 if self.boundary_behavior == "bounce":
                     sprite.change_y = abs(sprite.change_y)
+                    sprite.bottom = bottom
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "y", "bottom")
                 elif self.boundary_behavior == "wrap":
-                    sprite.center_y = top
+                    sprite.top = top
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "y", "bottom")
                 elif self.boundary_behavior == "limit":
-                    sprite.center_y = bottom
+                    sprite.bottom = bottom
                     sprite.change_y = 0
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "y", "bottom")
 
-            elif sprite.center_y >= top:
+            elif sprite.top >= top:
                 if self.boundary_behavior == "bounce":
                     sprite.change_y = -abs(sprite.change_y)
+                    sprite.top = top
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "y", "top")
                 elif self.boundary_behavior == "wrap":
-                    sprite.center_y = bottom
+                    sprite.bottom = bottom
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "y", "top")
                 elif self.boundary_behavior == "limit":
-                    sprite.center_y = top
+                    sprite.top = top
                     sprite.change_y = 0
                     if self.on_boundary_enter:
                         self.on_boundary_enter(sprite, "y", "top")

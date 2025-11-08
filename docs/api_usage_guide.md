@@ -153,7 +153,8 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **Repeat actions** - Repeat an action indefinitely (use `repeat()`)
 
 #### Boundary Handling (actions/conditional.py)
-- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
+- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors using edge-based coordinates.
+  Bounds are specified as (left, bottom, right, top) where sprite edges (not centers) interact with boundaries.
 
 #### Formation Management (actions/formation.py)
 - **Formation functions** - Grid, line, circle, diamond, V-formation, triangle, hexagonal grid, arc, concentric rings, cross, and arrow positioning patterns
@@ -461,9 +462,15 @@ backward_wave = create_wave_pattern(
 repeating_wave = repeat(sequence(forward_wave, backward_wave))
 repeating_wave.apply(enemy_sprite)
 
-# Guard with patrol pattern
+# Guard with patrol pattern using edge-based bounds
+# For a 128px wide sprite patrolling horizontally:
+# - Left edge at x=36 (center would be at x=100)
+# - Right edge at x=564 (center would be at x=500)
+# - Sprite center travels 400px (564-36-128 = 400)
 patrol_movement = create_patrol_pattern(
-    start_pos=(100, 200), end_pos=(500, 200), speed=80
+    start_pos=(36, 200),   # left edge position
+    end_pos=(564, 200),    # right edge position
+    speed=80
 )
 patrol_movement.apply(guard_sprite)
 ```
@@ -966,7 +973,7 @@ def on_update(self, delta_time):
 **Complete Example:** See `examples/pymunk_demo_platformer.py` for a full implementation showing all these patterns working together.
 
 ### Pattern 9: Boundary Interactions
-For arcade-style movement with boundary detection:
+For arcade-style movement with boundary detection using edge-based bounds:
 
 ```python
 from actions import duration, infinite, move_until
@@ -978,7 +985,9 @@ def on_bounce_enter(sprite, axis, side):
 def on_bounce_exit(sprite, axis, side):
     print(f"Sprite left {side} {axis} boundary")
 
-bounds = (0, 0, 800, 600)  # left, bottom, right, top
+# Edge-based bounds: sprite edges (not center) will touch these positions
+# For window bounds, use (0, 0, width, height) - sprite edges touch window edges
+bounds = (0, 0, 800, 600)  # left, bottom, right, top (edge positions)
 move_until(
     sprite,
     velocity=(100, 50),
@@ -1492,7 +1501,7 @@ class SpaceInvadersGame(arcade.Window):
         )
         initial_sequence.apply(self.enemies, tag="initial_movement")
         
-        # Set up boundary bouncing using new edge-triggered callbacks
+        # Set up boundary bouncing using edge-triggered callbacks
         def on_formation_bounce_enter(sprite, axis, side):
             # Move formation down and reverse direction when hitting side boundaries
             if axis == 'x':
