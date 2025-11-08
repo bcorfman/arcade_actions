@@ -276,7 +276,7 @@ class PlayerShip(arcade.Sprite):
                 self,
                 velocity=(direction, 0),
                 condition=infinite,
-                bounds=(LEFT_BOUND + self.width / 2, 0, RIGHT_BOUND - self.width / 2, WINDOW_HEIGHT),
+                bounds=(LEFT_BOUND, 0, RIGHT_BOUND, WINDOW_HEIGHT),
                 boundary_behavior="limit",
                 tag="player_move",
             )

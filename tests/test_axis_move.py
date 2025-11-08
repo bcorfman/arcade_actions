@@ -568,9 +568,10 @@ class TestAxisBoundaryBehaviors:
         Action.stop_all()
 
     def test_move_x_until_bounce_behavior(self):
-        """Test that MoveXUntil correctly bounces off X-axis boundaries."""
+        """Test that MoveXUntil correctly bounces off X-axis boundaries using edge-based coordinates."""
         sprite = arcade.Sprite()
-        sprite.center_x = 100
+        # Position sprite so its right edge is near right boundary
+        sprite.right = 195
         sprite.center_y = 300
 
         boundary_hits = []
@@ -588,32 +589,37 @@ class TestAxisBoundaryBehaviors:
         action.apply(sprite)
 
         # Move right towards boundary
-        for _ in range(25):  # Should hit right boundary at x=200
+        for _ in range(5):  # Should hit right boundary
             Action.update_all(1 / 60)
             sprite.update()
 
         # Should have bounced and be moving left
         assert sprite.change_x < 0, "Should be moving left after bouncing off right boundary"
-        assert 0 < sprite.center_x <= 200, "Should be within bounds after bounce"
+        assert sprite.right <= 200, "Right edge should be within bounds after bounce"
         assert ("x", "right") in boundary_hits, "Should have hit right boundary"
 
-        # Continue moving left towards left boundary
-        for _ in range(50):  # Should hit left boundary at x=0
+        # Position near left boundary and reverse
+        sprite.left = 5
+        boundary_hits.clear()
+
+        # Move left towards left boundary
+        for _ in range(5):  # Should hit left boundary
             Action.update_all(1 / 60)
             sprite.update()
 
         # Should have bounced again and be moving right
         assert sprite.change_x > 0, "Should be moving right after bouncing off left boundary"
-        assert 0 <= sprite.center_x < 200, "Should be within bounds after second bounce"
+        assert sprite.left >= 0, "Left edge should be within bounds after second bounce"
         assert ("x", "left") in boundary_hits, "Should have hit left boundary"
 
         action.stop()
 
     def test_move_y_until_bounce_behavior(self):
-        """Test that MoveYUntil correctly bounces off Y-axis boundaries."""
+        """Test that MoveYUntil correctly bounces off Y-axis boundaries using edge-based coordinates."""
         sprite = arcade.Sprite()
         sprite.center_x = 300
-        sprite.center_y = 100
+        # Position sprite so its top edge is near top boundary
+        sprite.top = 195
 
         boundary_hits = []
 
@@ -630,31 +636,36 @@ class TestAxisBoundaryBehaviors:
         action.apply(sprite)
 
         # Move up towards boundary
-        for _ in range(25):  # Should hit top boundary at y=200
+        for _ in range(5):  # Should hit top boundary
             Action.update_all(1 / 60)
             sprite.update()
 
         # Should have bounced and be moving down
         assert sprite.change_y < 0, "Should be moving down after bouncing off top boundary"
-        assert 0 < sprite.center_y <= 200, "Should be within bounds after bounce"
+        assert sprite.top <= 200, "Top edge should be within bounds after bounce"
         assert ("y", "top") in boundary_hits, "Should have hit top boundary"
 
-        # Continue moving down towards bottom boundary
-        for _ in range(50):  # Should hit bottom boundary at y=0
+        # Position near bottom boundary
+        sprite.bottom = 5
+        boundary_hits.clear()
+
+        # Move down towards bottom boundary
+        for _ in range(5):  # Should hit bottom boundary
             Action.update_all(1 / 60)
             sprite.update()
 
         # Should have bounced again and be moving up
         assert sprite.change_y > 0, "Should be moving up after bouncing off bottom boundary"
-        assert 0 <= sprite.center_y < 200, "Should be within bounds after second bounce"
+        assert sprite.bottom >= 0, "Bottom edge should be within bounds after second bounce"
         assert ("y", "bottom") in boundary_hits, "Should have hit bottom boundary"
 
         action.stop()
 
     def test_move_x_until_wrap_behavior(self):
-        """Test that MoveXUntil correctly wraps around X-axis boundaries."""
+        """Test that MoveXUntil correctly wraps around X-axis boundaries using edge-based coordinates."""
         sprite = arcade.Sprite()
-        sprite.center_x = 180
+        # Position sprite so its right edge is near right boundary
+        sprite.right = 195
         sprite.center_y = 300
 
         boundary_hit = {"count": 0}
@@ -672,21 +683,22 @@ class TestAxisBoundaryBehaviors:
         action.apply(sprite)
 
         # Move right past boundary
-        for _ in range(10):  # Should wrap from right to left
+        for _ in range(2):  # Should wrap from right to left
             Action.update_all(1 / 60)
             sprite.update()
 
-        # Should have wrapped to left side
-        assert sprite.center_x < 50, "Should have wrapped to left side"
+        # Should have wrapped - left edge near left boundary
+        assert sprite.left <= 10, "Should have wrapped to left side"
         assert sprite.change_x == 5, "Velocity should remain unchanged after wrap"
         assert boundary_hit["count"] >= 1, "Boundary callback should have been called"
 
         action.stop()
 
     def test_move_x_until_wrap_left_boundary(self):
-        """Test that MoveXUntil wraps when hitting left boundary."""
+        """Test that MoveXUntil wraps when hitting left boundary using edge-based coordinates."""
         sprite = arcade.Sprite()
-        sprite.center_x = 20
+        # Position sprite so its left edge is near left boundary
+        sprite.left = 5
         sprite.center_y = 300
 
         boundary_hit = {"count": 0}
@@ -705,21 +717,22 @@ class TestAxisBoundaryBehaviors:
         action.apply(sprite)
 
         # Move left past boundary
-        for _ in range(10):  # Should wrap from left to right
+        for _ in range(2):  # Should wrap from left to right
             Action.update_all(1 / 60)
             sprite.update()
 
-        # Should have wrapped to right side
-        assert sprite.center_x > 150, "Should have wrapped to right side"
+        # Should have wrapped - right edge near right boundary
+        assert sprite.right >= 190, "Should have wrapped to right side"
         assert sprite.change_x == -5, "Velocity should remain unchanged after wrap"
         assert boundary_hit["count"] >= 1, "Boundary callback should have been called"
 
         action.stop()
 
     def test_move_x_until_limit_left_boundary(self):
-        """Test that MoveXUntil limits movement at left X-axis boundary."""
+        """Test that MoveXUntil limits movement at left X-axis boundary using edge-based coordinates."""
         sprite = arcade.Sprite()
-        sprite.center_x = 20
+        # Position sprite so its left edge is near left boundary
+        sprite.left = 5
         sprite.center_y = 300
 
         boundary_hit = {"count": 0}
@@ -739,22 +752,23 @@ class TestAxisBoundaryBehaviors:
         action.apply(sprite)
 
         # Move left to boundary
-        for _ in range(10):
+        for _ in range(5):
             Action.update_all(1 / 60)
             sprite.update()
 
-        # Should be stopped at boundary
-        assert sprite.center_x == 0, "Should be stopped at left boundary"
+        # Should be stopped at boundary - left edge at left bound
+        assert sprite.left == 0, "Left edge should be at left boundary"
         assert sprite.change_x == 0, "Velocity should be zero at limit"
         assert boundary_hit["count"] >= 1, "Boundary callback should have been called"
 
         action.stop()
 
     def test_move_y_until_wrap_behavior(self):
-        """Test that MoveYUntil correctly wraps around Y-axis boundaries."""
+        """Test that MoveYUntil correctly wraps around Y-axis boundaries using edge-based coordinates."""
         sprite = arcade.Sprite()
         sprite.center_x = 300
-        sprite.center_y = 180
+        # Position sprite so its top edge is near top boundary
+        sprite.top = 195
 
         boundary_hit = {"count": 0}
 
@@ -771,22 +785,23 @@ class TestAxisBoundaryBehaviors:
         action.apply(sprite)
 
         # Move up past boundary
-        for _ in range(10):  # Should wrap from top to bottom
+        for _ in range(2):  # Should wrap from top to bottom
             Action.update_all(1 / 60)
             sprite.update()
 
-        # Should have wrapped to bottom side
-        assert sprite.center_y < 50, "Should have wrapped to bottom side"
+        # Should have wrapped - bottom edge near bottom boundary
+        assert sprite.bottom <= 10, "Should have wrapped to bottom side"
         assert sprite.change_y == 5, "Velocity should remain unchanged after wrap"
         assert boundary_hit["count"] >= 1, "Boundary callback should have been called"
 
         action.stop()
 
     def test_move_y_until_wrap_bottom_boundary(self):
-        """Test that MoveYUntil wraps when hitting bottom boundary."""
+        """Test that MoveYUntil wraps when hitting bottom boundary using edge-based coordinates."""
         sprite = arcade.Sprite()
         sprite.center_x = 300
-        sprite.center_y = 20
+        # Position sprite so its bottom edge is near bottom boundary
+        sprite.bottom = 5
 
         boundary_hit = {"count": 0}
 
@@ -804,22 +819,23 @@ class TestAxisBoundaryBehaviors:
         action.apply(sprite)
 
         # Move down past boundary
-        for _ in range(10):  # Should wrap from bottom to top
+        for _ in range(2):  # Should wrap from bottom to top
             Action.update_all(1 / 60)
             sprite.update()
 
-        # Should have wrapped to top side
-        assert sprite.center_y > 150, "Should have wrapped to top side"
+        # Should have wrapped - top edge near top boundary
+        assert sprite.top >= 190, "Should have wrapped to top side"
         assert sprite.change_y == -5, "Velocity should remain unchanged after wrap"
         assert boundary_hit["count"] >= 1, "Boundary callback should have been called"
 
         action.stop()
 
     def test_move_y_until_limit_bottom_boundary(self):
-        """Test that MoveYUntil limits movement at bottom Y-axis boundary."""
+        """Test that MoveYUntil limits movement at bottom Y-axis boundary using edge-based coordinates."""
         sprite = arcade.Sprite()
         sprite.center_x = 300
-        sprite.center_y = 20
+        # Position sprite so its bottom edge is near bottom boundary
+        sprite.bottom = 5
 
         boundary_hit = {"count": 0}
 
@@ -838,21 +854,22 @@ class TestAxisBoundaryBehaviors:
         action.apply(sprite)
 
         # Move down to boundary
-        for _ in range(10):
+        for _ in range(5):
             Action.update_all(1 / 60)
             sprite.update()
 
-        # Should be stopped at boundary
-        assert sprite.center_y == 0, "Should be stopped at bottom boundary"
+        # Should be stopped at boundary - bottom edge at bottom bound
+        assert sprite.bottom == 0, "Bottom edge should be at bottom boundary"
         assert sprite.change_y == 0, "Velocity should be zero at limit"
         assert boundary_hit["count"] >= 1, "Boundary callback should have been called"
 
         action.stop()
 
     def test_move_x_until_limit_behavior(self):
-        """Test that MoveXUntil correctly limits movement at X-axis boundaries."""
+        """Test that MoveXUntil correctly limits movement at X-axis boundaries using edge-based coordinates."""
         sprite = arcade.Sprite()
-        sprite.center_x = 180
+        # Position sprite so its right edge is near right boundary
+        sprite.right = 195
         sprite.center_y = 300
 
         boundary_hit = {"count": 0}
@@ -872,22 +889,23 @@ class TestAxisBoundaryBehaviors:
         action.apply(sprite)
 
         # Move right to boundary
-        for _ in range(10):
+        for _ in range(5):
             Action.update_all(1 / 60)
             sprite.update()
 
-        # Should be stopped at boundary
-        assert sprite.center_x == 200, "Should be stopped at right boundary"
+        # Should be stopped at boundary - right edge at right bound
+        assert sprite.right == 200, "Right edge should be at right boundary"
         assert sprite.change_x == 0, "Velocity should be zero at limit"
         assert boundary_hit["count"] >= 1, "Boundary callback should have been called"
 
         action.stop()
 
     def test_move_y_until_limit_behavior(self):
-        """Test that MoveYUntil correctly limits movement at Y-axis boundaries."""
+        """Test that MoveYUntil correctly limits movement at Y-axis boundaries using edge-based coordinates."""
         sprite = arcade.Sprite()
         sprite.center_x = 300
-        sprite.center_y = 180
+        # Position sprite so its top edge is near top boundary
+        sprite.top = 195
 
         boundary_hit = {"count": 0}
 
@@ -906,12 +924,12 @@ class TestAxisBoundaryBehaviors:
         action.apply(sprite)
 
         # Move up to boundary
-        for _ in range(10):
+        for _ in range(5):
             Action.update_all(1 / 60)
             sprite.update()
 
-        # Should be stopped at boundary
-        assert sprite.center_y == 200, "Should be stopped at top boundary"
+        # Should be stopped at boundary - top edge at top bound
+        assert sprite.top == 200, "Top edge should be at top boundary"
         assert sprite.change_y == 0, "Velocity should be zero at limit"
         assert boundary_hit["count"] >= 1, "Boundary callback should have been called"
 

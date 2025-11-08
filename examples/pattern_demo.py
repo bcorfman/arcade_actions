@@ -163,25 +163,37 @@ class PatternDemo(arcade.Window):
         repeat(spiral_cycle).apply(sprite)
 
     def _create_bounce_demo(self, sprite: arcade.Sprite):
-        """Create bouncing pattern within a boundary box."""
-        # Define bounce bounds around the sprite's starting position
+        """Create bouncing pattern within a boundary box using edge-based bounds.
+
+        Ship sprite is 49.5x37.5 (half-width=24.75, half-height=18.75)
+        Original center-based: center ± 60 horizontal, ± 40 vertical
+        Edge-based: left = center-60-24.75, right = center+60+24.75
+                    bottom = center-40-18.75, top = center+40+18.75
+        """
+        # Edge-based bounds: sprite edges will reach these positions
         bounds = (
-            sprite.center_x - 60,  # left
-            sprite.center_y - 40,  # bottom
-            sprite.center_x + 60,  # right
-            sprite.center_y + 40,  # top
+            sprite.center_x - 84.75,  # left edge (center-60-24.75)
+            sprite.center_y - 58.75,  # bottom edge (center-40-18.75)
+            sprite.center_x + 84.75,  # right edge (center+60+24.75)
+            sprite.center_y + 58.75,  # top edge (center+40+18.75)
         )
 
         bounce = create_bounce_pattern(velocity=(2, 1), bounds=bounds)
         bounce.apply(sprite)
 
     def _create_patrol_demo(self, sprite: arcade.Sprite):
-        """Create repeating patrol pattern."""
-        start_pos = (sprite.center_x - 40, sprite.center_y)
-        end_pos = (sprite.center_x + 40, sprite.center_y)
-        quarter_patrol = create_patrol_pattern(start_pos, end_pos, speed=2, start_progress=0.75, end_progress=1.0)
-        full_patrol = create_patrol_pattern(start_pos, end_pos, speed=2)
-        sequence(quarter_patrol, repeat(full_patrol)).apply(sprite)
+        """Create repeating patrol pattern using edge-based bounds.
+
+        Ship sprite is 49.5x37.5 (half-width=24.75)
+        Original center-based: center ± 40
+        Edge-based: left = center-40-24.75 = center-64.75
+                    right = center+40+24.75 = center+64.75
+        """
+        # Edge-based bounds: sprite edges will reach these positions
+        bounds = (sprite.center_x - 64.75, 0.0, sprite.center_x + 64.75, 600.0)
+        velocity = (2.0, 0.0)  # 2 pixels per frame to the right
+        patrol = create_patrol_pattern(velocity, bounds)
+        patrol.apply(sprite)
 
     def on_draw(self):
         """Draw everything."""

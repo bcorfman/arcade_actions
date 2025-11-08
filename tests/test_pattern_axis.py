@@ -46,7 +46,7 @@ class TestBouncePatternAxis:
 
         pattern = create_bounce_pattern(velocity, bounds)
 
-        # Should return standard MoveUntil (legacy behavior)
+        # Default axis produces a standard MoveUntil action
         assert isinstance(pattern, MoveUntil)
         assert pattern.target_velocity == velocity
         assert pattern.bounds == bounds
@@ -174,65 +174,65 @@ class TestPatrolPatternAxis:
         Action.stop_all()
 
     def test_create_patrol_pattern_default_axis(self):
-        """Test create_patrol_pattern with default axis="both" (legacy behavior)."""
-        start_pos = (100, 100)
-        end_pos = (200, 200)
-        speed = 50
+        """Test create_patrol_pattern with default axis="both"."""
+        velocity = (2, 1)
+        bounds = (36, 0, 564, 600)
 
-        pattern = create_patrol_pattern(start_pos, end_pos, speed)
+        pattern = create_patrol_pattern(velocity, bounds)
 
         # Should return standard MoveUntil (legacy behavior)
         assert isinstance(pattern, MoveUntil)
-        assert pattern.bounds is not None
+        assert pattern.target_velocity == velocity
+        assert pattern.bounds == bounds
         assert pattern.boundary_behavior == "bounce"
 
     def test_create_patrol_pattern_x_axis(self):
         """Test create_patrol_pattern with axis="x"."""
-        start_pos = (100, 100)
-        end_pos = (200, 100)  # Only X movement
-        speed = 50
+        velocity = (3, 2)  # Y component should be ignored by MoveXUntil
+        bounds = (36, 0, 564, 600)
 
-        pattern = create_patrol_pattern(start_pos, end_pos, speed, axis="x")
+        pattern = create_patrol_pattern(velocity, bounds, axis="x")
 
         # Should return MoveXUntil
         assert isinstance(pattern, MoveXUntil)
-        assert pattern.bounds is not None
+        assert pattern.target_velocity == velocity
+        assert pattern.bounds == bounds
         assert pattern.boundary_behavior == "bounce"
 
     def test_create_patrol_pattern_y_axis(self):
         """Test create_patrol_pattern with axis="y"."""
-        start_pos = (100, 100)
-        end_pos = (100, 200)  # Only Y movement
-        speed = 50
+        velocity = (1, 4)
+        bounds = (0, 36, 800, 364)
 
-        pattern = create_patrol_pattern(start_pos, end_pos, speed, axis="y")
+        pattern = create_patrol_pattern(velocity, bounds, axis="y")
 
         # Should return MoveYUntil
         assert isinstance(pattern, MoveYUntil)
-        assert pattern.bounds is not None
+        assert pattern.target_velocity == velocity
+        assert pattern.bounds == bounds
         assert pattern.boundary_behavior == "bounce"
 
     def test_create_patrol_pattern_invalid_axis(self):
         """Test create_patrol_pattern with invalid axis parameter."""
-        start_pos = (100, 100)
-        end_pos = (200, 200)
-        speed = 50
-
         with pytest.raises(ValueError, match="axis must be one of"):
-            create_patrol_pattern(start_pos, end_pos, speed, axis="invalid")
+            create_patrol_pattern((2, 0), (36, 0, 564, 600), axis="invalid")
 
     def test_create_patrol_pattern_x_axis_composition(self, test_sprite):
-        """Test that X-axis patrol pattern composes with separate Y motion."""
+        """Test that X-axis patrol pattern composes with separate Y motion.
+
+        Sprite is 128x128, so patrol span must be >= 128px.
+        """
         test_sprite.change_x = 0
         test_sprite.change_y = 0
-        test_sprite.center_x = 100
-        test_sprite.center_y = 100
+        test_sprite.center_x = 200
+        test_sprite.center_y = 200
 
         # Create X-axis patrol pattern
+        # Sprite is 128px wide, so span needs to be at least 128px
+        # Left edge: 36, Right edge: 364 (span = 328px > 128px)
         patrol_x = create_patrol_pattern(
-            start_pos=(100, 100),
-            end_pos=(200, 100),  # Only X movement
-            speed=50,
+            velocity=(50, 10),  # Y component ignored by MoveXUntil
+            bounds=(36, 0, 364, 600),
             axis="x",
         )
 
@@ -248,17 +248,21 @@ class TestPatrolPatternAxis:
         assert test_sprite.change_y == 25
 
     def test_create_patrol_pattern_y_axis_composition(self, test_sprite):
-        """Test that Y-axis patrol pattern composes with separate X motion."""
+        """Test that Y-axis patrol pattern composes with separate X motion.
+
+        Sprite is 128x128, so patrol span must be >= 128px.
+        """
         test_sprite.change_x = 0
         test_sprite.change_y = 0
-        test_sprite.center_x = 100
+        test_sprite.center_x = 200
         test_sprite.center_y = 100
 
         # Create Y-axis patrol pattern
+        # Sprite is 128px tall, so span needs to be at least 128px
+        # Bottom edge: 36, Top edge: 364 (span = 328px > 128px)
         patrol_y = create_patrol_pattern(
-            start_pos=(100, 100),
-            end_pos=(100, 200),  # Only Y movement
-            speed=50,
+            velocity=(15, 40),  # X component ignored by MoveYUntil
+            bounds=(0, 36, 800, 364),
             axis="y",
         )
 
@@ -275,62 +279,51 @@ class TestPatrolPatternAxis:
 
     def test_create_patrol_pattern_axis_validation(self):
         """Test axis parameter validation."""
-        start_pos = (100, 100)
-        end_pos = (200, 200)
-        speed = 50
+        velocity = (5, 3)
+        bounds = (36, 36, 364, 364)
 
         # Valid axis values
         for axis in ["both", "x", "y"]:
-            pattern = create_patrol_pattern(start_pos, end_pos, speed, axis=axis)
+            pattern = create_patrol_pattern(velocity, bounds, axis=axis)
             assert pattern is not None
 
         # Invalid axis values
         with pytest.raises(ValueError):
-            create_patrol_pattern(start_pos, end_pos, speed, axis="invalid")
+            create_patrol_pattern(velocity, bounds, axis="invalid")
 
         with pytest.raises(ValueError):
-            create_patrol_pattern(start_pos, end_pos, speed, axis="")
+            create_patrol_pattern(velocity, bounds, axis="")
 
         with pytest.raises(ValueError):
-            create_patrol_pattern(start_pos, end_pos, speed, axis=None)
+            create_patrol_pattern(velocity, bounds, axis=None)  # type: ignore[arg-type]
 
-    def test_create_patrol_pattern_legacy_compatibility(self):
-        """Test that existing code without axis parameter still works."""
-        start_pos = (100, 100)
-        end_pos = (200, 200)
-        speed = 50
-
-        # Should work exactly like before
-        pattern = create_patrol_pattern(start_pos, end_pos, speed)
-
-        assert isinstance(pattern, MoveUntil)
-        assert pattern.bounds is not None
-        assert pattern.boundary_behavior == "bounce"
+    def test_create_patrol_pattern_rejects_legacy_signature(self):
+        """Test that the removed start/end API raises TypeError."""
+        with pytest.raises(TypeError):
+            create_patrol_pattern((100, 100), (200, 200), 50)  # type: ignore[arg-type]
 
     def test_create_patrol_pattern_with_progress_parameters(self):
-        """Test patrol pattern with start_progress and end_progress parameters."""
-        start_pos = (100, 100)
-        end_pos = (200, 200)
-        speed = 50
-
-        # Test with progress parameters
-        pattern = create_patrol_pattern(start_pos, end_pos, speed, start_progress=0.2, end_progress=0.8, axis="x")
-
-        assert isinstance(pattern, MoveXUntil)
-        assert pattern.bounds is not None
-        assert pattern.boundary_behavior == "bounce"
+        """Test that removed progress parameters raise TypeError."""
+        with pytest.raises(TypeError):
+            create_patrol_pattern(  # type: ignore[call-arg]
+                (2, 0),
+                (36, 0, 564, 600),
+                axis="x",
+                start_progress=0.2,
+                end_progress=0.8,
+            )
 
     def test_create_patrol_pattern_diagonal_with_axis(self):
         """Test patrol pattern with diagonal movement but axis restriction."""
-        start_pos = (100, 100)
-        end_pos = (200, 200)  # Diagonal movement
-        speed = 50
+        velocity = (10, 10)  # Diagonal velocity
+        bounds = (36, 36, 564, 564)
 
         # Even with diagonal movement, axis="x" should only affect X
-        pattern = create_patrol_pattern(start_pos, end_pos, speed, axis="x")
+        pattern = create_patrol_pattern(velocity, bounds, axis="x")
 
         assert isinstance(pattern, MoveXUntil)
-        assert pattern.bounds is not None
+        assert pattern.target_velocity == velocity
+        assert pattern.bounds == bounds
         assert pattern.boundary_behavior == "bounce"
 
 
@@ -342,20 +335,24 @@ class TestPatternAxisIntegration:
         Action.stop_all()
 
     def test_pattern_factories_with_parallel_composition(self, test_sprite):
-        """Test composing axis-specific patterns with parallel actions."""
+        """Test composing axis-specific patterns with parallel actions.
+
+        Sprite is 128x128, so patrol span must be >= 128px.
+        """
         from actions.composite import parallel
 
         test_sprite.change_x = 0
         test_sprite.change_y = 0
-        test_sprite.center_x = 100
-        test_sprite.center_y = 100
+        test_sprite.center_x = 200
+        test_sprite.center_y = 200
 
         # Create axis-specific patterns
         bounce_x = create_bounce_pattern(velocity=(150, 0), bounds=(0, 0, 800, 600), axis="x")
+        # Sprite is 128px tall, so span needs to be at least 128px
+        # Bottom edge: 36, Top edge: 364 (span = 328px > 128px)
         patrol_y = create_patrol_pattern(
-            start_pos=(100, 100),
-            end_pos=(100, 200),
-            speed=50,
+            velocity=(0, 40),
+            bounds=(100, 36, 300, 364),
             axis="y",
         )
 
@@ -392,13 +389,16 @@ class TestPatternAxisIntegration:
             assert sprite.change_y == 75
 
     def test_pattern_factories_example_usage(self, test_sprite):
-        """Test the example usage pattern from the prompt."""
+        """Test the example usage pattern from the prompt.
+
+        Sprite is 128x128, so patrol span must be >= 128px.
+        """
         from actions.composite import parallel
 
         test_sprite.change_x = 0
         test_sprite.change_y = 0
-        test_sprite.center_x = 100
-        test_sprite.center_y = 100
+        test_sprite.center_x = 200
+        test_sprite.center_y = 200
 
         # Example: scrolling background with bobbing sprites
         scroll = create_bounce_pattern(
@@ -407,10 +407,11 @@ class TestPatternAxisIntegration:
             axis="x",
         )
 
+        # Sprite is 128px tall, so span needs to be at least 128px
+        # Bottom edge: 36, Top edge: 364 (span = 328px > 128px)
         bob = create_patrol_pattern(
-            start_pos=(100, 100),
-            end_pos=(100, 200),
-            speed=2,
+            velocity=(0, 2),
+            bounds=(100, 36, 300, 364),
             axis="y",
         )
 
@@ -428,8 +429,8 @@ class TestPatternAxisIntegration:
         bounce_y = create_bounce_pattern(velocity=(0, 100), bounds=(0, 0, 800, 600), axis="y")
 
         # Test patrol pattern
-        patrol_x = create_patrol_pattern(start_pos=(100, 100), end_pos=(200, 100), speed=50, axis="x")
-        patrol_y = create_patrol_pattern(start_pos=(100, 100), end_pos=(100, 200), speed=50, axis="y")
+        patrol_x = create_patrol_pattern(velocity=(50, 0), bounds=(36, 36, 200, 364), axis="x")
+        patrol_y = create_patrol_pattern(velocity=(0, 50), bounds=(36, 36, 364, 364), axis="y")
 
         # Test action contract methods
         for pattern in [bounce_x, bounce_y, patrol_x, patrol_y]:

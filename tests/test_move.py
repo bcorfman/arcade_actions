@@ -24,11 +24,12 @@ class TestMoveUntilBoundaries:
         Action.stop_all()
 
     def test_move_until_with_bounce_boundaries(self):
-        """Test MoveUntil with bouncing boundaries."""
+        """Test MoveUntil with bouncing boundaries using edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_x = 799  # Very close to right boundary
+        # Position sprite so its right edge is very close to right boundary (800)
+        sprite.right = 795
 
-        # Create bounds (left, bottom, right, top)
+        # Create bounds (left, bottom, right, top) - now edge-based
         bounds = (0, 0, 800, 600)
 
         # Move right - should hit boundary and bounce
@@ -50,12 +51,13 @@ class TestMoveUntilBoundaries:
 
         # Should have hit boundary and bounced
         assert sprite.change_x < 0  # Moving left now
-        assert sprite.center_x <= 800  # Kept in bounds
+        assert sprite.right <= 800  # Right edge kept in bounds
 
     def test_move_until_with_wrap_boundaries(self):
-        """Test MoveUntil with wrapping boundaries."""
+        """Test MoveUntil with wrapping boundaries using edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_x = 799  # Very close to right boundary
+        # Position sprite so its right edge is very close to right boundary
+        sprite.right = 795
 
         bounds = (0, 0, 800, 600)
 
@@ -76,13 +78,14 @@ class TestMoveUntilBoundaries:
         # Check boundaries on new position
         Action.update_all(0.001)
 
-        # Should have wrapped to left side
-        assert sprite.center_x == 0  # Wrapped to left
+        # Should have wrapped to left side - left edge at left bound
+        assert sprite.left == 0  # Left edge wrapped to left boundary
 
     def test_move_until_with_boundary_callback(self):
-        """Test MoveUntil boundary callback functionality."""
+        """Test MoveUntil boundary callback functionality with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_x = 799  # Very close to right boundary
+        # Position sprite so its right edge is near right boundary
+        sprite.right = 795
 
         boundary_hits = []
 
@@ -114,9 +117,10 @@ class TestMoveUntilBoundaries:
         assert boundary_hits[0][2] in ("right", "left", "top", "bottom")
 
     def test_move_until_vertical_boundaries(self):
-        """Test MoveUntil with vertical boundary interactions."""
+        """Test MoveUntil with vertical boundary interactions using edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_y = 599  # Very close to top boundary
+        # Position sprite so its top edge is very close to top boundary
+        sprite.top = 595
 
         bounds = (0, 0, 800, 600)
 
@@ -139,7 +143,7 @@ class TestMoveUntilBoundaries:
 
         # Should have bounced (reversed Y velocity)
         assert sprite.change_y < 0  # Moving down now
-        assert sprite.center_y <= 600  # Kept in bounds
+        assert sprite.top <= 600  # Top edge kept in bounds
 
     def test_move_until_no_boundaries(self):
         """Test MoveUntil without boundary checking."""
@@ -158,11 +162,12 @@ class TestMoveUntilBoundaries:
         assert sprite.change_x == 100  # Velocity unchanged
 
     def test_move_until_multiple_sprites_boundaries(self):
-        """Test MoveUntil boundary checking with multiple sprites."""
+        """Test MoveUntil boundary checking with multiple sprites using edge-based coordinates."""
         sprites = arcade.SpriteList()
         for i in range(3):
             sprite = create_test_sprite()
-            sprite.center_x = 799 + i * 0.1  # All very close to right boundary
+            # Position sprites so their right edges are near right boundary
+            sprite.right = 795 + i * 0.1
             sprites.append(sprite)
 
         bounds = (0, 0, 800, 600)
@@ -187,12 +192,13 @@ class TestMoveUntilBoundaries:
         # All sprites should have bounced
         for sprite in sprites:
             assert sprite.change_x < 0  # All moving left now
-            assert sprite.center_x <= 800  # All kept in bounds
+            assert sprite.right <= 800  # All right edges kept in bounds
 
     def test_move_until_wrap_vertical_boundaries(self):
-        """Test MoveUntil with vertical wrapping boundaries."""
+        """Test MoveUntil with vertical wrapping boundaries using edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_y = 599  # Very close to top boundary
+        # Position sprite so its top edge is near top boundary
+        sprite.top = 595
 
         bounds = (0, 0, 800, 600)
 
@@ -212,14 +218,15 @@ class TestMoveUntilBoundaries:
         # Run boundary processing
         Action.update_all(0.001)
 
-        # Should have wrapped to bottom side
-        assert sprite.center_y == 0
+        # Should have wrapped to bottom side - bottom edge at bottom bound
+        assert sprite.bottom == 0
 
     def test_move_until_wrap_both_axes(self):
-        """Test MoveUntil with wrapping on both axes simultaneously."""
+        """Test MoveUntil with wrapping on both axes simultaneously using edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_x = 799  # Near right
-        sprite.center_y = 599  # Near top
+        # Position sprite so its right and top edges are near boundaries
+        sprite.right = 795
+        sprite.top = 595
 
         bounds = (0, 0, 800, 600)
 
@@ -239,14 +246,15 @@ class TestMoveUntilBoundaries:
         # Run boundary processing
         Action.update_all(0.001)
 
-        # Should have wrapped on both axes
-        assert sprite.center_x == 0
-        assert sprite.center_y == 0
+        # Should have wrapped on both axes - edges at bounds
+        assert sprite.left == 0
+        assert sprite.bottom == 0
 
     def test_move_until_limit_debounce_x(self):
-        """Limit behavior should fire one enter on approach and one exit on retreat (X)."""
+        """Limit behavior should fire one enter on approach and one exit on retreat (X) with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_x = 799  # Near right boundary
+        # Position sprite so its right edge is near right boundary
+        sprite.right = 795
 
         bounds = (0, 0, 800, 600)
         events: list[tuple[str, str, str]] = []
@@ -294,9 +302,10 @@ class TestMoveUntilBoundaries:
         assert events.count(("exit", "x", "right")) == 1
 
     def test_move_until_limit_debounce_y(self):
-        """Limit behavior should fire one enter on approach and one exit on retreat (Y)."""
+        """Limit behavior should fire one enter on approach and one exit on retreat (Y) with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_y = 599  # Near top boundary
+        # Position sprite so its top edge is near top boundary
+        sprite.top = 595
 
         bounds = (0, 0, 800, 600)
         events: list[tuple[str, str, str]] = []
@@ -352,9 +361,10 @@ class TestPriority3_BoundaryBehaviorMethods:
         Action.stop_all()
 
     def test_wrap_behavior_left_to_right(self):
-        """Test wrap boundary behavior when crossing left boundary - line 469-476."""
+        """Test wrap boundary behavior when crossing left boundary with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_x = 5  # Start just inside left boundary
+        # Position sprite so its left edge is just inside left boundary
+        sprite.left = 5
 
         bounds = (0, 0, 800, 600)
         action = MoveUntil((-100, 0), infinite, bounds=bounds, boundary_behavior="wrap")
@@ -367,13 +377,14 @@ class TestPriority3_BoundaryBehaviorMethods:
         # Check boundaries on new position
         Action.update_all(0.001)
 
-        # Should have wrapped to right side
-        assert sprite.center_x >= 700  # Should be near right boundary (800)
+        # Should have wrapped to right side - right edge at right bound
+        assert sprite.right == 800
 
     def test_wrap_behavior_right_to_left(self):
-        """Test wrap boundary behavior when crossing right boundary."""
+        """Test wrap boundary behavior when crossing right boundary with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_x = 795  # Start near right boundary
+        # Position sprite so its right edge is near right boundary
+        sprite.right = 795
 
         bounds = (0, 0, 800, 600)
         action = MoveUntil((100, 0), infinite, bounds=bounds, boundary_behavior="wrap")
@@ -386,13 +397,14 @@ class TestPriority3_BoundaryBehaviorMethods:
         # Check boundaries on new position
         Action.update_all(0.001)
 
-        # Should have wrapped to left side
-        assert sprite.center_x == 0  # Wrapped to left boundary
+        # Should have wrapped to left side - left edge at left bound
+        assert sprite.left == 0
 
     def test_wrap_behavior_bottom_to_top(self):
-        """Test wrap boundary behavior when crossing bottom boundary."""
+        """Test wrap boundary behavior when crossing bottom boundary with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_y = 5  # Start near bottom boundary
+        # Position sprite so its bottom edge is near bottom boundary
+        sprite.bottom = 5
 
         bounds = (0, 0, 800, 600)
         action = MoveUntil((0, -100), infinite, bounds=bounds, boundary_behavior="wrap")
@@ -405,13 +417,14 @@ class TestPriority3_BoundaryBehaviorMethods:
         # Check boundaries on new position
         Action.update_all(0.001)
 
-        # Should have wrapped to top side
-        assert sprite.center_y >= 500  # Should be near top boundary (600)
+        # Should have wrapped to top side - top edge at top bound
+        assert sprite.top == 600
 
     def test_wrap_behavior_top_to_bottom(self):
-        """Test wrap boundary behavior when crossing top boundary."""
+        """Test wrap boundary behavior when crossing top boundary with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_y = 595  # Start near top boundary
+        # Position sprite so its top edge is near top boundary
+        sprite.top = 595
 
         bounds = (0, 0, 800, 600)
         action = MoveUntil((0, 100), infinite, bounds=bounds, boundary_behavior="wrap")
@@ -424,13 +437,14 @@ class TestPriority3_BoundaryBehaviorMethods:
         # Check boundaries on new position
         Action.update_all(0.001)
 
-        # Should have wrapped to bottom side
-        assert sprite.center_y == 0  # Wrapped to bottom boundary
+        # Should have wrapped to bottom side - bottom edge at bottom bound
+        assert sprite.bottom == 0
 
     def test_limit_behavior_left_boundary(self):
-        """Test limit boundary behavior at left boundary - covers lines 480-501."""
+        """Test limit boundary behavior at left boundary with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_x = 50  # Start left of boundary
+        # Position sprite so its left edge is left of boundary
+        sprite.left = 50
 
         bounds = (100, 0, 800, 600)
         action = MoveUntil((-5, 0), infinite, bounds=bounds, boundary_behavior="limit")
@@ -439,14 +453,15 @@ class TestPriority3_BoundaryBehaviorMethods:
         # Update action - should immediately snap to boundary
         Action.update_all(1 / 60)
 
-        # Should be clamped at boundary with zero velocity applied
-        assert sprite.center_x == 100
+        # Should be clamped at boundary with zero velocity applied - left edge at left bound
+        assert sprite.left == 100
         assert sprite.change_x == 0
 
     def test_limit_behavior_bottom_boundary(self):
-        """Test limit boundary behavior at bottom boundary - covers lines 492-496."""
+        """Test limit boundary behavior at bottom boundary with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_y = 50  # Start below boundary
+        # Position sprite so its bottom edge is below boundary
+        sprite.bottom = 50
 
         bounds = (0, 100, 800, 600)
         action = MoveUntil((0, -5), infinite, bounds=bounds, boundary_behavior="limit")
@@ -455,14 +470,15 @@ class TestPriority3_BoundaryBehaviorMethods:
         # Update action - should immediately snap to boundary
         Action.update_all(1 / 60)
 
-        # Should be clamped at boundary with zero velocity applied
-        assert sprite.center_y == 100
+        # Should be clamped at boundary with zero velocity applied - bottom edge at bottom bound
+        assert sprite.bottom == 100
         assert sprite.change_y == 0
 
     def test_limit_behavior_top_boundary(self):
-        """Test limit boundary behavior at top boundary - covers lines 497-501."""
+        """Test limit boundary behavior at top boundary with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_y = 650  # Start above boundary
+        # Position sprite so its top edge is above boundary
+        sprite.top = 650
 
         bounds = (0, 0, 800, 600)
         action = MoveUntil((0, 5), infinite, bounds=bounds, boundary_behavior="limit")
@@ -471,8 +487,8 @@ class TestPriority3_BoundaryBehaviorMethods:
         # Should immediately snap to boundary
         Action.update_all(1 / 60)
 
-        # Should be clamped at boundary with zero velocity
-        assert sprite.center_y == 600
+        # Should be clamped at boundary with zero velocity - top edge at top bound
+        assert sprite.top == 600
         assert sprite.change_y == 0
 
 
@@ -484,9 +500,10 @@ class TestPriority1_VelocityProviderBoundaryCallbacks:
         Action.stop_all()
 
     def test_velocity_provider_boundary_enter_right(self):
-        """Test velocity provider triggers boundary enter on right - lines 238-240."""
+        """Test velocity provider triggers boundary enter on right with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_x = 795
+        # Position sprite so its right edge is near right boundary
+        sprite.right = 795
 
         enter_calls = []
 
@@ -514,9 +531,10 @@ class TestPriority1_VelocityProviderBoundaryCallbacks:
         assert ("x", "right") in enter_calls
 
     def test_velocity_provider_boundary_enter_left(self):
-        """Test velocity provider triggers boundary enter on left - lines 242-248."""
+        """Test velocity provider triggers boundary enter on left with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_x = 5
+        # Position sprite so its left edge is near left boundary
+        sprite.left = 5
 
         enter_calls = []
 
@@ -544,9 +562,10 @@ class TestPriority1_VelocityProviderBoundaryCallbacks:
         assert ("x", "left") in enter_calls
 
     def test_velocity_provider_boundary_enter_top(self):
-        """Test velocity provider triggers boundary enter on top - lines 260-266."""
+        """Test velocity provider triggers boundary enter on top with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_y = 595
+        # Position sprite so its top edge is near top boundary
+        sprite.top = 595
 
         enter_calls = []
 
@@ -574,9 +593,10 @@ class TestPriority1_VelocityProviderBoundaryCallbacks:
         assert ("y", "top") in enter_calls
 
     def test_velocity_provider_boundary_enter_bottom(self):
-        """Test velocity provider triggers boundary enter on bottom - lines 267-274."""
+        """Test velocity provider triggers boundary enter on bottom with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_y = 5
+        # Position sprite so its bottom edge is near bottom boundary
+        sprite.bottom = 5
 
         enter_calls = []
 
@@ -604,9 +624,10 @@ class TestPriority1_VelocityProviderBoundaryCallbacks:
         assert ("y", "bottom") in enter_calls
 
     def test_velocity_provider_boundary_exit_vertical(self):
-        """Test velocity provider triggers boundary exit on vertical - lines 279-282."""
+        """Test velocity provider triggers boundary exit on vertical with edge-based coordinates."""
         sprite = create_test_sprite()
-        sprite.center_y = 605  # Start beyond top boundary
+        # Position sprite so its top edge is beyond top boundary
+        sprite.top = 605
 
         exit_calls = []
         enter_calls = []
