@@ -8,6 +8,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar
+import time
 
 if TYPE_CHECKING:
     import arcade
@@ -74,6 +75,9 @@ class Action(ABC, Generic[_T]):
     _previous_actions: set[Action] | None = None
     _warned_bad_callbacks: set[Callable] = set()
     _last_counts: dict[str, int] | None = None
+    _enable_visualizer: bool = False  # Enable instrumentation hooks
+    _frame_counter: int = 0  # Track frame count for visualization
+    _debug_store = None  # Injected DebugDataStore dependency
 
     def __init__(
         self,
@@ -131,6 +135,11 @@ class Action(ABC, Generic[_T]):
         """
         self.target = target
         self.tag = tag
+        
+        # Instrumentation: record creation
+        if Action._enable_visualizer:
+            self._record_event("created")
+        
         if Action._is_updating:
             # Defer activation until end of update loop
             Action._pending_actions.append(self)
@@ -143,6 +152,12 @@ class Action(ABC, Generic[_T]):
         """Called when the action begins."""
         _debug_log_action(self, 2, f"start() target={self.target} tag={self.tag}")
         self._is_active = True
+        
+        # Instrumentation: record started and create snapshot
+        if Action._enable_visualizer:
+            self._record_event("started")
+            self._update_snapshot()
+        
         self.apply_effect()
         _debug_log_action(self, 2, f"start() completed _is_active={self._is_active}")
 
@@ -163,11 +178,21 @@ class Action(ABC, Generic[_T]):
 
         if self.condition and not self._condition_met:
             condition_result = self.condition()
+            
+            # Instrumentation: record condition evaluation
+            if Action._enable_visualizer:
+                self._record_condition_evaluation(condition_result)
+            
             if condition_result:
                 self._condition_met = True
                 self.condition_data = condition_result
                 self.remove_effect()
                 self.done = True
+                
+                # Instrumentation: record stopped
+                if Action._enable_visualizer:
+                    self._record_event("stopped", condition_data=condition_result)
+                
                 if self.on_stop:
                     if condition_result is not True:
                         self._safe_call(self.on_stop, condition_result)
@@ -193,6 +218,11 @@ class Action(ABC, Generic[_T]):
     def stop(self) -> None:
         """Stop the action and remove it from the global action manager."""
         _debug_log_action(self, 2, f"stop() called done={self.done} _is_active={self._is_active}")
+        
+        # Instrumentation: record removed
+        if Action._enable_visualizer:
+            self._record_event("removed")
+        
         if self in Action._active_actions:
             Action._active_actions.remove(self)
             _debug_log_action(self, 2, "removed from _active_actions")
@@ -208,6 +238,25 @@ class Action(ABC, Generic[_T]):
         if tag:
             return [action for action in Action._active_actions if action.target == target and action.tag == tag]
         return [action for action in Action._active_actions if action.target == target]
+
+    @classmethod
+    def pause_all(cls) -> None:
+        """Pause all active actions."""
+        for action in cls._active_actions:
+            action.pause()
+
+    @classmethod
+    def resume_all(cls) -> None:
+        """Resume all active actions."""
+        for action in cls._active_actions:
+            action.resume()
+
+    @classmethod
+    def step_all(cls, delta_time: float, *, physics_engine=None) -> None:
+        """Advance all actions by a single step while keeping them paused."""
+        cls.resume_all()
+        cls.update_all(delta_time, physics_engine=physics_engine)
+        cls.pause_all()
 
     @staticmethod
     def stop_actions_for_target(target: arcade.Sprite | arcade.SpriteList, tag: str | None = None) -> None:
@@ -228,6 +277,11 @@ class Action(ABC, Generic[_T]):
                 for all kinematic bodies, eliminating the need for manual set_velocity
                 calls. When omitted, actions manipulate sprite attributes directly.
         """
+        # Update visualization instrumentation
+        if cls._enable_visualizer and cls._debug_store:
+            cls._frame_counter += 1
+            cls._debug_store.update_frame(cls._frame_counter, time.time())
+        
         # Provide engine context for adapter-powered actions
         try:
             from actions.physics_adapter import set_current_engine  # local import to avoid hard dep
@@ -482,6 +536,104 @@ class Action(ABC, Generic[_T]):
             # Log them at debug level 2+ to help troubleshoot bad callbacks
             if Action.debug_level >= 2:
                 print(f"[AA] Callback '{fn.__name__}' raised {type(exc).__name__}: {exc}")
+    
+    @classmethod
+    def set_debug_store(cls, debug_store) -> None:
+        """
+        Inject a DebugDataStore dependency for visualization instrumentation.
+        
+        This follows dependency injection principles by allowing the debug store
+        to be provided externally rather than created as a global singleton.
+        
+        Args:
+            debug_store: DebugDataStore instance to use for recording events
+        """
+        cls._debug_store = debug_store
+    
+    def _record_event(self, event_type: str, **details) -> None:
+        """
+        Record an action lifecycle event to the debug store.
+        
+        Args:
+            event_type: Type of event ("created", "started", "stopped", "removed")
+            **details: Additional event-specific details
+        """
+        if not Action._debug_store:
+            return
+        
+        target_id = id(self.target) if self.target else 0
+        # Use type name directly - let the store handle display logic
+        target_type = type(self.target).__name__ if self.target else "None"
+        
+        Action._debug_store.record_event(
+            event_type=event_type,
+            action_id=id(self),
+            action_type=type(self).__name__,
+            target_id=target_id,
+            target_type=target_type,
+            tag=self.tag,
+            **details
+        )
+    
+    def _record_condition_evaluation(self, result: Any) -> None:
+        """
+        Record a condition evaluation result to the debug store.
+        
+        Args:
+            result: The value returned by the condition function
+        """
+        if not Action._debug_store:
+            return
+        
+        # Get string representation of condition - use EAFP with genuine fallback
+        condition_str = None
+        try:
+            condition_str = self.condition.__name__
+        except AttributeError:
+            # Fallback for lambda functions which don't have __name__
+            try:
+                if self.condition.__doc__:
+                    condition_str = self.condition.__doc__.strip()
+            except AttributeError:
+                pass  # No name or doc available
+        
+        Action._debug_store.record_condition_evaluation(
+            action_id=id(self),
+            action_type=type(self).__name__,
+            result=result,
+            condition_str=condition_str
+        )
+    
+    def _update_snapshot(self, **kwargs) -> None:
+        """
+        Update or create a snapshot of this action's current state.
+        
+        Args:
+            **kwargs: Additional snapshot fields to update
+        """
+        if not Action._debug_store:
+            return
+        
+        target_id = id(self.target) if self.target else 0
+        # Use type name directly - let the store handle display logic
+        target_type = type(self.target).__name__ if self.target else "None"
+        
+        # Build snapshot data
+        snapshot_data = {
+            "action_id": id(self),
+            "action_type": type(self).__name__,
+            "target_id": target_id,
+            "target_type": target_type,
+            "tag": self.tag,
+            "is_active": self._is_active,
+            "is_paused": self._paused,
+            "factor": self._factor,
+            "elapsed": self._elapsed,
+            "progress": None,  # Subclasses can override
+        }
+        snapshot_data.update(kwargs)
+        
+        Action._debug_store.update_snapshot(**snapshot_data)
 
 
 class CompositeAction(Action):
