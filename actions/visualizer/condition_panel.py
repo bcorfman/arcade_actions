@@ -32,7 +32,7 @@ class ConditionEntry:
 class ConditionDebugger:
     """
     Collects condition evaluation history for display in the overlay.
-    
+
     Uses dependency injection to receive a DebugDataStore instance.
     """
 

@@ -272,4 +272,3 @@ class DebugDataStore:
             "events_buffered": len(self.events),
             "evaluations_buffered": len(self.evaluations),
         }
-

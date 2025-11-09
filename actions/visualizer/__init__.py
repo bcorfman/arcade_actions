@@ -7,22 +7,22 @@ including action inspection, condition debugging, visual guides, and performance
 Usage:
     from actions import Action
     from actions.visualizer import DebugDataStore, InspectorOverlay, OverlayRenderer
-    
+
     # Create debug store and inject it
     debug_store = DebugDataStore()
     Action.set_debug_store(debug_store)
     Action._enable_visualizer = True
-    
+
     # Create overlay and renderer
     overlay = InspectorOverlay(debug_store)
     renderer = OverlayRenderer(overlay)
-    
+
     # In game loop:
     def on_update(self, delta_time):
         Action.update_all(delta_time)
         overlay.update()
         renderer.update()
-    
+
     def on_draw(self):
         renderer.draw()
 """
@@ -64,4 +64,3 @@ __all__ = [
     "DebugControlManager",
     "SnapshotExporter",
 ]
-

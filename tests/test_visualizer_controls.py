@@ -163,10 +163,12 @@ def test_f4_toggles_condition_panel(control_context):
     press(manager, arcade.key.F4)
     assert manager.condition_panel_visible is True
 
+
 def test_unhandled_key_returns_false(control_context):
     *_, manager, _ = control_context
     handled = manager.handle_key_press(arcade.key.A)
     assert handled is False
+
 
 def test_update_when_condition_panel_hidden(control_context):
     store, overlay, guides, condition_debugger, timeline, _, manager, _ = control_context
@@ -190,9 +192,9 @@ def test_update_when_condition_panel_hidden(control_context):
     assert condition_debugger.entries == []
     assert len(guides.velocity_guide.arrows) == 1
 
+
 def test_f7_no_step_when_not_paused(control_context):
     *_, action_controller, manager, _ = control_context
     handled = manager.handle_key_press(arcade.key.F7)
     assert handled is True
     assert action_controller.steps == []
-
