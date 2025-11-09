@@ -169,4 +169,3 @@ class TestTimelineStrip:
 
         assert len(timeline.entries) == 1
         assert timeline.entries[0].target_id == 100
-

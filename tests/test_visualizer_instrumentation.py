@@ -20,7 +20,7 @@ class TestDebugDataStore:
     def test_initialization(self):
         """Test that store initializes with correct defaults."""
         store = DebugDataStore(max_events=100, max_evaluations=50)
-        
+
         assert store.max_events == 100
         assert store.max_evaluations == 50
         assert len(store.events) == 0
@@ -33,7 +33,7 @@ class TestDebugDataStore:
         """Test updating frame and timestamp."""
         store = DebugDataStore()
         store.update_frame(42, 1.5)
-        
+
         assert store.current_frame == 42
         assert store.current_time == 1.5
 
@@ -41,16 +41,16 @@ class TestDebugDataStore:
         """Test recording an action creation event."""
         store = DebugDataStore()
         store.update_frame(10, 0.5)
-        
+
         store.record_event(
             event_type="created",
             action_id=1,
             action_type="MoveUntil",
             target_id=100,
             target_type="Sprite",
-            tag="movement"
+            tag="movement",
         )
-        
+
         assert len(store.events) == 1
         event = store.events[0]
         assert event.frame == 10
@@ -66,16 +66,16 @@ class TestDebugDataStore:
     def test_record_event_builds_indices(self):
         """Test that event recording builds lookup indices."""
         store = DebugDataStore()
-        
+
         store.record_event(
             event_type="created",
             action_id=1,
             action_type="MoveUntil",
             target_id=100,
             target_type="Sprite",
-            tag="movement"
+            tag="movement",
         )
-        
+
         assert 100 in store.actions_by_target
         assert 1 in store.actions_by_target[100]
         assert "movement" in store.actions_by_tag
@@ -84,7 +84,7 @@ class TestDebugDataStore:
     def test_record_event_removed_cleans_indices(self):
         """Test that removal events clean up indices."""
         store = DebugDataStore()
-        
+
         # Create action
         store.record_event(
             event_type="created",
@@ -92,9 +92,9 @@ class TestDebugDataStore:
             action_type="MoveUntil",
             target_id=100,
             target_type="Sprite",
-            tag="movement"
+            tag="movement",
         )
-        
+
         # Add snapshot
         store.update_snapshot(
             action_id=1,
@@ -106,9 +106,9 @@ class TestDebugDataStore:
             is_paused=False,
             factor=1.0,
             elapsed=0.0,
-            progress=None
+            progress=None,
         )
-        
+
         # Remove action
         store.record_event(
             event_type="removed",
@@ -116,9 +116,9 @@ class TestDebugDataStore:
             action_type="MoveUntil",
             target_id=100,
             target_type="Sprite",
-            tag="movement"
+            tag="movement",
         )
-        
+
         assert 1 not in store.actions_by_target.get(100, [])
         assert 1 not in store.actions_by_tag.get("movement", [])
         assert 1 not in store.active_snapshots
@@ -127,15 +127,11 @@ class TestDebugDataStore:
         """Test recording condition evaluation results."""
         store = DebugDataStore()
         store.update_frame(20, 1.0)
-        
+
         store.record_condition_evaluation(
-            action_id=1,
-            action_type="MoveUntil",
-            result=False,
-            condition_str="sprite.center_x > 700",
-            center_x=650
+            action_id=1, action_type="MoveUntil", result=False, condition_str="sprite.center_x > 700", center_x=650
         )
-        
+
         assert len(store.evaluations) == 1
         eval_result = store.evaluations[0]
         assert eval_result.frame == 20
@@ -149,7 +145,7 @@ class TestDebugDataStore:
     def test_update_snapshot_creates_new(self):
         """Test that update_snapshot creates new snapshot if needed."""
         store = DebugDataStore()
-        
+
         store.update_snapshot(
             action_id=1,
             action_type="MoveUntil",
@@ -160,9 +156,9 @@ class TestDebugDataStore:
             is_paused=False,
             factor=1.0,
             elapsed=0.5,
-            progress=0.25
+            progress=0.25,
         )
-        
+
         assert 1 in store.active_snapshots
         snapshot = store.active_snapshots[1]
         assert snapshot.action_id == 1
@@ -196,7 +192,7 @@ class TestDebugDataStore:
     def test_update_snapshot_updates_existing(self):
         """Test that update_snapshot modifies existing snapshot."""
         store = DebugDataStore()
-        
+
         # Create initial snapshot
         store.update_snapshot(
             action_id=1,
@@ -208,12 +204,12 @@ class TestDebugDataStore:
             is_paused=False,
             factor=1.0,
             elapsed=0.5,
-            progress=0.25
+            progress=0.25,
         )
-        
+
         # Update progress
         store.update_snapshot(action_id=1, progress=0.75)
-        
+
         snapshot = store.active_snapshots[1]
         assert snapshot.progress == 0.75
         assert snapshot.action_type == "MoveUntil"  # Unchanged
@@ -221,12 +217,12 @@ class TestDebugDataStore:
     def test_get_events_for_action(self):
         """Test retrieving events for a specific action."""
         store = DebugDataStore()
-        
+
         store.record_event("created", 1, "MoveUntil", 100, "Sprite")
         store.record_event("started", 1, "MoveUntil", 100, "Sprite")
         store.record_event("created", 2, "RotateUntil", 100, "Sprite")
         store.record_event("stopped", 1, "MoveUntil", 100, "Sprite")
-        
+
         events = store.get_events_for_action(1)
         assert len(events) == 3
         assert all(e.action_id == 1 for e in events)
@@ -234,11 +230,11 @@ class TestDebugDataStore:
     def test_get_evaluations_for_action(self):
         """Test retrieving evaluations for a specific action."""
         store = DebugDataStore()
-        
+
         store.record_condition_evaluation(1, "MoveUntil", False)
         store.record_condition_evaluation(2, "RotateUntil", False)
         store.record_condition_evaluation(1, "MoveUntil", True)
-        
+
         evals = store.get_evaluations_for_action(1)
         assert len(evals) == 2
         assert all(e.action_id == 1 for e in evals)
@@ -246,20 +242,50 @@ class TestDebugDataStore:
     def test_get_actions_for_target(self):
         """Test retrieving all actions for a target."""
         store = DebugDataStore()
-        
+
         # Create actions for target 100
         store.record_event("created", 1, "MoveUntil", 100, "Sprite")
         store.record_event("created", 2, "RotateUntil", 100, "Sprite")
-        store.update_snapshot(1, action_type="MoveUntil", target_id=100, target_type="Sprite",
-                            tag=None, is_active=True, is_paused=False, factor=1.0, elapsed=0.0, progress=None)
-        store.update_snapshot(2, action_type="RotateUntil", target_id=100, target_type="Sprite",
-                            tag=None, is_active=True, is_paused=False, factor=1.0, elapsed=0.0, progress=None)
-        
+        store.update_snapshot(
+            1,
+            action_type="MoveUntil",
+            target_id=100,
+            target_type="Sprite",
+            tag=None,
+            is_active=True,
+            is_paused=False,
+            factor=1.0,
+            elapsed=0.0,
+            progress=None,
+        )
+        store.update_snapshot(
+            2,
+            action_type="RotateUntil",
+            target_id=100,
+            target_type="Sprite",
+            tag=None,
+            is_active=True,
+            is_paused=False,
+            factor=1.0,
+            elapsed=0.0,
+            progress=None,
+        )
+
         # Create action for different target
         store.record_event("created", 3, "FadeUntil", 200, "Sprite")
-        store.update_snapshot(3, action_type="FadeUntil", target_id=200, target_type="Sprite",
-                            tag=None, is_active=True, is_paused=False, factor=1.0, elapsed=0.0, progress=None)
-        
+        store.update_snapshot(
+            3,
+            action_type="FadeUntil",
+            target_id=200,
+            target_type="Sprite",
+            tag=None,
+            is_active=True,
+            is_paused=False,
+            factor=1.0,
+            elapsed=0.0,
+            progress=None,
+        )
+
         snapshots = store.get_actions_for_target(100)
         assert len(snapshots) == 2
         assert all(s.target_id == 100 for s in snapshots)
@@ -267,18 +293,48 @@ class TestDebugDataStore:
     def test_get_actions_by_tag(self):
         """Test retrieving all actions with a specific tag."""
         store = DebugDataStore()
-        
+
         store.record_event("created", 1, "MoveUntil", 100, "Sprite", tag="movement")
         store.record_event("created", 2, "RotateUntil", 100, "Sprite", tag="movement")
         store.record_event("created", 3, "FadeUntil", 100, "Sprite", tag="visual")
-        
-        store.update_snapshot(1, action_type="MoveUntil", target_id=100, target_type="Sprite",
-                            tag="movement", is_active=True, is_paused=False, factor=1.0, elapsed=0.0, progress=None)
-        store.update_snapshot(2, action_type="RotateUntil", target_id=100, target_type="Sprite",
-                            tag="movement", is_active=True, is_paused=False, factor=1.0, elapsed=0.0, progress=None)
-        store.update_snapshot(3, action_type="FadeUntil", target_id=100, target_type="Sprite",
-                            tag="visual", is_active=True, is_paused=False, factor=1.0, elapsed=0.0, progress=None)
-        
+
+        store.update_snapshot(
+            1,
+            action_type="MoveUntil",
+            target_id=100,
+            target_type="Sprite",
+            tag="movement",
+            is_active=True,
+            is_paused=False,
+            factor=1.0,
+            elapsed=0.0,
+            progress=None,
+        )
+        store.update_snapshot(
+            2,
+            action_type="RotateUntil",
+            target_id=100,
+            target_type="Sprite",
+            tag="movement",
+            is_active=True,
+            is_paused=False,
+            factor=1.0,
+            elapsed=0.0,
+            progress=None,
+        )
+        store.update_snapshot(
+            3,
+            action_type="FadeUntil",
+            target_id=100,
+            target_type="Sprite",
+            tag="visual",
+            is_active=True,
+            is_paused=False,
+            factor=1.0,
+            elapsed=0.0,
+            progress=None,
+        )
+
         movement_snapshots = store.get_actions_by_tag("movement")
         assert len(movement_snapshots) == 2
         assert all(s.tag == "movement" for s in movement_snapshots)
@@ -286,11 +342,11 @@ class TestDebugDataStore:
     def test_ring_buffer_limits_events(self):
         """Test that events ring buffer respects max size."""
         store = DebugDataStore(max_events=5, max_evaluations=10)
-        
+
         # Add more events than the limit
         for i in range(10):
             store.record_event("created", i, "MoveUntil", 100, "Sprite")
-        
+
         assert len(store.events) == 5  # Limited to max_events
         # Oldest events should be dropped
         assert store.events[0].action_id == 5
@@ -298,11 +354,11 @@ class TestDebugDataStore:
     def test_ring_buffer_limits_evaluations(self):
         """Test that evaluations ring buffer respects max size."""
         store = DebugDataStore(max_events=10, max_evaluations=3)
-        
+
         # Add more evaluations than the limit
         for i in range(10):
             store.record_condition_evaluation(i, "MoveUntil", False)
-        
+
         assert len(store.evaluations) == 3  # Limited to max_evaluations
 
     def test_clear(self):
@@ -311,11 +367,21 @@ class TestDebugDataStore:
         store.update_frame(100, 5.0)
         store.record_event("created", 1, "MoveUntil", 100, "Sprite")
         store.record_condition_evaluation(1, "MoveUntil", False)
-        store.update_snapshot(1, action_type="MoveUntil", target_id=100, target_type="Sprite",
-                            tag=None, is_active=True, is_paused=False, factor=1.0, elapsed=0.0, progress=None)
-        
+        store.update_snapshot(
+            1,
+            action_type="MoveUntil",
+            target_id=100,
+            target_type="Sprite",
+            tag=None,
+            is_active=True,
+            is_paused=False,
+            factor=1.0,
+            elapsed=0.0,
+            progress=None,
+        )
+
         store.clear()
-        
+
         assert len(store.events) == 0
         assert len(store.evaluations) == 0
         assert len(store.active_snapshots) == 0
@@ -329,9 +395,19 @@ class TestDebugDataStore:
         store.update_frame(50, 2.5)
         store.record_event("created", 1, "MoveUntil", 100, "Sprite")
         store.record_condition_evaluation(1, "MoveUntil", False)
-        store.update_snapshot(1, action_type="MoveUntil", target_id=100, target_type="Sprite",
-                            tag=None, is_active=True, is_paused=False, factor=1.0, elapsed=0.0, progress=None)
-        
+        store.update_snapshot(
+            1,
+            action_type="MoveUntil",
+            target_id=100,
+            target_type="Sprite",
+            tag=None,
+            is_active=True,
+            is_paused=False,
+            factor=1.0,
+            elapsed=0.0,
+            progress=None,
+        )
+
         stats = store.get_statistics()
         assert stats["current_frame"] == 50
         assert stats["current_time"] == 2.5
@@ -340,4 +416,3 @@ class TestDebugDataStore:
         assert stats["total_evaluations"] == 1
         assert stats["events_buffered"] == 1
         assert stats["evaluations_buffered"] == 1
-
