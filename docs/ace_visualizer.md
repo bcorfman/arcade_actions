@@ -1,142 +1,65 @@
-# ACE Visualizer Overview
+# ACE Visualizer Quick Start
 
-The ACE visualizer adds in-engine observability for ArcadeActions. It exposes runtime state through an inspector overlay, condition debugger, timeline strip, visual guides, and configurable keyboard shortcuts.
+The visualizer is an *attachable debugger* for ArcadeActions. Once it is on, you get:
 
-## Instrumentation
+- Inspector overlay with grouped action cards and progress bars.
+- Condition debugger + timeline panel for behavior-level visibility.
+- Visual guides (velocity vectors, bounds rectangles, path splines).
+- Global keyboard controls (F3–F9) for toggling panels, pausing, frame stepping, and snapshot export.
 
-1. Create a `DebugDataStore` and inject it into `Action`:
-
-```python
-from actions import Action
-from actions.visualizer import DebugDataStore
-
-store = DebugDataStore()
-Action.set_debug_store(store)
-Action._enable_visualizer = True
-```
-
-2. Run `Action.update_all(delta_time)` as usual. The store collects snapshots, events, and condition evaluations automatically.
-
-## Overlay + Renderer
-
-```python
-from actions.visualizer import InspectorOverlay, OverlayRenderer
-
-overlay = InspectorOverlay(debug_store=store)
-renderer = OverlayRenderer(overlay)
-
-def on_update(self, delta_time):
-    Action.update_all(delta_time)
-    overlay.update()
-    renderer.update()
-
-def on_draw(self):
-    renderer.draw()
-```
-
-- Groups are clustered by target (sprite or sprite list).
-- `highlight_next()` / `highlight_previous()` cycle focus between groups.
-- Filtering by tag is available during instantiation: `InspectorOverlay(..., filter_tag="movement")`.
-
-## Visual Guides
-
-```python
-from actions.visualizer import GuideManager
-
-guides = GuideManager()
-
-sprite_positions = {snapshot.target_id: (snapshot.target_id * 20, 50)
-                    for snapshot in store.get_all_snapshots()}
-
-guides.update(store.get_all_snapshots(), sprite_positions)
-```
-
-- Velocity vectors (green) mark direction/magnitude using sprite positions.
-- Bounds rectangles (red) are deduplicated automatically.
-- Path splines (blue) render `FollowPathUntil` metadata.
-- Guides can be toggled individually or all at once.
-
-## Condition Debugger & Timeline
-
-```python
-from actions.visualizer import ConditionDebugger, TimelineStrip
-
-condition_debugger = ConditionDebugger(store, max_entries=100)
-timeline = TimelineStrip(store, max_entries=100)
-
-condition_debugger.update()
-timeline.update()
-```
-
-- Condition debugger lists the most recent evaluations, including captured variables and tags.
-- Timeline strip aggregates lifecycle events (`created`, `started`, `stopped`, `removed`) to indicate active vs. finished actions.
-
-## Debug Controls
-
-```python
-from pathlib import Path
-from actions.visualizer import DebugControlManager, GuideManager
-
-class GameView(arcade.View):
-    def __init__(self):
-        self.store = DebugDataStore()
-        Action.set_debug_store(self.store)
-        Action._enable_visualizer = True
-
-        self.overlay = InspectorOverlay(self.store)
-        self.guides = GuideManager()
-        self.condition_debugger = ConditionDebugger(self.store)
-        self.timeline = TimelineStrip(self.store)
-
-        self.control_manager = DebugControlManager(
-            overlay=self.overlay,
-            guides=self.guides,
-            condition_debugger=self.condition_debugger,
-            timeline=self.timeline,
-            snapshot_directory=Path("snapshots"),
-            action_controller=Action,
-            step_delta=1/60,
-        )
-
-    def on_key_press(self, key, modifiers):
-        if self.control_manager.handle_key_press(key, modifiers):
-            return
-        super().on_key_press(key, modifiers)
-```
-
-### Keyboard Shortcuts
-
-| Key | Action |
-| --- | --- |
-| F3 | Toggle inspector overlay |
-| F4 | Toggle condition debugger visibility |
-| F5 | Toggle all visual guides |
-| F6 | Pause/Resume global actions |
-| F7 | Step forward one frame (while paused) |
-| F8 | Highlight next target group |
-| F9 | Export snapshot (`snapshots/snapshot_<timestamp>.json`) |
-
-Snapshots contain statistics, active snapshots, recorded events, and condition evaluations for offline diagnostics.
-
-## Stress Testing
-
-`tests/test_visualizer_performance.py` populates 250 snapshot entries and exercises overlay, renderer, guides, condition debugger, and timeline to ensure scale and stability. Run with:
+## Fastest path (recommended)
 
 ```bash
-uv run python -m pytest tests/test_visualizer_performance.py -v
+ARCADEACTIONS_VISUALIZER=1 uv run python examples/invaders.py
 ```
 
-## Summary
+Setting `ARCADEACTIONS_VISUALIZER=1` is enough—`attach_visualizer()` is called for you as soon as `actions.visualizer` imports. Remove the environment variable to run normally.
 
-1. Inject `DebugDataStore` into `Action`.
-2. Create `InspectorOverlay`, `GuideManager`, `ConditionDebugger`, and `TimelineStrip` as needed.
-3. Use `DebugControlManager` to wire global shortcuts, pause/step controls, and snapshot export.
-4. Optional: integrate `OverlayRenderer` inside `on_draw` for archival visuals.
-```EOF
+While the debugger is active:
 
-## Validation Checklist
+| Key | What happens |
+| --- | --- |
+| F3 | Toggle inspector overlay |
+| F4 | Toggle condition debugger panel |
+| F5 | Toggle all visual guides |
+| F6 | Pause / resume the action system |
+| F7 | Step a single frame (only when paused) |
+| F8 | Cycle the highlighted target group |
+| F9 | Dump a JSON snapshot (`snapshots/snapshot_<timestamp>.json`) |
 
-1. Run `uv run python -m pytest tests/test_visualizer_performance.py` to ensure overlays and guides handle 250+ actions.
-2. Run `uv run python -m pytest tests/test_visualizer_controls.py` to confirm keyboard shortcuts toggle the correct systems, pause/resume, and export snapshots.
-3. Launch a sample Arcade view with `InspectorOverlay`, `OverlayRenderer`, and `DebugControlManager` wired as described above. Press F3–F9 to verify visual feedback and snapshot output.
-4. Inspect the generated snapshot JSON in `snapshots/` to confirm statistics, snapshots, events, and evaluations are captured.
+Snapshots include the current frame/time, active actions, lifecycle events, and the most recent condition evaluations.
+
+## Single-line attach (manual opt‑in)
+
+```python
+from actions.visualizer import attach_visualizer
+
+attach_visualizer()
+```
+
+- Call once during startup (e.g. in `View.__init__`) to opt-in without using environment variables.
+- Everything else—overlay, guides, condition debugger, timeline, keyboard shortcuts—is wired automatically.
+- Customize as needed:
+  - `snapshot_directory="debug_snapshots"`
+  - `sprite_positions_provider=lambda: {id(s): s.position for s in self.enemies}`
+
+## Attach later (runtime hot-key)
+
+```python
+from actions.visualizer import enable_visualizer_hotkey
+
+enable_visualizer_hotkey()  # registers Shift+F3 on the active window
+```
+
+Press **Shift+F3** any time during play to attach the debugger without restarting the game.
+
+## When you need more control
+
+The helper manages everything for typical use. If you want to drive the components yourself (for custom UI layouts or tooling), you can still create `InspectorOverlay`, `GuideManager`, `ConditionDebugger`, `TimelineStrip`, and `DebugControlManager` manually and call their `update()` methods inside your game loop. This is entirely optional.
+
+## Validation checklist
+
+1. `uv run python -m pytest tests/test_visualizer_performance.py` — sanity/stress test (≈250 actions).
+2. `uv run python -m pytest tests/test_visualizer_controls.py` — keyboard shortcut coverage.
+3. Play an example (e.g. `examples/invaders.py`) with the debugger attached, press F3–F9, and confirm overlays behave as expected.
+4. Inspect the generated snapshot JSON to verify statistics, events, and evaluations are recorded.
