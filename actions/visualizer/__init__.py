@@ -5,26 +5,12 @@ This module provides runtime visualization for the ACE (ArcadeActions Conditiona
 including action inspection, condition debugging, visual guides, and performance monitoring.
 
 Usage:
-    from actions import Action
-    from actions.visualizer import DebugDataStore, InspectorOverlay, OverlayRenderer
+    from actions.visualizer import attach_visualizer
 
-    # Create debug store and inject it
-    debug_store = DebugDataStore()
-    Action.set_debug_store(debug_store)
-    Action._enable_visualizer = True
+    # Attach once at startup (or rely on ARCADEACTIONS_VISUALIZER=1 env var)
+    attach_visualizer()
 
-    # Create overlay and renderer
-    overlay = InspectorOverlay(debug_store)
-    renderer = OverlayRenderer(overlay)
-
-    # In game loop:
-    def on_update(self, delta_time):
-        Action.update_all(delta_time)
-        overlay.update()
-        renderer.update()
-
-    def on_draw(self):
-        renderer.draw()
+    # After this call, F3-F9 shortcuts are active automatically
 """
 
 from .instrumentation import (
@@ -32,6 +18,14 @@ from .instrumentation import (
     ActionEvent,
     ConditionEvaluation,
     ActionSnapshot,
+)
+from .attach import (
+    attach_visualizer,
+    detach_visualizer,
+    is_visualizer_attached,
+    get_visualizer_session,
+    enable_visualizer_hotkey,
+    auto_attach_from_env,
 )
 from .overlay import (
     InspectorOverlay,
@@ -63,4 +57,13 @@ __all__ = [
     "GuideManager",
     "DebugControlManager",
     "SnapshotExporter",
+    "attach_visualizer",
+    "detach_visualizer",
+    "is_visualizer_attached",
+    "get_visualizer_session",
+    "enable_visualizer_hotkey",
+    "auto_attach_from_env",
 ]
+
+
+auto_attach_from_env()
