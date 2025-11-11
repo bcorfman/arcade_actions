@@ -7,10 +7,11 @@ Handles drawing overlay UI using arcade.Text and arcade.ShapeElementList.
 from __future__ import annotations
 
 import arcade
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from actions.visualizer.overlay import InspectorOverlay, TargetGroup, ActionCard
+    from actions.visualizer.timeline import TimelineStrip
 
 
 class OverlayRenderer:
@@ -176,3 +177,141 @@ class OverlayRenderer:
         # Draw text on top
         for text_obj in self.text_objects:
             text_obj.draw()
+
+
+class TimelineRenderer:
+    """
+    Renders timeline entries as horizontal bars in a dedicated window.
+    
+    Displays action lifetime timelines with start/end frames and visual bars.
+    """
+
+    def __init__(
+        self,
+        timeline: "TimelineStrip",
+        width: int,
+        height: int,
+        margin: int,
+        target_names_provider: Callable[[], dict[int, str]] | None = None,
+    ):
+        """
+        Initialize the timeline renderer.
+
+        Args:
+            timeline: Injected TimelineStrip dependency
+            width: Width of the timeline area
+            height: Height of the timeline area
+            margin: Margin around the timeline
+            target_names_provider: Optional callable returning target names by ID
+        """
+        self.timeline = timeline
+        self.width = width
+        self.height = height
+        self.margin = margin
+        self.target_names_provider = target_names_provider
+
+        # Rendering elements (created/updated in update())
+        self._bars: list[tuple[float, float, float, float, arcade.Color]] = []
+        self._labels: list[arcade.Text] = []
+
+    def update(self) -> None:
+        """
+        Update rendering elements from timeline data.
+        
+        Recreates timeline bars and labels based on current timeline entries.
+        """
+        # Clear existing renderables
+        self._bars = []
+        self._labels = []
+
+        if not self.timeline.entries:
+            return
+
+        # Calculate bar height and spacing
+        entry_height = max(12, (self.height - 2 * self.margin) // max(len(self.timeline.entries), 1))
+        entry_spacing = entry_height + 2
+
+        # Get target names if provider available
+        target_names: dict[int, str] = {}
+        if self.target_names_provider:
+            try:
+                target_names = self.target_names_provider() or {}
+            except Exception:
+                target_names = {}
+
+        # Calculate time range for scaling
+        all_frames = []
+        for entry in self.timeline.entries:
+            if entry.start_frame is not None:
+                all_frames.append(entry.start_frame)
+            if entry.end_frame is not None:
+                all_frames.append(entry.end_frame)
+
+        if not all_frames:
+            return
+
+        min_frame = min(all_frames)
+        max_frame = max(all_frames)
+        frame_range = max(1, max_frame - min_frame)
+
+        # Render each entry
+        current_y = self.height - self.margin - entry_height
+        for entry in self.timeline.entries:
+            if current_y < self.margin:
+                break
+
+            # Calculate bar position and width
+            if entry.start_frame is not None:
+                bar_x = self.margin + ((entry.start_frame - min_frame) / frame_range) * (self.width - 2 * self.margin)
+                bar_width = entry_height  # Default width for active entries
+
+                if entry.end_frame is not None:
+                    # Calculate width based on duration
+                    bar_width = max(
+                        entry_height,
+                        ((entry.end_frame - entry.start_frame) / frame_range) * (self.width - 2 * self.margin),
+                    )
+                else:
+                    # Active entry - extend to current position
+                    bar_width = max(entry_height, (self.width - 2 * self.margin) - (bar_x - self.margin))
+
+                # Choose color based on target type
+                if entry.target_type == "SpriteList":
+                    color = arcade.color.CYAN
+                elif entry.target_type == "Sprite":
+                    color = arcade.color.ORANGE
+                else:
+                    color = arcade.color.WHITE
+
+                # Add bar
+                self._bars.append((bar_x, current_y, bar_width, entry_height, color))
+
+                # Add label if space allows
+                if entry_spacing > 14:  # Only add labels if there's enough space
+                    label_text = entry.action_type
+                    if entry.target_id is not None and entry.target_id in target_names:
+                        label_text = f"{target_names[entry.target_id]}: {label_text}"
+                    elif entry.target_id is not None:
+                        label_text = f"{entry.target_type}#{entry.target_id}: {label_text}"
+
+                    label = arcade.Text(
+                        label_text,
+                        bar_x + 2,
+                        current_y + entry_height / 2 - 6,
+                        arcade.color.WHITE,
+                        9,
+                    )
+                    self._labels.append(label)
+
+            current_y -= entry_spacing
+
+    def draw(self) -> None:
+        """Draw all timeline elements to the screen."""
+        # Draw bars
+        for bar in self._bars:
+            x, y, width, height, color = bar
+            arcade.draw_lbwh_rectangle_filled(x, y, width, height, color)
+
+        # Draw labels
+        for label in self._labels:
+            label.draw()

@@ -15,38 +15,40 @@ class DummyWindow:
         self.location = (x, y)
 
 
-def test_move_to_primary_monitor_prefers_sdl(monkeypatch):
+def test_center_window_prefers_sdl(monkeypatch):
     window = DummyWindow()
     called = {}
 
-    def fake_sdl(win: DummyWindow, ox: int, oy: int) -> bool:
-        called["sdl"] = (win, ox, oy)
+    def fake_sdl(win: DummyWindow) -> bool:
+        called["sdl"] = win
         return True
 
-    def fake_screeninfo(win: DummyWindow, ox: int, oy: int) -> bool:
+    def fake_screeninfo(win: DummyWindow) -> bool:
         raise AssertionError("screeninfo fallback should not run when SDL succeeds")
 
-    monkeypatch.setattr(display, "_move_to_primary_with_sdl", fake_sdl)
-    monkeypatch.setattr(display, "_move_to_primary_with_screeninfo", fake_screeninfo)
+    monkeypatch.setattr(display, "_center_with_sdl", fake_sdl)
+    monkeypatch.setattr(display, "_center_with_screeninfo", fake_screeninfo)
 
-    assert display.move_to_primary_monitor(window, offset_x=10, offset_y=20)
-    assert called["sdl"] == (window, 10, 20)
+    assert display.center_window(window)
+    assert called["sdl"] == window
 
 
-def test_move_to_primary_monitor_falls_back(monkeypatch):
+def test_center_window_falls_back(monkeypatch):
     window = DummyWindow()
-    calls: list[tuple[int, int]] = []
+    called = []
 
-    monkeypatch.setattr(display, "_move_to_primary_with_sdl", lambda *args, **kwargs: False)
+    monkeypatch.setattr(display, "_center_with_sdl", lambda *args, **kwargs: False)
 
-    def fake_screeninfo(win: DummyWindow, ox: int, oy: int) -> bool:
-        calls.append((ox, oy))
-        win.set_location(ox, oy)
+    def fake_screeninfo(win: DummyWindow) -> bool:
+        called.append(win)
+        # Simulate centering (set location to center of a 1920x1080 display)
+        win.set_location(860, 480)  # (1920-200)/2, (1080-120)/2
         return True
 
-    monkeypatch.setattr(display, "_move_to_primary_with_screeninfo", fake_screeninfo)
+    monkeypatch.setattr(display, "_center_with_screeninfo", fake_screeninfo)
 
-    assert display.move_to_primary_monitor(window, offset_x=30, offset_y=40)
-    assert calls == [(30, 40)]
-    assert window.location == (30, 40)
+    assert display.center_window(window)
+    assert len(called) == 1
+    assert called[0] == window
+    assert window.location == (860, 480)
 

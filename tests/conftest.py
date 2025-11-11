@@ -6,49 +6,78 @@ import pytest
 from actions import Action
 
 
-@pytest.fixture(scope="function", autouse=True)
-def window():
-    """Create a headless window for tests that need Arcade context.
+# Global window instance (created lazily, shared across all tests)
+_global_test_window = None
 
-    This fixture ensures that all tests have access to a window context,
-    which is required for creating sprites and sprite lists in CI environments.
-    The window is created lazily - only when needed and not already present.
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_window_context():
+    """Ensure a window context exists for all tests.
+    
+    This session-scoped autouse fixture creates a window once at the start
+    of the test session and cleans it up at the end. This avoids the overhead
+    of creating a window for every test while ensuring sprites/sprite lists
+    can be created in CI environments.
     """
-    # Check if window already exists (don't create if tests mock get_window)
-    existing_window = None
+    global _global_test_window
+    
+    # Check if window already exists
     try:
-        existing_window = arcade.get_window()
+        existing = arcade.get_window()
+        if existing is not None:
+            _global_test_window = existing
+            yield
+            return
     except RuntimeError:
         pass
+    
+    # Create window if it doesn't exist
+    if _global_test_window is None:
+        _global_test_window = arcade.Window(800, 600, visible=False)
+        arcade.set_window(_global_test_window)
+    
+    yield
+    
+    # Cleanup at end of session
+    if _global_test_window is not None:
+        try:
+            if not _global_test_window.has_exit:
+                _global_test_window.close()
+        except Exception:
+            pass
+        try:
+            arcade.set_window(None)
+        except Exception:
+            pass
+        _global_test_window = None
 
-    if existing_window is not None:
-        yield existing_window
-        return
 
-    # Create a new headless window only if none exists
-    # This is needed for CI environments where sprites/sprite lists require a context
-    test_window = None
+@pytest.fixture(scope="function")
+def window():
+    """Provide window context for tests that explicitly need it.
+    
+    Most tests don't need to request this - the window is created automatically.
+    This fixture is for tests that need explicit access to the window object.
+    """
+    # Ensure window exists (should already exist from _ensure_window_context)
     try:
-        test_window = arcade.Window(800, 600, visible=False)
-        arcade.set_window(test_window)
-        yield test_window
-    finally:
-        # Cleanup: close the window if we created it
-        if test_window is not None:
-            try:
-                if not test_window.has_exit:
-                    test_window.close()
-            except Exception:
-                pass
-            # Clear the window reference
-            try:
-                arcade.set_window(None)
-            except Exception:
-                pass
+        win = arcade.get_window()
+        if win is not None:
+            yield win
+            return
+    except RuntimeError:
+        pass
+    
+    # Fallback: create if somehow missing (shouldn't happen)
+    global _global_test_window
+    if _global_test_window is None:
+        _global_test_window = arcade.Window(800, 600, visible=False)
+        arcade.set_window(_global_test_window)
+    yield _global_test_window
 
 
 @pytest.fixture
-def test_sprite() -> arcade.Sprite:
+def test_sprite(window) -> arcade.Sprite:
     """Create a sprite with texture for testing."""
     sprite = arcade.Sprite(":resources:images/items/star.png")
     sprite.center_x = 100
@@ -60,7 +89,7 @@ def test_sprite() -> arcade.Sprite:
 
 
 @pytest.fixture
-def test_sprite_list() -> arcade.SpriteList:
+def test_sprite_list(window) -> arcade.SpriteList:
     """Create a SpriteList with test sprites."""
     sprite_list = arcade.SpriteList()
     sprite1 = arcade.Sprite(":resources:images/items/star.png")
