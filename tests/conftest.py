@@ -30,7 +30,7 @@ def _ensure_window_context():
     On Linux with Xvfb, creates a real window. On Windows/macOS CI without
     OpenGL, monkeypatches Window.__init__ to create a mock window.
     """
-    global _global_test_window, _original_window_init
+    global _global_test_window, _original_window_init, _original_get_window, _original_ctx_property_global
     
     # Check if window already exists
     try:
@@ -65,7 +65,6 @@ def _ensure_window_context():
         # Store original ctx property if it exists (for restoration)
         _original_ctx_property = getattr(arcade.Window, 'ctx', None)
         # Store it globally so we can restore it in cleanup
-        global _original_ctx_property_global
         _original_ctx_property_global = _original_ctx_property
         
         def mock_window_init(self, width=800, height=600, visible=False, **kwargs):
@@ -111,7 +110,6 @@ def _ensure_window_context():
     yield
     
     # Restore original Window.__init__, get_window, and ctx property if we monkeypatched them
-    global _original_get_window, _original_ctx_property_global
     if _original_window_init is not None:
         arcade.Window.__init__ = _original_window_init
         _original_window_init = None
