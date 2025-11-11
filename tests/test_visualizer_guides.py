@@ -23,12 +23,13 @@ class TestVelocityGuide:
         """Test that velocity guide initializes."""
         guide = VelocityGuide()
 
-        assert guide.enabled is True
+        assert guide.enabled is False
         assert guide.color == arcade.color.GREEN
 
     def test_guide_can_be_toggled(self):
         """Test that guide can be enabled/disabled."""
         guide = VelocityGuide()
+        guide.enabled = True
 
         initial = guide.enabled
         guide.toggle()
@@ -38,6 +39,7 @@ class TestVelocityGuide:
     def test_guide_builds_arrows_from_snapshots(self):
         """Test that guide creates arrow shapes for velocity vectors."""
         guide = VelocityGuide()
+        guide.enabled = True
 
         snapshots = [
             ActionSnapshot(
@@ -96,12 +98,13 @@ class TestBoundsGuide:
         """Test that bounds guide initializes."""
         guide = BoundsGuide()
 
-        assert guide.enabled is True
+        assert guide.enabled is False
         assert guide.color == arcade.color.RED
 
     def test_guide_builds_rectangles_from_snapshots(self):
         """Test that guide creates rectangles for bounds."""
         guide = BoundsGuide()
+        guide.enabled = True
 
         snapshots = [
             ActionSnapshot(
@@ -128,6 +131,7 @@ class TestBoundsGuide:
     def test_guide_deduplicates_identical_bounds(self):
         """Test that guide doesn't create duplicate rectangles."""
         guide = BoundsGuide()
+        guide.enabled = True
 
         snapshots = [
             ActionSnapshot(
@@ -171,12 +175,13 @@ class TestPathGuide:
         """Test that path guide initializes."""
         guide = PathGuide()
 
-        assert guide.enabled is True
+        assert guide.enabled is False
         assert guide.color == arcade.color.BLUE
 
     def test_guide_stores_path_data(self):
         """Test that guide stores path information."""
         guide = PathGuide()
+        guide.enabled = True
 
         # Simulate FollowPathUntil snapshot with path data
         snapshots = [
@@ -252,6 +257,7 @@ class TestGuideManager:
         )
 
         manager = GuideManager()
+        manager.toggle_all()
         sprite_positions = {100: (100, 200)}
 
         manager.update([snapshot], sprite_positions)

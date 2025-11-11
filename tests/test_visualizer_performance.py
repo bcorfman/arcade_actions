@@ -84,6 +84,7 @@ def test_guides_and_panels_scale_with_dataset():
 
     sprite_positions = {snapshot.target_id: (snapshot.target_id * 10, 50) for snapshot in store.get_all_snapshots()}
 
+    guides.toggle_all()
     guides.update(store.get_all_snapshots(), sprite_positions)
     condition_debugger.update()
     timeline.update()

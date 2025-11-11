@@ -21,7 +21,7 @@ class VelocityGuide:
     Shows the direction and magnitude of movement for MoveUntil actions.
     """
 
-    def __init__(self, enabled: bool = True, color: tuple[int, int, int] = arcade.color.GREEN):
+    def __init__(self, enabled: bool = False, color: tuple[int, int, int] = arcade.color.GREEN):
         """
         Initialize velocity guide.
 
@@ -80,7 +80,7 @@ class BoundsGuide:
     Shows the bounds for MoveUntil actions with boundary checking enabled.
     """
 
-    def __init__(self, enabled: bool = True, color: tuple[int, int, int] = arcade.color.RED):
+    def __init__(self, enabled: bool = False, color: tuple[int, int, int] = arcade.color.RED):
         """
         Initialize bounds guide.
 
@@ -125,7 +125,7 @@ class PathGuide:
     Shows the path for FollowPathUntil actions.
     """
 
-    def __init__(self, enabled: bool = True, color: tuple[int, int, int] = arcade.color.BLUE):
+    def __init__(self, enabled: bool = False, color: tuple[int, int, int] = arcade.color.BLUE):
         """
         Initialize path guide.
 
@@ -207,3 +207,7 @@ class GuideManager:
         self.velocity_guide.update(snapshots, sprite_positions)
         self.bounds_guide.update(snapshots)
         self.path_guide.update(snapshots)
+
+    def any_enabled(self) -> bool:
+        """Return True if any guide is enabled."""
+        return self.velocity_guide.enabled or self.bounds_guide.enabled or self.path_guide.enabled

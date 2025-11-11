@@ -124,12 +124,7 @@ class TestTimelineStrip:
         timeline = TimelineStrip(debug_store=self.store)
         timeline.update()
 
-        assert len(timeline.entries) == 1
-        entry = timeline.entries[0]
-        assert entry.action_id == 1
-        assert entry.start_frame == 1
-        assert entry.end_frame == 5
-        assert entry.is_active is False
+        assert len(timeline.entries) == 0
 
     def test_entry_marks_active_when_no_stop_event(self):
         """Timeline should mark entries as active when not yet stopped."""

@@ -95,6 +95,8 @@ class TimelineStrip:
                 entry.end_frame = event.frame
                 entry.end_time = event.timestamp
                 entry.is_active = False
+                entries_by_action.pop(event.action_id, None)
+                continue
 
         # Convert to list respecting filters
         entries = list(entries_by_action.values())

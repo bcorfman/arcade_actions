@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, Callable
 
 import arcade
 
@@ -35,13 +35,16 @@ class DebugControlManager:
     timeline: TimelineStrip
     snapshot_directory: Path
     action_controller: ActionController
+    toggle_event_window: Callable[[bool], None]
     step_delta: float = 1 / 60
 
     def __post_init__(self) -> None:
         # Assume overlay provides access to debug store
         self.snapshot_exporter = SnapshotExporter(self.overlay.debug_store, self.snapshot_directory)
-        self.condition_panel_visible = True
+        self.condition_panel_visible = False
         self.is_paused = False
+        self.condition_debugger.clear()
+        self._toggle_event_window_callback = self.toggle_event_window
 
     def handle_key_press(self, key: int, modifiers: int = 0) -> bool:
         """Handle a keyboard shortcut; returns True if handled."""
@@ -51,6 +54,7 @@ class DebugControlManager:
 
         if key == arcade.key.F4:
             self.condition_panel_visible = not self.condition_panel_visible
+            self._toggle_event_window_callback(self.condition_panel_visible)
             return True
 
         if key == arcade.key.F5:
@@ -71,7 +75,11 @@ class DebugControlManager:
             return True
 
         if key == arcade.key.F9:
-            self.snapshot_exporter.export()
+            try:
+                path = self.snapshot_exporter.export()
+                print(f"[ACE] Snapshot written to {path}")
+            except Exception as exc:
+                print(f"[ACE] Failed to write snapshot: {exc!r}")
             return True
 
         return False
@@ -93,8 +101,11 @@ class DebugControlManager:
         else:
             self.condition_debugger.clear()
 
-        self.timeline.update()
-
-        if sprite_positions is None:
-            sprite_positions = {}
-        self.guides.update(self.overlay.debug_store.get_all_snapshots(), sprite_positions)
+        guides_enabled = self.guides.any_enabled()
+        if guides_enabled:
+            self.timeline.update()
+            if sprite_positions is None:
+                sprite_positions = {}
+            self.guides.update(self.overlay.debug_store.get_all_snapshots(), sprite_positions)
+        else:
+            self.timeline.update()

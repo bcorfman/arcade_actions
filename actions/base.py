@@ -19,6 +19,7 @@ else:
 
 
 _T = TypeVar("_T", bound="Action")
+_VISUALIZER_UNSET = object()
 
 
 def _debug_log_action(action, level: int, message: str) -> None:
@@ -97,6 +98,8 @@ class Action(ABC, Generic[_T]):
         self._condition_met = False
         self._elapsed = 0.0
         self.condition_data: Any = None
+        self._visualizer_removed_logged = False
+        self._visualizer_last_condition_result: Any = _VISUALIZER_UNSET
 
     # Note on local imports in operator overloads:
     # These imports are done locally (not at module level) to avoid circular
@@ -221,7 +224,7 @@ class Action(ABC, Generic[_T]):
         _debug_log_action(self, 2, f"stop() called done={self.done} _is_active={self._is_active}")
 
         # Instrumentation: record removed
-        if Action._enable_visualizer:
+        if Action._enable_visualizer and not self._visualizer_removed_logged:
             self._record_event("removed")
 
         if self in Action._active_actions:
@@ -335,7 +338,23 @@ class Action(ABC, Generic[_T]):
                 action.update(delta_time)
 
             # Phase 3: Remove completed actions (safe, callbacks already deactivated)
-            cls._active_actions[:] = [action for action in cls._active_actions if not action.done]
+            remaining_actions: list[Action] = []
+            if cls._enable_visualizer:
+                for action in cls._active_actions:
+                    if action.done:
+                        if not action._visualizer_removed_logged:
+                            action._record_event("removed")
+                        action._is_active = False
+                    else:
+                        remaining_actions.append(action)
+            else:
+                for action in cls._active_actions:
+                    if not action.done:
+                        remaining_actions.append(action)
+                    else:
+                        action._is_active = False
+
+            cls._active_actions[:] = remaining_actions
             cls.num_active_actions = len(cls._active_actions)
 
             # Phase 4: Activate any actions that were applied during this update
@@ -576,6 +595,13 @@ class Action(ABC, Generic[_T]):
             **details,
         )
 
+        if event_type == "created":
+            self._visualizer_removed_logged = False
+            self._visualizer_last_condition_result = _VISUALIZER_UNSET
+        elif event_type == "removed":
+            self._visualizer_removed_logged = True
+            self._visualizer_last_condition_result = _VISUALIZER_UNSET
+
     def _record_condition_evaluation(self, result: Any) -> None:
         """
         Record a condition evaluation result to the debug store.
@@ -585,6 +611,12 @@ class Action(ABC, Generic[_T]):
         """
         if not Action._debug_store:
             return
+
+        last_result = self._visualizer_last_condition_result
+        if last_result is not _VISUALIZER_UNSET and last_result == result:
+            return
+
+        self._visualizer_last_condition_result = result
 
         # Get string representation of condition - use EAFP with genuine fallback
         condition_str = None

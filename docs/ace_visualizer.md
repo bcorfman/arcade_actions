@@ -3,7 +3,7 @@
 The visualizer is an *attachable debugger* for ArcadeActions. Once it is on, you get:
 
 - Inspector overlay with grouped action cards and progress bars.
-- Condition debugger + timeline panel for behavior-level visibility.
+- Action timeline viewer window with color-coded timeline bars (F4).
 - Visual guides (velocity vectors, bounds rectangles, path splines).
 - Global keyboard controls (F3–F9) for toggling panels, pausing, frame stepping, and snapshot export.
 
@@ -20,7 +20,7 @@ While the debugger is active:
 | Key | What happens |
 | --- | --- |
 | F3 | Toggle inspector overlay |
-| F4 | Toggle condition debugger panel |
+| F4 | Toggle action timeline viewer window |
 | F5 | Toggle all visual guides |
 | F6 | Pause / resume the action system |
 | F7 | Step a single frame (only when paused) |
@@ -28,6 +28,8 @@ While the debugger is active:
 | F9 | Dump a JSON snapshot (`snapshots/snapshot_<timestamp>.json`) |
 
 Snapshots include the current frame/time, active actions, lifecycle events, and the most recent condition evaluations.
+
+The F4 shortcut toggles the dedicated action timeline viewer window. The window is OS-resizable and draggable, and displays action lifetime timeline bars. Timeline bars are color-coded to distinguish between SpriteList actions (cyan/teal) and Sprite actions (orange), with different brightness levels for active vs inactive states. This color scheme is designed to be distinguishable for users with color vision differences. Condition evaluations are not shown in the window but can be saved with F9 and viewed later in the snapshot JSON. Closing the window or pressing F4 again hides it without affecting the in-game overlay.
 
 ## Single-line attach (manual opt‑in)
 

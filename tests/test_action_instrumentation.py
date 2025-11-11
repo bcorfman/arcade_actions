@@ -131,6 +131,62 @@ class TestActionInstrumentation:
         eval_result = store.evaluations[-1]
         assert eval_result.result is False
 
+    def test_condition_evaluations_deduplicated(self):
+        """Repeated identical results should only record once."""
+        sprite = arcade.Sprite()
+        store = DebugDataStore()
+        Action._enable_visualizer = True
+        Action.set_debug_store(store)
+
+        action = MockAction(condition=lambda: False)
+        action.apply(sprite)
+
+        action.update(0.016)
+        action.update(0.016)
+        action.update(0.016)
+
+        assert len(store.evaluations) == 1
+        assert store.evaluations[0].result is False
+
+    def test_condition_evaluation_records_changes(self):
+        """A change in condition result should be recorded."""
+        sprite = arcade.Sprite()
+        store = DebugDataStore()
+        Action._enable_visualizer = True
+        Action.set_debug_store(store)
+
+        flip = {"value": False}
+
+        def condition():
+            return flip["value"]
+
+        action = MockAction(condition=condition)
+        action.apply(sprite)
+
+        action.update(0.016)
+        flip["value"] = True
+        action.update(0.016)
+
+        results = [ev.result for ev in store.evaluations]
+        assert results == [False, True]
+
+    def test_many_actions_do_not_spam_condition_evaluations(self):
+        """Large numbers of actions should not create unbounded evaluations."""
+        store = DebugDataStore()
+        Action._enable_visualizer = True
+        Action.set_debug_store(store)
+
+        sprites = [arcade.Sprite() for _ in range(200)]
+        actions = [MockAction(condition=lambda: False) for _ in sprites]
+
+        for sprite, action in zip(sprites, actions, strict=False):
+            action.apply(sprite)
+
+        for _ in range(5):
+            Action.update_all(0.016)
+
+        assert len(store.evaluations) == len(actions)
+
     def test_action_records_stopped_event(self):
         """Test that action records stopped event when condition met."""
         sprite = arcade.Sprite()
@@ -228,3 +284,27 @@ class TestActionInstrumentation:
         action.apply(sprite, tag="override")
 
         assert action.tag == "override"
+
+    def test_update_all_logs_removed_for_completed_action(self):
+        """Completed actions should emit a single removed event and clear snapshots."""
+        sprite = arcade.Sprite()
+        store = DebugDataStore()
+        Action._enable_visualizer = True
+        Action.set_debug_store(store)
+
+        should_finish = {"value": False}
+
+        def condition():
+            return should_finish["value"]
+
+        action = MockAction(condition=condition)
+        action.apply(sprite)
+
+        should_finish["value"] = True
+        Action.update_all(0.016)
+
+        removed_events = [e for e in store.events if e.event_type == "removed"]
+        assert len(removed_events) == 1
+        assert Action._active_actions == []
+        assert store.get_statistics()["active_actions"] == 0
+        assert store.active_snapshots == {}

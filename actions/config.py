@@ -109,36 +109,42 @@ def apply_environment_configuration() -> None:
     - ARCADEACTIONS_DEBUG: "0","1","2","3" (or "true"/"yes"/"on" -> 1)
     - ARCADEACTIONS_DEBUG_ALL: enable include_all
     - ARCADEACTIONS_DEBUG_INCLUDE: comma-separated class names
+    - ARCADEACTIONS_VISUALIZER: when set, attach the visualizer automatically
     """
     value = os.getenv(_ENV_DEBUG_FLAG)
-    if value is None:
-        return
+    if value is not None:
+        normalized = value.strip().lower()
 
-    normalized = value.strip().lower()
+        # Handle empty or whitespace-only strings
+        if not normalized:
+            set_debug_actions(False)
+        else:
+            level: int
+            # Use ASCII-only check to avoid triggering unicodedata dependency
+            # isdigit() can trigger unicodedata for Unicode digits; manual ASCII check avoids this
+            if normalized and normalized[0] in "0123456789" and all(c in "0123456789" for c in normalized):
+                level = int(normalized)
+            elif normalized in {"true", "yes", "on"}:
+                level = 1
+            elif normalized in {"false", "no", "off"}:
+                level = 0
+            else:
+                # Unknown values default to level 1
+                level = 1
 
-    # Handle empty or whitespace-only strings
-    if not normalized:
-        set_debug_actions(False)
-        return
+            include_all = os.getenv("ARCADEACTIONS_DEBUG_ALL", "").strip().lower() in {"1", "true", "yes", "on"}
 
-    level: int
-    # Use ASCII-only check to avoid triggering unicodedata dependency
-    # isdigit() can trigger unicodedata for Unicode digits; manual ASCII check avoids this
-    if normalized and normalized[0] in "0123456789" and all(c in "0123456789" for c in normalized):
-        level = int(normalized)
-    elif normalized in {"true", "yes", "on"}:
-        level = 1
-    elif normalized in {"false", "no", "off"}:
-        level = 0
-    else:
-        # Unknown values default to level 1
-        level = 1
+            include_env = os.getenv("ARCADEACTIONS_DEBUG_INCLUDE")
+            include = None
+            if include_env:
+                include = [name.strip() for name in include_env.split(",") if name.strip()]
 
-    include_all = os.getenv("ARCADEACTIONS_DEBUG_ALL", "").strip().lower() in {"1", "true", "yes", "on"}
+            set_debug_options(level=level, include=include, include_all=include_all)
 
-    include_env = os.getenv("ARCADEACTIONS_DEBUG_INCLUDE")
-    include = None
-    if include_env:
-        include = [name.strip() for name in include_env.split(",") if name.strip()]
+    if os.getenv("ARCADEACTIONS_VISUALIZER"):
+        try:
+            from actions.visualizer import attach as visualizer_attach  # local import to avoid mandatory dependency
+        except ImportError:
+            return
 
-    set_debug_options(level=level, include=include, include_all=include_all)
+        visualizer_attach.auto_attach_from_env(force=True)

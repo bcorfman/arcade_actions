@@ -49,6 +49,7 @@ def control_context(tmp_path: Path):
         snapshot_directory=tmp_path,
         action_controller=action_controller,
         step_delta=0.016,
+        toggle_event_window=lambda state: None,
     )
     return store, overlay, guides, condition_debugger, timeline, action_controller, manager, tmp_path
 
@@ -157,11 +158,11 @@ def test_f9_exports_snapshot(control_context):
 
 def test_f4_toggles_condition_panel(control_context):
     _, _, _, condition_debugger, _, _, manager, _ = control_context
-    assert manager.condition_panel_visible is True
-    press(manager, arcade.key.F4)
     assert manager.condition_panel_visible is False
     press(manager, arcade.key.F4)
     assert manager.condition_panel_visible is True
+    press(manager, arcade.key.F4)
+    assert manager.condition_panel_visible is False
 
 
 def test_unhandled_key_returns_false(control_context):
@@ -186,11 +187,11 @@ def test_update_when_condition_panel_hidden(control_context):
         progress=None,
         velocity=(1, 0),
     )
-    manager.handle_key_press(arcade.key.F4)  # hide condition panel
+    # Leave condition panel hidden by default and guides disabled
     manager.update(sprite_positions={50: (10, 10)})
     assert manager.condition_panel_visible is False
     assert condition_debugger.entries == []
-    assert len(guides.velocity_guide.arrows) == 1
+    assert len(guides.velocity_guide.arrows) == 0
 
 
 def test_f7_no_step_when_not_paused(control_context):
