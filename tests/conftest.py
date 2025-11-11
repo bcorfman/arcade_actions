@@ -6,6 +6,47 @@ import pytest
 from actions import Action
 
 
+@pytest.fixture(scope="function", autouse=True)
+def window():
+    """Create a headless window for tests that need Arcade context.
+
+    This fixture ensures that all tests have access to a window context,
+    which is required for creating sprites and sprite lists in CI environments.
+    The window is created lazily - only when needed and not already present.
+    """
+    # Check if window already exists (don't create if tests mock get_window)
+    existing_window = None
+    try:
+        existing_window = arcade.get_window()
+    except RuntimeError:
+        pass
+
+    if existing_window is not None:
+        yield existing_window
+        return
+
+    # Create a new headless window only if none exists
+    # This is needed for CI environments where sprites/sprite lists require a context
+    test_window = None
+    try:
+        test_window = arcade.Window(800, 600, visible=False)
+        arcade.set_window(test_window)
+        yield test_window
+    finally:
+        # Cleanup: close the window if we created it
+        if test_window is not None:
+            try:
+                if not test_window.has_exit:
+                    test_window.close()
+            except Exception:
+                pass
+            # Clear the window reference
+            try:
+                arcade.set_window(None)
+            except Exception:
+                pass
+
+
 @pytest.fixture
 def test_sprite() -> arcade.Sprite:
     """Create a sprite with texture for testing."""
