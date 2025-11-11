@@ -13,6 +13,8 @@ try:
 except ImportError:  # pragma: no cover - defensive
     window_commands_module = None
 
+import arcade.sprite_list.sprite_list as sprite_list_module
+
 from actions import Action
 
 
@@ -83,6 +85,7 @@ _global_test_window: HeadlessWindow | arcade.Window | None = None
 _original_get_window = None
 _original_get_window_module = None
 _headless_mode = False
+_original_sprite_list_init = None
 
 
 def _register_window(window) -> None:
@@ -112,7 +115,7 @@ def _create_or_get_window() -> HeadlessWindow | arcade.Window:
 @pytest.fixture(scope="session", autouse=True)
 def _ensure_window_context():
     """Ensure we have a window (real or headless) for tests."""
-    global _headless_mode, _original_get_window, _original_get_window_module
+    global _headless_mode, _original_get_window, _original_get_window_module, _original_sprite_list_init
 
     existing = None
     try:
@@ -132,6 +135,7 @@ def _ensure_window_context():
             _original_get_window = arcade.get_window
             if window_commands_module is not None:
                 _original_get_window_module = window_commands_module.get_window
+            _original_sprite_list_init = sprite_list_module.SpriteList.__init__
 
             def _headless_get_window():
                 if _global_test_window is None:
@@ -141,6 +145,27 @@ def _ensure_window_context():
             arcade.get_window = _headless_get_window
             if window_commands_module is not None:
                 window_commands_module.get_window = _headless_get_window
+
+            def _headless_sprite_list_init(
+                self,
+                use_spatial_hash: bool = False,
+                spatial_hash_cell_size: int = 128,
+                atlas=None,
+                capacity: int = 100,
+                lazy: bool = False,
+                visible: bool = True,
+            ):
+                return _original_sprite_list_init(
+                    self,
+                    use_spatial_hash,
+                    spatial_hash_cell_size,
+                    atlas,
+                    capacity,
+                    True,
+                    visible,
+                )
+
+            sprite_list_module.SpriteList.__init__ = _headless_sprite_list_init
 
         _create_or_get_window()
 
@@ -154,6 +179,9 @@ def _ensure_window_context():
                 if _original_get_window is not None:
                     arcade.get_window = _original_get_window
                     _original_get_window = None
+                if _original_sprite_list_init is not None:
+                    sprite_list_module.SpriteList.__init__ = _original_sprite_list_init
+                    _original_sprite_list_init = None
 
             if _global_test_window is not None:
                 try:
