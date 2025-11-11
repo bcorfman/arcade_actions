@@ -1,5 +1,8 @@
 """Shared test fixtures and utilities for the ArcadeActions test suite."""
 
+import os
+import sys
+
 import arcade
 import pytest
 
@@ -8,6 +11,11 @@ from actions import Action
 
 # Global window instance (created lazily, shared across all tests)
 _global_test_window = None
+_original_window_init = None
+_original_get_window = None
+_original_ctx_property_global = None
+
+
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -18,8 +26,11 @@ def _ensure_window_context():
     of the test session and cleans it up at the end. This avoids the overhead
     of creating a window for every test while ensuring sprites/sprite lists
     can be created in CI environments.
+    
+    On Linux with Xvfb, creates a real window. On Windows/macOS CI without
+    OpenGL, monkeypatches Window.__init__ to create a mock window.
     """
-    global _global_test_window
+    global _global_test_window, _original_window_init
     
     # Check if window already exists
     try:
@@ -31,18 +42,92 @@ def _ensure_window_context():
     except RuntimeError:
         pass
     
-    # Create window if it doesn't exist
-    if _global_test_window is None:
-        _global_test_window = arcade.Window(800, 600, visible=False)
-        arcade.set_window(_global_test_window)
+    # Detect if we're on Windows/macOS CI (no OpenGL available)
+    is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
+    is_linux = sys.platform.startswith("linux")
+    needs_mock = is_ci and not is_linux
+    
+    # Try to create a real window first (will work on Linux with Xvfb)
+    if _global_test_window is None and not needs_mock:
+        try:
+            _global_test_window = arcade.Window(800, 600, visible=False)
+            arcade.set_window(_global_test_window)
+        except Exception:
+            # If window creation fails and we're in CI, fall back to mock
+            if is_ci:
+                needs_mock = True
+    
+    # On Windows/macOS CI, use a mock window instead of real OpenGL window
+    if needs_mock and _global_test_window is None:
+        _original_window_init = arcade.Window.__init__
+        _original_get_window = arcade.get_window
+        
+        # Store original ctx property if it exists (for restoration)
+        _original_ctx_property = getattr(arcade.Window, 'ctx', None)
+        # Store it globally so we can restore it in cleanup
+        global _original_ctx_property_global
+        _original_ctx_property_global = _original_ctx_property
+        
+        def mock_window_init(self, width=800, height=600, visible=False, **kwargs):
+            """Mock Window.__init__ that avoids OpenGL initialization.
+            
+            Sets basic attributes without creating OpenGL context.
+            The ctx property (set on the class) will raise RuntimeError.
+            """
+            # Set basic attributes without calling super().__init__()
+            self._width = width
+            self._height = height
+            self.visible = visible
+            self.has_exit = False
+            self._title = kwargs.get("title", "")
+        
+        # Create a property that raises RuntimeError for ctx
+        def ctx_getter(self):
+            raise RuntimeError("No OpenGL context available (mock window for Windows/macOS CI)")
+        
+        # Set ctx as a property on the Window class
+        arcade.Window.ctx = property(ctx_getter)
+        
+        # Monkeypatch Window.__init__
+        arcade.Window.__init__ = mock_window_init
+        
+        try:
+            # Create the mock window
+            _global_test_window = arcade.Window(800, 600, visible=False)
+            arcade.set_window(_global_test_window)
+            
+            # Monkeypatch get_window to return our mock
+            def mock_get_window():
+                return _global_test_window
+            arcade.get_window = mock_get_window
+        except Exception:
+            # If mock creation fails, restore originals
+            arcade.Window.__init__ = _original_window_init
+            arcade.get_window = _original_get_window
+            if _original_ctx_property is not None:
+                arcade.Window.ctx = _original_ctx_property
+            pass
     
     yield
+    
+    # Restore original Window.__init__, get_window, and ctx property if we monkeypatched them
+    global _original_get_window, _original_ctx_property_global
+    if _original_window_init is not None:
+        arcade.Window.__init__ = _original_window_init
+        _original_window_init = None
+    if _original_get_window is not None:
+        arcade.get_window = _original_get_window
+        _original_get_window = None
+    if _original_ctx_property_global is not None:
+        arcade.Window.ctx = _original_ctx_property_global
+        _original_ctx_property_global = None
     
     # Cleanup at end of session
     if _global_test_window is not None:
         try:
-            if not _global_test_window.has_exit:
-                _global_test_window.close()
+            if hasattr(_global_test_window, 'has_exit') and not _global_test_window.has_exit:
+                if hasattr(_global_test_window, 'close'):
+                    _global_test_window.close()
         except Exception:
             pass
         try:
