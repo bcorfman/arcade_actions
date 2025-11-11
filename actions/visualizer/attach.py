@@ -202,7 +202,7 @@ def detach_visualizer() -> bool:
 
     session = _VISUALIZER_SESSION
 
-    current_update = getattr(Action.update_all, '__func__', Action.update_all)
+    current_update = getattr(Action.update_all, "__func__", Action.update_all)
     if current_update is session.wrapped_update_all:
         Action.update_all = classmethod(session.previous_update_all)  # type: ignore[assignment]
     Action.set_debug_store(session.previous_debug_store)
