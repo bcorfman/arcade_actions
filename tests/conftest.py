@@ -6,6 +6,12 @@ import sys
 import arcade
 import pytest
 
+# Import window_commands module to ensure we can patch it
+try:
+    import arcade.window_commands as window_commands_module
+except ImportError:
+    window_commands_module = None
+
 from actions import Action
 
 
@@ -13,7 +19,9 @@ from actions import Action
 _global_test_window = None
 _original_window_init = None
 _original_get_window = None
+_original_get_window_module = None
 _original_ctx_property_global = None
+_original_getattribute = None
 
 
 
@@ -30,7 +38,7 @@ def _ensure_window_context():
     On Linux with Xvfb, creates a real window. On Windows/macOS CI without
     OpenGL, monkeypatches Window.__init__ to create a mock window.
     """
-    global _global_test_window, _original_window_init, _original_get_window, _original_ctx_property_global
+    global _global_test_window, _original_window_init, _original_get_window, _original_get_window_module, _original_ctx_property_global, _original_getattribute
     
     # Check if window already exists
     try:
@@ -61,17 +69,24 @@ def _ensure_window_context():
     if needs_mock and _global_test_window is None:
         _original_window_init = arcade.Window.__init__
         _original_get_window = arcade.get_window
+        # Also store the original from window_commands module if it exists
+        _original_get_window_module = None
+        if window_commands_module is not None:
+            _original_get_window_module = getattr(window_commands_module, 'get_window', None)
         
         # Store original ctx property if it exists (for restoration)
         _original_ctx_property = getattr(arcade.Window, 'ctx', None)
         # Store it globally so we can restore it in cleanup
         _original_ctx_property_global = _original_ctx_property
         
+        # Store original __getattribute__ for restoration
+        _original_getattribute = getattr(arcade.Window, '__getattribute__', object.__getattribute__)
+        
         def mock_window_init(self, width=800, height=600, visible=False, **kwargs):
             """Mock Window.__init__ that avoids OpenGL initialization.
             
             Sets basic attributes without creating OpenGL context.
-            The ctx property (set on the class) will raise RuntimeError.
+            Accessing ctx will raise RuntimeError via __getattribute__ override.
             """
             # Set basic attributes without calling super().__init__()
             self._width = width
@@ -79,13 +94,23 @@ def _ensure_window_context():
             self.visible = visible
             self.has_exit = False
             self._title = kwargs.get("title", "")
+            # Mark this as a mock window
+            self._is_mock_window = True
         
-        # Create a property that raises RuntimeError for ctx
-        def ctx_getter(self):
-            raise RuntimeError("No OpenGL context available (mock window for Windows/macOS CI)")
+        # Override __getattribute__ on Window class to intercept ctx access for mock windows
+        def mock_getattribute(self, name):
+            if name == 'ctx':
+                # Check if this is a mock window using object.__getattribute__ to avoid recursion
+                try:
+                    is_mock = object.__getattribute__(self, '_is_mock_window')
+                    if is_mock:
+                        raise RuntimeError("No OpenGL context available (mock window for Windows/macOS CI)")
+                except AttributeError:
+                    pass  # Not a mock window, continue normally
+            # Use original __getattribute__ for everything else
+            return _original_getattribute(self, name)
         
-        # Set ctx as a property on the Window class
-        arcade.Window.ctx = property(ctx_getter)
+        arcade.Window.__getattribute__ = mock_getattribute
         
         # Monkeypatch Window.__init__
         arcade.Window.__init__ = mock_window_init
@@ -96,26 +121,40 @@ def _ensure_window_context():
             arcade.set_window(_global_test_window)
             
             # Monkeypatch get_window to return our mock
+            # Patch both arcade.get_window and arcade.window_commands.get_window
             def mock_get_window():
                 return _global_test_window
             arcade.get_window = mock_get_window
+            # Also patch the module-level function (this is what SpriteList actually uses)
+            if window_commands_module is not None:
+                window_commands_module.get_window = mock_get_window
         except Exception:
             # If mock creation fails, restore originals
             arcade.Window.__init__ = _original_window_init
             arcade.get_window = _original_get_window
+            if window_commands_module is not None and _original_get_window_module is not None:
+                window_commands_module.get_window = _original_get_window_module
+            if _original_getattribute is not None:
+                arcade.Window.__getattribute__ = _original_getattribute
             if _original_ctx_property is not None:
                 arcade.Window.ctx = _original_ctx_property
             pass
     
     yield
     
-    # Restore original Window.__init__, get_window, and ctx property if we monkeypatched them
+    # Restore original Window.__init__, get_window, __getattribute__, and ctx property if we monkeypatched them
     if _original_window_init is not None:
         arcade.Window.__init__ = _original_window_init
         _original_window_init = None
     if _original_get_window is not None:
         arcade.get_window = _original_get_window
         _original_get_window = None
+    if _original_get_window_module is not None and window_commands_module is not None:
+        window_commands_module.get_window = _original_get_window_module
+        _original_get_window_module = None
+    if _original_getattribute is not None:
+        arcade.Window.__getattribute__ = _original_getattribute
+        _original_getattribute = None
     if _original_ctx_property_global is not None:
         arcade.Window.ctx = _original_ctx_property_global
         _original_ctx_property_global = None
