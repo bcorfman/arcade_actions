@@ -2,200 +2,181 @@
 
 import os
 import sys
+from collections.abc import Callable
+from unittest.mock import MagicMock
 
 import arcade
 import pytest
 
-# Import window_commands module to ensure we can patch it
 try:
     import arcade.window_commands as window_commands_module
-except ImportError:
+except ImportError:  # pragma: no cover - defensive
     window_commands_module = None
 
 from actions import Action
 
 
-# Global window instance (created lazily, shared across all tests)
-_global_test_window = None
-_original_window_init = None
+class HeadlessWindow:
+    """Minimal window substitute used on platforms without OpenGL support."""
+
+    def __init__(self, width: int = 800, height: int = 600, visible: bool = False, **kwargs) -> None:
+        self.width = width
+        self.height = height
+        self.visible = visible
+        self.has_exit = False
+        self.location: tuple[int, int] = (0, 0)
+        self._title = kwargs.get("title", "Headless Window")
+        self.handlers: dict[str, Callable[..., object]] = {}
+        self._view = None
+        self._mock = MagicMock(name="HeadlessWindowMock")
+
+    @property
+    def ctx(self):  # pragma: no cover - behaviour verified indirectly
+        raise RuntimeError("No OpenGL context available (headless CI mode)")
+
+    def close(self) -> None:
+        self.has_exit = True
+
+    def set_location(self, x: int, y: int) -> None:
+        self.location = (x, y)
+
+    def set_caption(self, title: str) -> None:
+        self._title = title
+
+    def set_size(self, width: int, height: int) -> None:
+        self.width = width
+        self.height = height
+
+    def clear(self) -> None:
+        """No-op clear."""
+
+    def switch_to(self) -> None:
+        """No-op context switch."""
+
+    def show_view(self, view) -> None:
+        self._view = view
+
+    def on_draw(self, *args, **kwargs):
+        return None
+
+    def on_update(self, *args, **kwargs):
+        return None
+
+    def on_close(self) -> None:
+        self.has_exit = True
+
+    def push_handlers(self, **handlers) -> None:
+        self.handlers.update(handlers)
+
+    def dispatch_event(self, event_type: str, *args, **kwargs):
+        handler = self.handlers.get(event_type)
+        if handler:
+            return handler(*args, **kwargs)
+        return None
+
+    def __getattr__(self, item):  # pragma: no cover - defensive
+        return getattr(self._mock, item)
+
+
+# Global window state
+_global_test_window: HeadlessWindow | arcade.Window | None = None
 _original_get_window = None
 _original_get_window_module = None
-_original_ctx_property_global = None
-_original_getattribute = None
+_headless_mode = False
 
 
+def _register_window(window) -> None:
+    """Register the given window with arcade and keep global reference."""
+    global _global_test_window
+    _global_test_window = window
+    if window_commands_module is not None:
+        window_commands_module.set_window(window)
+    else:
+        arcade.set_window(window)
+
+
+def _create_or_get_window() -> HeadlessWindow | arcade.Window:
+    """Ensure a window exists and return it."""
+    global _global_test_window
+    if _global_test_window is not None:
+        return _global_test_window
+
+    if _headless_mode:
+        window = HeadlessWindow(800, 600, visible=False)
+    else:
+        window = arcade.Window(800, 600, visible=False)
+    _register_window(window)
+    return window
 
 
 @pytest.fixture(scope="session", autouse=True)
 def _ensure_window_context():
-    """Ensure a window context exists for all tests.
-    
-    This session-scoped autouse fixture creates a window once at the start
-    of the test session and cleans it up at the end. This avoids the overhead
-    of creating a window for every test while ensuring sprites/sprite lists
-    can be created in CI environments.
-    
-    On Linux with Xvfb, creates a real window. On Windows/macOS CI without
-    OpenGL, monkeypatches Window.__init__ to create a mock window.
-    """
-    global _global_test_window, _original_window_init, _original_get_window, _original_get_window_module, _original_ctx_property_global, _original_getattribute
-    
-    # Check if window already exists
+    """Ensure we have a window (real or headless) for tests."""
+    global _headless_mode, _original_get_window, _original_get_window_module
+
+    existing = None
     try:
         existing = arcade.get_window()
-        if existing is not None:
-            _global_test_window = existing
-            yield
-            return
     except RuntimeError:
-        pass
-    
-    # Detect if we're on Windows/macOS CI (no OpenGL available)
-    is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
-    is_linux = sys.platform.startswith("linux")
-    needs_mock = is_ci and not is_linux
-    
-    # Try to create a real window first (will work on Linux with Xvfb)
-    if _global_test_window is None and not needs_mock:
-        try:
-            _global_test_window = arcade.Window(800, 600, visible=False)
-            arcade.set_window(_global_test_window)
-        except Exception:
-            # If window creation fails and we're in CI, fall back to mock
-            if is_ci:
-                needs_mock = True
-    
-    # On Windows/macOS CI, use a mock window instead of real OpenGL window
-    if needs_mock and _global_test_window is None:
-        _original_window_init = arcade.Window.__init__
-        _original_get_window = arcade.get_window
-        # Also store the original from window_commands module if it exists
-        _original_get_window_module = None
-        if window_commands_module is not None:
-            _original_get_window_module = getattr(window_commands_module, 'get_window', None)
-        
-        # Store original ctx property if it exists (for restoration)
-        _original_ctx_property = getattr(arcade.Window, 'ctx', None)
-        # Store it globally so we can restore it in cleanup
-        _original_ctx_property_global = _original_ctx_property
-        
-        # Store original __getattribute__ for restoration
-        _original_getattribute = getattr(arcade.Window, '__getattribute__', object.__getattribute__)
-        
-        def mock_window_init(self, width=800, height=600, visible=False, **kwargs):
-            """Mock Window.__init__ that avoids OpenGL initialization.
-            
-            Sets basic attributes without creating OpenGL context.
-            Accessing ctx will raise RuntimeError via __getattribute__ override.
-            """
-            # Set basic attributes without calling super().__init__()
-            self._width = width
-            self._height = height
-            self.visible = visible
-            self.has_exit = False
-            self._title = kwargs.get("title", "")
-            # Mark this as a mock window
-            self._is_mock_window = True
-        
-        # Override __getattribute__ on Window class to intercept ctx access for mock windows
-        def mock_getattribute(self, name):
-            if name == 'ctx':
-                # Check if this is a mock window using object.__getattribute__ to avoid recursion
-                try:
-                    is_mock = object.__getattribute__(self, '_is_mock_window')
-                    if is_mock:
-                        raise RuntimeError("No OpenGL context available (mock window for Windows/macOS CI)")
-                except AttributeError:
-                    pass  # Not a mock window, continue normally
-            # Use original __getattribute__ for everything else
-            return _original_getattribute(self, name)
-        
-        arcade.Window.__getattribute__ = mock_getattribute
-        
-        # Monkeypatch Window.__init__
-        arcade.Window.__init__ = mock_window_init
-        
-        try:
-            # Create the mock window
-            _global_test_window = arcade.Window(800, 600, visible=False)
-            arcade.set_window(_global_test_window)
-            
-            # Monkeypatch get_window to return our mock
-            # Patch both arcade.get_window and arcade.window_commands.get_window
-            def mock_get_window():
-                return _global_test_window
-            arcade.get_window = mock_get_window
-            # Also patch the module-level function (this is what SpriteList actually uses)
+        existing = None
+
+    if existing is not None:
+        _register_window(existing)
+        yield
+    else:
+        is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
+        is_linux = sys.platform.startswith("linux")
+        _headless_mode = bool(is_ci and not is_linux)
+
+        if _headless_mode:
+            _original_get_window = arcade.get_window
             if window_commands_module is not None:
-                window_commands_module.get_window = mock_get_window
-        except Exception:
-            # If mock creation fails, restore originals
-            arcade.Window.__init__ = _original_window_init
-            arcade.get_window = _original_get_window
-            if window_commands_module is not None and _original_get_window_module is not None:
-                window_commands_module.get_window = _original_get_window_module
-            if _original_getattribute is not None:
-                arcade.Window.__getattribute__ = _original_getattribute
-            if _original_ctx_property is not None:
-                arcade.Window.ctx = _original_ctx_property
-            pass
-    
-    yield
-    
-    # Restore original Window.__init__, get_window, __getattribute__, and ctx property if we monkeypatched them
-    if _original_window_init is not None:
-        arcade.Window.__init__ = _original_window_init
-        _original_window_init = None
-    if _original_get_window is not None:
-        arcade.get_window = _original_get_window
-        _original_get_window = None
-    if _original_get_window_module is not None and window_commands_module is not None:
-        window_commands_module.get_window = _original_get_window_module
-        _original_get_window_module = None
-    if _original_getattribute is not None:
-        arcade.Window.__getattribute__ = _original_getattribute
-        _original_getattribute = None
-    if _original_ctx_property_global is not None:
-        arcade.Window.ctx = _original_ctx_property_global
-        _original_ctx_property_global = None
-    
-    # Cleanup at end of session
-    if _global_test_window is not None:
+                _original_get_window_module = window_commands_module.get_window
+
+            def _headless_get_window():
+                if _global_test_window is None:
+                    raise RuntimeError("Headless window not initialised")
+                return _global_test_window
+
+            arcade.get_window = _headless_get_window
+            if window_commands_module is not None:
+                window_commands_module.get_window = _headless_get_window
+
+        _create_or_get_window()
+
         try:
-            if hasattr(_global_test_window, 'has_exit') and not _global_test_window.has_exit:
-                if hasattr(_global_test_window, 'close'):
+            yield
+        finally:
+            if _headless_mode:
+                if window_commands_module is not None and _original_get_window_module is not None:
+                    window_commands_module.get_window = _original_get_window_module
+                    _original_get_window_module = None
+                if _original_get_window is not None:
+                    arcade.get_window = _original_get_window
+                    _original_get_window = None
+
+            if _global_test_window is not None:
+                try:
                     _global_test_window.close()
-        except Exception:
-            pass
-        try:
-            arcade.set_window(None)
-        except Exception:
-            pass
-        _global_test_window = None
+                except Exception:
+                    pass
+                if window_commands_module is not None:
+                    window_commands_module.set_window(None)
+                else:
+                    try:
+                        arcade.set_window(None)
+                    except Exception:
+                        pass
+                _register_window(None)
+
+            _headless_mode = False
 
 
 @pytest.fixture(scope="function")
 def window():
-    """Provide window context for tests that explicitly need it.
-    
-    Most tests don't need to request this - the window is created automatically.
-    This fixture is for tests that need explicit access to the window object.
-    """
-    # Ensure window exists (should already exist from _ensure_window_context)
-    try:
-        win = arcade.get_window()
-        if win is not None:
-            yield win
-            return
-    except RuntimeError:
-        pass
-    
-    # Fallback: create if somehow missing (shouldn't happen)
-    global _global_test_window
-    if _global_test_window is None:
-        _global_test_window = arcade.Window(800, 600, visible=False)
-        arcade.set_window(_global_test_window)
-    yield _global_test_window
+    """Provide the active window (real or headless) to tests."""
+    win = _create_or_get_window()
+    yield win
 
 
 @pytest.fixture
