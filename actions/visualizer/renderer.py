@@ -182,7 +182,7 @@ class OverlayRenderer:
 class TimelineRenderer:
     """
     Renders timeline entries as horizontal bars in a dedicated window.
-    
+
     Displays action lifetime timelines with start/end frames and visual bars.
     """
 
@@ -217,7 +217,7 @@ class TimelineRenderer:
     def update(self) -> None:
         """
         Update rendering elements from timeline data.
-        
+
         Recreates timeline bars and labels based on current timeline entries.
         """
         # Clear existing renderables

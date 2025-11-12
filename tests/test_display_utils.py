@@ -51,4 +51,3 @@ def test_center_window_falls_back(monkeypatch):
     assert len(called) == 1
     assert called[0] == window
     assert window.location == (860, 480)
-
