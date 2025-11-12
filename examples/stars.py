@@ -107,8 +107,7 @@ class StarfieldView(arcade.View):
         bounds = (0, -VERTICAL_MARGIN, WINDOW_WIDTH, WINDOW_HEIGHT + VERTICAL_MARGIN)
 
         blink_rates = [
-            BLINK_RATE_MIN_SECONDS
-            + i * (BLINK_RATE_MAX_SECONDS - BLINK_RATE_MIN_SECONDS) / (BLINK_GROUP_COUNT - 1)
+            BLINK_RATE_MIN_SECONDS + i * (BLINK_RATE_MAX_SECONDS - BLINK_RATE_MIN_SECONDS) / (BLINK_GROUP_COUNT - 1)
             for i in range(BLINK_GROUP_COUNT)
         ]
         self._blink_groups = [arcade.SpriteList() for _ in range(BLINK_GROUP_COUNT)]

@@ -91,6 +91,7 @@ def test_f3_toggles_overlay(monkeypatch, window: arcade.Window | None) -> None:
         # Restore the global test window
         try:
             from tests.conftest import _global_test_window
+
             if _global_test_window is not None:
                 arcade.set_window(_global_test_window)
         except (ImportError, AttributeError):
@@ -165,7 +166,9 @@ def test_f4_toggles_condition_panel(monkeypatch, window: arcade.Window | None) -
         assert result is True
 
         if session.event_window is None and session.control_manager.condition_panel_visible == initial_state:
-            pytest.skip("Event window unavailable (missing OpenGL support); skipping condition panel toggle assertions.")
+            pytest.skip(
+                "Event window unavailable (missing OpenGL support); skipping condition panel toggle assertions."
+            )
 
         assert session.control_manager.condition_panel_visible != initial_state
 
@@ -179,6 +182,7 @@ def test_f4_toggles_condition_panel(monkeypatch, window: arcade.Window | None) -
         # Restore the global test window
         try:
             from tests.conftest import _global_test_window
+
             if _global_test_window is not None:
                 arcade.set_window(_global_test_window)
         except (ImportError, AttributeError):
@@ -264,6 +268,7 @@ def test_f5_toggles_guides(monkeypatch, window: arcade.Window | None) -> None:
         # Restore the global test window
         try:
             from tests.conftest import _global_test_window
+
             if _global_test_window is not None:
                 arcade.set_window(_global_test_window)
         except (ImportError, AttributeError):
@@ -348,6 +353,7 @@ def test_f6_toggles_pause(monkeypatch, window: arcade.Window | None) -> None:
         # Restore the global test window
         try:
             from tests.conftest import _global_test_window
+
             if _global_test_window is not None:
                 arcade.set_window(_global_test_window)
         except (ImportError, AttributeError):
@@ -427,6 +433,7 @@ def test_f7_steps_when_paused(monkeypatch, window: arcade.Window | None) -> None
         # Restore the global test window
         try:
             from tests.conftest import _global_test_window
+
             if _global_test_window is not None:
                 arcade.set_window(_global_test_window)
         except (ImportError, AttributeError):
@@ -502,6 +509,7 @@ def test_f8_highlights_next_action(monkeypatch, window: arcade.Window | None) ->
         # Restore the global test window
         try:
             from tests.conftest import _global_test_window
+
             if _global_test_window is not None:
                 arcade.set_window(_global_test_window)
         except (ImportError, AttributeError):
@@ -583,6 +591,7 @@ def test_f9_exports_snapshot(monkeypatch, window: arcade.Window | None, tmp_path
         # Restore the global test window
         try:
             from tests.conftest import _global_test_window
+
             if _global_test_window is not None:
                 arcade.set_window(_global_test_window)
         except (ImportError, AttributeError):
@@ -672,13 +681,9 @@ def test_non_function_keys_not_handled(monkeypatch, window: arcade.Window | None
         # Restore the global test window
         try:
             from tests.conftest import _global_test_window
+
             if _global_test_window is not None:
                 arcade.set_window(_global_test_window)
         except (ImportError, AttributeError):
             pass
         monkeypatch.delenv("ARCADEACTIONS_VISUALIZER", raising=False)
-
-
-
-
-
