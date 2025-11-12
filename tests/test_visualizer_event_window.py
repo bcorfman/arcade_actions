@@ -18,6 +18,20 @@ def store() -> DebugDataStore:
     return store
 
 
+def _mock_event_window_base(monkeypatch: pytest.MonkeyPatch, *, init=None) -> None:
+    """Patch the concrete arcade.Window base used by EventInspectorWindow."""
+
+    base_cls = EventInspectorWindow.__mro__[1]
+
+    if init is not None:
+        monkeypatch.setattr(base_cls, "__init__", init, raising=False)
+
+    monkeypatch.setattr(base_cls, "set_location", lambda self, x, y: None, raising=False)
+    monkeypatch.setattr(base_cls, "close", lambda self: None, raising=False)
+    monkeypatch.setattr(base_cls, "clear", lambda self: None, raising=False)
+    monkeypatch.setattr(base_cls, "switch_to", lambda self: None, raising=False)
+
+
 def test_event_window_initializes(monkeypatch, store: DebugDataStore):
     init_args = {}
 
@@ -32,9 +46,7 @@ def test_event_window_initializes(monkeypatch, store: DebugDataStore):
         self._context = object()
         self._ctx = object()
 
-    monkeypatch.setattr(arcade.Window, "__init__", fake_init, raising=False)
-    monkeypatch.setattr(arcade.Window, "set_location", lambda self, x, y: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "close", lambda self: None, raising=False)
+    _mock_event_window_base(monkeypatch, init=fake_init)
 
     class DummyText:
         def __init__(self, text, x, y, color, font_size, bold=False):
@@ -76,11 +88,7 @@ def test_event_window_draws_timeline_and_conditions(monkeypatch, store: DebugDat
         self._context = object()
         self._ctx = object()
 
-    monkeypatch.setattr(arcade.Window, "__init__", fake_init, raising=False)
-    monkeypatch.setattr(arcade.Window, "set_location", lambda self, x, y: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "close", lambda self: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "clear", lambda self: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "switch_to", lambda self: None, raising=False)
+    _mock_event_window_base(monkeypatch, init=fake_init)
     monkeypatch.setattr(arcade, "draw_lbwh_rectangle_filled", lambda *args, **kwargs: None)
 
     drawn_texts: list[str] = []
@@ -118,9 +126,7 @@ def test_event_window_draw_skips_without_context(monkeypatch, store: DebugDataSt
         self._context = object()
         self._ctx = object()
 
-    monkeypatch.setattr(arcade.Window, "__init__", fake_init, raising=False)
-    monkeypatch.setattr(arcade.Window, "set_location", lambda self, x, y: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "close", lambda self: None, raising=False)
+    _mock_event_window_base(monkeypatch, init=fake_init)
     monkeypatch.setattr(
         arcade.Window, "clear", lambda self: (_ for _ in ()).throw(AssertionError("clear called")), raising=False
     )
@@ -152,9 +158,7 @@ def test_event_window_restores_previous_window(monkeypatch, store: DebugDataStor
         self._scale = 1.0
         self._context = object()
 
-    monkeypatch.setattr(arcade.Window, "__init__", fake_init, raising=False)
-    monkeypatch.setattr(arcade.Window, "set_location", lambda self, x, y: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "close", lambda self: None, raising=False)
+    _mock_event_window_base(monkeypatch, init=fake_init)
     monkeypatch.setattr(arcade.Window, "clear", lambda self: None, raising=False)
     monkeypatch.setattr(arcade.Window, "switch_to", lambda self: None, raising=False)
     monkeypatch.setattr(arcade, "draw_lbwh_rectangle_filled", lambda *args, **kwargs: None)
@@ -205,9 +209,7 @@ def test_event_window_ignores_initial_f4(monkeypatch, store: DebugDataStore):
         self._context = object()
         self._ctx = object()
 
-    monkeypatch.setattr(arcade.Window, "__init__", fake_init, raising=False)
-    monkeypatch.setattr(arcade.Window, "set_location", lambda self, x, y: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "close", lambda self: None, raising=False)
+    _mock_event_window_base(monkeypatch, init=fake_init)
     monkeypatch.setattr(arcade.Window, "switch_to", lambda self: None, raising=False)
     monkeypatch.setattr(arcade, "draw_lbwh_rectangle_filled", lambda *args, **kwargs: None)
     monkeypatch.setattr(event_window_module.TimelineRenderer, "draw", lambda self: None, raising=False)
@@ -242,9 +244,7 @@ def test_event_window_on_close_handles_callback_error(monkeypatch, store: DebugD
         self._context = object()
         self._ctx = object()
 
-    monkeypatch.setattr(arcade.Window, "__init__", fake_init, raising=False)
-    monkeypatch.setattr(arcade.Window, "set_location", lambda self, x, y: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "close", lambda self: None, raising=False)
+    _mock_event_window_base(monkeypatch, init=fake_init)
     monkeypatch.setattr(arcade.Window, "switch_to", lambda self: None, raising=False)
     monkeypatch.setattr(arcade, "draw_lbwh_rectangle_filled", lambda *args, **kwargs: None)
     monkeypatch.setattr(event_window_module.TimelineRenderer, "draw", lambda self: None, raising=False)
@@ -284,9 +284,7 @@ def test_event_window_draw_background_skips_without_context(monkeypatch, store: 
         self._context = object()
         self._ctx = object()
 
-    monkeypatch.setattr(arcade.Window, "__init__", fake_init, raising=False)
-    monkeypatch.setattr(arcade.Window, "set_location", lambda self, x, y: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "close", lambda self: None, raising=False)
+    _mock_event_window_base(monkeypatch, init=fake_init)
     monkeypatch.setattr(arcade, "draw_lbwh_rectangle_filled", lambda *args, **kwargs: None)
     monkeypatch.setattr(event_window_module.TimelineRenderer, "draw", lambda self: None, raising=False)
     monkeypatch.setattr(event_window_module.TimelineRenderer, "update", lambda self: None, raising=False)
@@ -314,9 +312,7 @@ def test_event_window_on_draw_handles_switch_to_exception(monkeypatch, store: De
         self._context = object()
         self._ctx = object()
 
-    monkeypatch.setattr(arcade.Window, "__init__", fake_init, raising=False)
-    monkeypatch.setattr(arcade.Window, "set_location", lambda self, x, y: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "close", lambda self: None, raising=False)
+    _mock_event_window_base(monkeypatch, init=fake_init)
     monkeypatch.setattr(arcade.Window, "clear", lambda self: None, raising=False)
     monkeypatch.setattr(arcade, "draw_lbwh_rectangle_filled", lambda *args, **kwargs: None)
     monkeypatch.setattr(event_window_module.TimelineRenderer, "draw", lambda self: None, raising=False)
@@ -352,9 +348,7 @@ def test_event_window_on_update_is_noop(monkeypatch, store: DebugDataStore):
         self._context = object()
         self._ctx = object()
 
-    monkeypatch.setattr(arcade.Window, "__init__", fake_init, raising=False)
-    monkeypatch.setattr(arcade.Window, "set_location", lambda self, x, y: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "close", lambda self: None, raising=False)
+    _mock_event_window_base(monkeypatch, init=fake_init)
     monkeypatch.setattr(event_window_module.TimelineRenderer, "draw", lambda self: None, raising=False)
     monkeypatch.setattr(event_window_module.TimelineRenderer, "update", lambda self: None, raising=False)
     monkeypatch.setattr(
@@ -377,9 +371,7 @@ def test_event_window_on_mouse_press_is_noop(monkeypatch, store: DebugDataStore)
         self._context = object()
         self._ctx = object()
 
-    monkeypatch.setattr(arcade.Window, "__init__", fake_init, raising=False)
-    monkeypatch.setattr(arcade.Window, "set_location", lambda self, x, y: None, raising=False)
-    monkeypatch.setattr(arcade.Window, "close", lambda self: None, raising=False)
+    _mock_event_window_base(monkeypatch, init=fake_init)
     monkeypatch.setattr(event_window_module.TimelineRenderer, "draw", lambda self: None, raising=False)
     monkeypatch.setattr(event_window_module.TimelineRenderer, "update", lambda self: None, raising=False)
     monkeypatch.setattr(
