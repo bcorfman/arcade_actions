@@ -84,6 +84,8 @@ def _ensure_window_context():
         _original_get_window_sprite_list = None
         if sprite_list_module is not None:
             _original_get_window_sprite_list = getattr(sprite_list_module, 'get_window', None)
+            # Also store original SpriteList.__init__ so we can force lazy=True and restore later
+            _original_spritelist_init = getattr(sprite_list_module.SpriteList, '__init__', None)
         
         # Store original ctx property if it exists (for restoration)
         _original_ctx_property = getattr(arcade.Window, 'ctx', None)
@@ -153,6 +155,23 @@ def _ensure_window_context():
             # This is critical because SpriteList imports get_window at module level
             if sprite_list_module is not None:
                 sprite_list_module.get_window = mock_get_window
+                # Force SpriteList to be lazy to avoid touching GL on CI
+                if _original_spritelist_init is not None:
+                    def spritelist_init_lazy(self,
+                                             use_spatial_hash: bool = False,
+                                             spatial_hash_cell_size: int = 128,
+                                             atlas=None,
+                                             capacity: int = 100,
+                                             lazy: bool = False,
+                                             visible: bool = True):
+                        return _original_spritelist_init(self,
+                                                         use_spatial_hash,
+                                                         spatial_hash_cell_size,
+                                                         atlas,
+                                                         capacity,
+                                                         True,  # force lazy
+                                                         visible)
+                    sprite_list_module.SpriteList.__init__ = spritelist_init_lazy
         except Exception:
             # If mock creation fails, restore originals
             arcade.Window.__init__ = _original_window_init
@@ -182,6 +201,9 @@ def _ensure_window_context():
     if _original_get_window_sprite_list is not None and sprite_list_module is not None:
         sprite_list_module.get_window = _original_get_window_sprite_list
         _original_get_window_sprite_list = None
+        # Restore SpriteList.__init__ if we patched it
+        if '_original_spritelist_init' in locals() and _original_spritelist_init is not None:
+            sprite_list_module.SpriteList.__init__ = _original_spritelist_init
     if _original_getattribute is not None:
         arcade.Window.__getattribute__ = _original_getattribute
         _original_getattribute = None
