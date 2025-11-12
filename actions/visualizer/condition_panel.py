@@ -69,11 +69,11 @@ class ConditionDebugger:
         entries: list[ConditionEntry] = []
         for evaluation in raw_evaluations:
             snapshot = snapshot_by_action.get(evaluation.action_id)
-            
+
             # Skip entries for removed actions (no snapshot means action was removed)
             if snapshot is None:
                 continue
-            
+
             tag = snapshot.tag
             target_id = snapshot.target_id
             target_type = snapshot.target_type

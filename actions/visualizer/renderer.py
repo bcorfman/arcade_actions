@@ -508,7 +508,10 @@ class TimelineRenderer:
             else:
                 target_label = entry.target_type or "Unknown"
 
-            label_text = f"{entry.action_type} [{entry.tag or '-'}] → {target_label}"
+            if entry.tag is not None:
+                label_text = f"{entry.action_type}[{entry.tag}]: {target_label}"
+            else:
+                label_text = f"{entry.action_type}: {target_label}"
             label_y = bottom + max(2.0, (row_height - self.font_size) / 2)
             self._text_specs.append(
                 _TextSpec(

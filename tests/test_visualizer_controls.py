@@ -43,11 +43,11 @@ def control_context(tmp_path: Path):
     condition_debugger = ConditionDebugger(debug_store=store)
     timeline = TimelineStrip(debug_store=store)
     action_controller = StubActionController()
-    
+
     # Stub callback for event window toggling
     def stub_toggle_event_window(open_state: bool) -> None:
         pass
-    
+
     manager = DebugControlManager(
         overlay=overlay,
         guides=guides,

@@ -425,4 +425,3 @@ def _restore_global_window() -> None:
     except Exception:
         # Ignore cleanup failures so individual tests can still succeed
         pass
-
