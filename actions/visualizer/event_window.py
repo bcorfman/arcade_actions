@@ -36,6 +36,18 @@ class EventInspectorWindow(arcade.Window):
         super().__init__(width=width, height=height, title=title, resizable=True, visible=False)
         self.background_color = (20, 24, 38)
 
+        self._base_width = width
+        self._base_height = height
+        self._min_font_size = 10.0
+        self._max_font_size = 12.0
+        self._font_size = self._min_font_size
+        self._should_draw = False
+
+        try:
+            self.set_minimum_size(width, height)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
         self._on_close_callback = on_close_callback
 
         self._timeline = timeline_cls(debug_store)
@@ -48,48 +60,20 @@ class EventInspectorWindow(arcade.Window):
             target_names_provider=target_names_provider,
         )
 
-        self._font_size = 11
         self._suppress_next_close_key = True
 
-        self._timeline_label = arcade.Text(
-            "Action Timeline",
-            self.MARGIN,
-            0,
-            arcade.color.WHITE,
-            self._font_size + 2,
-            bold=True,
-        )
-        self._legend_prefix = arcade.Text(
-            "Legend: ",
-            self.MARGIN,
-            0,
-            arcade.color.WHITE,
-            self._font_size,
-        )
-        self._legend_sprite_list = arcade.Text(
-            "SpriteList",
-            self.MARGIN,
-            0,
-            arcade.color.CYAN,
-            self._font_size,
-        )
-        self._legend_separator = arcade.Text(
-            " | ",
-            self.MARGIN,
-            0,
-            arcade.color.WHITE,
-            self._font_size,
-        )
-        self._legend_sprite = arcade.Text(
-            "Sprite",
-            self.MARGIN,
-            0,
-            arcade.color.ORANGE,
-            self._font_size,
-        )
+        self._timeline_label: arcade.Text | None = None
+        self._legend_prefix: arcade.Text | None = None
+        self._legend_sprite_list: arcade.Text | None = None
+        self._legend_separator: arcade.Text | None = None
+        self._legend_sprite: arcade.Text | None = None
+
+        self._update_font_size_for_window(width, height)
 
     # ------------------------------------------------------------------ Events
     def on_draw(self) -> None:
+        if not self._should_draw:
+            return
         if not self._has_active_context():
             return
 
@@ -153,35 +137,57 @@ class EventInspectorWindow(arcade.Window):
                 return
             self.close()
 
+    def set_visible(self, visible: bool) -> None:
+        try:
+            super().set_visible(visible)
+        except Exception:
+            pass
+        self._should_draw = bool(visible)
+
+    def on_resize(self, width: int, height: int) -> None:
+        if width < self._base_width or height < self._base_height:
+            super().on_resize(self._base_width, self._base_height)
+            self.set_size(self._base_width, self._base_height)
+            self._update_font_size_for_window(self._base_width, self._base_height)
+            return
+
+        super().on_resize(width, height)
+        self._update_font_size_for_window(width, height)
+
     # ---------------------------------------------------------------- Helpers
     def _draw_timeline(self) -> None:
         # Draw title at top
         title_y = self.height - self.MARGIN - 4
-        self._timeline_label.position = (self.MARGIN, title_y)
-        self._timeline_label.draw()
+        if self._timeline_label is not None:
+            self._timeline_label.position = (self.MARGIN, title_y)
+            self._timeline_label.draw()
 
         # Draw legend below title with colored text
         legend_y = title_y - (self._font_size + 2) - 4
         x_pos = self.MARGIN
 
         # "Legend: "
-        self._legend_prefix.position = (x_pos, legend_y)
-        self._legend_prefix.draw()
-        x_pos += self._legend_prefix.content_width
+        if self._legend_prefix is not None:
+            self._legend_prefix.position = (x_pos, legend_y)
+            self._legend_prefix.draw()
+            x_pos += self._legend_prefix.content_width
 
         # "SpriteList" in cyan
-        self._legend_sprite_list.position = (x_pos, legend_y)
-        self._legend_sprite_list.draw()
-        x_pos += self._legend_sprite_list.content_width
+        if self._legend_sprite_list is not None:
+            self._legend_sprite_list.position = (x_pos, legend_y)
+            self._legend_sprite_list.draw()
+            x_pos += self._legend_sprite_list.content_width
 
         # " | "
-        self._legend_separator.position = (x_pos, legend_y)
-        self._legend_separator.draw()
-        x_pos += self._legend_separator.content_width
+        if self._legend_separator is not None:
+            self._legend_separator.position = (x_pos, legend_y)
+            self._legend_separator.draw()
+            x_pos += self._legend_separator.content_width
 
         # "Sprite" in orange
-        self._legend_sprite.position = (x_pos, legend_y)
-        self._legend_sprite.draw()
+        if self._legend_sprite is not None:
+            self._legend_sprite.position = (x_pos, legend_y)
+            self._legend_sprite.draw()
 
         # Timeline renderer draws itself (height already adjusted in on_draw)
         self._timeline_renderer.draw()
@@ -200,3 +206,55 @@ class EventInspectorWindow(arcade.Window):
 
     def _has_active_context(self) -> bool:
         return getattr(self, "_context", None) is not None
+
+    def _build_text_elements(self) -> None:
+        self._timeline_label = arcade.Text(
+            "Action Timeline",
+            self.MARGIN,
+            0,
+            arcade.color.WHITE,
+            self._font_size + 2,
+            bold=True,
+        )
+        self._legend_prefix = arcade.Text(
+            "Legend: ",
+            self.MARGIN,
+            0,
+            arcade.color.WHITE,
+            self._font_size,
+        )
+        self._legend_sprite_list = arcade.Text(
+            "SpriteList",
+            self.MARGIN,
+            0,
+            arcade.color.CYAN,
+            self._font_size,
+        )
+        self._legend_separator = arcade.Text(
+            " | ",
+            self.MARGIN,
+            0,
+            arcade.color.WHITE,
+            self._font_size,
+        )
+        self._legend_sprite = arcade.Text(
+            "Sprite",
+            self.MARGIN,
+            0,
+            arcade.color.ORANGE,
+            self._font_size,
+        )
+
+    def _update_font_size_for_window(self, width: int, height: int) -> None:
+        scale = min(width / self._base_width, height / self._base_height)
+        max_scale = self._max_font_size / self._min_font_size
+        clamped_scale = max(1.0, min(scale, max_scale))
+        new_font_size = max(self._min_font_size, min(self._min_font_size * clamped_scale, self._max_font_size))
+
+        font_changed = abs(new_font_size - self._font_size) > 0.01
+        requires_init = self._timeline_label is None
+
+        if font_changed or requires_init:
+            self._font_size = new_font_size
+            self._build_text_elements()
+            self._timeline_renderer.set_font_size(self._font_size)

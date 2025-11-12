@@ -426,6 +426,11 @@ def attach_visualizer(
 
     if control_manager_kwargs is None:
         control_manager_kwargs = {}
+    else:
+        control_manager_kwargs = dict(control_manager_kwargs)
+    if "target_names_provider" not in control_manager_kwargs:
+        control_manager_kwargs["target_names_provider"] = target_names_provider
+    final_target_names_provider = control_manager_kwargs.pop("target_names_provider")
 
     session_holder: dict[str, VisualizerSession | None] = {"session": None}
     control_manager_holder: dict[str, DebugControlManager | None] = {"manager": None}
@@ -483,9 +488,11 @@ def attach_visualizer(
         snapshot_directory=snapshot_directory,
         action_controller=Action,
         toggle_event_window=toggle_event_window,
+        target_names_provider=final_target_names_provider,
         **control_manager_kwargs,
     )
     control_manager_holder["manager"] = control_manager
+    target_names_lookup = control_manager.get_target_names
 
     if sprite_positions_provider is None:
         sprite_positions_provider = _collect_sprite_positions
@@ -519,7 +526,7 @@ def attach_visualizer(
         event_window=None,
         snapshot_directory=snapshot_directory,
         sprite_positions_provider=sprite_positions_provider,
-        target_names_provider=target_names_provider,
+        target_names_provider=target_names_lookup,
         wrapped_update_all=wrapped_update_all,
         previous_update_all=original_update_all,
         previous_debug_store=previous_store,

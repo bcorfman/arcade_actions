@@ -30,6 +30,8 @@ def _mock_event_window_base(monkeypatch: pytest.MonkeyPatch, *, init=None) -> No
     monkeypatch.setattr(base_cls, "close", lambda self: None, raising=False)
     monkeypatch.setattr(base_cls, "clear", lambda self: None, raising=False)
     monkeypatch.setattr(base_cls, "switch_to", lambda self: None, raising=False)
+    monkeypatch.setattr(base_cls, "on_resize", lambda self, width, height: None, raising=False)
+    monkeypatch.setattr(base_cls, "set_size", lambda self, width, height: None, raising=False)
 
 
 def test_event_window_initializes(monkeypatch, store: DebugDataStore):
@@ -67,6 +69,8 @@ def test_event_window_initializes(monkeypatch, store: DebugDataStore):
     monkeypatch.setattr(event_window_module.TimelineRenderer, "update", lambda self: None, raising=False)
 
     window = EventInspectorWindow(store)
+    window.set_visible(True)
+    window.set_visible(True)
 
     if init_args:
         assert init_args["width"] == 520
@@ -110,6 +114,7 @@ def test_event_window_draws_timeline_and_conditions(monkeypatch, store: DebugDat
     monkeypatch.setattr(event_window_module.TimelineRenderer, "draw", lambda self: None, raising=False)
     monkeypatch.setattr(event_window_module.TimelineRenderer, "update", lambda self: None, raising=False)
     window = EventInspectorWindow(store)
+    window.set_visible(True)
     window.on_draw()
 
     assert any("Action Timeline" in text for text in drawn_texts)
@@ -194,6 +199,7 @@ def test_event_window_restores_previous_window(monkeypatch, store: DebugDataStor
     monkeypatch.setattr(window_commands, "get_window", lambda: sentinel_window)
 
     window = EventInspectorWindow(store)
+    window.set_visible(True)
     window.on_draw()
 
     assert set_window_calls[0] is window
@@ -272,6 +278,51 @@ def test_event_window_on_close_handles_callback_error(monkeypatch, store: DebugD
     # Should have attempted to call callback and logged error
     assert error_occurred
     assert any("Error in event window close callback" in str(call) for call in print_calls)
+
+
+def test_event_window_font_scales_with_resize(monkeypatch, store: DebugDataStore):
+    def fake_init(self, width=0, height=0, title="", resizable=True, **kwargs):
+        self._width = width or 520
+        self._height = height or 360
+        self._scale = 1.0
+        self._context = object()
+        self._ctx = object()
+
+    _mock_event_window_base(monkeypatch, init=fake_init)
+    monkeypatch.setattr(arcade.Window, "clear", lambda self: None, raising=False)
+    monkeypatch.setattr(arcade.Window, "switch_to", lambda self: None, raising=False)
+    monkeypatch.setattr(arcade, "draw_lbwh_rectangle_filled", lambda *args, **kwargs: None)
+
+    class RecordingText:
+        def __init__(self, text, x, y, color, font_size, bold=False):
+            self.text = text
+            self.position = (x, y)
+            self.color = color
+            self.font_size = font_size
+            self.bold = bold
+            self.content_width = len(text) * (font_size * 0.6)
+
+        def draw(self) -> None:
+            return None
+
+    monkeypatch.setattr(arcade, "Text", RecordingText, raising=False)
+    monkeypatch.setattr(event_window_module.TimelineRenderer, "draw", lambda self: None, raising=False)
+
+    window = EventInspectorWindow(store)
+    assert window._font_size == pytest.approx(10.0, rel=1e-4)
+    assert window._timeline_renderer.font_size == pytest.approx(10.0, rel=1e-4)
+
+    window.on_resize(780, 540)
+    assert window._font_size == pytest.approx(12.0, rel=1e-4)
+    assert window._timeline_renderer.font_size == pytest.approx(12.0, rel=1e-4)
+
+    # Ensure standard update still works with resized window
+    monkeypatch.setattr(arcade, "get_window", lambda: window, raising=False)
+    window._timeline_renderer.update()
+
+    window.on_resize(520, 360)
+    assert window._font_size == pytest.approx(10.0, rel=1e-4)
+    assert window._timeline_renderer.font_size == pytest.approx(10.0, rel=1e-4)
 
 
 def test_event_window_draw_background_skips_without_context(monkeypatch, store: DebugDataStore):

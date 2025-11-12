@@ -36,11 +36,17 @@ class DebugControlManager:
     snapshot_directory: Path
     action_controller: ActionController
     toggle_event_window: Callable[[bool], None]
+    target_names_provider: Callable[[], dict[int, str]] | None = None
     step_delta: float = 1 / 60
 
     def __post_init__(self) -> None:
         # Assume overlay provides access to debug store
-        self.snapshot_exporter = SnapshotExporter(self.overlay.debug_store, self.snapshot_directory)
+        self._cached_target_names: dict[int, str] = {}
+        self.snapshot_exporter = SnapshotExporter(
+            self.overlay.debug_store,
+            self.snapshot_directory,
+            target_names_provider=self.get_target_names,
+        )
         self.condition_panel_visible = False
         self.is_paused = False
         self.condition_debugger.clear()
@@ -75,6 +81,7 @@ class DebugControlManager:
             return True
 
         if key == arcade.key.F9:
+            self._refresh_target_names()
             try:
                 path = self.snapshot_exporter.export()
                 print(f"[ACE] Snapshot written to {path}")
@@ -94,6 +101,7 @@ class DebugControlManager:
 
     def update(self, sprite_positions: dict[int, tuple[float, float]] | None = None) -> None:
         """Update all connected components."""
+        self._refresh_target_names()
         self.overlay.update()
 
         if self.condition_panel_visible:
@@ -109,3 +117,27 @@ class DebugControlManager:
             self.guides.update(self.overlay.debug_store.get_all_snapshots(), sprite_positions)
         else:
             self.timeline.update()
+
+    # ------------------------------------------------------------------ Helpers
+    def _refresh_target_names(self) -> None:
+        if self.target_names_provider is None:
+            self._cached_target_names = {}
+            return
+
+        try:
+            names = self.target_names_provider() or {}
+        except Exception:
+            self._cached_target_names = {}
+            return
+
+        normalized: dict[int, str] = {}
+        for key, value in names.items():
+            try:
+                normalized[int(key)] = str(value)
+            except (TypeError, ValueError):
+                continue
+        self._cached_target_names = normalized
+
+    def get_target_names(self) -> dict[int, str]:
+        """Return the most recently cached target-name mapping."""
+        return dict(self._cached_target_names)

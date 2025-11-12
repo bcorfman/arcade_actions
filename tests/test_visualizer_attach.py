@@ -94,6 +94,7 @@ class StubControlManager:
         snapshot_directory: Path,
         action_controller: Any,
         toggle_event_window: Callable[[bool], None] | None = None,
+        target_names_provider: Callable[[], dict[int, str]] | None = None,
         step_delta: float = 1 / 60,
     ) -> None:
         self.overlay = overlay
@@ -106,6 +107,7 @@ class StubControlManager:
         self.step_delta = step_delta
         self.update_calls = 0
         self.last_positions: dict[int, tuple[float, float]] | None = None
+        self.target_names_provider = target_names_provider
 
     def handle_key_press(self, key: int, modifiers: int = 0) -> bool:  # pragma: no cover - not used
         return False
@@ -117,6 +119,21 @@ class StubControlManager:
         self.condition_debugger.update()
         self.timeline.update()
         self.guides.update([], sprite_positions or {})
+
+    def get_target_names(self) -> dict[int, str]:
+        if self.target_names_provider is None:
+            return {}
+        try:
+            names = self.target_names_provider() or {}
+        except Exception:
+            return {}
+        normalized: dict[int, str] = {}
+        for key, value in names.items():
+            try:
+                normalized[int(key)] = str(value)
+            except (TypeError, ValueError):
+                continue
+        return normalized
 
 
 @pytest.fixture
