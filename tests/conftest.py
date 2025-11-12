@@ -12,6 +12,12 @@ try:
 except ImportError:
     window_commands_module = None
 
+# Import sprite_list module early so we can patch get_window in it
+try:
+    import arcade.sprite_list.sprite_list as sprite_list_module
+except ImportError:
+    sprite_list_module = None
+
 from actions import Action
 
 
@@ -20,6 +26,7 @@ _global_test_window = None
 _original_window_init = None
 _original_get_window = None
 _original_get_window_module = None
+_original_get_window_sprite_list = None
 _original_ctx_property_global = None
 _original_getattribute = None
 
@@ -38,7 +45,7 @@ def _ensure_window_context():
     On Linux with Xvfb, creates a real window. On Windows/macOS CI without
     OpenGL, monkeypatches Window.__init__ to create a mock window.
     """
-    global _global_test_window, _original_window_init, _original_get_window, _original_get_window_module, _original_ctx_property_global, _original_getattribute
+    global _global_test_window, _original_window_init, _original_get_window, _original_get_window_module, _original_get_window_sprite_list, _original_ctx_property_global, _original_getattribute
     
     # Check if window already exists
     try:
@@ -73,6 +80,10 @@ def _ensure_window_context():
         _original_get_window_module = None
         if window_commands_module is not None:
             _original_get_window_module = getattr(window_commands_module, 'get_window', None)
+        # Store original from sprite_list module if it exists
+        _original_get_window_sprite_list = None
+        if sprite_list_module is not None:
+            _original_get_window_sprite_list = getattr(sprite_list_module, 'get_window', None)
         
         # Store original ctx property if it exists (for restoration)
         _original_ctx_property = getattr(arcade.Window, 'ctx', None)
@@ -118,22 +129,38 @@ def _ensure_window_context():
         try:
             # Create the mock window
             _global_test_window = arcade.Window(800, 600, visible=False)
+            
+            # Set the window in arcade's internal state
             arcade.set_window(_global_test_window)
+            # Also set it directly in window_commands module's _window variable
+            # This ensures get_window() returns our mock even before we patch it
+            if window_commands_module is not None:
+                window_commands_module.set_window(_global_test_window)
+                # Also set _window directly to be sure
+                if hasattr(window_commands_module, '_window'):
+                    window_commands_module._window = _global_test_window
             
             # Monkeypatch get_window to return our mock
             # Patch both arcade.get_window and arcade.window_commands.get_window
+            # Also need to patch it in arcade.sprite_list where it's imported
             def mock_get_window():
                 return _global_test_window
             arcade.get_window = mock_get_window
-            # Also patch the module-level function (this is what SpriteList actually uses)
+            # Patch the module-level function (this is what SpriteList actually uses)
             if window_commands_module is not None:
                 window_commands_module.get_window = mock_get_window
+            # Also patch in sprite_list module where get_window is imported
+            # This is critical because SpriteList imports get_window at module level
+            if sprite_list_module is not None:
+                sprite_list_module.get_window = mock_get_window
         except Exception:
             # If mock creation fails, restore originals
             arcade.Window.__init__ = _original_window_init
             arcade.get_window = _original_get_window
             if window_commands_module is not None and _original_get_window_module is not None:
                 window_commands_module.get_window = _original_get_window_module
+            if sprite_list_module is not None and _original_get_window_sprite_list is not None:
+                sprite_list_module.get_window = _original_get_window_sprite_list
             if _original_getattribute is not None:
                 arcade.Window.__getattribute__ = _original_getattribute
             if _original_ctx_property is not None:
@@ -152,6 +179,9 @@ def _ensure_window_context():
     if _original_get_window_module is not None and window_commands_module is not None:
         window_commands_module.get_window = _original_get_window_module
         _original_get_window_module = None
+    if _original_get_window_sprite_list is not None and sprite_list_module is not None:
+        sprite_list_module.get_window = _original_get_window_sprite_list
+        _original_get_window_sprite_list = None
     if _original_getattribute is not None:
         arcade.Window.__getattribute__ = _original_getattribute
         _original_getattribute = None
