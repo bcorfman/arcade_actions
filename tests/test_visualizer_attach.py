@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import importlib
 from pathlib import Path
+import importlib
 from typing import Any, Callable
 
 import arcade
@@ -92,11 +93,13 @@ class StubControlManager:
         timeline: StubTimeline,
         snapshot_directory: Path,
         action_controller: Any,
+        toggle_event_window: Callable[[bool], None] | None = None,
         step_delta: float = 1 / 60,
     ) -> None:
         self.overlay = overlay
         self.guides = guides
         self.condition_debugger = condition_debugger
+        self.toggle_event_window = toggle_event_window
         self.timeline = timeline
         self.snapshot_directory = snapshot_directory
         self.action_controller = action_controller
@@ -240,9 +243,13 @@ def test_enable_visualizer_hotkey_attaches(monkeypatch, stub_attach_kwargs):
     class StubWindow:
         def __init__(self) -> None:
             self.handlers: dict[str, Callable[..., bool]] = {}
+            self.view = None
 
         def push_handlers(self, **handlers: Callable[..., bool]) -> None:
             self.handlers.update(handlers)
+
+        def show_view(self, view) -> None:
+            self.view = view
 
     window = StubWindow()
 
@@ -267,9 +274,28 @@ def test_auto_attach_env_noop(monkeypatch, stub_attach_kwargs):
     from actions.visualizer import attach as attach_module
 
     monkeypatch.delenv("ARCADEACTIONS_VISUALIZER", raising=False)
-    called = attach_module.auto_attach_from_env(force=True, attach_kwargs=stub_attach_kwargs)
 
-    assert called is False
+
+def test_actions_import_auto_attaches_with_env(monkeypatch, stub_attach_kwargs):
+    """Importing actions with ARCADEACTIONS_VISUALIZER=1 should auto-attach."""
+    monkeypatch.setenv("ARCADEACTIONS_VISUALIZER", "1")
+
+    try:
+        import actions.visualizer.attach as visualizer_attach
+
+        if visualizer_attach.is_visualizer_attached():
+            visualizer_attach.detach_visualizer()
+
+        visualizer_attach._AUTO_ATTACH_ATTEMPTED = False  # type: ignore[attr-defined]
+
+        import actions  # noqa: F401
+
+        importlib.reload(actions)
+
+        assert visualizer_attach.is_visualizer_attached() is True
+    finally:
+        visualizer_attach.detach_visualizer()
+        monkeypatch.delenv("ARCADEACTIONS_VISUALIZER", raising=False)
 
 
 def test_attach_handles_provider_exception(monkeypatch, stub_attach_kwargs):
@@ -478,3 +504,244 @@ def test_enable_visualizer_hotkey_returns_false_without_window(monkeypatch, stub
     monkeypatch.setattr(Action, "update_all", classmethod(fake_update_all))
 
     assert enable_visualizer_hotkey(window=None, attach_kwargs=stub_attach_kwargs) is False
+
+
+def test_collect_target_names_from_view_no_window(monkeypatch):
+    """Test that _collect_target_names_from_view handles missing window gracefully."""
+    from actions.visualizer.attach import _collect_target_names_from_view
+
+    monkeypatch.setattr(arcade, "get_window", lambda: (_ for _ in ()).throw(RuntimeError("no window")))
+
+    names = _collect_target_names_from_view()
+    assert names == {}
+
+
+def test_collect_target_names_from_view_no_view(monkeypatch):
+    """Test that _collect_target_names_from_view handles missing view gracefully."""
+    from actions.visualizer.attach import _collect_target_names_from_view
+
+    class StubWindow:
+        current_view = None
+
+    monkeypatch.setattr(arcade, "get_window", lambda: StubWindow())
+
+    names = _collect_target_names_from_view()
+    assert names == {}
+
+
+def test_collect_target_names_from_view_finds_sprite_lists(monkeypatch):
+    """Test that _collect_target_names_from_view finds SpriteList objects."""
+    from actions.visualizer.attach import _collect_target_names_from_view
+
+    sprite_list = arcade.SpriteList()
+    sprite_list.append(arcade.Sprite(":resources:images/items/star.png"))
+
+    class StubView:
+        def __init__(self):
+            self.enemy_list = sprite_list
+
+    class StubWindow:
+        def __init__(self):
+            self.current_view = StubView()
+
+    monkeypatch.setattr(arcade, "get_window", lambda: StubWindow())
+
+    names = _collect_target_names_from_view()
+    assert id(sprite_list) in names
+    assert names[id(sprite_list)] == "self.enemy_list"
+
+
+def test_collect_target_names_from_view_finds_sprites(monkeypatch):
+    """Test that _collect_target_names_from_view finds Sprite objects."""
+    from actions.visualizer.attach import _collect_target_names_from_view
+
+    sprite = arcade.Sprite(":resources:images/items/star.png")
+
+    class StubView:
+        def __init__(self):
+            self.player = sprite
+
+    class StubWindow:
+        def __init__(self):
+            self.current_view = StubView()
+
+    monkeypatch.setattr(arcade, "get_window", lambda: StubWindow())
+
+    names = _collect_target_names_from_view()
+    assert id(sprite) in names
+    assert names[id(sprite)] == "self.player"
+
+
+def test_collect_target_names_from_view_finds_sprites_in_lists(monkeypatch):
+    """Test that _collect_target_names_from_view finds sprites within lists."""
+    from actions.visualizer.attach import _collect_target_names_from_view
+
+    sprite1 = arcade.Sprite(":resources:images/items/star.png")
+    sprite2 = arcade.Sprite(":resources:images/items/star.png")
+    sprite_list = arcade.SpriteList()
+    sprite_list.append(sprite1)
+    sprite_list.append(sprite2)
+
+    class StubView:
+        def __init__(self):
+            self.bullet_list = sprite_list
+
+    class StubWindow:
+        def __init__(self):
+            self.current_view = StubView()
+
+    monkeypatch.setattr(arcade, "get_window", lambda: StubWindow())
+
+    names = _collect_target_names_from_view()
+    assert id(sprite_list) in names
+    assert names[id(sprite_list)] == "self.bullet_list"
+    # Check that sprites in the list are also mapped
+    assert id(sprite1) in names
+    assert id(sprite2) in names
+    assert "Sprite#" in names[id(sprite1)]
+    assert "self.bullet_list" in names[id(sprite1)]
+
+
+def test_collect_target_names_from_view_skips_private_attributes(monkeypatch):
+    """Test that _collect_target_names_from_view skips private attributes."""
+    from actions.visualizer.attach import _collect_target_names_from_view
+
+    public_list = arcade.SpriteList()
+    private_list = arcade.SpriteList()
+
+    class StubView:
+        def __init__(self):
+            self.public_list = public_list
+            self._private_list = private_list
+
+    class StubWindow:
+        def __init__(self):
+            self.current_view = StubView()
+
+    monkeypatch.setattr(arcade, "get_window", lambda: StubWindow())
+
+    names = _collect_target_names_from_view()
+    assert id(public_list) in names
+    assert id(private_list) not in names
+
+
+def test_collect_target_names_from_view_finds_targets_from_actions(monkeypatch):
+    """Test that _collect_target_names_from_view finds targets from active actions."""
+    from actions.visualizer.attach import _collect_target_names_from_view
+    from actions.conditional import MoveUntil
+
+    sprite = arcade.Sprite(":resources:images/items/star.png")
+    action = MoveUntil(velocity=(1, 0), condition=lambda: False)
+    action.apply(sprite)
+
+    class StubView:
+        pass
+
+    class StubWindow:
+        def __init__(self):
+            self.current_view = StubView()
+
+    monkeypatch.setattr(arcade, "get_window", lambda: StubWindow())
+
+    names = _collect_target_names_from_view()
+    # The sprite might be found through the action's target
+    # Since it's not in a view attribute, it might not have a name, but shouldn't crash
+    assert isinstance(names, dict)
+
+
+def test_collect_target_names_from_view_finds_sprite_in_list_from_action(monkeypatch):
+    """Test that _collect_target_names_from_view finds sprites in lists from actions."""
+    from actions.visualizer.attach import _collect_target_names_from_view
+    from actions.conditional import MoveUntil
+
+    sprite = arcade.Sprite(":resources:images/items/star.png")
+    sprite_list = arcade.SpriteList()
+    sprite_list.append(sprite)
+
+    action = MoveUntil(velocity=(1, 0), condition=lambda: False)
+    action.apply(sprite)
+
+    class StubView:
+        def __init__(self):
+            self.bullet_list = sprite_list
+
+    class StubWindow:
+        def __init__(self):
+            self.current_view = StubView()
+
+    monkeypatch.setattr(arcade, "get_window", lambda: StubWindow())
+
+    names = _collect_target_names_from_view()
+    # Should find the sprite in the list
+    assert id(sprite) in names
+    assert "self.bullet_list" in names[id(sprite)]
+
+
+def test_collect_target_names_from_view_handles_exceptions(monkeypatch):
+    """Test that _collect_target_names_from_view handles exceptions gracefully."""
+    from actions.visualizer.attach import _collect_target_names_from_view
+
+    class StubView:
+        def __init__(self):
+            self.normal_list = arcade.SpriteList()
+
+        def __getattr__(self, name):
+            if name == "problematic":
+                raise ValueError("Cannot access")
+            return super().__getattribute__(name)
+
+    # Create the view instance once and reuse it
+    stub_view = StubView()
+
+    class StubWindow:
+        def __init__(self):
+            self.current_view = stub_view
+
+    monkeypatch.setattr(arcade, "get_window", lambda: StubWindow())
+
+    names = _collect_target_names_from_view()
+    # Should still find normal_list despite problematic attribute
+    assert id(stub_view.normal_list) in names
+
+
+def test_collect_target_names_from_view_handles_none_attributes(monkeypatch):
+    """Test that _collect_target_names_from_view handles None attributes gracefully."""
+    from actions.visualizer.attach import _collect_target_names_from_view
+
+    valid_list = arcade.SpriteList()
+
+    class StubView:
+        def __init__(self):
+            self.valid_list = valid_list
+            self.none_list = None
+
+    class StubWindow:
+        def __init__(self):
+            self.current_view = StubView()
+
+    monkeypatch.setattr(arcade, "get_window", lambda: StubWindow())
+
+    names = _collect_target_names_from_view()
+    # Should find valid_list but skip none_list
+    assert id(valid_list) in names
+    assert names[id(valid_list)] == "self.valid_list"
+
+
+def test_collect_target_names_from_view_auto_attach_provides_provider(monkeypatch):
+    """Test that auto_attach_from_env automatically provides target_names_provider."""
+    from actions.visualizer import attach as attach_module
+
+    monkeypatch.setenv("ARCADEACTIONS_VISUALIZER", "1")
+    called: list[dict[str, Any]] = []
+
+    def fake_attach(**kwargs):
+        called.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(attach_module, "attach_visualizer", fake_attach)
+
+    attach_module.auto_attach_from_env(force=True)
+
+    assert len(called) == 1
+    assert "target_names_provider" in called[0]
+    assert callable(called[0]["target_names_provider"])

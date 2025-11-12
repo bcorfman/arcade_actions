@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:  # pragma: no cover
     import arcade
 
-__all__ = ["center_window"]
+__all__ = ["center_window", "move_to_primary_monitor"]
 
 
 class _WindowProto(Protocol):
@@ -74,10 +74,10 @@ def _load_sdl2() -> CDLL | None:
     return None
 
 
-def _center_with_sdl(window: _WindowProto) -> bool:
+def _sdl_primary_rect() -> _SDL_Rect | None:
     sdl = _load_sdl2()
     if sdl is None:
-        return False
+        return None
 
     SDL_INIT_VIDEO = 0x00000020
     sdl.SDL_Init.argtypes = [c_uint32]
@@ -89,21 +89,28 @@ def _center_with_sdl(window: _WindowProto) -> bool:
     sdl.SDL_GetDisplayBounds.restype = c_int  # type: ignore[var-annotated]
 
     if sdl.SDL_Init(SDL_INIT_VIDEO) != 0:
-        return False
+        return None
 
     try:
         num_displays = sdl.SDL_GetNumVideoDisplays()
         if num_displays <= 0:
-            return False
+            return None
         rect = _SDL_Rect()
         if sdl.SDL_GetDisplayBounds(0, byref(rect)) != 0:
-            return False
-        center_x = rect.x + (rect.w - window.width) // 2
-        center_y = rect.y + (rect.h - window.height) // 2
-        window.set_location(center_x, center_y)
-        return True
+            return None
+        return rect
     finally:
         sdl.SDL_Quit()
+
+
+def _center_with_sdl(window: _WindowProto) -> bool:
+    rect = _sdl_primary_rect()
+    if rect is None:
+        return False
+    center_x = rect.x + (rect.w - window.width) // 2
+    center_y = rect.y + (rect.h - window.height) // 2
+    window.set_location(center_x, center_y)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +134,48 @@ def _center_with_screeninfo(window: _WindowProto) -> bool:  # pragma: no cover
     return True
 
 
+def _move_to_primary_with_sdl(window: _WindowProto, offset_x: int, offset_y: int) -> bool:
+    rect = _sdl_primary_rect()
+    if rect is None:
+        return False
+
+    pos_x = rect.x + offset_x
+    pos_y = rect.y + offset_y
+
+    max_x = rect.x + rect.w - window.width
+    max_y = rect.y + rect.h - window.height
+
+    pos_x = max(rect.x, min(pos_x, max_x))
+    pos_y = max(rect.y, min(pos_y, max_y))
+
+    window.set_location(pos_x, pos_y)
+    return True
+
+
+def _move_to_primary_with_screeninfo(window: _WindowProto, offset_x: int, offset_y: int) -> bool:  # pragma: no cover
+    try:
+        from screeninfo import get_monitors
+    except Exception:
+        return False
+
+    monitors = get_monitors()
+    if not monitors:
+        return False
+    primary = monitors[0]
+
+    pos_x = primary.x + offset_x
+    pos_y = primary.y + offset_y
+
+    max_x = primary.x + primary.width - window.width
+    max_y = primary.y + primary.height - window.height
+
+    pos_x = max(primary.x, min(pos_x, max_x))
+    pos_y = max(primary.y, min(pos_y, max_y))
+
+    window.set_location(pos_x, pos_y)
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -140,3 +189,16 @@ def center_window(window: arcade.Window, /) -> bool:  # type: ignore[name-define
     """
 
     return _center_with_sdl(window) or _center_with_screeninfo(window)
+
+
+def move_to_primary_monitor(window: arcade.Window, /, *, offset_x: int = 40, offset_y: int = 40) -> bool:  # type: ignore[name-defined]
+    """Place *window* on the primary monitor near the top-left corner.
+
+    The helper keeps a configurable offset from the monitor origin so the
+    debugger window doesn't overlap the game window by default.  Returns
+    ``True`` if a placement strategy succeeded, otherwise ``False``.
+    """
+
+    return _move_to_primary_with_sdl(window, offset_x, offset_y) or _move_to_primary_with_screeninfo(
+        window, offset_x, offset_y
+    )

@@ -8,18 +8,22 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 import arcade
+from arcade import window_commands
 
 from actions.base import Action
+from actions.display import move_to_primary_monitor
 from actions.visualizer.condition_panel import ConditionDebugger
 from actions.visualizer.controls import DebugControlManager
 from actions.visualizer.guides import GuideManager
 from actions.visualizer.instrumentation import DebugDataStore
 from actions.visualizer.overlay import InspectorOverlay
-from actions.visualizer.renderer import OverlayRenderer
+from actions.visualizer.renderer import ConditionPanelRenderer, GuideRenderer, OverlayRenderer, TimelineRenderer
+from actions.visualizer.event_window import EventInspectorWindow
 from actions.visualizer.timeline import TimelineStrip
 
 
 SpritePositionsProvider = Callable[[], dict[int, tuple[float, float]]]
+TargetNamesProvider = Callable[[], dict[int, str]]
 
 _WINDOW_SENTINEL = object()
 
@@ -35,12 +39,34 @@ class VisualizerSession:
     condition_debugger: ConditionDebugger
     timeline: TimelineStrip
     control_manager: DebugControlManager
+    guide_renderer: GuideRenderer
+    event_window: EventInspectorWindow | None
     snapshot_directory: Path
     sprite_positions_provider: SpritePositionsProvider | None
+    target_names_provider: TargetNamesProvider | None
     wrapped_update_all: Callable[[type[Action], float, Any], None]
     previous_update_all: Callable[[type[Action], float, Any], None]
     previous_debug_store: Any
     previous_enable_flag: bool
+    window: arcade.Window | None = None
+    original_window_on_draw: Callable[..., Any] | None = None
+    original_window_on_key_press: Callable[..., Any] | None = None
+    original_window_on_close: Callable[..., Any] | None = None
+    key_handler: Callable[[int, int], bool] | None = None
+
+    @property
+    def keyboard_handler(self) -> Callable[[int, int], bool] | None:
+        """Convenience property for tests - returns key handler that delegates to control_manager."""
+        if self.control_manager is None:
+            return None
+        return self.control_manager.handle_key_press
+
+    @property
+    def draw_handler(self) -> Callable[[], None] | None:
+        """Convenience property for tests - returns draw handler."""
+        if self.renderer is None:
+            return None
+        return self.renderer.draw
 
 
 _VISUALIZER_SESSION: VisualizerSession | None = None
@@ -86,17 +112,270 @@ def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
     return positions
 
 
+def _collect_target_names_from_view() -> dict[int, str]:
+    """Attempt to collect target names from the current game view.
+
+    Inspects the current view's attributes to find SpriteLists and Sprites,
+    mapping their IDs to their attribute names (e.g., "self.enemy_list").
+    Also inspects active actions to map their targets.
+    """
+    import arcade  # Import at function level to avoid circular imports
+
+    names: dict[int, str] = {}
+
+    try:
+        window = arcade.get_window()
+    except RuntimeError:
+        window = None
+
+    view = None
+    if window is not None:
+        view = getattr(window, "current_view", None)
+
+    if view is not None:
+        for attr_name in dir(view):
+            # Skip private attributes and methods
+            if attr_name.startswith("_"):
+                continue
+
+            try:
+                attr_value = getattr(view, attr_name, None)
+                if attr_value is None:
+                    continue
+
+                # Check if it's a SpriteList
+                # Note: Using isinstance for external library types (arcade) is acceptable
+                # per project guidelines - this is not checking our own interfaces
+                if isinstance(attr_value, arcade.SpriteList):
+                    target_id = id(attr_value)
+                    # Use "self" to match how attributes are referenced in class methods
+                    names[target_id] = f"self.{attr_name}"
+
+                    # Also map individual sprites in the list with hex ID
+                    try:
+                        for sprite in attr_value:
+                            sprite_id = id(sprite)
+                            hex_id = hex(sprite_id)[-4:]  # Last 4 hex chars for brevity
+                            names[sprite_id] = f"Sprite#{hex_id} in self.{attr_name}"
+                    except (TypeError, AttributeError):
+                        pass
+
+                # Check if it's a Sprite
+                elif isinstance(attr_value, arcade.Sprite):
+                    target_id = id(attr_value)
+                    names[target_id] = f"self.{attr_name}"
+
+            except Exception:
+                # Skip attributes that can't be accessed
+                continue
+
+    # Also inspect active actions to find targets that might not be direct view attributes
+    # This helps catch dynamically created sprites (like bullets)
+    try:
+        for action in list(Action._active_actions):  # type: ignore[attr-defined]
+            target = getattr(action, "target", None)
+            if target is None:
+                continue
+
+            target_id = id(target)
+
+            # If we already have a name for this target, skip it
+            if target_id in names:
+                continue
+
+            # Try to find this target in view attributes by comparing IDs
+            if view is not None:
+                found_name = None
+                for attr_name in dir(view):
+                    if attr_name.startswith("_"):
+                        continue
+                    try:
+                        attr_value = getattr(view, attr_name, None)
+                        if attr_value is target:  # Identity check, not equality
+                            found_name = f"self.{attr_name}"
+                            break
+                        # Also check if it's a SpriteList containing this sprite
+                        if isinstance(attr_value, arcade.SpriteList):
+                            try:
+                                for sprite in attr_value:
+                                    if sprite is target:  # Identity check
+                                        hex_id = hex(target_id)[-4:]
+                                        found_name = f"Sprite#{hex_id} in self.{attr_name}"
+                                        break
+                            except (TypeError, AttributeError):
+                                pass
+                        if found_name:
+                            break
+                    except Exception:
+                        continue
+
+                if found_name:
+                    names[target_id] = found_name
+                    continue
+
+            # If not found in view, check if it's a Sprite and try to find which list contains it
+            if isinstance(target, arcade.Sprite) and view is not None:
+                for attr_name in dir(view):
+                    if attr_name.startswith("_"):
+                        continue
+                    try:
+                        attr_value = getattr(view, attr_name, None)
+                        if isinstance(attr_value, arcade.SpriteList):
+                            try:
+                                if target in attr_value:  # Membership check
+                                    hex_id = hex(target_id)[-4:]
+                                    names[target_id] = f"Sprite#{hex_id} in self.{attr_name}"
+                                    break
+                            except (TypeError, AttributeError):
+                                pass
+                    except Exception:
+                        continue
+
+    except Exception:
+        # If inspecting actions fails, just return what we have from the view
+        pass
+
+    return names
+
+
+def _install_window_handler(session: VisualizerSession) -> None:
+    """Register window hooks so the overlay renders and function keys work."""
+
+    try:
+        window = arcade.get_window()
+    except RuntimeError:
+        window = None
+
+    if window is None:
+        return
+
+    if session.window is not None and session.window is not window:
+        _remove_window_handler(session)
+
+    # Wrap on_draw to render overlay
+    current_on_draw = getattr(window, "on_draw", None)
+    if current_on_draw is not None:
+        if getattr(current_on_draw, "__visualizer_overlay__", False):
+            session.original_window_on_draw = getattr(current_on_draw, "__visualizer_original__", None)
+        elif session.original_window_on_draw is None:
+
+            def overlay_on_draw(*args: Any, **kwargs: Any) -> Any:
+                try:
+                    return current_on_draw(*args, **kwargs)
+                finally:
+                    if is_visualizer_attached() and _VISUALIZER_SESSION is session:
+                        session.guide_renderer.draw()
+                        session.renderer.draw()
+
+            setattr(overlay_on_draw, "__visualizer_overlay__", True)
+            setattr(overlay_on_draw, "__visualizer_original__", current_on_draw)
+            window.on_draw = overlay_on_draw  # type: ignore[assignment]
+            session.original_window_on_draw = current_on_draw
+
+    # Wrap on_key_press to handle debugger hotkeys while preserving game input
+    current_on_key_press = getattr(window, "on_key_press", None)
+    if current_on_key_press is not None:
+        if getattr(current_on_key_press, "__visualizer_key__", False):
+            session.original_window_on_key_press = getattr(current_on_key_press, "__visualizer_key_original__", None)
+        elif session.original_window_on_key_press is None:
+
+            def overlay_on_key_press(symbol: int, modifiers: int) -> bool:
+                handled = False
+                if is_visualizer_attached() and _VISUALIZER_SESSION is session and session.control_manager is not None:
+                    try:
+                        handled = bool(session.control_manager.handle_key_press(symbol, modifiers))
+                    except Exception:
+                        handled = False
+                if handled:
+                    return True
+
+                if current_on_key_press is not None:
+                    result = current_on_key_press(symbol, modifiers)
+                    if result is None:
+                        return False
+                    return bool(result)
+                return False
+
+            setattr(overlay_on_key_press, "__visualizer_key__", True)
+            setattr(overlay_on_key_press, "__visualizer_key_original__", current_on_key_press)
+            window.on_key_press = overlay_on_key_press  # type: ignore[assignment]
+            session.original_window_on_key_press = current_on_key_press
+
+    # Wrap on_close to close debugger window when main window closes
+    current_on_close = getattr(window, "on_close", None)
+    if current_on_close is not None:
+        if getattr(current_on_close, "__visualizer_close__", False):
+            session.original_window_on_close = getattr(current_on_close, "__visualizer_close_original__", None)
+        elif session.original_window_on_close is None:
+
+            def overlay_on_close(*args: Any, **kwargs: Any) -> Any:
+                # Close debugger window if it exists
+                if session.event_window is not None:
+                    try:
+                        session.event_window.close()
+                    except Exception as exc:
+                        print(f"[ACE] Error closing debugger window: {exc!r}")
+                    session.event_window = None
+                # Call original handler if it exists
+                if current_on_close is not None:
+                    return current_on_close(*args, **kwargs)
+                return None
+
+            setattr(overlay_on_close, "__visualizer_close__", True)
+            setattr(overlay_on_close, "__visualizer_close_original__", current_on_close)
+            window.on_close = overlay_on_close  # type: ignore[assignment]
+            session.original_window_on_close = current_on_close
+
+    session.window = window
+
+
+def _remove_window_handler(session: VisualizerSession) -> None:
+    """Remove any previously registered draw handler."""
+
+    if session.window is None:
+        session.original_window_on_draw = None
+        session.original_window_on_key_press = None
+        session.original_window_on_close = None
+        return
+
+    current_on_draw = getattr(session.window, "on_draw", None)
+    should_restore = getattr(current_on_draw, "__visualizer_overlay__", False)
+
+    if session.original_window_on_draw is not None and should_restore:
+        session.window.on_draw = session.original_window_on_draw  # type: ignore[assignment]
+
+    current_on_key_press = getattr(session.window, "on_key_press", None)
+    key_should_restore = getattr(current_on_key_press, "__visualizer_key__", False)
+
+    if session.original_window_on_key_press is not None and key_should_restore:
+        session.window.on_key_press = session.original_window_on_key_press  # type: ignore[assignment]
+
+    current_on_close = getattr(session.window, "on_close", None)
+    close_should_restore = getattr(current_on_close, "__visualizer_close__", False)
+
+    if session.original_window_on_close is not None and close_should_restore:
+        session.window.on_close = session.original_window_on_close  # type: ignore[assignment]
+
+    session.window = None
+    session.original_window_on_draw = None
+    session.original_window_on_key_press = None
+    session.original_window_on_close = None
+
+
 def attach_visualizer(
     *,
     debug_store: DebugDataStore | None = None,
     snapshot_directory: Path | str | None = None,
     sprite_positions_provider: SpritePositionsProvider | None = None,
+    target_names_provider: TargetNamesProvider | None = None,
     overlay_cls: type[InspectorOverlay] = InspectorOverlay,
     renderer_cls: type[OverlayRenderer] = OverlayRenderer,
     guide_manager_cls: type[GuideManager] = GuideManager,
     condition_debugger_cls: type[ConditionDebugger] = ConditionDebugger,
     timeline_cls: type[TimelineStrip] = TimelineStrip,
     controls_cls: type[DebugControlManager] = DebugControlManager,
+    guide_renderer_cls: type[GuideRenderer] = GuideRenderer,
+    event_window_cls: type[EventInspectorWindow] = EventInspectorWindow,
     control_manager_kwargs: Optional[dict[str, Any]] = None,
 ) -> VisualizerSession:
     """
@@ -106,12 +385,15 @@ def attach_visualizer(
         debug_store: Optional pre-existing debug store to reuse.
         snapshot_directory: Directory for exported snapshots.
         sprite_positions_provider: Optional callable returning sprite positions.
+        target_names_provider: Optional callable returning target names mapping target_id to name string.
         overlay_cls: Custom overlay class for testing/extension.
         renderer_cls: Custom renderer class.
         guide_manager_cls: Custom guide manager class.
         condition_debugger_cls: Custom condition debugger class.
         timeline_cls: Custom timeline class.
         controls_cls: Custom control manager class.
+        guide_renderer_cls: Renderer class for world-space guides.
+        event_window_cls: Window class used for displaying events.
         control_manager_kwargs: Extra kwargs passed to controls_cls.
     """
 
@@ -140,9 +422,58 @@ def attach_visualizer(
     guides = guide_manager_cls()
     condition_debugger = condition_debugger_cls(debug_store)
     timeline = timeline_cls(debug_store)
+    guide_renderer = guide_renderer_cls(guides)
 
     if control_manager_kwargs is None:
         control_manager_kwargs = {}
+
+    session_holder: dict[str, VisualizerSession | None] = {"session": None}
+    control_manager_holder: dict[str, DebugControlManager | None] = {"manager": None}
+
+    def _on_event_window_closed() -> None:
+        session = session_holder["session"]
+        manager = control_manager_holder["manager"]
+        if session is not None:
+            session.event_window = None
+            if session.window is not None:
+                window_commands.set_window(session.window)
+        if manager is not None:
+            manager.condition_panel_visible = False
+
+    def toggle_event_window(open_state: bool) -> None:
+        session = session_holder["session"]
+        manager = control_manager_holder["manager"]
+        if session is None:
+            return
+        if open_state:
+            if session.event_window is not None:
+                return
+            try:
+                window = event_window_cls(
+                    debug_store=session.debug_store,
+                    on_close_callback=_on_event_window_closed,
+                    target_names_provider=session.target_names_provider,
+                )
+            except Exception as exc:
+                print(f"[ACE] Failed to open event window: {exc!r}")
+                if manager is not None:
+                    manager.condition_panel_visible = False
+                return
+            # Position window before making it visible to avoid visible jump
+            move_to_primary_monitor(window, offset_x=40, offset_y=60)
+            window.set_visible(True)
+            session.event_window = window
+            if session.window is not None:
+                window_commands.set_window(session.window)
+        else:
+            if session.event_window is not None:
+                try:
+                    session.event_window.close()
+                except Exception as exc:
+                    print(f"[ACE] Error closing debugger window: {exc!r}")
+                session.event_window = None
+                if session.window is not None:
+                    window_commands.set_window(session.window)
 
     control_manager = controls_cls(
         overlay=overlay,
@@ -151,8 +482,10 @@ def attach_visualizer(
         timeline=timeline,
         snapshot_directory=snapshot_directory,
         action_controller=Action,
+        toggle_event_window=toggle_event_window,
         **control_manager_kwargs,
     )
+    control_manager_holder["manager"] = control_manager
 
     if sprite_positions_provider is None:
         sprite_positions_provider = _collect_sprite_positions
@@ -161,6 +494,7 @@ def attach_visualizer(
         original_update_all(cls, delta_time, physics_engine=physics_engine)
         if _VISUALIZER_SESSION is None:
             return
+        _install_window_handler(_VISUALIZER_SESSION)
         positions: dict[int, tuple[float, float]] = {}
         provider = _VISUALIZER_SESSION.sprite_positions_provider
         if provider is not None:
@@ -168,8 +502,10 @@ def attach_visualizer(
                 positions = provider() or {}
             except Exception:
                 positions = {}
-        _VISUALIZER_SESSION.control_manager.update(positions)
-        _VISUALIZER_SESSION.renderer.update()
+        session = _VISUALIZER_SESSION
+        session.control_manager.update(positions)
+        session.renderer.update()
+        session.guide_renderer.update()
 
     session = VisualizerSession(
         debug_store=debug_store,
@@ -179,17 +515,22 @@ def attach_visualizer(
         condition_debugger=condition_debugger,
         timeline=timeline,
         control_manager=control_manager,
+        guide_renderer=guide_renderer,
+        event_window=None,
         snapshot_directory=snapshot_directory,
         sprite_positions_provider=sprite_positions_provider,
+        target_names_provider=target_names_provider,
         wrapped_update_all=wrapped_update_all,
         previous_update_all=original_update_all,
         previous_debug_store=previous_store,
         previous_enable_flag=previous_enable_flag,
     )
+    session_holder["session"] = session
 
     Action.update_all = classmethod(wrapped_update_all)  # type: ignore[assignment]
 
     _VISUALIZER_SESSION = session
+    _install_window_handler(session)
     return session
 
 
@@ -207,6 +548,13 @@ def detach_visualizer() -> bool:
         Action.update_all = classmethod(session.previous_update_all)  # type: ignore[assignment]
     Action.set_debug_store(session.previous_debug_store)
     Action._enable_visualizer = session.previous_enable_flag  # type: ignore[attr-defined]
+    if session.event_window is not None:
+        try:
+            session.event_window.close()
+        except Exception as exc:
+            print(f"[ACE] Error closing debugger window during detach: {exc!r}")
+        session.event_window = None
+    _remove_window_handler(session)
 
     _VISUALIZER_SESSION = None
     return True
@@ -225,6 +573,10 @@ def auto_attach_from_env(*, force: bool = False, attach_kwargs: dict[str, Any] |
 
     if attach_kwargs is None:
         attach_kwargs = {}
+
+    # Automatically provide target names if not explicitly provided
+    if "target_names_provider" not in attach_kwargs:
+        attach_kwargs["target_names_provider"] = _collect_target_names_from_view
 
     attach_visualizer(**attach_kwargs)
     return True

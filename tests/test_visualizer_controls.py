@@ -41,6 +41,11 @@ def control_context(tmp_path: Path):
     condition_debugger = ConditionDebugger(debug_store=store)
     timeline = TimelineStrip(debug_store=store)
     action_controller = StubActionController()
+    
+    # Stub callback for event window toggling
+    def stub_toggle_event_window(open_state: bool) -> None:
+        pass
+    
     manager = DebugControlManager(
         overlay=overlay,
         guides=guides,
@@ -48,6 +53,7 @@ def control_context(tmp_path: Path):
         timeline=timeline,
         snapshot_directory=tmp_path,
         action_controller=action_controller,
+        toggle_event_window=stub_toggle_event_window,
         step_delta=0.016,
     )
     return store, overlay, guides, condition_debugger, timeline, action_controller, manager, tmp_path
@@ -157,11 +163,11 @@ def test_f9_exports_snapshot(control_context):
 
 def test_f4_toggles_condition_panel(control_context):
     _, _, _, condition_debugger, _, _, manager, _ = control_context
-    assert manager.condition_panel_visible is True
-    press(manager, arcade.key.F4)
     assert manager.condition_panel_visible is False
     press(manager, arcade.key.F4)
     assert manager.condition_panel_visible is True
+    press(manager, arcade.key.F4)
+    assert manager.condition_panel_visible is False
 
 
 def test_unhandled_key_returns_false(control_context):
@@ -186,7 +192,10 @@ def test_update_when_condition_panel_hidden(control_context):
         progress=None,
         velocity=(1, 0),
     )
-    manager.handle_key_press(arcade.key.F4)  # hide condition panel
+    # condition_panel_visible starts as False, so F4 toggles it to True
+    # To hide it, we need to press F4 twice (True -> False) or start with it visible
+    manager.handle_key_press(arcade.key.F4)  # show condition panel (False -> True)
+    manager.handle_key_press(arcade.key.F4)  # hide condition panel (True -> False)
     manager.update(sprite_positions={50: (10, 10)})
     assert manager.condition_panel_visible is False
     assert condition_debugger.entries == []

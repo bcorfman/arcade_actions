@@ -62,15 +62,21 @@ class ConditionDebugger:
         raw_evaluations = self.debug_store.get_recent_evaluations(limit=self.max_entries * 2)
 
         # Map action_id to latest snapshot for contextual info
+        # Note: get_all_snapshots() only returns active actions (removed actions have no snapshot)
         snapshots = self.debug_store.get_all_snapshots()
         snapshot_by_action = {snapshot.action_id: snapshot for snapshot in snapshots}
 
         entries: list[ConditionEntry] = []
         for evaluation in raw_evaluations:
             snapshot = snapshot_by_action.get(evaluation.action_id)
-            tag = snapshot.tag if snapshot else None
-            target_id = snapshot.target_id if snapshot else None
-            target_type = snapshot.target_type if snapshot else None
+            
+            # Skip entries for removed actions (no snapshot means action was removed)
+            if snapshot is None:
+                continue
+            
+            tag = snapshot.tag
+            target_id = snapshot.target_id
+            target_type = snapshot.target_type
 
             # Apply tag filter before recording entry
             if self.filter_tag and tag != self.filter_tag:

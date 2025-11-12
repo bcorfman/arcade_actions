@@ -65,6 +65,8 @@ from .easing import (
 # from .formation import (...)
 
 # Helper functions
+import os
+
 from .helpers import (
     blink_until,
     callback_until,
@@ -93,6 +95,18 @@ from .instant import MoveBy, MoveTo
 
 # Experimental pools module
 from .pools import SpritePool
+
+
+def _maybe_auto_attach_visualizer() -> None:
+    """Automatically attach the visualizer when requested via environment variable."""
+    if os.getenv("ARCADEACTIONS_VISUALIZER"):
+        # Importing visualizer triggers the auto-attach logic in actions.visualizer.__init__
+        from . import visualizer
+
+        visualizer.auto_attach_from_env(force=True)
+
+
+_maybe_auto_attach_visualizer()
 
 __all__ = [
     # Core classes
