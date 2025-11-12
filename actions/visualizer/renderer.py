@@ -411,6 +411,16 @@ class TimelineRenderer:
         self._text_specs: list[_TextSpec] = []
         self._last_text_specs: list[_TextSpec] = []
 
+    def set_font_size(self, font_size: float) -> None:
+        """Set the font size used for timeline labels."""
+        if font_size <= 0:
+            raise ValueError("font_size must be positive")
+        self.font_size = font_size
+        # Force regeneration of text objects on next draw
+        self._text_specs = []
+        self._last_text_specs = []
+        self.text_objects = []
+
     def update(self) -> None:
         self._background_rect = None
         self._bars = []

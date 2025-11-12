@@ -4,11 +4,13 @@ Tests for debug control manager handling keyboard shortcuts.
 
 from __future__ import annotations
 
-import arcade
-import pytest
+import json
 from pathlib import Path
 
-from actions.visualizer.instrumentation import DebugDataStore, ActionSnapshot
+import arcade
+import pytest
+
+from actions.visualizer.instrumentation import DebugDataStore
 from actions.visualizer.overlay import InspectorOverlay
 from actions.visualizer.guides import GuideManager
 from actions.visualizer.condition_panel import ConditionDebugger
@@ -54,6 +56,7 @@ def control_context(tmp_path: Path):
         snapshot_directory=tmp_path,
         action_controller=action_controller,
         toggle_event_window=stub_toggle_event_window,
+        target_names_provider=lambda: {},
         step_delta=0.016,
     )
     return store, overlay, guides, condition_debugger, timeline, action_controller, manager, tmp_path
@@ -159,6 +162,45 @@ def test_f9_exports_snapshot(control_context):
     contents = files[0].read_text()
     assert "MoveUntil" in contents
     assert "created" in contents
+
+
+def test_snapshot_includes_target_names(control_context):
+    store, overlay, _, _, _, _, manager, snapshot_dir = control_context
+
+    store.update_frame(1, 0.016)
+    store.record_event(
+        "created",
+        action_id=1,
+        action_type="MoveUntil",
+        target_id=777,
+        target_type="Sprite",
+        tag="movement",
+    )
+    store.update_snapshot(
+        action_id=1,
+        action_type="MoveUntil",
+        target_id=777,
+        target_type="Sprite",
+        tag="movement",
+        is_active=True,
+        is_paused=False,
+        factor=1.0,
+        elapsed=0.0,
+        progress=None,
+    )
+    overlay.update()
+
+    manager.target_names_provider = lambda: {777: "self.enemy_list"}
+    manager.update()
+
+    press(manager, arcade.key.F9)
+    files = list(snapshot_dir.glob("snapshot_*.json"))
+    assert len(files) == 1
+    data = json.loads(files[0].read_text())
+
+    assert data["target_names"]["777"] == "self.enemy_list"
+    assert any(event["target_name"] == "self.enemy_list" for event in data["events"])
+    assert any(snapshot["target_name"] == "self.enemy_list" for snapshot in data["snapshots"])
 
 
 def test_f4_toggles_condition_panel(control_context):

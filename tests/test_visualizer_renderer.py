@@ -235,3 +235,27 @@ def test_timeline_renderer_handles_composite_action_lifecycle(monkeypatch):
     assert isinstance(renderer._bars, list)
     # Timeline renderer should handle lifecycle correctly without crashing
     assert hasattr(renderer, "_bars")
+
+
+def test_timeline_renderer_uses_target_names(monkeypatch):
+    """Ensure the timeline renderer leverages provided target names."""
+    store = DebugDataStore()
+    store.update_frame(1, 0.016)
+    target_id = 9001
+    store.record_event("created", 1, "MoveUntil", target_id, "Sprite")
+    timeline = TimelineStrip(store)
+    timeline.update()
+
+    renderer = TimelineRenderer(
+        timeline,
+        width=400,
+        height=120,
+        margin=8,
+        target_names_provider=lambda: {target_id: "self.enemy_list"},
+    )
+    window = type("StubWindow", (), {"width": 400, "height": 120})
+    monkeypatch.setattr(arcade, "get_window", lambda: window)
+
+    renderer.update()
+    labels = [spec.text for spec in renderer._text_specs]
+    assert any("self.enemy_list" in text for text in labels)

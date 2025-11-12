@@ -115,3 +115,4 @@ The visualizer adds some overhead:
 - Timeline updates are deferred until the window is visible
 - No impact when `ARCADEACTIONS_VISUALIZER` is not set
 
+
