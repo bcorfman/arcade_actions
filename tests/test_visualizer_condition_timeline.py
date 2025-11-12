@@ -111,6 +111,17 @@ class TestTimelineStrip:
             tag="movement",
         )
 
+        timeline = TimelineStrip(debug_store=self.store)
+        timeline.update()
+
+        # Active action should appear in timeline
+        assert len(timeline.entries) == 1
+        entry = timeline.entries[0]
+        assert entry.action_id == 1
+        assert entry.start_frame == 1
+        assert entry.is_active is True
+
+        # When stopped, action should be removed from timeline
         self.store.update_frame(5, 0.5)
         self.store.record_event(
             "stopped",
@@ -121,15 +132,9 @@ class TestTimelineStrip:
             tag="movement",
         )
 
-        timeline = TimelineStrip(debug_store=self.store)
         timeline.update()
-
-        assert len(timeline.entries) == 1
-        entry = timeline.entries[0]
-        assert entry.action_id == 1
-        assert entry.start_frame == 1
-        assert entry.end_frame == 5
-        assert entry.is_active is False
+        # Stopped actions are removed from timeline (synced with overlay)
+        assert len(timeline.entries) == 0
 
     def test_entry_marks_active_when_no_stop_event(self):
         """Timeline should mark entries as active when not yet stopped."""

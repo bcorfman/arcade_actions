@@ -335,7 +335,21 @@ class Action(ABC, Generic[_T]):
                 action.update(delta_time)
 
             # Phase 3: Remove completed actions (safe, callbacks already deactivated)
-            cls._active_actions[:] = [action for action in cls._active_actions if not action.done]
+            remaining_actions: list[Action] = []
+            if cls._enable_visualizer:
+                for action in cls._active_actions:
+                    if action.done:
+                        action._record_event("removed")
+                        action._is_active = False
+                    else:
+                        remaining_actions.append(action)
+            else:
+                for action in cls._active_actions:
+                    if not action.done:
+                        remaining_actions.append(action)
+                    else:
+                        action._is_active = False
+            cls._active_actions[:] = remaining_actions
             cls.num_active_actions = len(cls._active_actions)
 
             # Phase 4: Activate any actions that were applied during this update
