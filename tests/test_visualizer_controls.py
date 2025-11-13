@@ -238,6 +238,7 @@ def test_update_when_condition_panel_hidden(control_context):
     # To hide it, we need to press F4 twice (True -> False) or start with it visible
     manager.handle_key_press(arcade.key.F4)  # show condition panel (False -> True)
     manager.handle_key_press(arcade.key.F4)  # hide condition panel (True -> False)
+    guides.velocity_guide.enabled = True
     manager.update(sprite_positions={50: (10, 10)})
     assert manager.condition_panel_visible is False
     assert condition_debugger.entries == []

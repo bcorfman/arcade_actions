@@ -224,7 +224,13 @@ def test_event_window_ignores_initial_f4(monkeypatch, store: DebugDataStore):
         arcade, "Text", lambda *args, **kwargs: type("DummyText", (), {"draw": lambda self: None})(), raising=False
     )
 
-    window = EventInspectorWindow(store)
+    forward_calls: list[tuple[int, int]] = []
+
+    def forward_handler(symbol: int, modifiers: int) -> bool:
+        forward_calls.append((symbol, modifiers))
+        return True
+
+    window = EventInspectorWindow(store, forward_key_handler=forward_handler)
 
     close_calls: list[bool] = []
 
@@ -233,9 +239,17 @@ def test_event_window_ignores_initial_f4(monkeypatch, store: DebugDataStore):
 
     monkeypatch.setattr(window, "close", tracking_close)
 
+    # First F4 press should be forwarded and not close the window
     window.on_key_press(arcade.key.F4, 0)
+    assert forward_calls == [(arcade.key.F4, 0)]
     assert not close_calls
 
+    # If the forward handler declines the event, the window should close
+    def declining_handler(symbol: int, modifiers: int) -> bool:
+        forward_calls.append((symbol, modifiers))
+        return False
+
+    window._forward_key_handler = declining_handler
     window.on_key_press(arcade.key.F4, 0)
     assert close_calls
 

@@ -32,6 +32,7 @@ class EventInspectorWindow(arcade.Window):
         target_names_provider: Callable[[], dict[int, str]] | None = None,
         timeline_cls: type[TimelineStrip] = TimelineStrip,
         timeline_renderer_cls: type[TimelineRenderer] = TimelineRenderer,
+        forward_key_handler: Callable[[int, int], bool] | None = None,
     ) -> None:
         super().__init__(width=width, height=height, title=title, resizable=True, visible=False)
         self.background_color = (20, 24, 38)
@@ -42,6 +43,7 @@ class EventInspectorWindow(arcade.Window):
         self._max_font_size = 12.0
         self._font_size = self._min_font_size
         self._should_draw = False
+        self._forward_key_handler = forward_key_handler
 
         try:
             self.set_minimum_size(width, height)  # type: ignore[attr-defined]
@@ -59,8 +61,6 @@ class EventInspectorWindow(arcade.Window):
             margin=self.MARGIN,
             target_names_provider=target_names_provider,
         )
-
-        self._suppress_next_close_key = True
 
         self._timeline_label: arcade.Text | None = None
         self._legend_prefix: arcade.Text | None = None
@@ -132,9 +132,14 @@ class EventInspectorWindow(arcade.Window):
 
     def on_key_press(self, symbol: int, modifiers: int) -> None:  # noqa: ARG002
         if symbol == arcade.key.F4:
-            if self._suppress_next_close_key:
-                self._suppress_next_close_key = False
-                return
+            if self._forward_key_handler is not None:
+                handled = False
+                try:
+                    handled = bool(self._forward_key_handler(symbol, modifiers))
+                except Exception:
+                    handled = False
+                if handled:
+                    return
             self.close()
 
     def set_visible(self, visible: bool) -> None:

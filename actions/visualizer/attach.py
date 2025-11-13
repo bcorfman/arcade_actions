@@ -102,11 +102,19 @@ def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
 
         # Try iterating if the target behaves like a sprite list.
         try:
+            sum_x = 0.0
+            sum_y = 0.0
+            count = 0
             for sprite in target:
                 try:
                     positions[id(sprite)] = (sprite.center_x, sprite.center_y)
+                    sum_x += sprite.center_x
+                    sum_y += sprite.center_y
+                    count += 1
                 except AttributeError:
                     continue
+            if count:
+                positions[id(target)] = (sum_x / count, sum_y / count)
         except TypeError:
             continue
     return positions
@@ -260,12 +268,32 @@ def _install_window_handler(session: VisualizerSession) -> None:
         elif session.original_window_on_draw is None:
 
             def overlay_on_draw(*args: Any, **kwargs: Any) -> Any:
+                result: Any = None
                 try:
-                    return current_on_draw(*args, **kwargs)
+                    result = current_on_draw(*args, **kwargs)
                 finally:
                     if is_visualizer_attached() and _VISUALIZER_SESSION is session:
-                        session.guide_renderer.draw()
-                        session.renderer.draw()
+                        render_window = session.window
+                        previous_window: arcade.Window | None = None
+                        if render_window is not None:
+                            try:
+                                try:
+                                    previous_window = window_commands.get_window()
+                                except RuntimeError:
+                                    previous_window = None
+                                if previous_window is not render_window:
+                                    window_commands.set_window(render_window)
+                                    render_window.switch_to()
+                            except Exception:
+                                render_window = None
+                        try:
+                            session.renderer.draw()
+                            session.guide_renderer.draw()
+                        except Exception:
+                            pass
+                        if render_window is not None and previous_window is not render_window:
+                            window_commands.set_window(previous_window)
+                return result
 
             setattr(overlay_on_draw, "__visualizer_overlay__", True)
             setattr(overlay_on_draw, "__visualizer_original__", current_on_draw)
@@ -458,6 +486,7 @@ def attach_visualizer(
                     debug_store=session.debug_store,
                     on_close_callback=_on_event_window_closed,
                     target_names_provider=session.target_names_provider,
+                    forward_key_handler=manager.handle_key_press if manager is not None else None,
                 )
             except Exception as exc:
                 print(f"[ACE] Failed to open event window: {exc!r}")

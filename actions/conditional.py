@@ -74,6 +74,51 @@ class MoveUntil(_Action):
             action="MoveUntil",
         )
 
+    def _snapshot_boundary_state(self) -> dict[int, dict[str, str | None]]:
+        if not self._boundary_state:
+            return {}
+        return {key: value.copy() for key, value in self._boundary_state.items()}
+
+    def _collect_target_sprite_ids(self) -> list[int]:
+        """Return a list of sprite identifiers associated with the current target."""
+        if self.target is None:
+            return []
+
+        sprite_ids: list[int] = []
+
+        try:
+            iterator = iter(self.target)  # type: ignore[arg-type]
+        except TypeError:
+            sprite_ids.append(id(self.target))
+            return sprite_ids
+
+        for sprite in iterator:
+            try:
+                sprite_ids.append(id(sprite))
+            except Exception:
+                continue
+
+        if not sprite_ids:
+            sprite_ids.append(id(self.target))
+        return sprite_ids
+
+    def _update_motion_snapshot(self, *, velocity: tuple[float, float]) -> None:
+        metadata: dict[str, Any] = {}
+        boundary_state = self._snapshot_boundary_state()
+        if boundary_state:
+            metadata["boundary_state"] = boundary_state
+        sprite_ids = self._collect_target_sprite_ids()
+        if sprite_ids:
+            metadata["sprite_ids"] = sprite_ids
+
+        kwargs: dict[str, Any] = {
+            "velocity": velocity,
+            "bounds": self.bounds,
+        }
+        if metadata:
+            kwargs["metadata"] = metadata
+        self._update_snapshot(**kwargs)
+
     def set_factor(self, factor: float) -> None:
         """Scale the velocity by the given factor.
 
@@ -119,6 +164,7 @@ class MoveUntil(_Action):
                     f"apply_effect: id={id(self)}, velocity_provider returned {(dx, dy)}",
                     action="MoveUntil",
                 )
+                self.current_velocity = (dx, dy)
             except Exception as error:
                 _debug_log(
                     f"apply_effect: id={id(self)}, velocity_provider exception={error!r} - using current_velocity",
@@ -191,6 +237,7 @@ class MoveUntil(_Action):
                 _pa.set_velocity(sprite, (dx, dy))
 
         self.for_each_sprite(set_velocity)
+        self._update_motion_snapshot(velocity=self.current_velocity)
 
     def update_effect(self, delta_time: float) -> None:
         """Update movement and handle boundary checking if enabled."""
@@ -225,6 +272,7 @@ class MoveUntil(_Action):
                     f"update_effect: id={id(self)}, velocity_provider returned {(dx, dy)}",
                     action="MoveUntil",
                 )
+                self.current_velocity = (dx, dy)
 
                 # Apply velocity to all sprites (with boundary limits if needed)
                 def set_velocity(sprite):
@@ -296,7 +344,7 @@ class MoveUntil(_Action):
                     f"update_effect: id={id(self)}, velocity_provider exception={error!r} - keeping current velocity",
                     action="MoveUntil",
                 )
-                pass  # Keep current velocity on provider error
+                pass
 
         # Check boundaries if configured
         # For "limit" behavior with velocity_provider, boundaries are already handled above.
@@ -310,6 +358,8 @@ class MoveUntil(_Action):
                     action="MoveUntil",
                 )
                 self._apply_boundary_limits()
+
+        self._update_motion_snapshot(velocity=self.current_velocity)
 
     def _apply_boundary_limits(self):
         """Apply boundary behavior and trigger events based on intended movement."""
@@ -603,6 +653,7 @@ class MoveUntil(_Action):
             sprite.change_y = 0
 
         self.for_each_sprite(clear_velocity)
+        self._update_motion_snapshot(velocity=(0.0, 0.0))
 
     def set_current_velocity(self, velocity: tuple[float, float]) -> None:
         """Allow external code to modify current velocity (for easing wrapper compatibility).
@@ -636,6 +687,7 @@ class MoveUntil(_Action):
 
         # Apply the new velocity to all sprites
         self.apply_effect()
+        self._update_motion_snapshot(velocity=self.current_velocity)
 
     def reset(self) -> None:
         """Reset velocity to original target velocity."""
@@ -755,6 +807,7 @@ class FollowPathUntil(_Action):
         self._curve_progress = 0.0  # Progress along curve: 0.0 (start) to 1.0 (end)
         self._curve_length = 0.0  # Total length of the curve in pixels
         self._last_position = None  # Previous position for calculating movement delta
+        self._update_path_snapshot()
 
     def set_factor(self, factor: float) -> None:
         """Scale the path velocity by the given factor.
@@ -811,12 +864,14 @@ class FollowPathUntil(_Action):
             sprite.center_y = start_point[1]
 
         self.for_each_sprite(snap_to_start)
+        self._update_path_snapshot()
 
     def update_effect(self, delta_time: float) -> None:
         """Update path following with constant velocity and optional rotation."""
         from math import atan2, degrees, sqrt
 
         if self._curve_length <= 0:
+            self._update_path_snapshot()
             return
 
         # Calculate how far to move along curve based on velocity
@@ -912,6 +967,7 @@ class FollowPathUntil(_Action):
                 self.for_each_sprite(apply_movement)
 
         self._last_position = current_point
+        self._update_path_snapshot()
 
         # Check if we've reached the end of the path
         if self._curve_progress >= 1.0:
@@ -937,6 +993,7 @@ class FollowPathUntil(_Action):
             sprite.center_y = end_point[1]
 
         self.for_each_sprite(snap_to_end)
+        self._update_path_snapshot()
 
     def clone(self) -> "FollowPathUntil":
         """Create a copy of this FollowPathUntil action with all parameters preserved."""
@@ -950,6 +1007,10 @@ class FollowPathUntil(_Action):
             self.use_physics,
             self.steering_gain,
         )
+
+    def _update_path_snapshot(self) -> None:
+        metadata = {"path_points": self.control_points, "curve_progress": self._curve_progress}
+        self._update_snapshot(velocity=(self.current_velocity, 0.0), metadata=metadata)
 
 
 class RotateUntil(_Action):
