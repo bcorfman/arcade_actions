@@ -60,17 +60,27 @@ class VelocityGuide:
 
             # Get sprite position
             target_id = snapshot.target_id
-            if target_id not in sprite_positions:
-                continue
-
-            x, y = sprite_positions[target_id]
             vx, vy = snapshot.velocity
 
-            # Scale velocity for visibility (multiply by 10)
-            end_x = x + vx * 10
-            end_y = y + vy * 10
+            metadata = snapshot.metadata or {}
+            sprite_ids = metadata.get("sprite_ids")
 
-            self.arrows.append((x, y, end_x, end_y))
+            def add_arrow(position: tuple[float, float]) -> None:
+                x, y = position
+                end_x = x + vx * 10
+                end_y = y + vy * 10
+                self.arrows.append((x, y, end_x, end_y))
+
+            if sprite_ids:
+                for sprite_id in sprite_ids:
+                    position = sprite_positions.get(sprite_id)
+                    if position is not None:
+                        add_arrow(position)
+                continue
+
+            position = sprite_positions.get(target_id)
+            if position is not None:
+                add_arrow(position)
 
 
 class BoundsGuide:

@@ -254,6 +254,9 @@ class TestGuideManager:
         manager = GuideManager()
         sprite_positions = {100: (100, 200)}
 
+        manager.velocity_guide.enabled = True
+        manager.bounds_guide.enabled = True
+        manager.path_guide.enabled = True
         manager.update([snapshot], sprite_positions)
 
         # All enabled guides should have updated

@@ -281,7 +281,7 @@ class Action(ABC, Generic[_T]):
         # Update visualization instrumentation
         if cls._enable_visualizer and cls._debug_store:
             cls._frame_counter += 1
-            cls._debug_store.update_frame(cls._frame_counter, time.time())
+            cls._record_debug_frame(cls._frame_counter, time.time())
 
         # Provide engine context for adapter-powered actions
         try:
@@ -580,15 +580,22 @@ class Action(ABC, Generic[_T]):
         # Use type name directly - let the store handle display logic
         target_type = type(self.target).__name__ if self.target else "None"
 
-        Action._debug_store.record_event(
-            event_type=event_type,
-            action_id=id(self),
-            action_type=type(self).__name__,
-            target_id=target_id,
-            target_type=target_type,
-            tag=self.tag,
-            **details,
-        )
+        store = Action._debug_store
+        if not store:
+            return
+
+        try:
+            store.record_event(
+                event_type=event_type,
+                action_id=id(self),
+                action_type=type(self).__name__,
+                target_id=target_id,
+                target_type=target_type,
+                tag=self.tag,
+                **details,
+            )
+        except AttributeError:
+            return
 
     def _record_condition_evaluation(self, result: Any) -> None:
         """
@@ -612,9 +619,16 @@ class Action(ABC, Generic[_T]):
             except AttributeError:
                 pass  # No name or doc available
 
-        Action._debug_store.record_condition_evaluation(
-            action_id=id(self), action_type=type(self).__name__, result=result, condition_str=condition_str
-        )
+        store = Action._debug_store
+        if not store:
+            return
+
+        try:
+            store.record_condition_evaluation(
+                action_id=id(self), action_type=type(self).__name__, result=result, condition_str=condition_str
+            )
+        except AttributeError:
+            return
 
     def _update_snapshot(self, **kwargs) -> None:
         """
@@ -645,7 +659,25 @@ class Action(ABC, Generic[_T]):
         }
         snapshot_data.update(kwargs)
 
-        Action._debug_store.update_snapshot(**snapshot_data)
+        store = Action._debug_store
+        if not store:
+            return
+
+        try:
+            store.update_snapshot(**snapshot_data)
+        except AttributeError:
+            return
+
+    @classmethod
+    def _record_debug_frame(cls, frame_number: int, timestamp: float) -> None:
+        store = cls._debug_store
+        if not store:
+            return
+
+        try:
+            store.update_frame(frame_number, timestamp)
+        except AttributeError:
+            return
 
 
 class CompositeAction(Action):

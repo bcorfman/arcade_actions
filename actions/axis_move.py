@@ -80,6 +80,7 @@ class MoveXUntil(MoveUntil):
             # Get current velocity (from provider or current)
             if self.velocity_provider:
                 current_velocity = self.velocity_provider()
+                self.current_velocity = (current_velocity[0], self.current_velocity[1])
             else:
                 current_velocity = self.current_velocity
 
@@ -94,6 +95,7 @@ class MoveXUntil(MoveUntil):
             )
 
         self.for_each_sprite(apply_to_sprite)
+        self._update_motion_snapshot(velocity=self.current_velocity)
 
     def update_effect(self, delta_time: float) -> None:
         """Update X-axis movement and handle X-axis boundary behavior only."""
@@ -125,6 +127,7 @@ class MoveXUntil(MoveUntil):
                     f"MoveXUntil.update_effect: velocity_provider returned dx={dx}",
                     action="MoveXUntil",
                 )
+                self.current_velocity = (dx, self.current_velocity[1])
 
                 def set_velocity(sprite):
                     sprite.change_x = dx  # Only set X, preserve Y
@@ -135,11 +138,12 @@ class MoveXUntil(MoveUntil):
                     f"MoveXUntil.update_effect: velocity_provider exception={error!r} - keeping current velocity",
                     action="MoveXUntil",
                 )
-                pass  # Keep current velocity on provider error
 
         # Handle X-axis boundaries only
         if self.bounds and self.boundary_behavior:
             self._handle_x_boundaries()
+
+        self._update_motion_snapshot(velocity=self.current_velocity)
 
     def _handle_x_boundaries(self) -> None:
         """Handle boundary behavior only for X axis using edge-based coordinates."""
@@ -265,6 +269,7 @@ class MoveYUntil(MoveUntil):
             # Get current velocity (from provider or current)
             if self.velocity_provider:
                 current_velocity = self.velocity_provider()
+                self.current_velocity = (self.current_velocity[0], current_velocity[1])
             else:
                 current_velocity = self.current_velocity
 
@@ -279,6 +284,7 @@ class MoveYUntil(MoveUntil):
             )
 
         self.for_each_sprite(apply_to_sprite)
+        self._update_motion_snapshot(velocity=self.current_velocity)
 
     def update_effect(self, delta_time: float) -> None:
         """Update Y-axis movement and handle Y-axis boundary behavior only."""
@@ -310,6 +316,7 @@ class MoveYUntil(MoveUntil):
                     f"MoveYUntil.update_effect: velocity_provider returned dy={dy}",
                     action="MoveYUntil",
                 )
+                self.current_velocity = (self.current_velocity[0], dy)
 
                 def set_velocity(sprite):
                     sprite.change_y = dy  # Only set Y, preserve X
@@ -320,11 +327,12 @@ class MoveYUntil(MoveUntil):
                     f"MoveYUntil.update_effect: velocity_provider exception={error!r} - keeping current velocity",
                     action="MoveYUntil",
                 )
-                pass  # Keep current velocity on provider error
 
         # Handle Y-axis boundaries only
         if self.bounds and self.boundary_behavior:
             self._handle_y_boundaries()
+
+        self._update_motion_snapshot(velocity=self.current_velocity)
 
     def _handle_y_boundaries(self) -> None:
         """Handle boundary behavior only for Y axis using edge-based coordinates."""
