@@ -63,19 +63,19 @@ class Ease(Action):
     def __init__(
         self,
         action: Action,
-        duration: float,
+        frames: int,
         ease_function: Callable[[float], float] | None = None,
         on_complete: Callable[[], None] | None = None,
         tag: str | None = None,
     ):
-        if duration <= 0:
-            raise ValueError("duration must be positive")
+        if frames <= 0:
+            raise ValueError("frames must be positive")
 
         # No external condition - easing manages its own completion
         super().__init__(condition=None, on_stop=None, tag=tag)
 
         self.wrapped_action = action
-        self.easing_duration = duration
+        self.easing_frames = frames
 
         # Set default easing function if None provided
         if ease_function is None:
@@ -86,7 +86,7 @@ class Ease(Action):
         self.on_complete = on_complete
 
         # Easing state
-        self._elapsed = 0.0
+        self._frames_elapsed = 0
         self._easing_complete = False
 
     def apply(self, target, tag: str = "default") -> Action:
@@ -106,10 +106,10 @@ class Ease(Action):
         if self._easing_complete:
             return
 
-        self._elapsed += delta_time
+        self._frames_elapsed += 1
 
         # Calculate easing progress (0 to 1)
-        t = min(self._elapsed / self.easing_duration, 1.0)
+        t = min(self._frames_elapsed / self.easing_frames, 1.0)
 
         # Apply easing function to get factor
         factor = self.ease_function(t)

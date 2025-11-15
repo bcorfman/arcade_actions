@@ -22,6 +22,7 @@ from arcade import easing
 from arcade.types import Color
 
 from actions import Action, center_window, ease, infinite, move_until
+from actions.frame_timing import seconds_to_frames
 
 # --- Constants ---
 WINDOW_WIDTH = 1280
@@ -39,7 +40,7 @@ X_START = 250
 MISSILE_VELOCITY = 5  # pixels per frame cruise speed (300 pixels/second at 60 FPS)
 Y_INTERVAL = 60
 MISSILE_SIZE = 8
-EASING_DURATION = 2.0  # seconds to reach cruise speed
+EASING_FRAMES = seconds_to_frames(2.0)  # frames to reach cruise speed (120 frames at 60 FPS)
 
 # List of (easing function, label) to demonstrate with Ease wrapper
 EASING_FUNCTIONS = [
@@ -142,7 +143,7 @@ class EaseDemoView(arcade.View):
         )
 
         # Wrap with Ease for smooth acceleration to cruise speed
-        ease(missile, continuous_flight, duration=EASING_DURATION, ease_function=ease_func)
+        ease(missile, continuous_flight, frames=EASING_FRAMES, ease_function=ease_func)
 
     def on_draw(self):
         self.clear()

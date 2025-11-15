@@ -229,7 +229,7 @@ def follow_path_until(
 def blink_until(
     target: arcade.Sprite | arcade.SpriteList,
     *,
-    seconds_until_change: float,
+    frames_until_change: int,
     condition: Callable[[], Any],
     on_stop: Callable = None,
     on_blink_enter: Callable[[Any], None] | None = None,
@@ -240,7 +240,7 @@ def blink_until(
 
     Args:
         target: Sprite or SpriteList to apply blinking to
-        seconds_until_change: Seconds to wait before toggling visibility
+        frames_until_change: Number of frames to wait before toggling visibility
         condition: Function that returns truthy value when blinking should stop
         on_stop: Optional callback called when condition is satisfied
         on_blink_enter: Optional callback(target) when visibility toggles to True
@@ -251,7 +251,7 @@ def blink_until(
         The BlinkUntil action that was created and applied
     """
     action = BlinkUntil(
-        seconds_until_change=seconds_until_change,
+        frames_until_change=frames_until_change,
         condition=condition,
         on_stop=on_stop,
         on_blink_enter=on_blink_enter,
@@ -361,7 +361,7 @@ def callback_until(
 def ease(
     target: arcade.Sprite | arcade.SpriteList,
     action: Action,
-    duration: float,
+    frames: int,
     *,
     ease_function: Callable[[float], float] | None = None,
     on_complete: Callable[[], Any] | None = None,
@@ -372,7 +372,7 @@ def ease(
         from arcade import easing
 
         ease_function = easing.ease_in_out
-    ease_action = Ease(action, duration=duration, ease_function=ease_function, on_complete=on_complete, tag=tag)
+    ease_action = Ease(action, frames=frames, ease_function=ease_function, on_complete=on_complete, tag=tag)
     ease_action.apply(target, tag=tag)
     return ease_action
 
@@ -381,7 +381,7 @@ def cycle_textures_until(
     target: arcade.Sprite | arcade.SpriteList,
     *,
     textures: list,
-    frames_per_second: float = 60.0,
+    frames_per_texture: int = 1,
     direction: int = 1,
     condition: Callable[[], Any] = None,
     on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
@@ -395,7 +395,7 @@ def cycle_textures_until(
     Args:
         target: The sprite (arcade.Sprite) or sprite list (arcade.SpriteList) to animate.
         textures: List of arcade.Texture objects to cycle through.
-        frames_per_second: How many texture indices to advance per second (default: 60.0).
+        frames_per_texture: Number of frames to display each texture (default: 1).
         direction: Direction of cycling - 1 for forward, -1 for backward (default: 1).
         condition: The condition to stop cycling. If None, cycles infinitely.
         on_stop: An optional callback to run when the condition is met.
@@ -405,15 +405,16 @@ def cycle_textures_until(
         The created CycleTexturesUntil action instance.
 
     Example:
-        # Simple infinite texture cycling
+        # Simple infinite texture cycling (change texture every frame)
         cycle_textures_until(sprite, textures=texture_list)
 
-        # Cycle backward for 3 seconds
+        # Cycle backward, changing texture every 5 frames
         cycle_textures_until(
             sprite,
             textures=texture_list,
+            frames_per_texture=5,
             direction=-1,
-            condition=duration(3.0)
+            condition=after_frames(180)
         )
     """
     from actions.conditional import infinite
@@ -423,7 +424,7 @@ def cycle_textures_until(
 
     action = CycleTexturesUntil(
         textures=textures,
-        frames_per_second=frames_per_second,
+        frames_per_texture=frames_per_texture,
         direction=direction,
         condition=condition,
         on_stop=on_stop,

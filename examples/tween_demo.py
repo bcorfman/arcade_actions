@@ -22,7 +22,8 @@ import arcade
 from arcade import easing
 from arcade.types import Color
 
-from actions import Action, center_window, duration, tween_until
+from actions import Action, center_window, tween_until
+from actions.frame_timing import after_frames, seconds_to_frames
 
 # --- Constants ---
 SPRITE_SCALING = 0.5
@@ -40,7 +41,7 @@ X_START = 40
 X_END = 1200
 Y_INTERVAL = 60
 BALL_RADIUS = 13
-TIME = 6.0
+TWEEN_FRAMES = seconds_to_frames(6.0)  # 360 frames at 60 FPS
 
 # List of (easing function, label) to demonstrate with TweenUntil
 EASING_FUNCTIONS = [
@@ -120,7 +121,7 @@ class InterpolateDemoView(arcade.View):
                         start_value=start_x,
                         end_value=end_x,
                         property_name="center_x",
-                        condition=duration(TIME),
+                        condition=after_frames(TWEEN_FRAMES),
                         on_stop=on_complete,
                         ease_function=current_ease_func,
                     )

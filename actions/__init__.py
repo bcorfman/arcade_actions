@@ -42,6 +42,20 @@ from .conditional import (
     duration,
     infinite,
 )
+
+# Frame-based timing primitives
+from .frame_timing import (
+    after_frames,
+    every_frames,
+    within_frames,
+    frames_to_seconds,
+    seconds_to_frames,
+    FRAMES_PER_SECOND,
+    FRAMES_PER_HALF_SECOND,
+    FRAMES_PER_QUARTER_SECOND,
+    FRAMES_PER_TWO_SECONDS,
+    FRAMES_PER_FIVE_SECONDS,
+)
 from .axis_move import MoveXUntil, MoveYUntil
 from .config import (
     apply_environment_configuration,
@@ -136,6 +150,17 @@ __all__ = [
     "EmitParticlesUntil",
     "duration",
     "infinite",
+    # Frame-based timing primitives
+    "after_frames",
+    "every_frames",
+    "within_frames",
+    "frames_to_seconds",
+    "seconds_to_frames",
+    "FRAMES_PER_SECOND",
+    "FRAMES_PER_HALF_SECOND",
+    "FRAMES_PER_QUARTER_SECOND",
+    "FRAMES_PER_TWO_SECONDS",
+    "FRAMES_PER_FIVE_SECONDS",
     # Instant actions
     "MoveTo",
     "MoveBy",

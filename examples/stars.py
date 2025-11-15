@@ -25,9 +25,9 @@ from actions import (
     MoveUntil,
     TweenUntil,
     center_window,
-    duration,
     infinite,
 )
+from actions.frame_timing import after_frames
 
 # ---------------------------------------------------------------------------
 # Window configuration
@@ -40,8 +40,8 @@ WINDOW_TITLE = "ArcadeActions Starfield"
 # Blink configuration
 # ---------------------------------------------------------------------------
 BLINK_GROUP_COUNT = 5
-BLINK_RATE_MIN_SECONDS = 0.2
-BLINK_RATE_MAX_SECONDS = 0.4
+BLINK_RATE_MIN_FRAMES = 12  # ~0.2 seconds at 60 FPS
+BLINK_RATE_MAX_FRAMES = 24  # ~0.4 seconds at 60 FPS
 STAR_VELOCITY_TAG = "star_velocity_phase"
 
 # ---------------------------------------------------------------------------
@@ -107,7 +107,7 @@ class StarfieldView(arcade.View):
         bounds = (0, -VERTICAL_MARGIN, WINDOW_WIDTH, WINDOW_HEIGHT + VERTICAL_MARGIN)
 
         blink_rates = [
-            BLINK_RATE_MIN_SECONDS + i * (BLINK_RATE_MAX_SECONDS - BLINK_RATE_MIN_SECONDS) / (BLINK_GROUP_COUNT - 1)
+            int(BLINK_RATE_MIN_FRAMES + i * (BLINK_RATE_MAX_FRAMES - BLINK_RATE_MIN_FRAMES) / (BLINK_GROUP_COUNT - 1))
             for i in range(BLINK_GROUP_COUNT)
         ]
         self._blink_groups = [arcade.SpriteList() for _ in range(BLINK_GROUP_COUNT)]
@@ -123,10 +123,10 @@ class StarfieldView(arcade.View):
             group_index = next(group_cycle)
             self._blink_groups[group_index].append(star)
 
-        for blink_list, blink_rate in zip(self._blink_groups, blink_rates):
+        for blink_list, blink_rate_frames in zip(self._blink_groups, blink_rates):
             if len(blink_list) == 0:
                 continue
-            BlinkUntil(blink_rate, infinite).apply(blink_list)
+            BlinkUntil(frames_until_change=blink_rate_frames, condition=infinite).apply(blink_list)
 
         # Action 1: A permanent action that handles boundary checking and wrapping.
         # It has zero velocity so it only enforces the rules, it doesn't cause movement.
@@ -148,46 +148,46 @@ class StarfieldView(arcade.View):
     def _start_velocity_cycle(self) -> None:
         Action.stop_actions_for_target(self.star_list, tag=STAR_VELOCITY_TAG)
         self._set_velocity(0.0)
-        self._schedule_delay(1.0, self._accelerate_forward)
+        self._schedule_delay(60, self._accelerate_forward)  # 1 second at 60 FPS
 
     def _accelerate_forward(self) -> None:
         self._apply_tween(
             target_value=-4.0,
-            seconds=2.0,
+            frames=120,  # 2 seconds at 60 FPS
             ease_function=easing.ease_in,
             next_step=self._hold_forward_speed,
         )
 
     def _hold_forward_speed(self) -> None:
-        self._hold_velocity(-4.0, 5.0, self._accelerate_reverse)
+        self._hold_velocity(-4.0, 300, self._accelerate_reverse)  # 5 seconds at 60 FPS
 
     def _accelerate_reverse(self) -> None:
         self._apply_tween(
             target_value=14.0,
-            seconds=0.5,
+            frames=30,  # 0.5 seconds at 60 FPS
             ease_function=easing.ease_out,
             next_step=self._hold_reverse_speed,
         )
 
     def _hold_reverse_speed(self) -> None:
-        self._hold_velocity(14.0, 1.5, self._decelerate_to_stop)
+        self._hold_velocity(14.0, 90, self._decelerate_to_stop)  # 1.5 seconds at 60 FPS
 
     def _decelerate_to_stop(self) -> None:
         self._apply_tween(
             target_value=0.0,
-            seconds=2.0,
+            frames=120,  # 2 seconds at 60 FPS
             ease_function=easing.ease_out,
             next_step=self._start_velocity_cycle,
         )
 
-    def _schedule_delay(self, seconds: float, next_step: Callable[[], None]) -> None:
-        delay_action = DelayUntil(duration(seconds), on_stop=next_step)
+    def _schedule_delay(self, frames: int, next_step: Callable[[], None]) -> None:
+        delay_action = DelayUntil(condition=after_frames(frames), on_stop=next_step)
         self._current_phase_action = delay_action.apply(self.star_list, tag=STAR_VELOCITY_TAG)
 
     def _apply_tween(
         self,
         target_value: float,
-        seconds: float,
+        frames: int,
         ease_function: Callable[[float], float],
         next_step: Callable[[], None],
     ) -> None:
@@ -196,15 +196,15 @@ class StarfieldView(arcade.View):
             start_value=start_value,
             end_value=target_value,
             property_name="change_y",
-            condition=duration(seconds),
+            condition=after_frames(frames),
             on_stop=lambda _result=None: next_step(),
             ease_function=ease_function,
         )
         self._current_phase_action = tween_action.apply(self.star_list, tag=STAR_VELOCITY_TAG)
 
-    def _hold_velocity(self, velocity: float, seconds: float, next_step: Callable[[], None]) -> None:
+    def _hold_velocity(self, velocity: float, frames: int, next_step: Callable[[], None]) -> None:
         self._set_velocity(velocity)
-        self._schedule_delay(seconds, next_step)
+        self._schedule_delay(frames, next_step)
 
     def _set_velocity(self, velocity: float) -> None:
         for sprite in self.star_list:

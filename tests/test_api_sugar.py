@@ -3,7 +3,7 @@
 import arcade
 import pytest
 
-from actions import Action, MoveUntil, RotateUntil, duration, move_until
+from actions import Action, MoveUntil, RotateUntil, move_until
 from actions.conditional import (
     BlinkUntil,
     DelayUntil,
@@ -12,6 +12,7 @@ from actions.conditional import (
     ScaleUntil,
     TweenUntil,
 )
+from actions.frame_timing import after_frames
 
 
 # Fixtures for creating test sprites and lists
@@ -91,7 +92,7 @@ class TestKeywordParameterSupport:
         """Test rotate_until with keyword parameters as shown in docstring."""
         from actions import rotate_until
 
-        action = rotate_until(sprite, angular_velocity=180, condition=duration(1.0))
+        action = rotate_until(sprite, angular_velocity=180, condition=after_frames(60))
 
         assert isinstance(action, RotateUntil)
         assert action.target == sprite
@@ -102,7 +103,7 @@ class TestKeywordParameterSupport:
         from actions import follow_path_until
 
         path_points = [(100, 100), (200, 200), (300, 100)]
-        action = follow_path_until(sprite, control_points=path_points, velocity=200, condition=duration(3.0))
+        action = follow_path_until(sprite, control_points=path_points, velocity=200, condition=after_frames(180))
 
         assert isinstance(action, FollowPathUntil)
         assert action.target == sprite
@@ -113,17 +114,17 @@ class TestKeywordParameterSupport:
         """Test blink_until with keyword parameters."""
         from actions import blink_until
 
-        action = blink_until(sprite, seconds_until_change=0.5, condition=duration(2.0))
+        action = blink_until(sprite, frames_until_change=15, condition=after_frames(120))
 
         assert isinstance(action, BlinkUntil)
         assert action.target == sprite
-        assert action.target_seconds_until_change == 0.5
+        assert action.target_frames_until_change == 15
 
     def test_tween_until_keyword_parameters(self, sprite):
         """Test tween_until with keyword parameters."""
         from actions import tween_until
 
-        action = tween_until(sprite, start_value=0, end_value=100, property_name="center_x", condition=duration(1.0))
+        action = tween_until(sprite, start_value=0, end_value=100, property_name="center_x", condition=after_frames(60))
 
         assert isinstance(action, TweenUntil)
         assert action.target == sprite
@@ -135,7 +136,7 @@ class TestKeywordParameterSupport:
         """Test scale_until with keyword parameters."""
         from actions import scale_until
 
-        action = scale_until(sprite, velocity=0.5, condition=duration(2.0))
+        action = scale_until(sprite, velocity=0.5, condition=after_frames(120))
 
         assert isinstance(action, ScaleUntil)
         assert action.target == sprite
@@ -145,7 +146,7 @@ class TestKeywordParameterSupport:
         """Test fade_until with keyword parameters."""
         from actions import fade_until
 
-        action = fade_until(sprite, velocity=-50, condition=duration(1.5))
+        action = fade_until(sprite, velocity=-50, condition=after_frames(90))
 
         assert isinstance(action, FadeUntil)
         assert action.target == sprite
@@ -155,7 +156,7 @@ class TestKeywordParameterSupport:
         """Test delay_until with keyword parameters."""
         from actions import delay_until
 
-        action = delay_until(sprite, condition=duration(1.0))
+        action = delay_until(sprite, condition=after_frames(60))
 
         assert isinstance(action, DelayUntil)
         assert action.target == sprite
