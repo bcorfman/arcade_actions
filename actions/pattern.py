@@ -15,7 +15,7 @@ import arcade
 
 from actions import DelayUntil, FollowPathUntil, MoveUntil, sequence
 from actions.conditional import ParametricMotionUntil
-from actions.frame_timing import after_frames, seconds_to_frames
+from actions.frame_timing import FRAMES_PER_SECOND, after_frames
 
 
 def create_zigzag_pattern(
@@ -23,20 +23,20 @@ def create_zigzag_pattern(
 ) -> "ParametricMotionUntil":
     """Create a zigzag movement pattern using a ParametricMotionUntil action.
 
-    Args:
-        width: Horizontal distance for each zigzag segment
-        height: Vertical distance for each zigzag segment
-        velocity: Movement speed in pixels per frame
-        segments: Number of zigzag segments to create
-        condition: Stop condition (use after_frames() or infinite)
+        Args:
+            width: Horizontal distance for each zigzag segment
+            height: Vertical distance for each zigzag segment
+            velocity: Movement speed in pixels per frame
+            segments: Number of zigzag segments to create
+            condition: Stop condition (use after_frames() or infinite)
 
-    Returns:
-        ParametricMotionUntil action that creates zigzag movement
+        Returns:
+            ParametricMotionUntil action that creates zigzag movement
 
-    Example:
-        from actions.frame_timing import after_frames
-        zigzag = create_zigzag_pattern(width=100, height=50, velocity=5, segments=6, condition=after_frames(120))
-        zigzag.apply(sprite, tag="zigzag_movement")
+        Example:
+    from actions.frame_timing import FRAMES_PER_SECOND, after_frames
+            zigzag = create_zigzag_pattern(width=100, height=50, velocity=5, segments=6, condition=after_frames(120))
+            zigzag.apply(sprite, tag="zigzag_movement")
     """
     # Guard against invalid inputs
     if segments <= 0:
@@ -146,14 +146,31 @@ def create_wave_pattern(
     if end_progress < start_progress:
         raise ValueError("end_progress must be >= start_progress (no wrap or reverse supported)")
 
-    # Calculate frame duration based on velocity (px/frame)
-    # Per tests/docs, a full wave distance is approximately 2.5 * length
+    # Calculate duration based on legacy distance/speed relationship, then
+    # convert to frames to stay in sync with frame-based timing.
+    if velocity <= 0:
+        raise ValueError("velocity must be > 0")
+
     full_distance = 2.5 * length
-    full_frames = int(full_distance / velocity) if velocity != 0 else 0
+    full_time_seconds = full_distance / velocity
+    full_frames_precise = full_time_seconds * FRAMES_PER_SECOND
+
+    def _frame_condition_count(precise: float) -> int:
+        if precise <= 0:
+            return 0
+        fractional = abs(precise - round(precise))
+        if fractional < 1e-9:
+            return int(round(precise)) + 1
+        return int(math.ceil(precise))
+
+    full_frames = _frame_condition_count(full_frames_precise)
 
     # Calculate the sub-range parameters (span maps linearly to frames)
     span = end_progress - start_progress
-    sub_frames = int(full_frames * span)
+    sub_frames_precise = full_frames_precise * span
+    sub_frames = _frame_condition_count(sub_frames_precise)
+    if span > 0.0 and sub_frames == 0:
+        sub_frames = 1
 
     def _full_offset(t: float) -> tuple[float, float]:
         # Triangular time-base 0→1→0 to make sure we return to origin in X
@@ -188,6 +205,8 @@ def create_wave_pattern(
     # If start and end are the same, return a no-op action
     if span == 0.0:
         final_condition = condition if condition is not None else after_frames(0)
+        if condition is None:
+            setattr(final_condition, "_frame_duration_precise", 0.0)
         return ParametricMotionUntil(
             lambda t: (0.0, 0.0),
             final_condition,
@@ -196,7 +215,11 @@ def create_wave_pattern(
         )
 
     # Use provided condition or default to completing after calculated frames
-    final_condition = condition if condition is not None else after_frames(sub_frames)
+    if condition is None:
+        final_condition = after_frames(sub_frames)
+        setattr(final_condition, "_frame_duration_precise", sub_frames_precise)
+    else:
+        final_condition = condition
 
     return ParametricMotionUntil(
         _remapped_offset,

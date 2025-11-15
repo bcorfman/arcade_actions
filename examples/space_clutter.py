@@ -11,6 +11,7 @@ following the project design guidelines (see docs/api_usage_guide.md).
 
 from __future__ import annotations
 
+import itertools
 import math
 import random
 
@@ -47,6 +48,13 @@ MAX_STARS: int = 400
 # A small margin lets us spawn stars just outside the visible area so they
 # don't wrap immediately when the demo starts.
 VERTICAL_MARGIN: int = 5
+
+# ---------------------------------------------------------------------------
+# Blink configuration
+# ---------------------------------------------------------------------------
+BLINK_GROUP_COUNT = 5
+BLINK_RATE_MIN_FRAMES = 12  # ~0.2 seconds at 60 FPS
+BLINK_RATE_MAX_FRAMES = 24  # ~0.4 seconds at 60 FPS
 
 # ---------------------------------------------------------------------------
 # Ship configuration
@@ -109,13 +117,29 @@ class Starfield:
 
         bounds = (0, -VERTICAL_MARGIN, WINDOW_WIDTH, WINDOW_HEIGHT + VERTICAL_MARGIN)
 
+        # Group stars by blink rate for efficient action management
+        blink_rates = [
+            int(BLINK_RATE_MIN_FRAMES + i * (BLINK_RATE_MAX_FRAMES - BLINK_RATE_MIN_FRAMES) / (BLINK_GROUP_COUNT - 1))
+            for i in range(BLINK_GROUP_COUNT)
+        ]
+        blink_groups = [arcade.SpriteList() for _ in range(BLINK_GROUP_COUNT)]
+        group_indices = list(range(BLINK_GROUP_COUNT))
+        random.shuffle(group_indices)
+        group_cycle = itertools.cycle(group_indices)
+
         for _ in range(MAX_STARS):
             color = (random.randint(20, 255), random.randint(20, 255), random.randint(20, 255))
             star = _create_star_sprite(color, size=3)
-            # Convert seconds to frames: 0.2-0.4 seconds = 12-24 frames at 60 FPS
-            blink_frames = seconds_to_frames(random.randint(200, 400) / 1000.0)
-            blink_until(star, frames_until_change=blink_frames, condition=infinite)
             self.star_list.append(star)
+
+            group_index = next(group_cycle)
+            blink_groups[group_index].append(star)
+
+        # Apply BlinkUntil to each group SpriteList instead of individual stars
+        for blink_list, blink_rate_frames in zip(blink_groups, blink_rates):
+            if len(blink_list) == 0:
+                continue
+            blink_until(blink_list, frames_until_change=blink_rate_frames, condition=infinite)
 
         move_until(
             self.star_list,
@@ -248,11 +272,15 @@ class PlayerShip(arcade.Sprite):
             shot_vel_x = PLAYER_SHIP_FIRE_SPEED * math.sin(angle_rad)
             shot_vel_y = PLAYER_SHIP_FIRE_SPEED * math.cos(angle_rad)
 
+        def cleanup_shot():
+            Action.stop_actions_for_target(shot)
+            shot.remove_from_sprite_lists()
+
         move_until(
             shot,
             velocity=(shot_vel_x, shot_vel_y),
             condition=lambda: shot.top > WINDOW_HEIGHT,
-            on_stop=lambda: shot.remove_from_sprite_lists(),
+            on_stop=cleanup_shot,
         )
         self.shot_list.append(shot)
 
@@ -482,7 +510,9 @@ class StarfieldView(arcade.View):
 
         def start_wave_motion():
             """Start repeating wave motion for the entire enemy formation."""
-            quarter_wave = create_wave_pattern(amplitude=30, length=80, velocity=80, start_progress=0.75, end_progress=1.0)
+            quarter_wave = create_wave_pattern(
+                amplitude=30, length=80, velocity=80, start_progress=0.75, end_progress=1.0
+            )
             full_wave = create_wave_pattern(amplitude=30, length=80, velocity=80, debug=True, debug_threshold=19)
 
             # Repeat the wave forever so enemies keep swaying
@@ -514,12 +544,15 @@ class StarfieldView(arcade.View):
                 return None
 
             def handle_powerup(collision_data):
+                # Stop actions for the powerup_list (action is applied to the list, not individual sprite)
+                Action.stop_actions_for_target(self.powerup_list)
                 if collision_data["powerup_hit"]:
                     self.ship.current_powerup = powerup.texture_index
                     powerup.remove_from_sprite_lists()
                     shots_colliding = collision_data["powerup_hit"]
                     if shots_colliding:
                         for shot in shots_colliding:
+                            Action.stop_actions_for_target(shot)
                             shot.remove_from_sprite_lists()
                         self.ship.powerup_hit()
                 if collision_data["offscreen"]:
@@ -562,11 +595,13 @@ class StarfieldView(arcade.View):
         for shot in self.shot_list:
             enemies_hit = arcade.check_for_collision_with_list(shot, self.enemy_list)
             if enemies_hit:
-                # Remove the shot
+                # Stop actions and remove the shot
+                Action.stop_actions_for_target(shot)
                 shot.remove_from_sprite_lists()
 
-                # Remove hit enemies
+                # Stop actions and remove hit enemies
                 for enemy in enemies_hit:
+                    Action.stop_actions_for_target(enemy)
                     enemy.remove_from_sprite_lists()
                     break  # Shot can only hit one enemy, so break after first collision
 

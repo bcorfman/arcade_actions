@@ -128,7 +128,9 @@ class PatternDemo(arcade.Window):
 
     def _create_figure8_demo(self, sprite: arcade.Sprite):
         """Create repeating figure-8 pattern."""
-        figure8 = create_figure_eight_pattern(center=(sprite.center_x, sprite.center_y), width=80, height=60, velocity=100)
+        figure8 = create_figure_eight_pattern(
+            center=(sprite.center_x, sprite.center_y), width=80, height=60, velocity=100
+        )
         repeat(figure8).apply(sprite)
 
     def _create_orbit_demo(self, sprite: arcade.Sprite):
