@@ -1762,6 +1762,13 @@ def _clone_condition(condition):
     if hasattr(condition, "_is_duration_condition") and condition._is_duration_condition:
         # Create a fresh duration condition
         return duration(condition._duration_seconds)
+    if hasattr(condition, "_frame_count"):
+        from actions.frame_timing import after_frames as _after_frames
+
+        cloned = _after_frames(condition._frame_count)
+        if hasattr(condition, "_frame_duration_precise"):
+            setattr(cloned, "_frame_duration_precise", getattr(condition, "_frame_duration_precise"))
+        return cloned
     else:
         # For non-duration conditions, return as-is
         return condition
@@ -1835,8 +1842,10 @@ class ParametricMotionUntil(_Action):
 
     The *offset_fn* receives progress *t* (0→1) and returns (dx, dy) offsets that
     are **added** to each sprite's origin captured at *apply* time.  Completion is
-    governed by the same *condition* mechanism used elsewhere (typically the
-    ``duration()`` helper).
+    governed by the *condition* parameter (typically ``after_frames()``).
+
+    Frame-based timing only: Use ``after_frames(N)`` to specify duration in frames.
+    If you have a duration in seconds, convert it first using ``seconds_to_frames()``.
     """
 
     def __init__(
@@ -1845,7 +1854,6 @@ class ParametricMotionUntil(_Action):
         condition: _Callable[[], _Any],
         on_stop: _Callable[[_Any], None] | _Callable[[], None] | None = None,
         *,
-        explicit_duration: float | None = None,
         rotate_with_path: bool = False,
         rotation_offset: float = 0.0,
         # --- debug ---
@@ -1855,8 +1863,8 @@ class ParametricMotionUntil(_Action):
         super().__init__(condition=condition, on_stop=on_stop)
         self._offset_fn = offset_fn
         self._origins: dict[int, tuple[float, float]] = {}
-        self._elapsed = 0.0
-        self._duration = explicit_duration  # May be filled in apply_effect
+        self._elapsed_frames = 0.0
+        self._frame_duration: float | None = None  # extracted from after_frames() condition
         self.rotate_with_path = rotate_with_path
         self.rotation_offset = rotation_offset
         self._prev_offset = None  # Track previous offset for rotation calculation
@@ -1874,16 +1882,21 @@ class ParametricMotionUntil(_Action):
 
         self.for_each_sprite(capture_origin)
 
-        if self._duration is None:
-            # Try to extract duration from explicit attribute if it's from duration() helper
-            if hasattr(self.condition, "_duration_seconds"):
-                seconds = self.condition._duration_seconds
-                if isinstance(seconds, (int, float)) and seconds > 0:
-                    self._duration = seconds
+        # Reset timing state
+        self._elapsed_frames = 0.0
+        self._frame_duration = None
 
-            # If still None, default to 0.0
-            if self._duration is None or self._duration == 0:
-                self._duration = 0.0
+        # Extract frame count from after_frames() condition
+        frame_count = getattr(self.condition, "_frame_count", None)
+        precise_duration = getattr(self.condition, "_frame_duration_precise", None)
+        if isinstance(frame_count, int) and frame_count > 0:
+            if isinstance(precise_duration, (int, float)) and precise_duration > 0:
+                self._frame_duration = float(precise_duration)
+            else:
+                self._frame_duration = float(frame_count)
+        else:
+            # No frame count metadata – complete immediately
+            self._frame_duration = 0.0
 
         # Do not pre-position sprites; offsets are relative to captured origins
         self._prev_offset = self._offset_fn(0.0)
@@ -1891,8 +1904,10 @@ class ParametricMotionUntil(_Action):
     def update_effect(self, delta_time: float) -> None:  # noqa: D401
         from math import hypot, degrees, atan2
 
-        self._elapsed += delta_time * self._factor
-        progress = min(1.0, self._elapsed / self._duration) if self._duration > 0 else 1.0
+        # Frame-based timing: advance by one frame per update, scaled by factor
+        self._elapsed_frames += self._factor
+        total = self._frame_duration or 0.0
+        progress = min(1.0, self._elapsed_frames / total) if total > 0 else 1.0
 
         # Clamp progress to 1.0 for offset calculation to ensure exact endpoint positioning
         clamped_progress = min(1.0, progress)
@@ -1934,15 +1949,13 @@ class ParametricMotionUntil(_Action):
         self._prev_offset = current_offset
 
         if progress >= 1.0:
-            # Skip final position snap to prevent jumps when sprite count changes
-            # This happens when enemies are destroyed during wave patterns
-            # self.remove_effect()  # commented out to prevent position jumps
+            if not hasattr(self.condition, "_frame_count"):
+                # No frame-based condition is driving completion; mark done ourselves.
+                self._condition_met = True
+                self.done = True
 
-            self._condition_met = True
-            self.done = True
-
-            if self.on_stop:
-                self.on_stop(None)
+                if self.on_stop:
+                    self.on_stop(None)
 
     def remove_effect(self) -> None:
         """
@@ -1960,7 +1973,6 @@ class ParametricMotionUntil(_Action):
             self._offset_fn,
             _clone_condition(self.condition),
             self.on_stop,
-            explicit_duration=self._duration,
             rotate_with_path=self.rotate_with_path,
             rotation_offset=self.rotation_offset,
             debug=self._debug,
@@ -1969,11 +1981,13 @@ class ParametricMotionUntil(_Action):
 
     def reset(self) -> None:
         """Reset the action to its initial state."""
-        self._elapsed = 0.0
+        self._elapsed_frames = 0.0
         self._origins.clear()
         self._prev_offset = None
         self._condition_met = False
         self.done = False
+        # Keep duration configuration (seconds or frames) so a reused action
+        # instance behaves consistently after reset.
 
     def set_factor(self, factor: float) -> None:
         """Scale the motion speed by the given factor.

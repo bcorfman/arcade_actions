@@ -26,6 +26,7 @@ from actions.conditional import (
     TweenUntil,
 )
 from actions.debug import MotionDebugger
+from actions.frame_timing import after_frames
 from actions.instant import MoveBy, MoveTo
 
 
@@ -172,9 +173,8 @@ CLONE_CASES: list[pytest.Param] = [
     pytest.param(
         lambda: ParametricMotionUntil(
             lambda t: (t * 10.0, t * 5.0),
-            duration(1.5),
+            after_frames(90),
             on_stop=_noop,
-            explicit_duration=1.5,
             rotate_with_path=True,
             rotation_offset=15.0,
             debug=True,
@@ -184,7 +184,6 @@ CLONE_CASES: list[pytest.Param] = [
             _assert_equal(cloned._offset_fn, action._offset_fn),
             _assert_equal(cloned.rotate_with_path, action.rotate_with_path),
             _assert_equal(cloned.rotation_offset, action.rotation_offset),
-            _assert_equal(cloned._duration, action._duration),
             _assert_equal(cloned._debug, action._debug),
             _assert_equal(cloned._debug_threshold, action._debug_threshold),
             _assert_equal(cloned.on_stop, action.on_stop),
@@ -316,8 +315,7 @@ SET_FACTOR_CASES = [
     pytest.param(
         lambda sprite: ParametricMotionUntil(
             lambda t: (t * 5.0, t * 2.5),
-            duration(1.0),
-            explicit_duration=1.0,
+            after_frames(60),
         ),
         lambda action: action._factor,
         {0.0: 0.0, 0.5: 0.5, 2.0: 2.0},
