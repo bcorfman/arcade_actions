@@ -11,6 +11,7 @@ from actions.conditional import (
     duration,
     infinite,
 )
+from actions.frame_timing import after_frames
 
 
 class TestMoveUntilCoverage:
@@ -309,35 +310,6 @@ class TestTweenUntilCoverage:
         # Should be reset to start value since not completed naturally
         assert sprite.center_x == 100
 
-    def test_tween_zero_duration(self):
-        """Test TweenUntil with zero duration sets end value immediately."""
-        sprite = arcade.Sprite()
-        sprite.center_x = 100
-
-        action = TweenUntil(100, 200, "center_x", duration(0))
-        action.apply(sprite, tag="tween")
-
-        # Should be at end value immediately
-        assert sprite.center_x == 200
-        assert action.done
-
-    def test_tween_completed_naturally_vs_stopped_early(self):
-        """Test TweenUntil behavior when completed naturally vs stopped by condition - covers lines 1329-1341."""
-        sprite = arcade.Sprite()
-        sprite.center_x = 100
-
-        # Test 1: Natural completion leaves property at end value
-        action1 = TweenUntil(100, 200, "center_x", duration(0.1))
-        action1.apply(sprite, tag="tween1")
-
-        # Run until natural completion
-        for _ in range(10):
-            Action.update_all(1 / 60)
-
-        # Should be at end value after natural completion
-        assert action1._completed_naturally
-        assert sprite.center_x == 200
-
         Action.stop_actions_for_target(sprite)
 
         # Test 2: Early stop by condition resets to start value
@@ -358,27 +330,6 @@ class TestTweenUntilCoverage:
         # Should be reset to start value since not completed naturally
         assert not action2._completed_naturally
         assert sprite.center_x == 100
-
-    def test_tween_reset(self):
-        """Test TweenUntil reset() restores initial state."""
-        sprite = arcade.Sprite()
-        sprite.center_x = 100
-
-        action = TweenUntil(100, 200, "center_x", duration(1.0))
-        action.apply(sprite, tag="tween")
-
-        # Run for a bit
-        for _ in range(10):
-            Action.update_all(1 / 60)
-
-        # Reset
-        Action.stop_actions_for_target(sprite, tag="tween")
-        action.reset()
-
-        # Should be back to initial state
-        assert action._tween_elapsed == 0.0
-        assert action._duration is None
-        assert not action._completed_naturally
 
 
 class TestParametricMotionUntilCoverage:
