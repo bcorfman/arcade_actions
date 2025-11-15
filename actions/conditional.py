@@ -63,6 +63,7 @@ class MoveUntil(_Action):
 
         # Track boundary state for enter/exit detection
         self._boundary_state = {}  # {sprite_id: {"x": side_or_None, "y": side_or_None}}
+        self._paused_velocity: tuple[float, float] | None = None
 
         # Duration tracking for simulation time compatibility
         self._elapsed = 0.0
@@ -712,6 +713,23 @@ class MoveUntil(_Action):
             self.on_boundary_exit,
         )
 
+    def pause(self) -> None:
+        if self._paused:
+            return
+        self._paused_velocity = self.current_velocity
+        super().pause()
+        if not self.done:
+            self.set_current_velocity((0.0, 0.0))
+
+    def resume(self) -> None:
+        if not self._paused:
+            return
+        paused_velocity = self._paused_velocity
+        self._paused_velocity = None
+        super().resume()
+        if not self.done and paused_velocity is not None:
+            self.set_current_velocity(paused_velocity)
+
 
 class FollowPathUntil(_Action):
     """Follow a Bezier curve path at constant velocity until a condition is satisfied.
@@ -1179,7 +1197,7 @@ class BlinkUntil(_Action):
     """Blink sprites (toggle visibility) until a condition is satisfied.
 
     Args:
-        seconds_until_change: Seconds to wait before toggling visibility
+        frames_until_change: Number of frames to wait before toggling visibility
         condition: Function that returns truthy value when blinking should stop
         on_stop: Optional callback called when condition is satisfied
         on_blink_enter: Optional callback(sprite) when visibility toggles to True
@@ -1188,19 +1206,19 @@ class BlinkUntil(_Action):
 
     def __init__(
         self,
-        seconds_until_change: float,
+        frames_until_change: int,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
         on_blink_enter: Callable[[Any], None] | None = None,
         on_blink_exit: Callable[[Any], None] | None = None,
     ):
-        if seconds_until_change <= 0:
-            raise ValueError("seconds_until_change must be positive")
+        if frames_until_change <= 0:
+            raise ValueError("frames_until_change must be positive")
 
         super().__init__(condition, on_stop)
-        self.target_seconds_until_change = seconds_until_change  # Immutable target rate
-        self.current_seconds_until_change = seconds_until_change  # Current rate (can be scaled)
-        self._blink_elapsed = 0.0
+        self.target_frames_until_change = frames_until_change  # Immutable target rate
+        self.current_frames_until_change = frames_until_change  # Current rate (can be scaled)
+        self._frames_elapsed = 0
         self._original_visibility = {}
         self._last_visible: dict[int, bool] = {}
 
@@ -1210,7 +1228,7 @@ class BlinkUntil(_Action):
     def set_factor(self, factor: float) -> None:
         """Scale the blink rate by the given factor.
 
-        Factor affects the time between blinks - higher factor = faster blinking.
+        Factor affects the frames between blinks - higher factor = faster blinking.
         A factor of 0.0 stops blinking (sprites stay in current visibility state).
 
         Args:
@@ -1218,10 +1236,10 @@ class BlinkUntil(_Action):
         """
         if factor <= 0:
             # Stop blinking - set to a very large value
-            self.current_seconds_until_change = float("inf")
+            self.current_frames_until_change = 999999
         else:
-            # Faster factor = shorter time between changes
-            self.current_seconds_until_change = self.target_seconds_until_change / factor
+            # Faster factor = fewer frames between changes
+            self.current_frames_until_change = max(1, int(self.target_frames_until_change / factor))
 
     def apply_effect(self) -> None:
         """Store original visibility for all sprites."""
@@ -1248,9 +1266,9 @@ class BlinkUntil(_Action):
 
     def update_effect(self, delta_time: float) -> None:
         """Apply blinking effect based on the configured interval."""
-        self._blink_elapsed += delta_time
+        self._frames_elapsed += 1
         # Determine how many intervals have passed to know whether we should show or hide.
-        cycles = int(self._blink_elapsed / self.current_seconds_until_change)
+        cycles = int(self._frames_elapsed / self.current_frames_until_change)
 
         # Track if any sprites changed visibility this frame
         any_entered = False
@@ -1290,12 +1308,12 @@ class BlinkUntil(_Action):
 
     def reset(self) -> None:
         """Reset blinking rate to original target rate."""
-        self.current_seconds_until_change = self.target_seconds_until_change
+        self.current_frames_until_change = self.target_frames_until_change
 
     def clone(self) -> "BlinkUntil":
         """Create a copy of this action."""
         return BlinkUntil(
-            self.target_seconds_until_change,
+            self.target_frames_until_change,
             _clone_condition(self.condition),
             self.on_stop,
             on_blink_enter=self.on_blink_enter,
@@ -1416,8 +1434,8 @@ class TweenUntil(_Action):
         self.end_value = end_value
         self.property_name = property_name
         self.ease_function = ease_function or (lambda t: t)
-        self._duration = None
-        self._tween_elapsed = 0.0
+        self._frame_duration = None
+        self._frames_elapsed = 0
         self._completed_naturally = False  # Track if action completed vs was stopped
 
     def update(self, delta_time: float) -> None:
@@ -1459,27 +1477,27 @@ class TweenUntil(_Action):
         self._factor = factor
 
     def apply_effect(self):
-        # Extract duration from explicit attribute
-        duration_val = 1.0
-        if hasattr(self.condition, "_duration_seconds"):
-            seconds = self.condition._duration_seconds
-            if isinstance(seconds, (int, float)):
-                duration_val = seconds
+        # Extract frame count from explicit attribute
+        frame_count = 60  # Default: 1 second at 60 FPS
+        if hasattr(self.condition, "_frame_count"):
+            frames = self.condition._frame_count
+            if isinstance(frames, int):
+                frame_count = frames
 
         # An explicitly set duration should override the one from the condition.
-        if self._duration is not None:
-            duration_val = self._duration
+        if self._frame_duration is not None:
+            frame_count = self._frame_duration
 
-        self._duration = duration_val
-        if self._duration < 0:
-            raise ValueError("Duration must be non-negative")
+        self._frame_duration = frame_count
+        if self._frame_duration < 0:
+            raise ValueError("Frame duration must be non-negative")
 
         # Define a helper to set the initial value.
         def set_initial_value(sprite):
             """Set the initial value of the property on a single sprite."""
             setattr(sprite, self.property_name, self.start_value)
 
-        if self._duration == 0:
+        if self._frame_duration == 0:
             # If duration is zero, immediately set to the end value.
             self.for_each_sprite(lambda sprite: setattr(sprite, self.property_name, self.end_value))
             self.done = True
@@ -1489,17 +1507,17 @@ class TweenUntil(_Action):
 
         # For positive duration, set the initial value on all sprites.
         self.for_each_sprite(set_initial_value)
-        self._tween_elapsed = 0.0
+        self._frames_elapsed = 0
 
     def update_effect(self, delta_time: float):
         if self.done:
             return
 
-        # Update elapsed time with factor applied
-        self._tween_elapsed += delta_time * self._factor
+        # Update elapsed frames with factor applied
+        self._frames_elapsed += self._factor
 
         # Calculate progress (0 to 1)
-        t = min(self._tween_elapsed / self._duration, 1.0)
+        t = min(self._frames_elapsed / self._frame_duration, 1.0)
         eased_t = self.ease_function(t)
 
         # Calculate current value
@@ -1526,7 +1544,7 @@ class TweenUntil(_Action):
         If the action was stopped prematurely, reset to start value.
         """
         # Check if tween reached its natural end, even if condition was met first
-        reached_natural_end = self._duration is not None and self._tween_elapsed >= self._duration
+        reached_natural_end = self._frame_duration is not None and self._frames_elapsed >= self._frame_duration
 
         if not self._completed_naturally and not reached_natural_end:
             # Action was stopped before completion - reset to start value
@@ -1535,8 +1553,8 @@ class TweenUntil(_Action):
 
     def reset(self) -> None:
         """Reset the action to its initial state."""
-        self._tween_elapsed = 0.0
-        self._duration = None
+        self._frames_elapsed = 0
+        self._frame_duration = None
         self._completed_naturally = False
 
     def clone(self) -> "TweenUntil":
@@ -1988,12 +2006,12 @@ class CycleTexturesUntil(_Action):
     """Continuously cycle through a list of textures until a condition is met.
 
     This action animates sprite textures by cycling through a provided list at a
-    specified frame rate. The cycling can go forward or backward, and the action
+    specified frame interval. The cycling can go forward or backward, and the action
     runs until the specified condition is satisfied.
 
     Args:
         textures: List of arcade.Texture objects to cycle through
-        frames_per_second: How many texture indices to advance per second
+        frames_per_texture: Number of frames to display each texture
         direction: Direction of cycling (1 for forward, -1 for backward)
         condition: Function that returns truthy value when cycling should stop
         on_stop: Optional callback called when condition is satisfied
@@ -2002,7 +2020,7 @@ class CycleTexturesUntil(_Action):
     def __init__(
         self,
         textures: list,
-        frames_per_second: float = 60.0,
+        frames_per_texture: int = 1,
         direction: int = 1,
         condition: _Callable[[], _Any] = infinite,
         on_stop: _Callable[[_Any], None] | _Callable[[], None] | None = None,
@@ -2011,46 +2029,22 @@ class CycleTexturesUntil(_Action):
             raise ValueError("textures list cannot be empty")
         if direction not in (1, -1):
             raise ValueError("direction must be 1 or -1")
+        if frames_per_texture < 1:
+            raise ValueError("frames_per_texture must be at least 1")
 
         super().__init__(condition, on_stop)
         self._textures = textures
-        self._fps = frames_per_second * direction
+        self._frames_per_texture = frames_per_texture
         self._direction = direction
         self._count = len(textures)
-        self._cursor = 0.0  # Fractional texture index
-
-        # Duration tracking for simulation time
-        self._elapsed = 0.0
-        self._duration: float | None = None
-
-        # Try to extract duration from explicit attribute if it's from duration() helper
-        if hasattr(condition, "_duration_seconds"):
-            seconds = condition._duration_seconds
-            if isinstance(seconds, (int, float)) and seconds >= 0:
-                self._duration = float(seconds)
-
-                def _sim_condition() -> bool:
-                    return self._elapsed >= (self._duration or 0.0) - 1e-9
-
-                # Preserve attributes so cloning and tools can still introspect
-                _sim_condition._is_duration_condition = True
-                _sim_condition._original_condition = condition
-                _sim_condition._duration_seconds = self._duration
-
-                # Replace the condition with simulation-time version
-                self.condition = _sim_condition
+        self._current_texture_index = 0
+        self._frames_on_current_texture = 0
 
     def apply_effect(self) -> None:
         """Initialize textures on the target sprite(s)."""
-        # Reset timing state
-        self._elapsed = 0.0
-
-        # Try duration extraction again in case condition wasn't extractable during __init__
-        if self._duration is None:
-            if hasattr(self.condition, "_duration_seconds"):
-                seconds = self.condition._duration_seconds
-                if isinstance(seconds, (int, float)) and seconds >= 0:
-                    self._duration = float(seconds)
+        # Reset state
+        self._current_texture_index = 0
+        self._frames_on_current_texture = 0
 
         def set_initial_texture(sprite):
             sprite.textures = self._textures
@@ -2058,33 +2052,26 @@ class CycleTexturesUntil(_Action):
 
         self.for_each_sprite(set_initial_texture)
 
-        # Check for immediate completion (zero duration)
-        if self._duration is not None and self._duration <= 0.0:
-            self.done = True
-
     def update_effect(self, dt: float) -> None:
         """Update texture cycling."""
-        from math import floor
+        # Check if it's time to advance to next texture
+        # We check BEFORE incrementing so that:
+        # - frames_per_texture=3 means: frame 0,1,2 show texture 0, then frame 3,4,5 show texture 1
+        if self._frames_on_current_texture >= self._frames_per_texture:
+            # Advance to next texture
+            self._current_texture_index = (self._current_texture_index + self._direction) % self._count
+            self._frames_on_current_texture = 0
 
-        # Update simulation time (respects factor scaling)
-        scaled_dt = dt * self._factor
-        self._elapsed += scaled_dt
+            # Apply new texture
+            current_texture = self._textures[self._current_texture_index]
 
-        # Advance cursor by frame rate * scaled delta time
-        self._cursor = (self._cursor + self._fps * scaled_dt) % self._count
+            def set_texture(sprite):
+                sprite.texture = current_texture
 
-        # Get current texture index (floor of cursor)
-        texture_index = int(floor(self._cursor)) % self._count
-        current_texture = self._textures[texture_index]
+            self.for_each_sprite(set_texture)
 
-        def set_texture(sprite):
-            sprite.texture = current_texture
-
-        self.for_each_sprite(set_texture)
-
-        # Check for duration completion
-        if self._duration is not None and self._elapsed >= self._duration - 1e-9:
-            self.done = True
+        # Increment frame counter AFTER checking/switching
+        self._frames_on_current_texture += 1
 
     def set_factor(self, factor: float) -> None:
         """Scale both texture cycling speed and duration timing by the given factor.
@@ -2104,14 +2091,11 @@ class CycleTexturesUntil(_Action):
         """Create a copy of this action."""
         cloned = CycleTexturesUntil(
             textures=self._textures,
-            frames_per_second=abs(self._fps),  # Remove direction factor
+            frames_per_texture=self._frames_per_texture,
             direction=self._direction,
             condition=self.condition,
             on_stop=self.on_stop,
         )
-        # Preserve duration state if it was manually set
-        if hasattr(self, "_duration"):
-            cloned._duration = self._duration
         return cloned
 
 

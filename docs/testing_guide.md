@@ -12,6 +12,7 @@ The test suite uses pytest fixtures defined in `conftest.py`:
 ```python
 import pytest
 from actions import Action
+from actions.frame_timing import after_frames
 
 class ActionTestBase:
     """Base class for action tests with common setup and teardown."""
@@ -19,6 +20,7 @@ class ActionTestBase:
     def teardown_method(self):
         """Clean up after each test."""
         Action.stop_all()
+        Action._frame_counter = 0  # Keep global frame timer deterministic
 
 @pytest.fixture
 def test_sprite() -> arcade.Sprite:
@@ -44,7 +46,8 @@ def test_sprite_list() -> arcade.SpriteList:
 Test basic action functionality using the global action update system:
 
 ```python
-from actions import Action, move_until, rotate_until, duration, infinite
+from actions import Action, move_until, rotate_until, infinite
+from actions.frame_timing import after_frames
 
 class TestMoveUntil(ActionTestBase):
     """Test suite for MoveUntil action."""

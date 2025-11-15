@@ -395,8 +395,12 @@ def test_sprite_list(window) -> arcade.SpriteList:
 @pytest.fixture(autouse=True)
 def cleanup_actions():
     """Clean up actions after each test."""
+    # Reset frame counter before each test
+    Action._frame_counter = 0
     yield
     Action.stop_all()
+    # Reset frame counter after each test as well
+    Action._frame_counter = 0
 
 
 class ActionTestBase:

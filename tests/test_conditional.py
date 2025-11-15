@@ -3699,3 +3699,27 @@ class TestPriority9_DurationResetFunction:
         # Should work again after reset
         result2 = cond()
         assert result2 is False
+
+
+def test_move_until_pause_resets_velocity() -> None:
+    sprite = arcade.SpriteSolidColor(width=10, height=10, color=arcade.color.WHITE)
+    sprite.center_x = 50
+    sprite.center_y = 50
+
+    action = MoveUntil((3, 0), infinite)
+    action.apply(sprite)
+
+    Action.update_all(1 / 60)
+    assert sprite.change_x == 3
+
+    Action.pause_all()
+    assert sprite.change_x == 0
+
+    old_x = sprite.center_x
+    sprite.update()
+    assert sprite.center_x == old_x
+
+    Action.resume_all()
+    assert sprite.change_x == 3
+
+    Action.stop_all()

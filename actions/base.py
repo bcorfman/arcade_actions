@@ -266,6 +266,27 @@ class Action(ABC, Generic[_T]):
             action.stop()
 
     @classmethod
+    def current_frame(cls) -> int:
+        """Get the current frame count.
+
+        The frame counter increments with each call to update_all() and does not
+        increment when actions are paused. This provides deterministic timing
+        independent of wall-clock time or delta_time variations.
+
+        Returns:
+            Current frame count since initialization or last reset.
+
+        Examples:
+            # Check current frame in a condition
+            def after_100_frames():
+                return Action.current_frame() >= 100
+
+            # Log frame count for debugging
+            print(f"Action completed at frame {Action.current_frame()}")
+        """
+        return cls._frame_counter
+
+    @classmethod
     def update_all(cls, delta_time: float, *, physics_engine=None) -> None:
         """Update all active actions. Call this once per frame.
 
@@ -278,10 +299,17 @@ class Action(ABC, Generic[_T]):
                 for all kinematic bodies, eliminating the need for manual set_velocity
                 calls. When omitted, actions manipulate sprite attributes directly.
         """
-        # Update visualization instrumentation
-        if cls._enable_visualizer and cls._debug_store:
+        # Check if ALL actions are paused - if so, don't increment frame counter
+        # This ensures pause/resume/step behavior works correctly
+        all_paused = cls._active_actions and all(action._paused for action in cls._active_actions)
+
+        # Only increment frame counter if not all actions are paused
+        if not all_paused:
             cls._frame_counter += 1
-            cls._record_debug_frame(cls._frame_counter, time.time())
+
+            # Update visualization instrumentation
+            if cls._enable_visualizer and cls._debug_store:
+                cls._record_debug_frame(cls._frame_counter, time.time())
 
         # Provide engine context for adapter-powered actions
         try:
