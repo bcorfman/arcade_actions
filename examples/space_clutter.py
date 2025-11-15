@@ -427,8 +427,8 @@ class StarfieldView(arcade.View):
             # Generate original entry actions and cache them for future use
             entry_actions = create_formation_entry_from_sprites(
                 self.enemy_formation,
-                speed=5.0,
-                stagger_delay=0.5,
+                velocity=5.0,
+                stagger_delay_frames=seconds_to_frames(0.5),
                 window_bounds=(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
             )
             # Cache the paths for next time
@@ -482,8 +482,8 @@ class StarfieldView(arcade.View):
 
         def start_wave_motion():
             """Start repeating wave motion for the entire enemy formation."""
-            quarter_wave = create_wave_pattern(amplitude=30, length=80, speed=80, start_progress=0.75, end_progress=1.0)
-            full_wave = create_wave_pattern(amplitude=30, length=80, speed=80, debug=True, debug_threshold=19)
+            quarter_wave = create_wave_pattern(amplitude=30, length=80, velocity=80, start_progress=0.75, end_progress=1.0)
+            full_wave = create_wave_pattern(amplitude=30, length=80, velocity=80, debug=True, debug_threshold=19)
 
             # Repeat the wave forever so enemies keep swaying
             repeating_wave = sequence(quarter_wave, repeat(full_wave))
