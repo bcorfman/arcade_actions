@@ -482,7 +482,9 @@ class StarfieldView(arcade.View):
 
         def start_wave_motion():
             """Start repeating wave motion for the entire enemy formation."""
-            quarter_wave = create_wave_pattern(amplitude=30, length=80, velocity=80, start_progress=0.75, end_progress=1.0)
+            quarter_wave = create_wave_pattern(
+                amplitude=30, length=80, velocity=80, start_progress=0.75, end_progress=1.0
+            )
             full_wave = create_wave_pattern(amplitude=30, length=80, velocity=80, debug=True, debug_threshold=19)
 
             # Repeat the wave forever so enemies keep swaying
