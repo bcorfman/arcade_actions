@@ -30,6 +30,7 @@ from actions import (
     repeat,
     sequence,
 )
+from actions.frame_timing import seconds_to_frames
 
 # ---------------------------------------------------------------------------
 # Window configuration
@@ -111,7 +112,9 @@ class Starfield:
         for _ in range(MAX_STARS):
             color = (random.randint(20, 255), random.randint(20, 255), random.randint(20, 255))
             star = _create_star_sprite(color, size=3)
-            blink_until(star, seconds_until_change=random.randint(200, 400) / 1000.0, condition=infinite)
+            # Convert seconds to frames: 0.2-0.4 seconds = 12-24 frames at 60 FPS
+            blink_frames = seconds_to_frames(random.randint(200, 400) / 1000.0)
+            blink_until(star, frames_until_change=blink_frames, condition=infinite)
             self.star_list.append(star)
 
         move_until(
