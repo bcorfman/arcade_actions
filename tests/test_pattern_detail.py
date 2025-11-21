@@ -283,4 +283,3 @@ def test_create_formation_entry_from_sprites_uses_helper_monkeypatched(monkeypat
         assert isinstance(sprite, arcade.Sprite)
         assert action is not None
         assert idx in {0, 1}
-

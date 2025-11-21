@@ -11,7 +11,8 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions import Action, duration
+from actions import Action
+from actions.frame_timing import after_frames
 from actions.conditional import (
     BlinkUntil,
     CallbackUntil,
@@ -133,7 +134,7 @@ CLONE_CASES: list[pytest.Param] = [
         id="blink_until",
     ),
     pytest.param(
-        lambda: DelayUntil(duration(0.25), on_stop=_noop),
+        lambda: DelayUntil(after_frames(15)),  # 0.25 seconds at 60 FPS
         lambda action, cloned: (_assert_equal(cloned.on_stop, action.on_stop),),
         id="delay_until",
     ),
@@ -142,7 +143,7 @@ CLONE_CASES: list[pytest.Param] = [
             0.0,
             100.0,
             "center_x",
-            duration(1.0),
+            after_frames(60),  # 1 second at 60 FPS
             on_stop=_noop,
             ease_function=lambda t: t * t,
         ),
@@ -158,7 +159,7 @@ CLONE_CASES: list[pytest.Param] = [
     pytest.param(
         lambda: CallbackUntil(
             _noop,
-            duration(0.5),
+            after_frames(30),  # 0.5 seconds at 60 FPS
             on_stop=_noop,
             seconds_between_calls=0.2,
         ),
@@ -172,7 +173,7 @@ CLONE_CASES: list[pytest.Param] = [
     pytest.param(
         lambda: ParametricMotionUntil(
             lambda t: (t * 10.0, t * 5.0),
-            duration(1.5),
+            after_frames(90),  # 1.5 seconds at 60 FPS
             on_stop=_noop,
             explicit_duration=1.5,
             rotate_with_path=True,
@@ -196,7 +197,7 @@ CLONE_CASES: list[pytest.Param] = [
             [_make_texture("0"), _make_texture("1"), _make_texture("2")],
             frames_per_texture=2,
             direction=-1,
-            condition=duration(0.75),
+            condition=after_frames(45),  # 0.75 seconds at 60 FPS
             on_stop=_noop,
         ),
         lambda action, cloned: (
@@ -289,7 +290,7 @@ SET_FACTOR_CASES = [
     pytest.param(
         lambda sprite: CallbackUntil(
             _noop,
-            duration(1.0),
+            after_frames(60),  # 1 second at 60 FPS
             seconds_between_calls=0.2,
         ),
         lambda action: action.current_seconds_between_calls,
@@ -301,14 +302,19 @@ SET_FACTOR_CASES = [
             [_make_texture("a"), _make_texture("b")],
             frames_per_texture=2,
             direction=1,
-            condition=duration(1.0),
+            condition=after_frames(60),  # 1 second at 60 FPS
         ),
         lambda action: action._factor,
         {0.0: 0.0, 2.0: 2.0},
         id="cycle_textures_until",
     ),
     pytest.param(
-        lambda sprite: TweenUntil(0.0, 10.0, "center_x", duration(1.0)),
+        lambda sprite: TweenUntil(
+            0.0,
+            10.0,
+            "center_x",
+            after_frames(60),  # 1 second at 60 FPS
+        ),
         lambda action: action._factor,
         {0.0: 0.0, 1.0: 1.0, 2.0: 2.0},
         id="tween_until",
@@ -316,7 +322,7 @@ SET_FACTOR_CASES = [
     pytest.param(
         lambda sprite: ParametricMotionUntil(
             lambda t: (t * 5.0, t * 2.5),
-            duration(1.0),
+            after_frames(60),  # 1 second at 60 FPS
             explicit_duration=1.0,
         ),
         lambda action: action._factor,

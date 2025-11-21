@@ -4,7 +4,8 @@ import arcade
 import pytest
 
 from actions.base import Action
-from actions.conditional import ParametricMotionUntil, duration
+from actions.conditional import ParametricMotionUntil
+from actions.frame_timing import after_frames, seconds_to_frames
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -34,7 +35,7 @@ class TestParametricMotion:
 
         action = ParametricMotionUntil(
             offset_fn=offset_fn,
-            condition=duration(1.0),
+            condition=after_frames(seconds_to_frames(1.0)),
         )
         action.apply(sprite, tag="param_basic")
 
@@ -59,7 +60,7 @@ class TestParametricMotion:
 
         action = ParametricMotionUntil(
             offset_fn=offset_fn,
-            condition=duration(0.5),
+            condition=after_frames(30),  # 0.5 seconds at 60 FPS
             rotate_with_path=True,
             rotation_offset=0.0,
         )
@@ -88,7 +89,7 @@ class TestParametricMotion:
 
         action = ParametricMotionUntil(
             offset_fn=offset_fn,
-            condition=duration(1.0),
+            condition=after_frames(60),  # 1 second at 60 FPS
         )
         action.apply(sprite, tag="param_factor")
 
@@ -101,7 +102,10 @@ class TestParametricMotion:
         Action.stop_all()
         sprite.center_x = 10
         sprite.center_y = 20
-        action2 = ParametricMotionUntil(offset_fn=offset_fn, condition=duration(1.0))
+        action2 = ParametricMotionUntil(
+            offset_fn=offset_fn,
+            condition=after_frames(seconds_to_frames(1.0)),
+        )
         action2.apply(sprite, tag="param_factor_full")
         action2.set_factor(1.0)
         Action.update_all(0.5)
@@ -126,7 +130,7 @@ class TestParametricMotion:
 
         action = ParametricMotionUntil(
             offset_fn=offset_fn,
-            condition=duration(0.2),
+            condition=after_frames(12),  # 0.2 seconds at 60 FPS
             on_stop=on_stop,
         )
         action.apply(sprite, tag="param_on_stop")
@@ -163,7 +167,7 @@ class TestPriority5_ParametricMotionDebug:
         # (debug output only prints when rotate_with_path=True)
         action = ParametricMotionUntil(
             offset_fn,
-            duration(1.0),
+            after_frames(seconds_to_frames(1.0)),
             debug=True,
             debug_threshold=100.0,  # 100 pixels threshold
             rotate_with_path=True,  # Required for debug output

@@ -3,6 +3,7 @@ from typing import Any
 
 from actions import physics_adapter as _pa
 from actions.base import Action as _Action
+from actions.frame_timing import frames_to_seconds
 
 
 def _debug_log(message: str, *, action: str = "CallbackUntil", level: int = 3) -> None:
@@ -148,13 +149,8 @@ class MoveUntil(_Action):
         if self.bounds and self.boundary_behavior in ("bounce", "wrap", "limit"):
             self._validate_bounds_for_sprite_dimensions()
 
-        # Try to extract duration from explicit attribute if it's from duration() helper
+        # Only legacy wall-clock helpers used duration metadata; default to None for frame-based conditions
         self._duration = None
-        if hasattr(self.condition, "_duration_seconds"):
-            seconds = self.condition._duration_seconds
-            if isinstance(seconds, (int, float)) and seconds > 0:
-                self._duration = seconds
-
         self._elapsed = 0.0
 
         # Get velocity from provider or use current velocity
@@ -764,18 +760,20 @@ class FollowPathUntil(_Action):
             but may lag behind path. Default: 5.0. Only used when use_physics=True.
 
     Examples:
+        from actions.frame_timing import after_frames, seconds_to_frames
+
         # Basic path following without rotation
-        action = FollowPathUntil([(100, 100), (200, 200)], velocity=150, condition=duration(3.0))
+        action = FollowPathUntil([(100, 100), (200, 200)], velocity=150, condition=after_frames(seconds_to_frames(3.0)))
 
         # Path following with automatic rotation (sprite artwork points right)
         action = FollowPathUntil(
-            [(100, 100), (200, 200)], velocity=150, condition=duration(3.0),
+            [(100, 100), (200, 200)], velocity=150, condition=after_frames(seconds_to_frames(3.0)),
             rotate_with_path=True
         )
 
         # Path following with rotation for sprite artwork that points up by default
         action = FollowPathUntil(
-            [(100, 100), (200, 200)], velocity=150, condition=duration(3.0),
+            [(100, 100), (200, 200)], velocity=150, condition=after_frames(seconds_to_frames(3.0)),
             rotate_with_path=True, rotation_offset=-90.0
         )
 
@@ -1343,13 +1341,8 @@ class DelayUntil(_Action):
 
     def apply_effect(self) -> None:
         """Initialize delay timing."""
-        # Try to extract duration from explicit attribute if it's from duration() helper
+        # Legacy wall-clock helpers are no longer supported; rely on frame-based conditions directly
         self._duration = None
-        if hasattr(self.condition, "_duration_seconds"):
-            seconds = self.condition._duration_seconds
-            if isinstance(seconds, (int, float)) and seconds > 0:
-                self._duration = seconds
-
         self._elapsed = 0.0
 
     def update_effect(self, delta_time: float) -> None:
@@ -1404,19 +1397,20 @@ class TweenUntil(_Action):
 
     Examples:
         # UI panel slide-in animation
-        slide_in = TweenUntil(-200, 100, "center_x", duration(0.8), ease_function=easing.ease_out)
+        from actions.frame_timing import after_frames, seconds_to_frames
+        slide_in = TweenUntil(-200, 100, "center_x", after_frames(seconds_to_frames(0.8)), ease_function=easing.ease_out)
         slide_in.apply(ui_panel, tag="show_panel")
 
         # Health bar update
-        health_change = TweenUntil(old_health, new_health, "width", duration(0.5))
+        health_change = TweenUntil(old_health, new_health, "width", after_frames(seconds_to_frames(0.5)))
         health_change.apply(health_bar, tag="health_update")
 
         # Button press feedback
-        button_press = TweenUntil(1.0, 1.2, "scale", duration(0.1))
+        button_press = TweenUntil(1.0, 1.2, "scale", after_frames(seconds_to_frames(0.1)))
         button_press.apply(button, tag="press_feedback")
 
         # Fade effect
-        fade_out = TweenUntil(255, 0, "alpha", duration(1.0))
+        fade_out = TweenUntil(255, 0, "alpha", after_frames(seconds_to_frames(1.0)))
         fade_out.apply(sprite, tag="disappear")
     """
 
@@ -1605,25 +1599,6 @@ class CallbackUntil(_Action):
 
         _debug_log(f"__init__: id={id(self)}, callback={callback}, seconds_between_calls={seconds_between_calls}")
 
-        # If the condition is a duration() helper, replace it with a simulation-time condition
-        # for more accurate timing. If optimization fails, fall back to original condition.
-        try:
-            if hasattr(condition, "_is_duration_condition") and condition._is_duration_condition:
-                seconds = getattr(condition, "_duration_seconds", None)
-                if isinstance(seconds, (int, float)) and seconds >= 0:
-                    self._duration = seconds
-
-                    def _sim_condition() -> bool:
-                        return self._elapsed >= (self._duration or 0.0) - 1e-9
-
-                    # Preserve attributes so cloning and tools can still introspect
-                    _sim_condition._is_duration_condition = True
-                    _sim_condition._duration_seconds = self._duration
-                    self.condition = _sim_condition
-        except (AttributeError, TypeError) as e:
-            # Duration optimization failed, fall back to original condition
-            _debug_log(f"__init__: id={id(self)}, duration optimization failed: {e}, using original condition")
-
     def set_factor(self, factor: float) -> None:
         """Scale the callback interval by the given factor.
 
@@ -1706,18 +1681,13 @@ class CallbackUntil(_Action):
                 self._call_callback_with_fallback()
 
     def apply_effect(self) -> None:
-        """Initialize duration tracking if condition is a duration()."""
+        """Initialize duration tracking based on frame metadata, if available."""
         _debug_log(f"apply_effect: id={id(self)}, target={self.target}")
         self._elapsed = 0.0
         self._elapsed_since_call = 0.0
         self.current_seconds_between_calls = self.target_seconds_between_calls
         self._next_fire_time = None
-        # Try to extract duration from explicit attribute if it's from duration() helper
         self._duration = None
-        if hasattr(self.condition, "_duration_seconds"):
-            seconds = self.condition._duration_seconds
-            if isinstance(seconds, (int, float)) and seconds >= 0:
-                self._duration = seconds
 
     def _call_callback_with_fallback(self) -> None:
         """Call the callback, trying both with and without target parameter."""
@@ -1758,53 +1728,19 @@ class CallbackUntil(_Action):
 
 # Helper function for cloning conditions
 def _clone_condition(condition):
-    """Create a fresh copy of a condition, especially for duration conditions."""
-    if hasattr(condition, "_is_duration_condition") and condition._is_duration_condition:
-        # Create a fresh duration condition
-        return duration(condition._duration_seconds)
+    """Create a fresh copy of a condition, preserving frame metadata when available."""
+    if hasattr(condition, "_is_frame_condition") and condition._is_frame_condition:
+        # Create a fresh frame-based condition
+        from actions.frame_timing import after_frames
+
+        frame_count = getattr(condition, "_frame_count", 0)
+        return after_frames(frame_count)
     else:
-        # For non-duration conditions, return as-is
+        # For non-duration/non-frame conditions, return as-is
         return condition
 
 
 # Common condition functions
-def duration(seconds: float):
-    """Create a condition function that returns True after a specified duration.
-
-    Usage:
-        # Move for 2 seconds
-        MoveUntil((100, 0), duration(2.0))
-
-        # Blink (toggle visibility every 0.25 seconds) for 3 seconds
-        BlinkUntil(0.25, duration(3.0))
-
-        # Delay for 1 second
-        DelayUntil(duration(1.0))
-
-        # Follow path for 5 seconds
-        FollowPathUntil(points, 150, duration(5.0))
-    """
-    start_time = None
-
-    def condition():
-        nonlocal start_time
-        import time
-
-        if start_time is None:
-            start_time = time.time()
-        return time.time() - start_time >= seconds
-
-    # Mark this as a duration condition for cloning purposes
-    condition._is_duration_condition = True
-    condition._duration_seconds = seconds
-
-    def reset_duration():
-        nonlocal start_time
-        start_time = None
-
-    condition._reset_duration = reset_duration
-
-    return condition
 
 
 def infinite() -> Callable[[], bool]:
@@ -1836,7 +1772,7 @@ class ParametricMotionUntil(_Action):
     The *offset_fn* receives progress *t* (0→1) and returns (dx, dy) offsets that
     are **added** to each sprite's origin captured at *apply* time.  Completion is
     governed by the same *condition* mechanism used elsewhere (typically the
-    ``duration()`` helper).
+    ``after_frames()`` helper).
     """
 
     def __init__(
@@ -1875,19 +1811,10 @@ class ParametricMotionUntil(_Action):
         self.for_each_sprite(capture_origin)
 
         if self._duration is None:
-            # Try to extract duration from frame-based condition (after_frames)
-            if hasattr(self.condition, "_frame_count"):
-                frame_count = self.condition._frame_count
-                if isinstance(frame_count, int) and frame_count > 0:
-                    # Convert frames to seconds at 60 FPS for internal progress calculation
-                    self._duration = frame_count / 60.0
-            # Try to extract duration from explicit attribute if it's from duration() helper (legacy)
-            elif hasattr(self.condition, "_duration_seconds"):
-                seconds = self.condition._duration_seconds
-                if isinstance(seconds, (int, float)) and seconds > 0:
-                    self._duration = seconds
+            extracted = _extract_duration_seconds(self.condition)
+            if extracted is not None:
+                self._duration = extracted
 
-            # If still None, default to 0.0
             if self._duration is None or self._duration == 0:
                 self._duration = 0.0
 
@@ -2000,11 +1927,17 @@ def _apply_offset(sprite, dx: float, dy: float, origins: dict[int, tuple[float, 
 
 
 def _extract_duration_seconds(cond: _Callable[[], _Any]) -> float | None:
-    """Extract duration from explicit attribute if available."""
-    if hasattr(cond, "_duration_seconds"):
-        seconds = cond._duration_seconds
-        if isinstance(seconds, (int, float)) and seconds >= 0:
-            return seconds
+    """Extract a simulation-time duration (in seconds) from frame metadata if available."""
+    frame_count = getattr(cond, "_frame_count", None)
+    if isinstance(frame_count, (int, float)) and frame_count >= 0:
+        return frames_to_seconds(frame_count)
+
+    frame_window = getattr(cond, "_frame_window", None)
+    if isinstance(frame_window, tuple) and len(frame_window) == 2:
+        start, end = frame_window
+        if all(isinstance(value, (int, float)) for value in frame_window) and end >= start:
+            return frames_to_seconds(end - start)
+
     return None
 
 
@@ -2114,7 +2047,7 @@ class GlowUntil(_Action):
         shadertoy_factory: Callable that receives an (width, height) tuple and
             returns a Shadertoy-like object exposing `program` (dict-like),
             `resize((w, h))` and `render()`.
-        condition: Stop condition (see duration(), infinite, etc.)
+        condition: Stop condition (see after_frames(), infinite, etc.)
         on_stop: Optional callback when stopping
         uniforms_provider: Optional callable (shader, target) -> dict of uniforms
         get_camera_bottom_left: Optional callable returning (x, y) used to
@@ -2152,12 +2085,7 @@ class GlowUntil(_Action):
             _debug_log(f"GlowUntil factory failed: {e!r}", action="GlowUntil")
             self._shader = None
 
-        # Extract simulation-time duration if provided by duration() helper
         self._duration = None
-        if hasattr(self.condition, "_duration_seconds"):
-            seconds = self.condition._duration_seconds
-            if isinstance(seconds, (int, float)) and seconds >= 0:
-                self._duration = float(seconds)
         self._elapsed = 0.0
 
     def update_effect(self, delta_time: float) -> None:
@@ -2269,10 +2197,8 @@ class EmitParticlesUntil(_Action):
 
         self.for_each_sprite(create_for_sprite)
 
-        # Extract simulation-time duration if provided by duration() helper
         self._duration = None
-        if hasattr(self.condition, "_duration_seconds"):
-            self._duration = self.condition._duration_seconds
+        self._duration = None
         self._elapsed = 0.0
 
     def _resolve_anchor(self, sprite) -> tuple[float, float]:

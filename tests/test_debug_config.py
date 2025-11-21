@@ -8,7 +8,6 @@ from actions import (
     MoveUntil,
     RotateUntil,
     clear_observed_actions,
-    duration,
     get_debug_actions,
     get_debug_options,
     infinite,
@@ -16,6 +15,7 @@ from actions import (
     set_debug_actions,
     set_debug_options,
 )
+from actions.frame_timing import after_frames, seconds_to_frames
 
 
 class TestDebugConfiguration:
@@ -123,7 +123,7 @@ class TestDebugLogging:
         """Test level 0 produces no output."""
         set_debug_options(level=0, include_all=True)
 
-        action = MoveUntil((5, 0), duration(1.0))
+        action = MoveUntil((5, 0), after_frames(60))  # 1 second at 60 FPS
         action.apply(test_sprite, tag="test")
         Action.update_all(0.016)
 
@@ -232,7 +232,9 @@ class TestDebugLogging:
         def callback():
             pass
 
-        action = CallbackUntil(callback, duration(1.0))
+        from actions.frame_timing import seconds_to_frames
+
+        action = CallbackUntil(callback, after_frames(seconds_to_frames(1.0)))
         action.apply(test_sprite, tag="test")
         Action.update_all(0.016)
 

@@ -169,7 +169,8 @@ class TestEase(ActionTestBase):
 Test sequences and parallel actions using the current API:
 
 ```python
-from actions import Action, sequence, parallel, DelayUntil, MoveUntil, RotateUntil, duration
+from actions import Action, sequence, parallel, DelayUntil, MoveUntil, RotateUntil
+from actions.frame_timing import after_frames, seconds_to_frames
 
 class TestSequenceFunction:
     """Test suite for sequence() function."""
@@ -182,8 +183,8 @@ class TestSequenceFunction:
         """Test that sequence executes actions in order."""
         sprite = test_sprite
         
-        action1 = DelayUntil(duration(0.1))
-        action2 = MoveUntil((100, 0), duration(0.1))
+        action1 = DelayUntil(after_frames(seconds_to_frames(0.1)))
+        action2 = MoveUntil((100, 0), condition=after_frames(seconds_to_frames(0.1)))
         seq = sequence(action1, action2)
         
         seq.apply(sprite, tag="test_sequence")
@@ -211,8 +212,8 @@ class TestParallelFunction:
         """Test that parallel actions execute simultaneously."""
         sprite = test_sprite
         
-        move_action = MoveUntil((50, 0), duration(1.0))
-        rotate_action = RotateUntil(180, duration(1.0))
+        move_action = MoveUntil((50, 0), condition=after_frames(seconds_to_frames(1.0)))
+        rotate_action = RotateUntil(180, condition=after_frames(seconds_to_frames(1.0)))
         par = parallel(move_action, rotate_action)
         
         par.apply(sprite, tag="test_parallel")
@@ -478,7 +479,8 @@ class TestVelocityProvider:
 Test shader effects without OpenGL dependencies using fakes:
 
 ```python
-from actions import Action, GlowUntil, duration
+from actions import Action, GlowUntil
+from actions.frame_timing import after_frames, seconds_to_frames
 
 class FakeShadertoy:
     """Minimal stand-in for arcade.experimental.Shadertoy."""
@@ -509,7 +511,7 @@ def test_glow_renders_and_sets_uniforms(test_sprite):
     
     action = GlowUntil(
         shadertoy_factory=shader_factory,
-        condition=duration(0.05),
+        condition=after_frames(seconds_to_frames(0.05)),
         uniforms_provider=uniforms_provider,
     )
     action.apply(test_sprite)
@@ -547,7 +549,7 @@ def test_glow_camera_offset_correction(test_sprite):
     
     action = GlowUntil(
         shadertoy_factory=shader_factory,
-        condition=duration(0.05),
+        condition=after_frames(seconds_to_frames(0.05)),
         uniforms_provider=uniforms_provider,
         get_camera_bottom_left=get_camera_pos,
     )
@@ -564,7 +566,8 @@ def test_glow_camera_offset_correction(test_sprite):
 Test particle emitters without Arcade's particle system:
 
 ```python
-from actions import Action, EmitParticlesUntil, duration
+from actions import Action, EmitParticlesUntil
+from actions.frame_timing import after_frames, seconds_to_frames
 
 class FakeEmitter:
     """Minimal stand-in for arcade particle emitters."""
@@ -591,7 +594,7 @@ def test_emitter_per_sprite_follows_position(test_sprite_list):
     
     action = EmitParticlesUntil(
         emitter_factory=emitter_factory,
-        condition=duration(0.05),
+        condition=after_frames(seconds_to_frames(0.05)),
         anchor="center",
         follow_rotation=False,
     )
@@ -628,7 +631,7 @@ def test_emitter_follows_rotation(test_sprite):
     
     action = EmitParticlesUntil(
         emitter_factory=emitter_factory,
-        condition=duration(0.05),
+        condition=after_frames(seconds_to_frames(0.05)),
         anchor="center",
         follow_rotation=True,
     )
@@ -658,7 +661,7 @@ def test_custom_anchor_offset(test_sprite):
     
     action = EmitParticlesUntil(
         emitter_factory=emitter_factory,
-        condition=duration(0.02),
+        condition=after_frames(seconds_to_frames(0.02)),
         anchor=offset,
     )
     action.apply(test_sprite)
@@ -682,7 +685,8 @@ def test_custom_anchor_offset(test_sprite):
 Test BlinkUntil callback functionality for collision management and game state synchronization:
 
 ```python
-from actions import Action, blink_until, infinite, duration
+from actions import Action, blink_until, infinite
+from actions.frame_timing import after_frames, seconds_to_frames
 
 class TestBlinkUntilCallbacks:
     """Test BlinkUntil visibility callback functionality."""
@@ -867,7 +871,7 @@ class TestBlinkUntilCallbacks:
         action = blink_until(
             sprite,
             seconds_until_change=0.1,
-            condition=duration(1.0),
+            condition=after_frames(seconds_to_frames(1.0)),
             on_blink_enter=enable_collisions,
             on_blink_exit=disable_collisions,
             tag="invulnerability_blink"
@@ -1013,7 +1017,12 @@ class TestYourAction(ActionTestBase):
 ```python
 def test_action_lifecycle(self, test_sprite):
     sprite = test_sprite
-    action = move_until(sprite, velocity=(5, 0), condition=duration(1.0), tag="test")
+    action = move_until(
+        sprite,
+        velocity=(5, 0),
+        condition=after_frames(seconds_to_frames(1.0)),
+        tag="test",
+    )
     
     # Test initial state
     assert not action.done
@@ -1170,13 +1179,13 @@ def test_sprite_list_actions(self, test_sprite_list):
 ```python
 def test_action_cleanup(self, test_sprite):
     sprite = test_sprite
-    action = MoveUntil((5, 0), duration(0.1))
+    action = MoveUntil((5, 0), condition=after_frames(seconds_to_frames(0.1)))
     action.apply(sprite, tag="test")
     
     initial_count = len(Action._active_actions)
     
     # Run until completion
-    Action.update_all(0.11)  # Exceed duration
+    Action.update_all(0.11)  # Exceed target frame window
     
     # Action should be automatically removed
     assert len(Action._active_actions) < initial_count

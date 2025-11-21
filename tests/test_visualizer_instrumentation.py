@@ -409,6 +409,7 @@ class TestDebugDataStore:
         )
 
         stats = store.get_statistics()
+        stats = store.get_statistics()
         assert stats["current_frame"] == 50
         assert stats["current_time"] == 2.5
         assert stats["active_actions"] == 1
@@ -416,3 +417,98 @@ class TestDebugDataStore:
         assert stats["total_evaluations"] == 1
         assert stats["events_buffered"] == 1
         assert stats["evaluations_buffered"] == 1
+
+
+class TestFrameCounterIntegration:
+    """Test that instrumentation correctly uses Action.current_frame()."""
+
+    def test_debug_store_receives_frame_numbers(self):
+        """Test that DebugDataStore receives frame numbers from Action frame counter."""
+        from actions import Action
+        from actions.conditional import MoveUntil
+        from actions.frame_timing import after_frames
+        import arcade
+
+        store = DebugDataStore()
+        Action.set_debug_store(store)
+        Action._enable_visualizer = True
+        Action._frame_counter = 0
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Create and apply action
+        action = MoveUntil((5, 0), condition=after_frames(10))
+        action.apply(sprite, tag="test_frame")
+
+        # Update a few frames
+        for i in range(5):
+            Action.update_all(0.016)
+
+        # Store should have received frame updates
+        assert store.current_frame == 5
+        assert store.current_frame == Action.current_frame()
+
+        # Events should have correct frame numbers
+        events = store.get_events_for_action(id(action))
+        assert len(events) > 0
+        # Created event should be at frame 0 or 1
+        created_events = [e for e in events if e.event_type == "created"]
+        assert len(created_events) > 0
+        assert created_events[0].frame >= 0
+        assert created_events[0].frame <= Action.current_frame()
+
+        # Clean up
+        Action._enable_visualizer = False
+        Action.set_debug_store(None)
+        Action.stop_all()
+
+    def test_pause_snapshots_reflect_pause_state(self):
+        """Test that snapshots reflect pause state when actions are paused."""
+        from actions import Action
+        from actions.conditional import MoveUntil
+        from actions.frame_timing import after_frames
+        import arcade
+
+        store = DebugDataStore()
+        Action.set_debug_store(store)
+        Action._enable_visualizer = True
+        Action._frame_counter = 0
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        action = MoveUntil((5, 0), condition=after_frames(10))
+        action.apply(sprite, tag="test_pause")
+
+        # Update a few frames
+        for _ in range(3):
+            Action.update_all(0.016)
+
+        # Snapshot should show not paused
+        snapshot = store.active_snapshots.get(id(action))
+        assert snapshot is not None
+        assert snapshot.is_paused is False
+
+        # Pause actions
+        Action.pause_all()
+
+        # Update snapshot
+        action._update_snapshot()
+
+        # Snapshot should now show paused
+        snapshot = store.active_snapshots.get(id(action))
+        assert snapshot is not None
+        assert snapshot.is_paused is True
+
+        # Frame counter should not increment when paused
+        frame_before = Action.current_frame()
+        Action.update_all(0.016)
+        assert Action.current_frame() == frame_before
+
+        # Clean up
+        Action._enable_visualizer = False
+        Action.set_debug_store(None)
+        Action.stop_all()

@@ -175,26 +175,15 @@ class GameView(arcade.View):
         """Start frame-based enemy firing using every_frames helper"""
         from actions import CallbackUntil, infinite
 
-        # Use every_frames as the condition - it will call allow_enemies_to_fire every 60 frames
-        # and return False to keep the action running
-        firing_condition = every_frames(60, self.allow_enemies_to_fire)
+        # Use every_frames to create a ticker that fires every 60 frames
+        # This ensures deterministic behavior with pause/resume/step debugging
+        fire_ticker = every_frames(60, self.allow_enemies_to_fire)
 
-        # CallbackUntil with a dummy callback since the real work is done by the condition
+        # CallbackUntil with the ticker as the callback - it will fire every 60 frames
         firing_action = CallbackUntil(
-            callback=lambda: None,  # No-op callback
+            callback=fire_ticker,
             condition=infinite,  # Never stop
         )
-        # Actually, we need to rethink this. Let's use a wrapper that checks frames
-
-        self._enemy_fire_frame_counter = 0
-
-        def fire_if_time():
-            self._enemy_fire_frame_counter += 1
-            if self._enemy_fire_frame_counter >= 60:
-                self._enemy_fire_frame_counter = 0
-                self.allow_enemies_to_fire()
-
-        firing_action = CallbackUntil(callback=fire_if_time, condition=infinite)
         firing_action.apply(self.enemy_list, tag="enemy_firing")
 
     def reverse_enemy_direction(self):

@@ -116,13 +116,10 @@ def test_visualizer_module_import():
 
     # Verify module exists and has expected structure
     assert hasattr(visualizer, "__file__") and visualizer.__file__
-    
+
     # Verify it has expected exports
-    assert (
-        hasattr(visualizer, "attach_visualizer")
-        or hasattr(visualizer, "auto_attach_from_env")
-    )
-    
+    assert hasattr(visualizer, "attach_visualizer") or hasattr(visualizer, "auto_attach_from_env")
+
     # Module should have expected exports
     assert hasattr(visualizer, "attach_visualizer")
     assert hasattr(visualizer, "detach_visualizer")

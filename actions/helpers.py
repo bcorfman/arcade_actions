@@ -159,7 +159,8 @@ def rotate_until(
         The created RotateUntil action instance.
 
     Example:
-        rotate_until(sprite, angular_velocity=180, condition=duration(1.0))
+        from actions.frame_timing import after_frames, seconds_to_frames
+        rotate_until(sprite, angular_velocity=180, condition=after_frames(seconds_to_frames(1.0)))
     """
     action = RotateUntil(angular_velocity=angular_velocity, condition=condition, on_stop=on_stop, **kwargs)
     action.apply(target, tag=tag)
@@ -200,13 +201,14 @@ def follow_path_until(
 
     Examples:
         # Basic path following
+        from actions.frame_timing import after_frames, seconds_to_frames
         path_points = [(100, 100), (200, 200), (300, 100)]
-        follow_path_until(sprite, control_points=path_points, velocity=200, condition=duration(3.0))
+        follow_path_until(sprite, control_points=path_points, velocity=200, condition=after_frames(seconds_to_frames(3.0)))
 
         # Path following with rotation
         follow_path_until(
             sprite, control_points=path_points, velocity=200,
-            condition=duration(3.0), rotate_with_path=True
+            condition=after_frames(seconds_to_frames(3.0)), rotate_with_path=True
         )
 
         # Physics-based path following with steering
