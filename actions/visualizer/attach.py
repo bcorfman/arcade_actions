@@ -447,7 +447,7 @@ def attach_visualizer(
 
     overlay = overlay_cls(debug_store)
     renderer = renderer_cls(overlay)
-    guides = guide_manager_cls()
+    guides = guide_manager_cls(initial_enabled=False)  # Guides start disabled, press F5 to enable
     condition_debugger = condition_debugger_cls(debug_store)
     timeline = timeline_cls(debug_store)
     guide_renderer = guide_renderer_cls(guides)

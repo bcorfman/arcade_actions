@@ -178,11 +178,16 @@ class GuideManager:
     unified toggle/update interface.
     """
 
-    def __init__(self):
-        """Initialize guide manager with all guides."""
-        self.velocity_guide = VelocityGuide()
-        self.bounds_guide = BoundsGuide()
-        self.path_guide = PathGuide()
+    def __init__(self, initial_enabled: bool = False):
+        """
+        Initialize guide manager with all guides.
+        
+        Args:
+            initial_enabled: Whether guides should be enabled initially (default: False)
+        """
+        self.velocity_guide = VelocityGuide(enabled=initial_enabled)
+        self.bounds_guide = BoundsGuide(enabled=initial_enabled)
+        self.path_guide = PathGuide(enabled=initial_enabled)
 
     def toggle_all(self) -> None:
         """Toggle all guides on/off."""

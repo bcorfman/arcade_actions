@@ -41,7 +41,7 @@ class PassiveRenderer:
 class PassiveGuides:
     """Guide manager stub that just records last snapshot batch."""
 
-    def __init__(self):
+    def __init__(self, initial_enabled: bool = False):
         self.last_snapshots = []
         self.last_positions: dict[int, tuple[float, float]] | None = None
 

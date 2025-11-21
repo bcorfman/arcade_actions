@@ -75,7 +75,7 @@ def test_guides_and_panels_scale_with_dataset():
     store = DebugDataStore()
     _populate_store(store)
 
-    guides = GuideManager()
+    guides = GuideManager(initial_enabled=True)  # Enable guides for this test
     condition_debugger = ConditionDebugger(debug_store=store, max_entries=200)
     timeline = TimelineStrip(debug_store=store, max_entries=200)
 

@@ -47,7 +47,7 @@ class StubRenderer:
 
 
 class StubGuides:
-    def __init__(self):
+    def __init__(self, initial_enabled: bool = False):
         self.update_calls = 0
         self.last_positions: dict[int, tuple[float, float]] | None = None
 
