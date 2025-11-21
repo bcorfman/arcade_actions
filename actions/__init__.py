@@ -115,13 +115,9 @@ def _maybe_auto_attach_visualizer() -> None:
     """Automatically attach the visualizer when requested via environment variable."""
     if os.getenv("ARCADEACTIONS_VISUALIZER"):
         # Importing visualizer triggers the auto-attach logic in actions.visualizer.__init__
-        try:
-            from . import visualizer
+        from . import visualizer
 
-            visualizer.auto_attach_from_env(force=True)
-        except (ImportError, AttributeError):
-            # Visualizer module is optional and may not be available
-            pass
+        visualizer.auto_attach_from_env(force=True)
 
 
 _maybe_auto_attach_visualizer()

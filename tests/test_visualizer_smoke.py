@@ -5,9 +5,9 @@ the visualizer end-to-end.  The goal is to ensure critical modules can still
 be imported and their basic helpers operate without needing to spin up an
 Arcade window (which made the suite extremely large and slow).
 
-Since the visualizer module may not be available, these tests verify:
+These tests verify:
 - Visualizer hooks in base.py work correctly when visualizer is disabled
-- Environment variable handling doesn't break when visualizer is missing
+- Environment variable handling works correctly
 - Action lifecycle hooks don't crash when _enable_visualizer is False
 """
 
@@ -20,8 +20,8 @@ from actions.frame_timing import after_frames
 from actions.conditional import MoveUntil
 
 
-def test_visualizer_env_var_handles_missing_module():
-    """Test that ARCADEACTIONS_VISUALIZER env var doesn't crash if module is missing."""
+def test_visualizer_env_var_triggers_auto_attach():
+    """Test that ARCADEACTIONS_VISUALIZER env var triggers visualizer auto-attach."""
     import sys
 
     # Save original env value
@@ -39,8 +39,11 @@ def test_visualizer_env_var_handles_missing_module():
                 if key.startswith("actions."):
                     del sys.modules[key]
 
-        # This should not crash even if visualizer module doesn't exist
+        # This should import successfully and trigger visualizer auto-attach
         from actions import Action  # noqa: F401
+
+        # Visualizer should be importable
+        from actions import visualizer  # noqa: F401
 
         assert True  # If we get here, import succeeded
 
@@ -107,32 +110,23 @@ def test_action_visualizer_hooks_with_enable_flag():
     Action.stop_all()
 
 
-def test_visualizer_module_import_if_exists():
-    """Test that visualizer can be imported if the module exists."""
-    try:
-        from actions import visualizer  # noqa: F401
+def test_visualizer_module_import():
+    """Test that visualizer module can be imported and has expected structure."""
+    from actions import visualizer  # noqa: F401
 
-        # If import succeeds, check if it's a namespace package (empty) or has actual exports
-        # Namespace packages will have no __file__ attribute or empty __all__
-        if hasattr(visualizer, "__file__") and visualizer.__file__:
-            # Module exists - verify basic structure
-            has_attach = (
-                hasattr(visualizer, "attach")
-                or hasattr(visualizer, "attach_visualizer")
-                or hasattr(visualizer, "auto_attach_from_env")
-            )
-            if has_attach:
-                # Module has expected exports
-                assert True
-            else:
-                # Module exists but is empty/incomplete - that's OK
-                pytest.skip("Visualizer module exists but is incomplete")
-        else:
-            # Namespace package - that's OK, it's optional
-            pytest.skip("Visualizer module is namespace package (not implemented)")
-    except ImportError:
-        # Module doesn't exist - that's OK, it's optional
-        pytest.skip("Visualizer module not available")
+    # Verify module exists and has expected structure
+    assert hasattr(visualizer, "__file__") and visualizer.__file__
+    
+    # Verify it has expected exports
+    assert (
+        hasattr(visualizer, "attach_visualizer")
+        or hasattr(visualizer, "auto_attach_from_env")
+    )
+    
+    # Module should have expected exports
+    assert hasattr(visualizer, "attach_visualizer")
+    assert hasattr(visualizer, "detach_visualizer")
+    assert hasattr(visualizer, "auto_attach_from_env")
 
 
 def test_visualizer_hooks_in_action_lifecycle():
