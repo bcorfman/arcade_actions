@@ -13,41 +13,43 @@ from collections.abc import Callable
 
 import arcade
 
-from actions import DelayUntil, FollowPathUntil, MoveUntil, duration, sequence
+from actions import DelayUntil, FollowPathUntil, MoveUntil, sequence
 from actions.conditional import ParametricMotionUntil
+from actions.frame_timing import after_frames, seconds_to_frames
 
 
-def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segments: int = 4) -> "ParametricMotionUntil":
+def create_zigzag_pattern(
+    width: float, height: float, velocity: float, segments: int = 4, condition: Callable[[], bool] | None = None
+) -> "ParametricMotionUntil":
     """Create a zigzag movement pattern using a ParametricMotionUntil action.
 
     Args:
         width: Horizontal distance for each zigzag segment
         height: Vertical distance for each zigzag segment
-        speed: Movement speed in pixels per second
+        velocity: Movement speed in pixels per frame
         segments: Number of zigzag segments to create
+        condition: Stop condition (use after_frames() or infinite)
 
     Returns:
         ParametricMotionUntil action that creates zigzag movement
 
     Example:
-        zigzag = create_zigzag_pattern(dimensions=(100, 50), speed=150, segments=6)
+        from actions.frame_timing import after_frames
+        zigzag = create_zigzag_pattern(width=100, height=50, velocity=5, segments=6, condition=after_frames(120))
         zigzag.apply(sprite, tag="zigzag_movement")
     """
-
-    # Calculate parametric zig-zag using a single relative curve
-    # -----------------------------------------------------------
-    width, height = dimensions
-
     # Guard against invalid inputs
     if segments <= 0:
         raise ValueError("segments must be > 0")
-    if speed <= 0:
-        raise ValueError("speed must be > 0")
+    if velocity <= 0:
+        raise ValueError("velocity must be > 0")
 
-    # Total travel distance and corresponding duration (pixels / (pixels per second) = seconds)
+    # Calculate total travel distance
     segment_distance = math.sqrt(width**2 + height**2)
     total_distance = segment_distance * segments
-    total_time = total_distance / speed  # seconds
+
+    # Calculate frame duration based on velocity (px/frame)
+    total_frames = int(total_distance / velocity)
 
     # Pre-compute constants for efficiency
     half_width = width  # alias – clearer below
@@ -58,7 +60,6 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
         `t` in 0 → 1 is mapped across *segments* straight-line sections that
         alternate left/right movement while always moving *up* (positive Y).
         """
-
         # Clamp for numerical safety
         t = max(0.0, min(1.0, t))
 
@@ -86,18 +87,22 @@ def create_zigzag_pattern(dimensions: tuple[float, float], speed: float, segment
 
         return dx, dy
 
-    from actions.conditional import ParametricMotionUntil  # local import to avoid cycles
+    from actions.conditional import ParametricMotionUntil, infinite  # local import to avoid cycles
 
-    return ParametricMotionUntil(_offset_fn, duration(total_time))
+    # Use provided condition or default to completing after calculated frames
+    final_condition = condition if condition is not None else after_frames(total_frames)
+
+    return ParametricMotionUntil(_offset_fn, final_condition)
 
 
 def create_wave_pattern(
     amplitude: float,
     length: float,
-    speed: float,
+    velocity: float,
     *,
     start_progress: float = 0.0,
     end_progress: float = 1.0,
+    condition: Callable[[], bool] | None = None,
     debug: bool = False,
     debug_threshold: float | None = None,
 ) -> "ParametricMotionUntil":
@@ -110,9 +115,12 @@ def create_wave_pattern(
     Args:
         amplitude: Height of the wave (Y-axis movement)
         length: Half-width of the wave (X-axis movement)
-        speed: Movement speed in pixels per frame
+        velocity: Movement speed in pixels per frame
         start_progress: Starting position along the wave cycle [0.0, 1.0], default 0.0
         end_progress: Ending position along the wave cycle [0.0, 1.0], default 1.0
+        condition: Stop condition (use after_frames() or infinite)
+        debug: Enable debug output
+        debug_threshold: Debug threshold for position checks
 
     The wave cycle progresses as:
         0.0: Left crest
@@ -122,14 +130,15 @@ def create_wave_pattern(
         1.0: Back to left crest
 
     Example:
+        from actions.frame_timing import after_frames
         # Full wave (default behavior)
-        create_wave_pattern(20, 80, 4)
+        create_wave_pattern(20, 80, 4, condition=after_frames(120))
 
         # From trough to left crest only
-        create_wave_pattern(20, 80, 4, start_progress=0.75, end_progress=1.0)
+        create_wave_pattern(20, 80, 4, start_progress=0.75, end_progress=1.0, condition=after_frames(60))
     """
 
-    from actions.conditional import ParametricMotionUntil, duration  # local import to avoid cycles
+    from actions.conditional import ParametricMotionUntil, infinite  # local import to avoid cycles
 
     # Validate progress parameters
     if not (0.0 <= start_progress <= 1.0 and 0.0 <= end_progress <= 1.0):
@@ -137,20 +146,14 @@ def create_wave_pattern(
     if end_progress < start_progress:
         raise ValueError("end_progress must be >= start_progress (no wrap or reverse supported)")
 
-    # ----------------- helper for building parametric actions -----------------
-    def _param(offset_fn, dur):
-        return ParametricMotionUntil(
-            offset_fn,
-            duration(dur),
-            debug=debug,
-            debug_threshold=debug_threshold if debug_threshold is not None else length * 1.2,
-        )
+    # Calculate frame duration based on velocity (px/frame)
+    # Per tests/docs, a full wave distance is approximately 2.5 * length
+    full_distance = 2.5 * length
+    full_frames = int(full_distance / velocity) if velocity != 0 else 0
 
-    # ------------------------------------------------------------
-    # Full wave: left crest → trough → right crest → back
-    # ------------------------------------------------------------
-    # Per tests/docs, a full wave duration is 2.5 * length / speed seconds
-    full_time = (2.5 * length / speed) if speed != 0 else 0.0
+    # Calculate the sub-range parameters (span maps linearly to frames)
+    span = end_progress - start_progress
+    sub_frames = int(full_frames * span)
 
     def _full_offset(t: float) -> tuple[float, float]:
         # Triangular time-base 0→1→0 to make sure we return to origin in X
@@ -158,10 +161,6 @@ def create_wave_pattern(
         dx = length * tri  # right then back left
         dy = -amplitude * math.sin(math.pi * tri)  # dip (trough at centre)
         return dx, dy
-
-    # Calculate the sub-range parameters (span maps linearly to time)
-    span = end_progress - start_progress
-    sub_time = full_time * span
 
     # Compute base offset at the start so subrange is relative (no initial snap)
     _base_dx, _base_dy = _full_offset(start_progress)
@@ -175,39 +174,62 @@ def create_wave_pattern(
         p = start_progress + span * t
         dx, dy = _full_offset(p)
 
-        # For sequence continuity: if end_progress is 1.0 (full cycle end),
-        # ensure we end at (0,0) regardless of the pattern's natural end position
-        if end_progress >= 1.0 and t >= 1.0:
-            # Force end position to (0, 0) for seamless sequence transitions
-            return 0.0 - _base_dx, 0.0 - _base_dy
+        # For sequence continuity: if we're completing a full cycle (end_progress=1.0),
+        # force the final offset to (0, 0) to ensure perfect position reset.
+        # This prevents drift when the pattern repeats.
+        # Only apply this snap when the pattern starts at the beginning of the cycle.
+        # Partial ranges (e.g. 0.75→1.0) must retain their relative offset so that
+        # transitional segments (like the initial quarter-wave) connect seamlessly.
+        if start_progress <= 1e-6 and end_progress >= 0.999 and t >= 0.999:
+            return 0.0, 0.0
 
         return dx - _base_dx, dy - _base_dy
 
     # If start and end are the same, return a no-op action
     if span == 0.0:
-        return _param(lambda t: (0.0, 0.0), 0.0)
+        final_condition = condition if condition is not None else after_frames(0)
+        return ParametricMotionUntil(
+            lambda t: (0.0, 0.0),
+            final_condition,
+            debug=debug,
+            debug_threshold=debug_threshold if debug_threshold is not None else length * 1.2,
+        )
 
-    return _param(_remapped_offset, sub_time)
+    # Use provided condition or default to completing after calculated frames
+    final_condition = condition if condition is not None else after_frames(sub_frames)
+
+    return ParametricMotionUntil(
+        _remapped_offset,
+        final_condition,
+        debug=debug,
+        debug_threshold=debug_threshold if debug_threshold is not None else length * 1.2,
+    )
 
 
 def create_spiral_pattern(
-    center: tuple[float, float], max_radius: float, revolutions: float, speed: float, direction: str = "outward"
+    center: tuple[float, float],
+    max_radius: float,
+    revolutions: float,
+    velocity: float,
+    direction: str = "outward",
+    condition: Callable[[], bool] | None = None,
 ) -> "FollowPathUntil":
     """Create an outward or inward spiral pattern.
 
     Args:
-        center_x: X coordinate of spiral center
-        center_y: Y coordinate of spiral center
+        center: (x, y) coordinates of spiral center
         max_radius: Maximum radius of the spiral
         revolutions: Number of complete revolutions
-        speed: Movement speed in pixels per second
+        velocity: Movement speed in pixels per frame
         direction: "outward" for expanding spiral, "inward" for contracting
+        condition: Stop condition (use after_frames() or infinite)
 
     Returns:
         FollowPathUntil action that creates spiral movement
 
     Example:
-        spiral = create_spiral_pattern(400, 300, 150, 3.0, 200, "outward")
+        from actions.frame_timing import after_frames
+        spiral = create_spiral_pattern((400, 300), 150, 3.0, 5, "outward", condition=after_frames(180))
         spiral.apply(sprite, tag="spiral_movement")
     """
     center_x, center_y = center
@@ -231,41 +253,49 @@ def create_spiral_pattern(
         control_points = list(reversed(outward_points))
         rotation_offset = 180.0  # Compensate for reversed movement direction
 
-    # Estimate total path length
+    # Estimate total path length and calculate frames
     total_length = revolutions * math.pi * max_radius  # Approximate
-    duration_time = total_length / speed
+    total_frames = int(total_length / velocity) if velocity > 0 else 0
+
+    # Use provided condition or default to completing after calculated frames
+    final_condition = condition if condition is not None else after_frames(total_frames)
 
     return FollowPathUntil(
-        control_points, speed, duration(duration_time), rotate_with_path=True, rotation_offset=rotation_offset
+        control_points, velocity, final_condition, rotate_with_path=True, rotation_offset=rotation_offset
     )
 
 
 def create_figure_eight_pattern(
-    center: tuple[float, float], width: float, height: float, speed: float
+    center: tuple[float, float],
+    width: float,
+    height: float,
+    velocity: float,
+    condition: Callable[[], bool] | None = None,
 ) -> "ParametricMotionUntil":
     """Create a figure-8 (infinity) movement pattern.
 
     Args:
-        center_x: X coordinate of pattern center
-        center_y: Y coordinate of pattern center
+        center: (x, y) coordinates of pattern center
         width: Width of the figure-8
         height: Height of the figure-8
-        speed: Movement speed in pixels per second
+        velocity: Movement speed in pixels per frame
+        condition: Stop condition (use after_frames() or infinite)
 
     Returns:
-        FollowPathUntil action that creates figure-8 movement
+        ParametricMotionUntil action that creates figure-8 movement
 
     Example:
-        figure_eight = create_figure_eight_pattern(400, 300, 200, 100, 180)
+        from actions.frame_timing import after_frames
+        figure_eight = create_figure_eight_pattern((400, 300), 200, 100, 5, condition=after_frames(180))
         figure_eight.apply(sprite, tag="figure_eight")
     """
     center_x, center_y = center
-    if speed <= 0:
-        raise ValueError("speed must be > 0")
+    if velocity <= 0:
+        raise ValueError("velocity must be > 0")
 
     # Approximate path length for timing (perimeter of both lobes)
     path_length = 2 * math.pi * max(width, height) / 2.0
-    total_time = path_length / speed  # seconds
+    total_frames = int(path_length / velocity)
 
     # Pre-generate control points for test symmetry checks (17 items inc. loop closure)
     control_points: list[tuple[float, float]] = []
@@ -286,21 +316,22 @@ def create_figure_eight_pattern(
 
     from actions.conditional import ParametricMotionUntil  # local import to avoid cycles
 
-    action = ParametricMotionUntil(_offset_fn, duration(total_time))
+    # Use provided condition or default to completing after calculated frames
+    final_condition = condition if condition is not None else after_frames(total_frames)
+
+    action = ParametricMotionUntil(_offset_fn, final_condition)
     # Retain control_points attribute for existing unit-tests
     action.control_points = control_points  # type: ignore[attr-defined]
     return action
 
 
-def create_orbit_pattern(
-    center: tuple[float, float], radius: float, speed: float, clockwise: bool = True
-) -> "SingleOrbitAction":
+def create_orbit_pattern(center: tuple[float, float], radius: float, velocity: float, clockwise: bool = True):
     """Create a single circular orbit pattern (one full revolution).
 
     Args:
         center: (x, y) coordinates of orbit center
         radius: Radius of the orbit
-        speed: Movement speed along the path (pixels per second)
+        velocity: Movement speed along the path (pixels per frame)
         clockwise: True for clockwise orbit, False for counter-clockwise
 
     Returns:
@@ -314,11 +345,11 @@ def create_orbit_pattern(
 
     center_x, center_y = center
 
-    # Calculate angular velocity (radians per second) from path speed
+    # Calculate angular velocity (radians per frame) from path velocity
     circumference = 2 * math.pi * radius
     if circumference <= 0:
         raise ValueError("radius must be > 0")
-    angular_velocity = (2 * math.pi * speed) / circumference  # radians per second
+    angular_velocity = (2 * math.pi * velocity) / circumference  # radians per frame
 
     class SingleOrbitAction(_Action):
         def __init__(self):
@@ -360,6 +391,7 @@ def create_orbit_pattern(
 
         def update_effect(self, delta_time: float):
             # Update each sprite along its orbit and track completion
+            # Note: We use angular_velocity which is now in radians per frame
             direction_sign = 1.0 if self.clockwise else -1.0
             per_sprite_done: list[bool] = []
 
@@ -369,7 +401,8 @@ def create_orbit_pattern(
                 if st is None:
                     return
 
-                delta_angle = self.angular_velocity * delta_time * direction_sign
+                # Angular velocity is already in radians per frame, so we don't multiply by delta_time
+                delta_angle = self.angular_velocity * direction_sign
                 st["angle"] = float(st["angle"]) + delta_angle  # type: ignore[assignment]
                 st["accumulated"] = float(st["accumulated"]) + abs(delta_angle)  # type: ignore[assignment]
 
@@ -423,30 +456,37 @@ def create_orbit_pattern(
             self._states.clear()
 
         def clone(self):
-            return create_orbit_pattern((self.center_x, self.center_y), self.radius, speed, self.clockwise)
+            return create_orbit_pattern((self.center_x, self.center_y), self.radius, velocity, self.clockwise)
 
     return SingleOrbitAction()
 
 
 def create_bounce_pattern(
-    velocity: tuple[float, float], bounds: tuple[float, float, float, float], *, axis: str = "both"
+    velocity: tuple[float, float],
+    bounds: tuple[float, float, float, float],
+    *,
+    axis: str = "both",
+    on_boundary_enter: Callable | None = None,
 ) -> "MoveUntil":
     """Create a bouncing movement pattern within boundaries.
 
     Args:
-        velocity: (dx, dy) initial velocity vector
+        velocity: (dx, dy) velocity vector in pixels per frame
         bounds: (left, bottom, right, top) boundary box
         axis: Axis to apply movement to ("both", "x", or "y"). Defaults to "both" for legacy behavior.
+        on_boundary_enter: Optional callback(sprite, axis, side) called when sprite enters a boundary
 
     Returns:
         MoveUntil, MoveXUntil, or MoveYUntil action with bouncing behavior
 
     Example:
-        bounce = create_bounce_pattern((150, 100), bounds=(0, 0, 800, 600))
+        bounce = create_bounce_pattern((10, 5), bounds=(0, 0, 800, 600))
         bounce.apply(sprite, tag="bouncing")
 
-        # X-axis only bouncing
-        bounce_x = create_bounce_pattern((150, 0), bounds=(0, 0, 800, 600), axis="x")
+        # X-axis only bouncing with callback
+        def on_bounce(sprite, axis, side):
+            print(f"Bounced on {axis} {side}")
+        bounce_x = create_bounce_pattern((10, 0), bounds=(0, 0, 800, 600), axis="x", on_boundary_enter=on_bounce)
     """
     # Local import to avoid potential circular dependency with main actions module
     from .conditional import infinite
@@ -469,106 +509,42 @@ def create_bounce_pattern(
         infinite,  # Continue indefinitely
         bounds=bounds,
         boundary_behavior="bounce",
+        on_boundary_enter=on_boundary_enter,
     )
 
 
 def create_patrol_pattern(
-    start_pos: tuple[float, float],
-    end_pos: tuple[float, float],
-    speed: float,
+    velocity: tuple[float, float],
+    bounds: tuple[float, float, float, float],
     *,
-    start_progress: float = 0.0,
-    end_progress: float = 1.0,
     axis: str = "both",
-):
-    """Create a back-and-forth patrol pattern between two points.
+) -> "MoveUntil":
+    """Create a back-and-forth patrol pattern within boundaries.
 
-    The sprite starts from its current position and executes the specified
-    portion of the patrol cycle using boundary bouncing.
+    This factory mirrors :func:`create_bounce_pattern` by accepting a velocity
+    vector and edge-based bounds. Bounds are specified using sprite edges
+    (not centers) so patrol spans must exceed sprite dimensions.
 
     Args:
-        start_pos: (x, y) left boundary position
-        end_pos: (x, y) right boundary position
-        speed: Movement speed in pixels per frame (Arcade semantics)
-        start_progress: Starting progress along the patrol cycle [0.0, 1.0], default 0.0
-        end_progress: Ending progress along the patrol cycle [0.0, 1.0], default 1.0
-        axis: Axis to apply movement to ("both", "x", or "y"). Defaults to "both" for legacy behavior.
-
-    The patrol cycle progresses as:
-        0.0: Start position (left boundary)
-        0.5: End position (right boundary)
-        1.0: Back to start position (left boundary)
+        velocity: (dx, dy) initial velocity vector in pixels per frame.
+        bounds: (left, bottom, right, top) boundary box using edge-based coordinates.
+        axis: Axis to apply movement to ("both", "x", or "y"). Defaults to "both".
 
     Returns:
-        MoveUntil, MoveXUntil, or MoveYUntil action with boundary bouncing
+        MoveUntil, MoveXUntil, or MoveYUntil action with bouncing patrol behavior.
 
-    Example:
-        # Sprite at center, move to left boundary then do full patrol
-        quarter = create_patrol_pattern(left_pos, right_pos, 2, start_progress=0.75, end_progress=1.0)
-        full = create_patrol_pattern(left_pos, right_pos, 2, start_progress=0.0, end_progress=1.0)
-        sequence(quarter, repeat(full)).apply(sprite)
-
-        # X-axis only patrol
-        patrol_x = create_patrol_pattern(left_pos, right_pos, 2, axis="x")
+    Raises:
+        ValueError: If patrol span is smaller than sprite dimensions (checked on apply).
     """
-    # Validate progress parameters
-    if not (0.0 <= start_progress <= 1.0 and 0.0 <= end_progress <= 1.0):
-        raise ValueError("start_progress and end_progress must be within [0.0, 1.0]")
-    if end_progress < start_progress:
-        raise ValueError("end_progress must be >= start_progress (no wrap or reverse supported)")
+    from .axis_move import MoveXUntil, MoveYUntil
+    from .conditional import MoveUntil, infinite
 
-    # Handle edge cases
-    if start_progress == end_progress:
-        return sequence()
-
-    dx = end_pos[0] - start_pos[0]
-    dy = end_pos[1] - start_pos[1]
-    distance = math.hypot(dx, dy)
-
-    if distance == 0:
-        return sequence()
-
-    # Validate axis parameter
     if axis not in {"both", "x", "y"}:
         raise ValueError(f"axis must be one of {{'both', 'x', 'y'}}, got {axis!r}")
 
-    # Local imports to avoid circular dependencies
-    from .conditional import MoveUntil, duration
-    from .axis_move import MoveXUntil, MoveYUntil
+    cls = MoveUntil if axis == "both" else MoveXUntil if axis == "x" else MoveYUntil
 
-    # Set boundaries at the patrol endpoints
-    left = min(start_pos[0], end_pos[0])
-    right = max(start_pos[0], end_pos[0])
-    bottom = min(start_pos[1], end_pos[1])
-    top = max(start_pos[1], end_pos[1])
-    bounds = (left, bottom, right, top)
-
-    # Determine initial direction based on start_progress
-    # start_progress < 0.5 means we're on the forward leg (toward end_pos)
-    # start_progress >= 0.5 means we're on the return leg (toward start_pos)
-    dir_x, dir_y = dx / distance, dy / distance
-    if start_progress < 0.5:
-        # Moving toward end_pos (right boundary)
-        velocity = (dir_x * speed, dir_y * speed)
-    else:
-        # Moving toward start_pos (left boundary)
-        velocity = (-dir_x * speed, -dir_y * speed)
-
-    # Calculate duration for the progress range
-    total_distance = distance * 2  # full round trip distance
-    progress_distance = total_distance * (end_progress - start_progress)
-    duration_seconds = progress_distance / speed / 60.0
-
-    # Choose the appropriate class based on axis
-    if axis == "both":
-        cls = MoveUntil
-    elif axis == "x":
-        cls = MoveXUntil
-    else:  # axis == "y"
-        cls = MoveYUntil
-
-    # Create action with boundary bouncing (like create_bounce_pattern)
-    return cls(velocity, duration(duration_seconds), bounds=bounds, boundary_behavior="bounce")
+    return cls(velocity, infinite, bounds=bounds, boundary_behavior="bounce")
 
 
 # Condition helper functions
@@ -636,17 +612,17 @@ def sprite_count(sprite_list: arcade.SpriteList, target_count: int, comparison: 
 def _calculate_velocity_to_target(
     start_pos: tuple[float, float],
     target_pos: tuple[float, float],
-    speed: float,
+    velocity: float,
 ) -> tuple[float, float]:
     """Calculate velocity vector from start to target position.
 
     Args:
         start_pos: (x, y) starting position
         target_pos: (x, y) target position
-        speed: Movement speed in pixels per frame
+        velocity: Movement velocity in pixels per frame
 
     Returns:
-        (dx, dy) velocity vector
+        (dx, dy) velocity vector in pixels per frame
     """
     dx = target_pos[0] - start_pos[0]
     dy = target_pos[1] - start_pos[1]
@@ -655,9 +631,9 @@ def _calculate_velocity_to_target(
     if distance == 0:
         return (0, 0)
 
-    # Normalize and scale to speed
-    dx = (dx / distance) * speed
-    dy = (dy / distance) * speed
+    # Normalize and scale to velocity
+    dx = (dx / distance) * velocity
+    dy = (dy / distance) * velocity
 
     return (dx, dy)
 
@@ -703,8 +679,8 @@ def _validate_entry_kwargs(kwargs: dict) -> dict:
     # Defaults
     validated = {
         "window_bounds": kwargs["window_bounds"],
-        "speed": kwargs.get("speed", 5.0),
-        "stagger_delay": kwargs.get("stagger_delay", 0.5),
+        "velocity": kwargs.get("velocity", 5.0),
+        "stagger_delay_frames": kwargs.get("stagger_delay_frames", 30),  # Default 30 frames (~0.5s at 60fps)
     }
     return validated
 
@@ -754,8 +730,8 @@ def create_formation_entry_from_sprites(
         target_formation: SpriteList with sprites positioned at target formation locations
         **kwargs: Additional arguments including:
             - window_bounds: (left, bottom, right, top) window boundaries
-            - speed: Movement speed in pixels per frame
-            - stagger_delay: Delay between waves in seconds
+            - velocity: Movement speed in pixels per frame
+            - stagger_delay_frames: Delay between waves in frames
             - min_spacing: Minimum spacing between sprites during movement
 
     Returns:
@@ -769,8 +745,8 @@ def create_formation_entry_from_sprites(
         entry_actions = create_formation_entry_from_sprites(
             target_formation,
             window_bounds=(0, 0, 800, 600),
-            speed=5.0,
-            stagger_delay=1.0
+            velocity=5.0,
+            stagger_delay_frames=60
         )
 
         # Apply actions
@@ -782,8 +758,8 @@ def create_formation_entry_from_sprites(
 
     params = _validate_entry_kwargs(kwargs)
     window_bounds = params["window_bounds"]
-    speed = params["speed"]
-    stagger_delay = params["stagger_delay"]
+    velocity = params["velocity"]
+    stagger_delay_frames = params["stagger_delay_frames"]
 
     # Create new sprites for the entry pattern (same number as target formation)
     sprites = _clone_formation_sprites(target_formation)
@@ -818,29 +794,31 @@ def create_formation_entry_from_sprites(
 
     entry_actions = []
 
-    # Calculate movement time to determine proper delays
-    max_movement_time = 0.0
+    # Calculate movement frames to determine proper delays
+    max_movement_frames = 0
     for wave_assignments in enemy_waves_with_assignments:
         for sprite_idx, spawn_idx in wave_assignments.items():
             distance = math.hypot(
                 target_positions[sprite_idx][0] - spawn_positions[spawn_idx][0],
                 target_positions[sprite_idx][1] - spawn_positions[spawn_idx][1],
             )
-            movement_time = distance / speed if speed > 0 else 0
-            max_movement_time = max(max_movement_time, movement_time)
+            movement_frames = int(distance / velocity) if velocity > 0 else 0
+            max_movement_frames = max(max_movement_frames, movement_frames)
 
-    # Calculate safe wave separation time based on sprite velocity and size
-    # Rule 3: Calculate enough time between waves to avoid collisions
+    # Calculate safe wave separation frames based on sprite velocity and size
+    # Rule 3: Calculate enough frames between waves to avoid collisions
     estimated_sprite_size = 64  # Conservative estimate for sprite width/height
-    safe_clearance_time = (estimated_sprite_size * 2) / speed  # Time for 2 sprite widths at current speed
-    # Cap the safe clearance time to prevent excessive delays
-    safe_clearance_time = min(safe_clearance_time, 2.0)  # Maximum 2 seconds
-    wave_separation_time = max(stagger_delay, safe_clearance_time)
+    safe_clearance_frames = int(
+        (estimated_sprite_size * 2) / velocity
+    )  # Frames for 2 sprite widths at current velocity
+    # Cap the safe clearance frames to prevent excessive delays
+    safe_clearance_frames = min(safe_clearance_frames, 120)  # Maximum 120 frames (~2 seconds at 60fps)
+    wave_separation_frames = max(stagger_delay_frames, safe_clearance_frames)
 
     for wave_idx, wave_assignments in enumerate(enemy_waves_with_assignments):
-        wave_delay = wave_idx * wave_separation_time
+        wave_delay_frames = wave_idx * wave_separation_frames
 
-        # Calculate the longest distance in this wave to determine target arrival time
+        # Calculate the longest distance in this wave to determine target arrival frames
         max_distance_in_wave = 0.0
         for sprite_idx, spawn_idx in wave_assignments.items():
             distance = math.hypot(
@@ -849,8 +827,8 @@ def create_formation_entry_from_sprites(
             )
             max_distance_in_wave = max(max_distance_in_wave, distance)
 
-        # Calculate target arrival time based on the longest distance and base speed
-        target_arrival_time = max_distance_in_wave / speed if speed > 0 else 1.0
+        # Calculate target arrival frames based on the longest distance and base velocity
+        target_arrival_frames = int(max_distance_in_wave / velocity) if velocity > 0 else 1
 
         for sprite_idx in wave_assignments:
             sprite = sprites[sprite_idx]
@@ -859,23 +837,21 @@ def create_formation_entry_from_sprites(
             sprite.visible = True
             sprite.alpha = 255
 
-            # Calculate individual speed so this sprite arrives at the same time as the slowest sprite
+            # Calculate individual velocity so this sprite arrives at the same time as the slowest sprite
             distance = math.hypot(
                 target_positions[sprite_idx][0] - spawn_positions[si][0],
                 target_positions[sprite_idx][1] - spawn_positions[si][1],
             )
-            individual_speed = distance / target_arrival_time if target_arrival_time > 0 else speed
+            individual_velocity = distance / target_arrival_frames if target_arrival_frames > 0 else velocity
 
-            velocity = _calculate_velocity_to_target(
-                spawn_positions[si], target_positions[sprite_idx], individual_speed
-            )
+            vel = _calculate_velocity_to_target(spawn_positions[si], target_positions[sprite_idx], individual_velocity)
 
             movement_action = MoveUntil(
-                velocity, _create_precision_condition_and_callback(target_positions[sprite_idx], sprite)
+                vel, _create_precision_condition_and_callback(target_positions[sprite_idx], sprite)
             )
 
-            if wave_delay > 0.01:  # Add delay for waves after the first
-                delay_action = DelayUntil(duration(wave_delay))
+            if wave_delay_frames > 0:  # Add delay for waves after the first
+                delay_action = DelayUntil(after_frames(wave_delay_frames))
                 combined_action = sequence(delay_action, movement_action)
             else:
                 combined_action = movement_action

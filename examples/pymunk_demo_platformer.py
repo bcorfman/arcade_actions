@@ -165,7 +165,7 @@ class PlayerAnimationState(StateMachine):
 
     def on_enter_walk(self):
         textures = [pair[self._tex_idx()] for pair in self.player.walk_textures]
-        cycle_textures_until(self.player, textures=textures, frames_per_second=10.0, tag="animation")
+        cycle_textures_until(self.player, textures=textures, frames_per_texture=6, tag="animation")
 
     def on_enter_jump(self):
         self.player.texture = self.player.jump_texture_pair[self._tex_idx()]
@@ -211,7 +211,7 @@ class PlayerAnimationState(StateMachine):
                     cycle_textures_until(
                         self.player,
                         textures=self.player.climbing_textures,
-                        frames_per_second=6.0,
+                        frames_per_texture=10,
                         tag="animation",
                     )
             else:

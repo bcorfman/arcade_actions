@@ -109,18 +109,18 @@ class PatternDemo(arcade.Window):
 
     def _create_wave_demo(self, sprite: arcade.Sprite):
         """Create repeating wave pattern."""
-        quarter_wave = create_wave_pattern(amplitude=30, length=80, speed=80, start_progress=0.75, end_progress=1.0)
-        full_wave = create_wave_pattern(amplitude=30, length=80, speed=80)
+        quarter_wave = create_wave_pattern(amplitude=30, length=80, velocity=80, start_progress=0.75, end_progress=1.0)
+        full_wave = create_wave_pattern(amplitude=30, length=80, velocity=80)
         sequence(quarter_wave, repeat(full_wave)).apply(sprite)
 
     def _create_zigzag_demo(self, sprite: arcade.Sprite):
         """Create zigzag pattern that reverses to return to start."""
         # Create a zigzag that moves right and up
-        forward = create_zigzag_pattern(dimensions=(30, 15), speed=100, segments=5)
+        forward = create_zigzag_pattern(width=30, height=15, velocity=100, segments=5)
 
         # Create a zigzag that moves left and down to return to start
         # We need to reverse both X and Y directions
-        backward = create_zigzag_pattern(dimensions=(-30, -15), speed=100, segments=5)
+        backward = create_zigzag_pattern(width=-30, height=-15, velocity=100, segments=5)
 
         # Combine forward and backward into a sequence, then repeat
         zigzag_cycle = sequence(forward, backward)
@@ -128,7 +128,9 @@ class PatternDemo(arcade.Window):
 
     def _create_figure8_demo(self, sprite: arcade.Sprite):
         """Create repeating figure-8 pattern."""
-        figure8 = create_figure_eight_pattern(center=(sprite.center_x, sprite.center_y), width=80, height=60, speed=100)
+        figure8 = create_figure_eight_pattern(
+            center=(sprite.center_x, sprite.center_y), width=80, height=60, velocity=100
+        )
         repeat(figure8).apply(sprite)
 
     def _create_orbit_demo(self, sprite: arcade.Sprite):
@@ -144,18 +146,18 @@ class PatternDemo(arcade.Window):
         sprite.center_y = start_y
 
         # Create orbit around the center point
-        orbit = create_orbit_pattern(center=orbit_center, radius=50, speed=100, clockwise=True)
+        orbit = create_orbit_pattern(center=orbit_center, radius=50, velocity=100, clockwise=True)
         repeat(orbit).apply(sprite)
 
     def _create_spiral_demo(self, sprite: arcade.Sprite):
         """Create spiral pattern that alternates between outward and inward."""
         # Create outward spiral
         outward = create_spiral_pattern(
-            center=(sprite.center_x, sprite.center_y), max_radius=60, revolutions=2, speed=80, direction="outward"
+            center=(sprite.center_x, sprite.center_y), max_radius=60, revolutions=2, velocity=80, direction="outward"
         )
         # Create inward spiral
         inward = create_spiral_pattern(
-            center=(sprite.center_x, sprite.center_y), max_radius=60, revolutions=2, speed=80, direction="inward"
+            center=(sprite.center_x, sprite.center_y), max_radius=60, revolutions=2, velocity=80, direction="inward"
         )
 
         # Combine into a sequence and repeat
@@ -163,25 +165,37 @@ class PatternDemo(arcade.Window):
         repeat(spiral_cycle).apply(sprite)
 
     def _create_bounce_demo(self, sprite: arcade.Sprite):
-        """Create bouncing pattern within a boundary box."""
-        # Define bounce bounds around the sprite's starting position
+        """Create bouncing pattern within a boundary box using edge-based bounds.
+
+        Ship sprite is 49.5x37.5 (half-width=24.75, half-height=18.75)
+        Original center-based: center ± 60 horizontal, ± 40 vertical
+        Edge-based: left = center-60-24.75, right = center+60+24.75
+                    bottom = center-40-18.75, top = center+40+18.75
+        """
+        # Edge-based bounds: sprite edges will reach these positions
         bounds = (
-            sprite.center_x - 60,  # left
-            sprite.center_y - 40,  # bottom
-            sprite.center_x + 60,  # right
-            sprite.center_y + 40,  # top
+            sprite.center_x - 84.75,  # left edge (center-60-24.75)
+            sprite.center_y - 58.75,  # bottom edge (center-40-18.75)
+            sprite.center_x + 84.75,  # right edge (center+60+24.75)
+            sprite.center_y + 58.75,  # top edge (center+40+18.75)
         )
 
         bounce = create_bounce_pattern(velocity=(2, 1), bounds=bounds)
         bounce.apply(sprite)
 
     def _create_patrol_demo(self, sprite: arcade.Sprite):
-        """Create repeating patrol pattern."""
-        start_pos = (sprite.center_x - 40, sprite.center_y)
-        end_pos = (sprite.center_x + 40, sprite.center_y)
-        quarter_patrol = create_patrol_pattern(start_pos, end_pos, speed=2, start_progress=0.75, end_progress=1.0)
-        full_patrol = create_patrol_pattern(start_pos, end_pos, speed=2)
-        sequence(quarter_patrol, repeat(full_patrol)).apply(sprite)
+        """Create repeating patrol pattern using edge-based bounds.
+
+        Ship sprite is 49.5x37.5 (half-width=24.75)
+        Original center-based: center ± 40
+        Edge-based: left = center-40-24.75 = center-64.75
+                    right = center+40+24.75 = center+64.75
+        """
+        # Edge-based bounds: sprite edges will reach these positions
+        bounds = (sprite.center_x - 64.75, 0.0, sprite.center_x + 64.75, 600.0)
+        velocity = (2.0, 0.0)  # 2 pixels per frame to the right
+        patrol = create_patrol_pattern(velocity, bounds)
+        patrol.apply(sprite)
 
     def on_draw(self):
         """Draw everything."""

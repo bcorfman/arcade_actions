@@ -13,6 +13,7 @@ import random
 import arcade
 
 from actions import Action, arrange_grid, center_window, move_until
+from actions.frame_timing import every_frames
 
 SPRITE_SCALING_PLAYER = 0.75
 SPRITE_SCALING_ENEMY = 0.75
@@ -147,6 +148,7 @@ class GameView(arcade.View):
         )
 
         self.start_enemy_movement()
+        self.start_enemy_firing()
 
     def start_enemy_movement(self):
         """Start efficient enemy movement"""
@@ -168,6 +170,32 @@ class GameView(arcade.View):
         self.enemy_move_action = move_until(
             self.enemy_list, velocity=velocity, condition=enemies_hit_boundary, on_stop=on_boundary_hit
         )
+
+    def start_enemy_firing(self):
+        """Start frame-based enemy firing using every_frames helper"""
+        from actions import CallbackUntil, infinite
+
+        # Use every_frames as the condition - it will call allow_enemies_to_fire every 60 frames
+        # and return False to keep the action running
+        firing_condition = every_frames(60, self.allow_enemies_to_fire)
+
+        # CallbackUntil with a dummy callback since the real work is done by the condition
+        firing_action = CallbackUntil(
+            callback=lambda: None,  # No-op callback
+            condition=infinite,  # Never stop
+        )
+        # Actually, we need to rethink this. Let's use a wrapper that checks frames
+
+        self._enemy_fire_frame_counter = 0
+
+        def fire_if_time():
+            self._enemy_fire_frame_counter += 1
+            if self._enemy_fire_frame_counter >= 60:
+                self._enemy_fire_frame_counter = 0
+                self.allow_enemies_to_fire()
+
+        firing_action = CallbackUntil(callback=fire_if_time, condition=infinite)
+        firing_action.apply(self.enemy_list, tag="enemy_firing")
 
     def reverse_enemy_direction(self):
         """Reverse enemy direction efficiently"""
@@ -300,7 +328,7 @@ class GameView(arcade.View):
         self.player_bullet_list.update(delta_time)
         self.enemy_bullet_list.update(delta_time)
 
-        self.allow_enemies_to_fire()
+        # Enemy firing is now handled by the frame-based CallbackUntil action
 
         # Check if enemies reached bottom
         if any(enemy.bottom < 100 for enemy in self.enemy_list):

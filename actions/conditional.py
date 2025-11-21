@@ -1,4 +1,3 @@
-import math
 from collections.abc import Callable
 from typing import Any
 
@@ -26,7 +25,10 @@ class MoveUntil(_Action):
         velocity: (dx, dy) velocity vector to apply to sprites
         condition: Function that returns truthy value when movement should stop, or None/False to continue
         on_stop: Optional callback called when condition is satisfied. Receives condition data if provided.
-        bounds: Optional (left, bottom, right, top) boundary box for bouncing/wrapping/limiting
+        bounds: Optional (left, bottom, right, top) boundary box using edge-based coordinates.
+            When a sprite's edge (left/right/bottom/top) reaches the corresponding bound,
+            the boundary behavior is triggered. For example, bounds=(0, 0, 800, 600) means
+            sprite.left hits 0, sprite.right hits 800, sprite.bottom hits 0, sprite.top hits 600.
         boundary_behavior: "bounce", "wrap", "limit", or None (default: None for no boundary checking)
         velocity_provider: Optional function returning (dx, dy) to dynamically provide velocity each frame
         on_boundary_enter: Optional callback(sprite, axis, side) called when sprite enters a boundary
@@ -61,6 +63,7 @@ class MoveUntil(_Action):
 
         # Track boundary state for enter/exit detection
         self._boundary_state = {}  # {sprite_id: {"x": side_or_None, "y": side_or_None}}
+        self._paused_velocity: tuple[float, float] | None = None
 
         # Duration tracking for simulation time compatibility
         self._elapsed = 0.0
@@ -71,6 +74,51 @@ class MoveUntil(_Action):
             f"velocity_provider={bool(self.velocity_provider)}",
             action="MoveUntil",
         )
+
+    def _snapshot_boundary_state(self) -> dict[int, dict[str, str | None]]:
+        if not self._boundary_state:
+            return {}
+        return {key: value.copy() for key, value in self._boundary_state.items()}
+
+    def _collect_target_sprite_ids(self) -> list[int]:
+        """Return a list of sprite identifiers associated with the current target."""
+        if self.target is None:
+            return []
+
+        sprite_ids: list[int] = []
+
+        try:
+            iterator = iter(self.target)  # type: ignore[arg-type]
+        except TypeError:
+            sprite_ids.append(id(self.target))
+            return sprite_ids
+
+        for sprite in iterator:
+            try:
+                sprite_ids.append(id(sprite))
+            except Exception:
+                continue
+
+        if not sprite_ids:
+            sprite_ids.append(id(self.target))
+        return sprite_ids
+
+    def _update_motion_snapshot(self, *, velocity: tuple[float, float]) -> None:
+        metadata: dict[str, Any] = {}
+        boundary_state = self._snapshot_boundary_state()
+        if boundary_state:
+            metadata["boundary_state"] = boundary_state
+        sprite_ids = self._collect_target_sprite_ids()
+        if sprite_ids:
+            metadata["sprite_ids"] = sprite_ids
+
+        kwargs: dict[str, Any] = {
+            "velocity": velocity,
+            "bounds": self.bounds,
+        }
+        if metadata:
+            kwargs["metadata"] = metadata
+        self._update_snapshot(**kwargs)
 
     def set_factor(self, factor: float) -> None:
         """Scale the velocity by the given factor.
@@ -96,6 +144,10 @@ class MoveUntil(_Action):
             action="MoveUntil",
         )
 
+        # Validate edge-based bounds against sprite dimensions
+        if self.bounds and self.boundary_behavior in ("bounce", "wrap", "limit"):
+            self._validate_bounds_for_sprite_dimensions()
+
         # Try to extract duration from explicit attribute if it's from duration() helper
         self._duration = None
         if hasattr(self.condition, "_duration_seconds"):
@@ -113,6 +165,7 @@ class MoveUntil(_Action):
                     f"apply_effect: id={id(self)}, velocity_provider returned {(dx, dy)}",
                     action="MoveUntil",
                 )
+                self.current_velocity = (dx, dy)
             except Exception as error:
                 _debug_log(
                     f"apply_effect: id={id(self)}, velocity_provider exception={error!r} - using current_velocity",
@@ -185,6 +238,7 @@ class MoveUntil(_Action):
                 _pa.set_velocity(sprite, (dx, dy))
 
         self.for_each_sprite(set_velocity)
+        self._update_motion_snapshot(velocity=self.current_velocity)
 
     def update_effect(self, delta_time: float) -> None:
         """Update movement and handle boundary checking if enabled."""
@@ -219,6 +273,7 @@ class MoveUntil(_Action):
                     f"update_effect: id={id(self)}, velocity_provider returned {(dx, dy)}",
                     action="MoveUntil",
                 )
+                self.current_velocity = (dx, dy)
 
                 # Apply velocity to all sprites (with boundary limits if needed)
                 def set_velocity(sprite):
@@ -290,17 +345,22 @@ class MoveUntil(_Action):
                     f"update_effect: id={id(self)}, velocity_provider exception={error!r} - keeping current velocity",
                     action="MoveUntil",
                 )
-                pass  # Keep current velocity on provider error
+                pass
 
-        # Check boundaries if configured - handle limiting proactively
-        # If a velocity_provider is present, boundary limiting and events
-        # are already handled in the provider path above.
-        if self.bounds and self.boundary_behavior and not self.velocity_provider:
-            _debug_log(
-                f"update_effect: id={id(self)}, applying boundary limits behavior={self.boundary_behavior}",
-                action="MoveUntil",
-            )
-            self._apply_boundary_limits()
+        # Check boundaries if configured
+        # For "limit" behavior with velocity_provider, boundaries are already handled above.
+        # For "bounce" and "wrap" behaviors, we need to check boundaries every frame.
+        if self.bounds and self.boundary_behavior:
+            # Skip boundary checking only if we have velocity_provider AND limit behavior
+            # (since limit behavior is handled in the velocity_provider path above)
+            if not (self.velocity_provider and self.boundary_behavior == "limit"):
+                _debug_log(
+                    f"update_effect: id={id(self)}, applying boundary limits behavior={self.boundary_behavior}",
+                    action="MoveUntil",
+                )
+                self._apply_boundary_limits()
+
+        self._update_motion_snapshot(velocity=self.current_velocity)
 
     def _apply_boundary_limits(self):
         """Apply boundary behavior and trigger events based on intended movement."""
@@ -323,24 +383,55 @@ class MoveUntil(_Action):
 
             current_state = self._boundary_state[sprite_id]
 
-            # For limit behavior, check if sprite would cross boundaries and clamp
+            # For limit behavior, check if sprite would cross boundaries and clamp using edge-based coordinates
             if self.boundary_behavior == "limit":
-                # Check horizontal movement
-                if sprite.change_x > 0 and sprite.center_x + sprite.change_x > right:
+                # First, clamp sprites that are already outside bounds
+                if sprite.left < left:
+                    sprite.left = left
+                    sprite.change_x = 0
+                    if current_state["x"] != "left":
+                        if self.on_boundary_enter:
+                            self._safe_call(self.on_boundary_enter, sprite, "x", "left")
+                        current_state["x"] = "left"
+                elif sprite.right > right:
+                    sprite.right = right
+                    sprite.change_x = 0
+                    if current_state["x"] != "right":
+                        if self.on_boundary_enter:
+                            self._safe_call(self.on_boundary_enter, sprite, "x", "right")
+                        current_state["x"] = "right"
+
+                if sprite.bottom < bottom:
+                    sprite.bottom = bottom
+                    sprite.change_y = 0
+                    if current_state["y"] != "bottom":
+                        if self.on_boundary_enter:
+                            self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
+                        current_state["y"] = "bottom"
+                elif sprite.top > top:
+                    sprite.top = top
+                    sprite.change_y = 0
+                    if current_state["y"] != "top":
+                        if self.on_boundary_enter:
+                            self._safe_call(self.on_boundary_enter, sprite, "y", "top")
+                        current_state["y"] = "top"
+
+                # Check horizontal movement using edge positions
+                if sprite.change_x > 0 and sprite.right + sprite.change_x > right:
                     # Would cross right boundary
                     if current_state["x"] != "right":
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "x", "right")
                         current_state["x"] = "right"
-                    sprite.center_x = right
+                    sprite.right = right
                     sprite.change_x = 0
-                elif sprite.change_x < 0 and sprite.center_x + sprite.change_x < left:
+                elif sprite.change_x < 0 and sprite.left + sprite.change_x < left:
                     # Would cross left boundary
                     if current_state["x"] != "left":
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "x", "left")
                         current_state["x"] = "left"
-                    sprite.center_x = left
+                    sprite.left = left
                     sprite.change_x = 0
                 elif current_state["x"] is not None:
                     # Was at boundary, now moving away
@@ -349,22 +440,22 @@ class MoveUntil(_Action):
                         self._safe_call(self.on_boundary_exit, sprite, "x", old_side)
                     current_state["x"] = None
 
-                # Check vertical movement
-                if sprite.change_y > 0 and sprite.center_y + sprite.change_y > top:
+                # Check vertical movement using edge positions
+                if sprite.change_y > 0 and sprite.top + sprite.change_y > top:
                     # Would cross top boundary
                     if current_state["y"] != "top":
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "y", "top")
                         current_state["y"] = "top"
-                    sprite.center_y = top
+                    sprite.top = top
                     sprite.change_y = 0
-                elif sprite.change_y < 0 and sprite.center_y + sprite.change_y < bottom:
+                elif sprite.change_y < 0 and sprite.bottom + sprite.change_y < bottom:
                     # Would cross bottom boundary
                     if current_state["y"] != "bottom":
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
                         current_state["y"] = "bottom"
-                    sprite.center_y = bottom
+                    sprite.bottom = bottom
                     sprite.change_y = 0
                 elif current_state["y"] is not None:
                     # Was at boundary, now moving away
@@ -378,8 +469,46 @@ class MoveUntil(_Action):
 
         self.for_each_sprite(apply_limits)
 
+    def _validate_bounds_for_sprite_dimensions(self) -> None:
+        """Validate that edge-based bounds are large enough for sprite dimensions.
+
+        With edge-based bounds, the patrol span must be larger than the sprite dimensions.
+        For horizontal movement, span must exceed sprite width.
+        For vertical movement, span must exceed sprite height.
+        """
+        if not self.bounds:
+            return
+
+        left, bottom, right, top = self.bounds
+        x_span = right - left
+        y_span = top - bottom
+
+        # Check first sprite to get dimensions
+        def check_sprite_dimensions(sprite):
+            # Check horizontal span
+            if x_span < 1e9 and x_span < sprite.width:  # 1e9 is the "infinite" bound marker
+                raise ValueError(
+                    f"Horizontal patrol span ({x_span:.1f}px) must be >= sprite width ({sprite.width:.1f}px) "
+                    f"for edge-based bounds. Bounds: left={left}, right={right}"
+                )
+            # Check vertical span
+            if y_span < 1e9 and y_span < sprite.height:
+                raise ValueError(
+                    f"Vertical patrol span ({y_span:.1f}px) must be >= sprite height ({sprite.height:.1f}px) "
+                    f"for edge-based bounds. Bounds: bottom={bottom}, top={top}"
+                )
+
+        # Only need to check one sprite since all sprites in a list should have same dimensions
+        if hasattr(self.target, "__iter__"):
+            # SpriteList - check first sprite
+            if len(self.target) > 0:
+                check_sprite_dimensions(self.target[0])
+        else:
+            # Single sprite
+            check_sprite_dimensions(self.target)
+
     def _check_boundaries(self, sprite) -> None:
-        """Check and handle boundary interactions for a single sprite."""
+        """Check and handle boundary interactions for a single sprite using edge-based coordinates."""
         if not self.bounds:
             return
 
@@ -392,18 +521,18 @@ class MoveUntil(_Action):
 
         current_state = self._boundary_state.setdefault(sprite_id, {"x": None, "y": None})
 
-        # Check each axis independently for enter/exit events
-        self._process_axis_boundary_events(sprite, sprite.center_x, left, right, "x", current_state)
-        self._process_axis_boundary_events(sprite, sprite.center_y, bottom, top, "y", current_state)
+        # Check each axis independently for enter/exit events using edge positions
+        self._process_axis_boundary_events(sprite, sprite.left, sprite.right, left, right, "x", current_state)
+        self._process_axis_boundary_events(sprite, sprite.bottom, sprite.top, bottom, top, "y", current_state)
 
-    def _process_axis_boundary_events(self, sprite, position, low_bound, high_bound, axis, current_state):
-        """Process boundary enter/exit events for a single axis."""
+    def _process_axis_boundary_events(self, sprite, low_edge, high_edge, low_bound, high_bound, axis, current_state):
+        """Process boundary enter/exit events for a single axis using edge positions."""
         current_side = None
 
-        # Determine which side we are on (if any)
-        if position <= low_bound:
+        # Determine which side we are on (if any) using edge positions
+        if low_edge <= low_bound:
             current_side = "left" if axis == "x" else "bottom"
-        elif position >= high_bound:
+        elif high_edge >= high_bound:
             current_side = "right" if axis == "x" else "top"
 
         previous_side = current_state[axis]
@@ -426,11 +555,17 @@ class MoveUntil(_Action):
         # Apply boundary behavior if touching boundary
         if current_side is not None:
             self._apply_boundary_behavior(
-                sprite, position, low_bound, high_bound, sprite.change_x if axis == "x" else sprite.change_y, axis
+                sprite,
+                low_edge,
+                high_edge,
+                low_bound,
+                high_bound,
+                sprite.change_x if axis == "x" else sprite.change_y,
+                axis,
             )
 
-    def _apply_boundary_behavior(self, sprite, position, low_bound, high_bound, velocity, axis):
-        """Apply the specific boundary behavior for an axis."""
+    def _apply_boundary_behavior(self, sprite, low_edge, high_edge, low_bound, high_bound, velocity, axis):
+        """Apply the specific boundary behavior for an axis using edge positions."""
         behavior_handlers = {
             "bounce": self._bounce_behavior,
             "wrap": self._wrap_behavior,
@@ -439,66 +574,70 @@ class MoveUntil(_Action):
 
         handler = behavior_handlers.get(self.boundary_behavior)
         if handler:
-            handler(sprite, position, low_bound, high_bound, velocity, axis)
+            handler(sprite, low_edge, high_edge, low_bound, high_bound, velocity, axis)
 
-    def _bounce_behavior(self, sprite, position, low_bound, high_bound, velocity, axis):
-        """Handle bounce boundary behavior."""
+    def _bounce_behavior(self, sprite, low_edge, high_edge, low_bound, high_bound, velocity, axis):
+        """Handle bounce boundary behavior using edge-based coordinates."""
         if axis == "x":
             sprite.change_x = -sprite.change_x
             self.current_velocity = (-self.current_velocity[0], self.current_velocity[1])
             self.target_velocity = (-self.target_velocity[0], self.target_velocity[1])
-            # Keep sprite in bounds
-            if sprite.center_x <= low_bound:
-                sprite.center_x = low_bound
-            elif sprite.center_x >= high_bound:
-                sprite.center_x = high_bound
+            # Keep sprite in bounds using edge positions
+            if low_edge <= low_bound:
+                sprite.left = low_bound
+            elif high_edge >= high_bound:
+                sprite.right = high_bound
         else:  # axis == "y"
             sprite.change_y = -sprite.change_y
             self.current_velocity = (self.current_velocity[0], -self.current_velocity[1])
             self.target_velocity = (self.target_velocity[0], -self.target_velocity[1])
-            # Keep sprite in bounds
-            if sprite.center_y <= low_bound:
-                sprite.center_y = low_bound
-            elif sprite.center_y >= high_bound:
-                sprite.center_y = high_bound
+            # Keep sprite in bounds using edge positions
+            if low_edge <= low_bound:
+                sprite.bottom = low_bound
+            elif high_edge >= high_bound:
+                sprite.top = high_bound
 
-    def _wrap_behavior(self, sprite, position, low_bound, high_bound, velocity, axis):
-        """Handle wrap boundary behavior."""
+    def _wrap_behavior(self, sprite, low_edge, high_edge, low_bound, high_bound, velocity, axis):
+        """Handle wrap boundary behavior using edge-based coordinates."""
         if axis == "x":
-            if sprite.center_x <= low_bound:
-                sprite.center_x = high_bound
-            elif sprite.center_x >= high_bound:
-                sprite.center_x = low_bound
+            # When left edge crosses left bound, wrap so right edge is at right bound
+            if low_edge <= low_bound:
+                sprite.right = high_bound
+            # When right edge crosses right bound, wrap so left edge is at left bound
+            elif high_edge >= high_bound:
+                sprite.left = low_bound
         else:  # axis == "y"
-            if sprite.center_y <= low_bound:
-                sprite.center_y = high_bound
-            elif sprite.center_y >= high_bound:
-                sprite.center_y = low_bound
+            # When bottom edge crosses bottom bound, wrap so top edge is at top bound
+            if low_edge <= low_bound:
+                sprite.top = high_bound
+            # When top edge crosses top bound, wrap so bottom edge is at bottom bound
+            elif high_edge >= high_bound:
+                sprite.bottom = low_bound
 
-    def _limit_behavior(self, sprite, position, low_bound, high_bound, velocity, axis):
-        """Handle limit boundary behavior."""
+    def _limit_behavior(self, sprite, low_edge, high_edge, low_bound, high_bound, velocity, axis):
+        """Handle limit boundary behavior using edge-based coordinates."""
         if axis == "x":
-            if position < low_bound:
-                sprite.center_x = low_bound
+            if low_edge < low_bound:
+                sprite.left = low_bound
                 sprite.change_x = 0
                 self.current_velocity = (0, self.current_velocity[1])
                 self.target_velocity = (0, self.target_velocity[1])
-            elif position > high_bound:
-                sprite.center_x = high_bound
+            elif high_edge > high_bound:
+                sprite.right = high_bound
                 sprite.change_x = 0
                 self.current_velocity = (0, self.current_velocity[1])
                 self.target_velocity = (0, self.target_velocity[1])
         else:  # axis == "y"
-            if position < low_bound:
-                sprite.center_y = low_bound
+            if low_edge < low_bound:
+                sprite.bottom = low_bound
                 sprite.change_y = 0
                 self.current_velocity = (self.current_velocity[0], 0)
-                self.target_velocity = (self.target_velocity[0], 0)
-            elif position > high_bound:
-                sprite.center_y = high_bound
+                self.target_velocity = (self.current_velocity[0], 0)
+            elif high_edge > high_bound:
+                sprite.top = high_bound
                 sprite.change_y = 0
                 self.current_velocity = (self.current_velocity[0], 0)
-                self.target_velocity = (self.target_velocity[0], 0)
+                self.target_velocity = (self.current_velocity[0], 0)
 
     def remove_effect(self) -> None:
         """Clear velocities and deactivate callbacks when the action finishes."""
@@ -515,6 +654,7 @@ class MoveUntil(_Action):
             sprite.change_y = 0
 
         self.for_each_sprite(clear_velocity)
+        self._update_motion_snapshot(velocity=(0.0, 0.0))
 
     def set_current_velocity(self, velocity: tuple[float, float]) -> None:
         """Allow external code to modify current velocity (for easing wrapper compatibility).
@@ -548,6 +688,7 @@ class MoveUntil(_Action):
 
         # Apply the new velocity to all sprites
         self.apply_effect()
+        self._update_motion_snapshot(velocity=self.current_velocity)
 
     def reset(self) -> None:
         """Reset velocity to original target velocity."""
@@ -571,6 +712,23 @@ class MoveUntil(_Action):
             self.on_boundary_enter,
             self.on_boundary_exit,
         )
+
+    def pause(self) -> None:
+        if self._paused:
+            return
+        self._paused_velocity = self.current_velocity
+        super().pause()
+        if not self.done:
+            self.set_current_velocity((0.0, 0.0))
+
+    def resume(self) -> None:
+        if not self._paused:
+            return
+        paused_velocity = self._paused_velocity
+        self._paused_velocity = None
+        super().resume()
+        if not self.done and paused_velocity is not None:
+            self.set_current_velocity(paused_velocity)
 
 
 class FollowPathUntil(_Action):
@@ -667,6 +825,7 @@ class FollowPathUntil(_Action):
         self._curve_progress = 0.0  # Progress along curve: 0.0 (start) to 1.0 (end)
         self._curve_length = 0.0  # Total length of the curve in pixels
         self._last_position = None  # Previous position for calculating movement delta
+        self._update_path_snapshot()
 
     def set_factor(self, factor: float) -> None:
         """Scale the path velocity by the given factor.
@@ -679,17 +838,21 @@ class FollowPathUntil(_Action):
 
     def _bezier_point(self, t: float) -> tuple[float, float]:
         """Calculate point on Bezier curve at parameter t (0-1)."""
+        from math import comb
+
         n = len(self.control_points) - 1
         x = y = 0
         for i, point in enumerate(self.control_points):
             # Binomial coefficient * (1-t)^(n-i) * t^i
-            coef = math.comb(n, i) * (1 - t) ** (n - i) * t**i
+            coef = comb(n, i) * (1 - t) ** (n - i) * t**i
             x += point[0] * coef
             y += point[1] * coef
         return (x, y)
 
     def _calculate_curve_length(self, samples: int = 100) -> float:
         """Approximate curve length by sampling points."""
+        from math import sqrt
+
         length = 0.0
         prev_point = self._bezier_point(0.0)
 
@@ -698,7 +861,7 @@ class FollowPathUntil(_Action):
             current_point = self._bezier_point(t)
             dx = current_point[0] - prev_point[0]
             dy = current_point[1] - prev_point[1]
-            length += math.sqrt(dx * dx + dy * dy)
+            length += sqrt(dx * dx + dy * dy)
             prev_point = current_point
 
         return length
@@ -719,10 +882,14 @@ class FollowPathUntil(_Action):
             sprite.center_y = start_point[1]
 
         self.for_each_sprite(snap_to_start)
+        self._update_path_snapshot()
 
     def update_effect(self, delta_time: float) -> None:
         """Update path following with constant velocity and optional rotation."""
+        from math import atan2, degrees, sqrt
+
         if self._curve_length <= 0:
+            self._update_path_snapshot()
             return
 
         # Calculate how far to move along curve based on velocity
@@ -757,7 +924,7 @@ class FollowPathUntil(_Action):
                 # effectively stationary for one frame; using such a vector for
                 # direction calculation causes a visible rotation jump.
                 if abs(dx) > 1e-6 or abs(dy) > 1e-6:
-                    direction_angle = math.degrees(math.atan2(dy, dx))
+                    direction_angle = degrees(atan2(dy, dx))
                     movement_angle = direction_angle + self.rotation_offset
                     self._prev_movement_angle = movement_angle
                 else:
@@ -771,7 +938,7 @@ class FollowPathUntil(_Action):
                     current_pos = (sprite.center_x, sprite.center_y)
 
                     # Compute desired velocity toward next point on curve
-                    direction_length = math.sqrt(dx * dx + dy * dy)
+                    direction_length = sqrt(dx * dx + dy * dy)
                     if direction_length > 1e-6:
                         desired_vx = (dx / direction_length) * self.current_velocity
                         desired_vy = (dy / direction_length) * self.current_velocity
@@ -818,6 +985,7 @@ class FollowPathUntil(_Action):
                 self.for_each_sprite(apply_movement)
 
         self._last_position = current_point
+        self._update_path_snapshot()
 
         # Check if we've reached the end of the path
         if self._curve_progress >= 1.0:
@@ -843,6 +1011,7 @@ class FollowPathUntil(_Action):
             sprite.center_y = end_point[1]
 
         self.for_each_sprite(snap_to_end)
+        self._update_path_snapshot()
 
     def clone(self) -> "FollowPathUntil":
         """Create a copy of this FollowPathUntil action with all parameters preserved."""
@@ -856,6 +1025,10 @@ class FollowPathUntil(_Action):
             self.use_physics,
             self.steering_gain,
         )
+
+    def _update_path_snapshot(self) -> None:
+        metadata = {"path_points": self.control_points, "curve_progress": self._curve_progress}
+        self._update_snapshot(velocity=(self.current_velocity, 0.0), metadata=metadata)
 
 
 class RotateUntil(_Action):
@@ -1024,7 +1197,7 @@ class BlinkUntil(_Action):
     """Blink sprites (toggle visibility) until a condition is satisfied.
 
     Args:
-        seconds_until_change: Seconds to wait before toggling visibility
+        frames_until_change: Number of frames to wait before toggling visibility
         condition: Function that returns truthy value when blinking should stop
         on_stop: Optional callback called when condition is satisfied
         on_blink_enter: Optional callback(sprite) when visibility toggles to True
@@ -1033,19 +1206,19 @@ class BlinkUntil(_Action):
 
     def __init__(
         self,
-        seconds_until_change: float,
+        frames_until_change: int,
         condition: Callable[[], Any],
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
         on_blink_enter: Callable[[Any], None] | None = None,
         on_blink_exit: Callable[[Any], None] | None = None,
     ):
-        if seconds_until_change <= 0:
-            raise ValueError("seconds_until_change must be positive")
+        if frames_until_change <= 0:
+            raise ValueError("frames_until_change must be positive")
 
         super().__init__(condition, on_stop)
-        self.target_seconds_until_change = seconds_until_change  # Immutable target rate
-        self.current_seconds_until_change = seconds_until_change  # Current rate (can be scaled)
-        self._blink_elapsed = 0.0
+        self.target_frames_until_change = frames_until_change  # Immutable target rate
+        self.current_frames_until_change = frames_until_change  # Current rate (can be scaled)
+        self._frames_elapsed = 0
         self._original_visibility = {}
         self._last_visible: dict[int, bool] = {}
 
@@ -1055,7 +1228,7 @@ class BlinkUntil(_Action):
     def set_factor(self, factor: float) -> None:
         """Scale the blink rate by the given factor.
 
-        Factor affects the time between blinks - higher factor = faster blinking.
+        Factor affects the frames between blinks - higher factor = faster blinking.
         A factor of 0.0 stops blinking (sprites stay in current visibility state).
 
         Args:
@@ -1063,10 +1236,10 @@ class BlinkUntil(_Action):
         """
         if factor <= 0:
             # Stop blinking - set to a very large value
-            self.current_seconds_until_change = float("inf")
+            self.current_frames_until_change = 999999
         else:
-            # Faster factor = shorter time between changes
-            self.current_seconds_until_change = self.target_seconds_until_change / factor
+            # Faster factor = fewer frames between changes
+            self.current_frames_until_change = max(1, int(self.target_frames_until_change / factor))
 
     def apply_effect(self) -> None:
         """Store original visibility for all sprites."""
@@ -1093,9 +1266,9 @@ class BlinkUntil(_Action):
 
     def update_effect(self, delta_time: float) -> None:
         """Apply blinking effect based on the configured interval."""
-        self._blink_elapsed += delta_time
+        self._frames_elapsed += 1
         # Determine how many intervals have passed to know whether we should show or hide.
-        cycles = int(self._blink_elapsed / self.current_seconds_until_change)
+        cycles = int(self._frames_elapsed / self.current_frames_until_change)
 
         # Track if any sprites changed visibility this frame
         any_entered = False
@@ -1135,12 +1308,12 @@ class BlinkUntil(_Action):
 
     def reset(self) -> None:
         """Reset blinking rate to original target rate."""
-        self.current_seconds_until_change = self.target_seconds_until_change
+        self.current_frames_until_change = self.target_frames_until_change
 
     def clone(self) -> "BlinkUntil":
         """Create a copy of this action."""
         return BlinkUntil(
-            self.target_seconds_until_change,
+            self.target_frames_until_change,
             _clone_condition(self.condition),
             self.on_stop,
             on_blink_enter=self.on_blink_enter,
@@ -1261,8 +1434,8 @@ class TweenUntil(_Action):
         self.end_value = end_value
         self.property_name = property_name
         self.ease_function = ease_function or (lambda t: t)
-        self._duration = None
-        self._tween_elapsed = 0.0
+        self._frame_duration = None
+        self._frames_elapsed = 0
         self._completed_naturally = False  # Track if action completed vs was stopped
 
     def update(self, delta_time: float) -> None:
@@ -1304,27 +1477,27 @@ class TweenUntil(_Action):
         self._factor = factor
 
     def apply_effect(self):
-        # Extract duration from explicit attribute
-        duration_val = 1.0
-        if hasattr(self.condition, "_duration_seconds"):
-            seconds = self.condition._duration_seconds
-            if isinstance(seconds, (int, float)):
-                duration_val = seconds
+        # Extract frame count from explicit attribute
+        frame_count = 60  # Default: 1 second at 60 FPS
+        if hasattr(self.condition, "_frame_count"):
+            frames = self.condition._frame_count
+            if isinstance(frames, int):
+                frame_count = frames
 
         # An explicitly set duration should override the one from the condition.
-        if self._duration is not None:
-            duration_val = self._duration
+        if self._frame_duration is not None:
+            frame_count = self._frame_duration
 
-        self._duration = duration_val
-        if self._duration < 0:
-            raise ValueError("Duration must be non-negative")
+        self._frame_duration = frame_count
+        if self._frame_duration < 0:
+            raise ValueError("Frame duration must be non-negative")
 
         # Define a helper to set the initial value.
         def set_initial_value(sprite):
             """Set the initial value of the property on a single sprite."""
             setattr(sprite, self.property_name, self.start_value)
 
-        if self._duration == 0:
+        if self._frame_duration == 0:
             # If duration is zero, immediately set to the end value.
             self.for_each_sprite(lambda sprite: setattr(sprite, self.property_name, self.end_value))
             self.done = True
@@ -1334,17 +1507,17 @@ class TweenUntil(_Action):
 
         # For positive duration, set the initial value on all sprites.
         self.for_each_sprite(set_initial_value)
-        self._tween_elapsed = 0.0
+        self._frames_elapsed = 0
 
     def update_effect(self, delta_time: float):
         if self.done:
             return
 
-        # Update elapsed time with factor applied
-        self._tween_elapsed += delta_time * self._factor
+        # Update elapsed frames with factor applied
+        self._frames_elapsed += self._factor
 
         # Calculate progress (0 to 1)
-        t = min(self._tween_elapsed / self._duration, 1.0)
+        t = min(self._frames_elapsed / self._frame_duration, 1.0)
         eased_t = self.ease_function(t)
 
         # Calculate current value
@@ -1371,7 +1544,7 @@ class TweenUntil(_Action):
         If the action was stopped prematurely, reset to start value.
         """
         # Check if tween reached its natural end, even if condition was met first
-        reached_natural_end = self._duration is not None and self._tween_elapsed >= self._duration
+        reached_natural_end = self._frame_duration is not None and self._frames_elapsed >= self._frame_duration
 
         if not self._completed_naturally and not reached_natural_end:
             # Action was stopped before completion - reset to start value
@@ -1380,8 +1553,8 @@ class TweenUntil(_Action):
 
     def reset(self) -> None:
         """Reset the action to its initial state."""
-        self._tween_elapsed = 0.0
-        self._duration = None
+        self._frames_elapsed = 0
+        self._frame_duration = None
         self._completed_naturally = False
 
     def clone(self) -> "TweenUntil":
@@ -1702,8 +1875,14 @@ class ParametricMotionUntil(_Action):
         self.for_each_sprite(capture_origin)
 
         if self._duration is None:
-            # Try to extract duration from explicit attribute if it's from duration() helper
-            if hasattr(self.condition, "_duration_seconds"):
+            # Try to extract duration from frame-based condition (after_frames)
+            if hasattr(self.condition, "_frame_count"):
+                frame_count = self.condition._frame_count
+                if isinstance(frame_count, int) and frame_count > 0:
+                    # Convert frames to seconds at 60 FPS for internal progress calculation
+                    self._duration = frame_count / 60.0
+            # Try to extract duration from explicit attribute if it's from duration() helper (legacy)
+            elif hasattr(self.condition, "_duration_seconds"):
                 seconds = self.condition._duration_seconds
                 if isinstance(seconds, (int, float)) and seconds > 0:
                     self._duration = seconds
@@ -1716,6 +1895,8 @@ class ParametricMotionUntil(_Action):
         self._prev_offset = self._offset_fn(0.0)
 
     def update_effect(self, delta_time: float) -> None:  # noqa: D401
+        from math import hypot, degrees, atan2
+
         self._elapsed += delta_time * self._factor
         progress = min(1.0, self._elapsed / self._duration) if self._duration > 0 else 1.0
 
@@ -1735,7 +1916,7 @@ class ParametricMotionUntil(_Action):
             if self._debug:
                 import time as _t
 
-                jump_mag = math.hypot(movement_dx, movement_dy)
+                jump_mag = hypot(movement_dx, movement_dy)
                 if jump_mag > self._debug_threshold:
                     stamp = f"{_t.time():.3f}"
                     print(
@@ -1744,7 +1925,7 @@ class ParametricMotionUntil(_Action):
                     )
             # Only calculate angle if there's significant movement
             if abs(movement_dx) > 1e-6 or abs(movement_dy) > 1e-6:
-                angle = math.degrees(math.atan2(movement_dy, movement_dx))
+                angle = degrees(atan2(movement_dy, movement_dx))
                 sprite_angle = angle + self.rotation_offset
 
         # Apply movement and rotation
@@ -1831,12 +2012,12 @@ class CycleTexturesUntil(_Action):
     """Continuously cycle through a list of textures until a condition is met.
 
     This action animates sprite textures by cycling through a provided list at a
-    specified frame rate. The cycling can go forward or backward, and the action
+    specified frame interval. The cycling can go forward or backward, and the action
     runs until the specified condition is satisfied.
 
     Args:
         textures: List of arcade.Texture objects to cycle through
-        frames_per_second: How many texture indices to advance per second
+        frames_per_texture: Number of frames to display each texture
         direction: Direction of cycling (1 for forward, -1 for backward)
         condition: Function that returns truthy value when cycling should stop
         on_stop: Optional callback called when condition is satisfied
@@ -1845,7 +2026,7 @@ class CycleTexturesUntil(_Action):
     def __init__(
         self,
         textures: list,
-        frames_per_second: float = 60.0,
+        frames_per_texture: int = 1,
         direction: int = 1,
         condition: _Callable[[], _Any] = infinite,
         on_stop: _Callable[[_Any], None] | _Callable[[], None] | None = None,
@@ -1854,46 +2035,22 @@ class CycleTexturesUntil(_Action):
             raise ValueError("textures list cannot be empty")
         if direction not in (1, -1):
             raise ValueError("direction must be 1 or -1")
+        if frames_per_texture < 1:
+            raise ValueError("frames_per_texture must be at least 1")
 
         super().__init__(condition, on_stop)
         self._textures = textures
-        self._fps = frames_per_second * direction
+        self._frames_per_texture = frames_per_texture
         self._direction = direction
         self._count = len(textures)
-        self._cursor = 0.0  # Fractional texture index
-
-        # Duration tracking for simulation time
-        self._elapsed = 0.0
-        self._duration: float | None = None
-
-        # Try to extract duration from explicit attribute if it's from duration() helper
-        if hasattr(condition, "_duration_seconds"):
-            seconds = condition._duration_seconds
-            if isinstance(seconds, (int, float)) and seconds >= 0:
-                self._duration = float(seconds)
-
-                def _sim_condition() -> bool:
-                    return self._elapsed >= (self._duration or 0.0) - 1e-9
-
-                # Preserve attributes so cloning and tools can still introspect
-                _sim_condition._is_duration_condition = True
-                _sim_condition._original_condition = condition
-                _sim_condition._duration_seconds = self._duration
-
-                # Replace the condition with simulation-time version
-                self.condition = _sim_condition
+        self._current_texture_index = 0
+        self._frames_on_current_texture = 0
 
     def apply_effect(self) -> None:
         """Initialize textures on the target sprite(s)."""
-        # Reset timing state
-        self._elapsed = 0.0
-
-        # Try duration extraction again in case condition wasn't extractable during __init__
-        if self._duration is None:
-            if hasattr(self.condition, "_duration_seconds"):
-                seconds = self.condition._duration_seconds
-                if isinstance(seconds, (int, float)) and seconds >= 0:
-                    self._duration = float(seconds)
+        # Reset state
+        self._current_texture_index = 0
+        self._frames_on_current_texture = 0
 
         def set_initial_texture(sprite):
             sprite.textures = self._textures
@@ -1901,31 +2058,26 @@ class CycleTexturesUntil(_Action):
 
         self.for_each_sprite(set_initial_texture)
 
-        # Check for immediate completion (zero duration)
-        if self._duration is not None and self._duration <= 0.0:
-            self.done = True
-
     def update_effect(self, dt: float) -> None:
         """Update texture cycling."""
-        # Update simulation time (respects factor scaling)
-        scaled_dt = dt * self._factor
-        self._elapsed += scaled_dt
+        # Check if it's time to advance to next texture
+        # We check BEFORE incrementing so that:
+        # - frames_per_texture=3 means: frame 0,1,2 show texture 0, then frame 3,4,5 show texture 1
+        if self._frames_on_current_texture >= self._frames_per_texture:
+            # Advance to next texture
+            self._current_texture_index = (self._current_texture_index + self._direction) % self._count
+            self._frames_on_current_texture = 0
 
-        # Advance cursor by frame rate * scaled delta time
-        self._cursor = (self._cursor + self._fps * scaled_dt) % self._count
+            # Apply new texture
+            current_texture = self._textures[self._current_texture_index]
 
-        # Get current texture index (floor of cursor)
-        texture_index = int(math.floor(self._cursor)) % self._count
-        current_texture = self._textures[texture_index]
+            def set_texture(sprite):
+                sprite.texture = current_texture
 
-        def set_texture(sprite):
-            sprite.texture = current_texture
+            self.for_each_sprite(set_texture)
 
-        self.for_each_sprite(set_texture)
-
-        # Check for duration completion
-        if self._duration is not None and self._elapsed >= self._duration - 1e-9:
-            self.done = True
+        # Increment frame counter AFTER checking/switching
+        self._frames_on_current_texture += 1
 
     def set_factor(self, factor: float) -> None:
         """Scale both texture cycling speed and duration timing by the given factor.
@@ -1945,14 +2097,11 @@ class CycleTexturesUntil(_Action):
         """Create a copy of this action."""
         cloned = CycleTexturesUntil(
             textures=self._textures,
-            frames_per_second=abs(self._fps),  # Remove direction factor
+            frames_per_texture=self._frames_per_texture,
             direction=self._direction,
             condition=self.condition,
             on_stop=self.on_stop,
         )
-        # Preserve duration state if it was manually set
-        if hasattr(self, "_duration"):
-            cloned._duration = self._duration
         return cloned
 
 

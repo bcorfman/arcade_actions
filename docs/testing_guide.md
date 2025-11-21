@@ -12,6 +12,7 @@ The test suite uses pytest fixtures defined in `conftest.py`:
 ```python
 import pytest
 from actions import Action
+from actions.frame_timing import after_frames
 
 class ActionTestBase:
     """Base class for action tests with common setup and teardown."""
@@ -19,6 +20,7 @@ class ActionTestBase:
     def teardown_method(self):
         """Clean up after each test."""
         Action.stop_all()
+        Action._frame_counter = 0  # Keep global frame timer deterministic
 
 @pytest.fixture
 def test_sprite() -> arcade.Sprite:
@@ -44,7 +46,8 @@ def test_sprite_list() -> arcade.SpriteList:
 Test basic action functionality using the global action update system:
 
 ```python
-from actions import Action, move_until, rotate_until, duration, infinite
+from actions import Action, move_until, rotate_until, infinite
+from actions.frame_timing import after_frames
 
 class TestMoveUntil(ActionTestBase):
     """Test suite for MoveUntil action."""
@@ -220,6 +223,105 @@ class TestParallelFunction:
         assert len(par.sub_actions) == 2
         assert all(action._is_active for action in par.sub_actions)
 ```
+
+## Testing Axis-Specific Movement Actions
+
+When testing `MoveXUntil` and `MoveYUntil`, it's critical to verify that each action only affects its designated axis and that boundary behaviors work independently:
+
+```python
+from actions import Action, MoveXUntil, MoveYUntil, parallel, infinite
+
+class TestAxisBoundaryBehaviors:
+    """Test boundary behaviors for axis-specific actions."""
+    
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+    
+    def test_move_x_until_bounce_behavior(self):
+        """Test that MoveXUntil correctly bounces off X-axis boundaries."""
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 300
+        
+        action = MoveXUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=(0, 0, 200, 600),
+            boundary_behavior="bounce",
+        )
+        action.apply(sprite)
+        
+        # Move right towards boundary
+        for _ in range(25):
+            Action.update_all(1/60)
+        
+        # Should have bounced and be moving left
+        assert sprite.change_x < 0
+        assert 0 < sprite.center_x <= 200
+    
+    def test_move_x_until_preserves_y_velocity(self):
+        """Test that MoveXUntil with bounce doesn't affect Y velocity."""
+        sprite = arcade.Sprite()
+        sprite.center_x = 180
+        sprite.center_y = 300
+        sprite.change_y = 3  # Pre-existing Y velocity
+        
+        action = MoveXUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=(0, 0, 200, 600),
+            boundary_behavior="bounce",
+        )
+        action.apply(sprite)
+        
+        # Move and bounce
+        for _ in range(30):
+            Action.update_all(1/60)
+        
+        # Y velocity should be preserved
+        assert sprite.change_y == 3
+    
+    def test_composed_bounce_behavior(self):
+        """Test independent boundary handling in parallel composition."""
+        sprite = arcade.Sprite()
+        sprite.center_x = 180
+        sprite.center_y = 180
+        
+        x_action = MoveXUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=(0, 0, 200, 200),
+            boundary_behavior="bounce",
+        )
+        
+        y_action = MoveYUntil(
+            velocity=(0, 3),
+            condition=infinite,
+            bounds=(0, 0, 200, 200),
+            boundary_behavior="bounce",
+        )
+        
+        composed = parallel(x_action, y_action)
+        composed.apply(sprite)
+        
+        # Run for several bounces
+        for _ in range(100):
+            Action.update_all(1/60)
+        
+        # Both axes should bounce independently
+        assert 0 <= sprite.center_x <= 200
+        assert 0 <= sprite.center_y <= 200
+        assert sprite.change_x != 0
+        assert sprite.change_y != 0
+```
+
+**Key Testing Points for Axis-Specific Actions:**
+- Test all boundary behaviors: "bounce", "wrap", "limit"
+- Verify that each action only affects its designated axis
+- Test composition with `parallel()` to ensure independent boundary handling
+- Verify that boundary callbacks only trigger for the correct axis
+- Confirm that pre-existing velocities on the non-affected axis are preserved
 
 ## Testing Boundary Interactions
 

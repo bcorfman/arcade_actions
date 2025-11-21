@@ -4,7 +4,18 @@
 
 ArcadeActions provides a conditional action system that works directly with Arcade's native sprites and sprite lists. The framework uses **condition-based actions** rather than duration-based ones, enabling more flexible and declarative game behaviors.
 
-## Recommended Usage Patterns
+## Frame-Driven Timing Model
+
+ArcadeActions is fully **frame-driven**. Every action measures time in *frames*, not seconds, and `Action.update_all()` is the only metronome. Key takeaways:
+
+- `Action.current_frame()` returns the global frame counter (starts at 0 and only increments when actions are active).
+- Use helpers from `actions.frame_timing` to express intent:
+  - `after_frames(n)` – condition becomes true after `n` frames elapse.
+  - `every_frames(n, callback)` – run a callback on every `n`th frame.
+  - `within_frames(start, end)` – windowed conditions.
+  - `seconds_to_frames(seconds)` / `frames_to_seconds(frames)` – explicit conversions when you must express real time.
+- All “duration”/“seconds” parameters were removed. Replace them with frame counts to keep debugger pause/step (F6/F7) deterministic.
+- Velocity semantics remain **pixels per frame at 60 FPS** (Arcade defaults), so no API changes on that front.
 
 ### Display Utilities
 
@@ -15,12 +26,13 @@ ArcadeActions provides a conditional action system that works directly with Arca
 Helper functions like `move_until`, `rotate_until`, and `follow_path_until` are designed for simple, immediate application to sprites:
 
 ```python
-from actions import move_until, rotate_until, cycle_textures_until, duration
+from actions import move_until, rotate_until, cycle_textures_until
+from actions.frame_timing import after_frames
 
 # Simple, immediate actions - this is what helper functions are for
 move_until(player_sprite, velocity=(5, 0), condition=lambda: player_sprite.center_x > 800)
-rotate_until(enemy_swarm, velocity=1.5, condition=duration(5.0))
-cycle_textures_until(power_up_sprite, textures=power_up_textures, frames_per_second=30.0)
+rotate_until(enemy_swarm, velocity=1.5, condition=after_frames(300))  # 5 seconds @ 60 FPS
+cycle_textures_until(power_up_sprite, textures=power_up_textures, frames_per_texture=2)
 ```
 
 ### Pattern 2: Direct Classes with sequence() for Complex Compositions
@@ -28,15 +40,16 @@ cycle_textures_until(power_up_sprite, textures=power_up_textures, frames_per_sec
 For complex, multi-step sequences, use direct action classes with the `sequence()` and `parallel()` functions:
 
 ```python
-from actions import Action, DelayUntil, FadeUntil, MoveUntil, RotateUntil, duration, sequence, parallel
+from actions import Action, DelayUntil, FadeUntil, MoveUntil, RotateUntil, sequence, parallel
+from actions.frame_timing import after_frames
 
 # Complex sequences - use direct classes
 complex_behavior = sequence(
-    DelayUntil(duration(1.0)),
-    MoveUntil(velocity=(100, 0), condition=duration(2.0)),
+    DelayUntil(condition=after_frames(60)),
+    MoveUntil(velocity=(100, 0), condition=after_frames(120)),
     parallel(
-        RotateUntil(angular_velocity=180, condition=duration(1.0)),
-        FadeUntil(fade_velocity=-50, condition=duration(1.5))
+        RotateUntil(angular_velocity=180, condition=after_frames(60)),
+        FadeUntil(fade_velocity=-50, condition=after_frames(90))
     )
 )
 complex_behavior.apply(sprite, tag="complex_movement")
@@ -153,7 +166,8 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **Repeat actions** - Repeat an action indefinitely (use `repeat()`)
 
 #### Boundary Handling (actions/conditional.py)
-- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
+- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors using edge-based coordinates.
+  Bounds are specified as (left, bottom, right, top) where sprite edges (not centers) interact with boundaries.
 
 #### Formation Management (actions/formation.py)
 - **Formation functions** - Grid, line, circle, diamond, V-formation, triangle, hexagonal grid, arc, concentric rings, cross, and arrow positioning patterns
@@ -461,9 +475,14 @@ backward_wave = create_wave_pattern(
 repeating_wave = repeat(sequence(forward_wave, backward_wave))
 repeating_wave.apply(enemy_sprite)
 
-# Guard with patrol pattern
+# Guard with patrol pattern using edge-based bounds
+# For a 128px wide sprite patrolling horizontally:
+# - Left edge at x=36 (center would be at x=100)
+# - Right edge at x=564 (center would be at x=500)
+# - Sprite center travels 400px (564-36-128 = 400)
 patrol_movement = create_patrol_pattern(
-    start_pos=(100, 200), end_pos=(500, 200), speed=80
+    velocity=(2, 0),  # 2 pixels per frame horizontally
+    bounds=(36, 0, 564, 600)  # left, bottom, right, top (edge positions)
 )
 patrol_movement.apply(guard_sprite)
 ```
@@ -512,7 +531,8 @@ follow_path_until(
 For animating sprites by cycling through textures at specified frame rates:
 
 ```python
-from actions import cycle_textures_until, infinite, duration
+from actions import cycle_textures_until, infinite
+from actions.frame_timing import after_frames
 
 # Create a list of textures for animation
 texture_list = []
@@ -524,7 +544,7 @@ for i in range(8):
 cycle_textures_until(
     player_sprite,
     textures=texture_list,
-    frames_per_second=12.0,  # 12 frames per second animation
+    frames_per_texture=5,  # change every 5 frames (~12 FPS)
     condition=infinite
 )
 
@@ -532,8 +552,8 @@ cycle_textures_until(
 cycle_textures_until(
     power_up_sprite,
     textures=power_up_textures,
-    frames_per_second=30.0,
-    condition=duration(3.0),  # Animate for 3 seconds - uses simulation time
+    frames_per_texture=2,
+    condition=after_frames(180),  # Animate for 3 seconds at 60 FPS
     direction=1,  # Forward animation
     tag="power_up_animation"
 )
@@ -577,31 +597,33 @@ animation_sequence.apply(machinery_sprite, tag="machinery_startup")
 ```
 
 **Key Features:**
-- **Frame Rate Control**: Specify exactly how many texture changes per second
+- **Frame pacing**: Specify exactly how many frames each texture stays on-screen via `frames_per_texture`
 - **Direction Control**: Cycle forward (1) or backward (-1) through texture list
 - **Condition-Based**: Stop cycling when any condition is met
-- **Simulation Time Support**: `duration()` conditions use consistent timing independent of frame rate
-- **Factor Scaling**: Use `set_factor()` to speed up/slow down both animation and duration timing
+- **Frame Helpers**: Pair with `after_frames()`/`within_frames()` for deterministic timing
+- **Factor Scaling**: Use `set_factor()` to speed up/slow down animation (lower factor = longer per texture)
 - **Automatic Wrapping**: Seamlessly loops through texture list
 - **Works with Groups**: Apply same animation to entire sprite lists
 
 **Duration and Timing:**
-`CycleTexturesUntil` supports simulation time for consistent behavior:
+`CycleTexturesUntil` timing is entirely frame-based:
 
 ```python
-# Duration conditions use simulation time (frame-rate independent)
+from actions.frame_timing import after_frames
+
+# Deterministic animation length
 cycle_textures_until(
     sprite, 
     textures=animation_frames, 
-    frames_per_second=24.0,
-    condition=duration(3.0)  # Exactly 3 seconds, regardless of FPS
+    frames_per_texture=3,
+    condition=after_frames(180)  # 3 seconds @ 60 FPS
 )
 
-# Factor scaling affects both animation speed and duration
-action = cycle_textures_until(sprite, textures=frames, condition=duration(2.0))
-action.set_factor(2.0)  # 2x speed: animation plays faster AND completes in 1 second
-action.set_factor(0.5)  # Half speed: animation plays slower AND takes 4 seconds
-action.set_factor(0.0)  # Paused: both animation and duration timing stop
+# Factor scaling adjusts both animation speed and completion timing
+action = cycle_textures_until(sprite, textures=frames, condition=after_frames(120))
+action.set_factor(2.0)  # 2x speed: animation advances twice as fast, finishes in 60 frames
+action.set_factor(0.5)  # Half speed: animation advances every other frame, finishes in 240 frames
+action.set_factor(0.0)  # Paused: animation and frame counting stop
 ```
 
 **Common Use Cases:**
@@ -613,16 +635,17 @@ action.set_factor(0.0)  # Paused: both animation and duration timing stop
 - Particle-like effects
 
 ### Pattern 7.1: Visibility Blinking with Callbacks
-For sprite blinking effects with collision detection management:
+For sprite blinking effects with collision detection management. **Note:** `BlinkUntil` accepts `frames_until_change` (frame count between toggles). Use `seconds_to_frames()` if you need wall-clock conversions.
 
 ```python
-from actions import blink_until, infinite, duration
+from actions import blink_until, infinite
+from actions.frame_timing import after_frames
 
 # Basic blinking without callbacks
 blink_until(
     invulnerable_player,
-    seconds_until_change=0.25,  # Blink every 0.25 seconds
-    condition=duration(3.0),    # Blink for 3 seconds total
+    frames_until_change=15,      # Blink every 15 frames (~0.25s @ 60 FPS)
+    condition=after_frames(180), # Blink for 3 seconds total
     tag="invulnerability"
 )
 
@@ -966,7 +989,7 @@ def on_update(self, delta_time):
 **Complete Example:** See `examples/pymunk_demo_platformer.py` for a full implementation showing all these patterns working together.
 
 ### Pattern 9: Boundary Interactions
-For arcade-style movement with boundary detection:
+For arcade-style movement with boundary detection using edge-based bounds:
 
 ```python
 from actions import duration, infinite, move_until
@@ -978,7 +1001,9 @@ def on_bounce_enter(sprite, axis, side):
 def on_bounce_exit(sprite, axis, side):
     print(f"Sprite left {side} {axis} boundary")
 
-bounds = (0, 0, 800, 600)  # left, bottom, right, top
+# Edge-based bounds: sprite edges (not center) will touch these positions
+# For window bounds, use (0, 0, width, height) - sprite edges touch window edges
+bounds = (0, 0, 800, 600)  # left, bottom, right, top (edge positions)
 move_until(
     sprite,
     velocity=(100, 50),
@@ -1492,7 +1517,7 @@ class SpaceInvadersGame(arcade.Window):
         )
         initial_sequence.apply(self.enemies, tag="initial_movement")
         
-        # Set up boundary bouncing using new edge-triggered callbacks
+        # Set up boundary bouncing using edge-triggered callbacks
         def on_formation_bounce_enter(sprite, axis, side):
             # Move formation down and reverse direction when hitting side boundaries
             if axis == 'x':
@@ -1532,13 +1557,17 @@ complex_behavior.apply(sprite)
 # (delay_until(sprite, duration(1.0)) + move_until(sprite, (100, 0), duration(2.0)))
 ```
 
-### 2. Prefer Conditions Over Durations
+### 2. Prefer Declarative Conditions (or Frame Helpers)
 ```python
 # Good: Condition-based
 move_until(sprite, velocity=(100, 0), condition=lambda: sprite.center_x > 700)
 
-# Avoid: Duration-based thinking
-# move_for_time = MoveBy((500, 0), 5.0)  # Old paradigm
+# Also Good: Explicit frame helpers
+from actions.frame_timing import after_frames
+rotate_until(sprite, angular_velocity=2.5, condition=after_frames(180))
+
+# Avoid: Wall-clock assumptions
+# move_for_time = MoveBy((500, 0), 5.0)  # Old paradigm ties to real-time seconds
 ```
 
 ### 3. Use Formation Functions for Positioning
@@ -1845,7 +1874,7 @@ bob = move_y_until(
 
 ### Axis-Aware Pattern Factories
 
-Pattern factories now support an `axis` parameter for creating axis-specific patterns:
+Pattern factories support an `axis` parameter for creating axis-specific patterns:
 
 ```python
 from actions import create_bounce_pattern, create_patrol_pattern
@@ -1859,9 +1888,8 @@ bounce_x = create_bounce_pattern(
 
 # Y-axis only patrol
 patrol_y = create_patrol_pattern(
-    start_pos=(100, 200),
-    end_pos=(100, 400),  # Vertical patrol
-    speed=120,
+    velocity=(0, 2),  # 2 pixels per frame vertically
+    bounds=(0, 200, 800, 400),  # left, bottom, right, top
     axis="y"
 )
 

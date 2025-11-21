@@ -11,6 +11,7 @@ following the project design guidelines (see docs/api_usage_guide.md).
 
 from __future__ import annotations
 
+import itertools
 import math
 import random
 
@@ -18,10 +19,10 @@ import arcade
 
 from actions import (
     Action,
+    BlinkUntil,
     DelayUntil,
     MoveUntil,
     arrange_grid,
-    blink_until,
     center_window,
     create_formation_entry_from_sprites,
     create_wave_pattern,
@@ -30,6 +31,7 @@ from actions import (
     repeat,
     sequence,
 )
+from actions.frame_timing import seconds_to_frames
 
 # ---------------------------------------------------------------------------
 # Window configuration
@@ -37,6 +39,13 @@ from actions import (
 WINDOW_WIDTH = 720
 WINDOW_HEIGHT = 1024
 WINDOW_TITLE = "Space Clutter!"
+
+# ---------------------------------------------------------------------------
+# Blink configuration
+# ---------------------------------------------------------------------------
+BLINK_GROUP_COUNT = 5
+BLINK_RATE_MIN_FRAMES = 12  # ~0.2 seconds at 60 FPS
+BLINK_RATE_MAX_FRAMES = 24  # ~0.4 seconds at 60 FPS
 
 # ---------------------------------------------------------------------------
 # Starfield configuration
@@ -105,14 +114,31 @@ class Starfield:
     def __init__(self):
         """Populate sprite list with stars, and start actions."""
         self.star_list = arcade.SpriteList()
+        self._blink_groups: list[arcade.SpriteList] = []
 
         bounds = (0, -VERTICAL_MARGIN, WINDOW_WIDTH, WINDOW_HEIGHT + VERTICAL_MARGIN)
+
+        blink_rates = [
+            int(BLINK_RATE_MIN_FRAMES + i * (BLINK_RATE_MAX_FRAMES - BLINK_RATE_MIN_FRAMES) / (BLINK_GROUP_COUNT - 1))
+            for i in range(BLINK_GROUP_COUNT)
+        ]
+        self._blink_groups = [arcade.SpriteList() for _ in range(BLINK_GROUP_COUNT)]
+        group_indices = list(range(BLINK_GROUP_COUNT))
+        random.shuffle(group_indices)
+        group_cycle = itertools.cycle(group_indices)
 
         for _ in range(MAX_STARS):
             color = (random.randint(20, 255), random.randint(20, 255), random.randint(20, 255))
             star = _create_star_sprite(color, size=3)
-            blink_until(star, seconds_until_change=random.randint(200, 400) / 1000.0, condition=infinite)
             self.star_list.append(star)
+
+            group_index = next(group_cycle)
+            self._blink_groups[group_index].append(star)
+
+        for blink_list, blink_rate_frames in zip(self._blink_groups, blink_rates):
+            if len(blink_list) == 0:
+                continue
+            BlinkUntil(frames_until_change=blink_rate_frames, condition=infinite).apply(blink_list)
 
         move_until(
             self.star_list,
@@ -424,8 +450,8 @@ class StarfieldView(arcade.View):
             # Generate original entry actions and cache them for future use
             entry_actions = create_formation_entry_from_sprites(
                 self.enemy_formation,
-                speed=5.0,
-                stagger_delay=0.5,
+                velocity=5.0,
+                stagger_delay_frames=seconds_to_frames(0.5),
                 window_bounds=(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT),
             )
             # Cache the paths for next time
@@ -479,8 +505,10 @@ class StarfieldView(arcade.View):
 
         def start_wave_motion():
             """Start repeating wave motion for the entire enemy formation."""
-            quarter_wave = create_wave_pattern(amplitude=30, length=80, speed=80, start_progress=0.75, end_progress=1.0)
-            full_wave = create_wave_pattern(amplitude=30, length=80, speed=80, debug=True, debug_threshold=19)
+            quarter_wave = create_wave_pattern(
+                amplitude=30, length=80, velocity=80, start_progress=0.75, end_progress=1.0
+            )
+            full_wave = create_wave_pattern(amplitude=30, length=80, velocity=80, debug=True, debug_threshold=19)
 
             # Repeat the wave forever so enemies keep swaying
             repeating_wave = sequence(quarter_wave, repeat(full_wave))

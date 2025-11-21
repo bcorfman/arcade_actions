@@ -1,0 +1,143 @@
+"""Global debug controls for ACE visualizer."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Protocol, Callable
+
+import arcade
+
+from actions.visualizer.snapshot import SnapshotExporter
+from actions.visualizer.overlay import InspectorOverlay
+from actions.visualizer.guides import GuideManager
+from actions.visualizer.condition_panel import ConditionDebugger
+from actions.visualizer.timeline import TimelineStrip
+
+
+class ActionController(Protocol):
+    """Protocol for controlling global action state."""
+
+    def pause_all(self) -> None: ...
+
+    def resume_all(self) -> None: ...
+
+    def step_all(self, delta_time: float) -> None: ...
+
+
+@dataclass
+class DebugControlManager:
+    """Handles keyboard shortcuts for debug visualization controls."""
+
+    overlay: InspectorOverlay
+    guides: GuideManager
+    condition_debugger: ConditionDebugger
+    timeline: TimelineStrip
+    snapshot_directory: Path
+    action_controller: ActionController
+    toggle_event_window: Callable[[bool], None]
+    target_names_provider: Callable[[], dict[int, str]] | None = None
+    step_delta: float = 1 / 60
+
+    def __post_init__(self) -> None:
+        # Assume overlay provides access to debug store
+        self._cached_target_names: dict[int, str] = {}
+        self.snapshot_exporter = SnapshotExporter(
+            self.overlay.debug_store,
+            self.snapshot_directory,
+            target_names_provider=self.get_target_names,
+        )
+        self.condition_panel_visible = False
+        self.is_paused = False
+        self.condition_debugger.clear()
+        self._toggle_event_window_callback = self.toggle_event_window
+
+    def handle_key_press(self, key: int, modifiers: int = 0) -> bool:
+        """Handle a keyboard shortcut; returns True if handled."""
+        if key == arcade.key.F3:
+            self.overlay.toggle()
+            return True
+
+        if key == arcade.key.F4:
+            self.condition_panel_visible = not self.condition_panel_visible
+            self._toggle_event_window_callback(self.condition_panel_visible)
+            return True
+
+        if key == arcade.key.F5:
+            self.guides.toggle_all()
+            return True
+
+        if key == arcade.key.F6:
+            self._toggle_pause()
+            return True
+
+        if key == arcade.key.F7:
+            if self.is_paused:
+                self.action_controller.step_all(self.step_delta)
+            return True
+
+        if key == arcade.key.F8:
+            self.overlay.highlight_next()
+            return True
+
+        if key == arcade.key.F9:
+            self._refresh_target_names()
+            try:
+                path = self.snapshot_exporter.export()
+                print(f"[ACE] Snapshot written to {path}")
+            except Exception as exc:
+                print(f"[ACE] Failed to write snapshot: {exc!r}")
+            return True
+
+        return False
+
+    def _toggle_pause(self) -> None:
+        if self.is_paused:
+            self.action_controller.resume_all()
+            self.is_paused = False
+        else:
+            self.action_controller.pause_all()
+            self.is_paused = True
+
+    def update(self, sprite_positions: dict[int, tuple[float, float]] | None = None) -> None:
+        """Update all connected components."""
+        self._refresh_target_names()
+        self.overlay.update()
+
+        if self.condition_panel_visible:
+            self.condition_debugger.update()
+        else:
+            self.condition_debugger.clear()
+
+        guides_enabled = self.guides.any_enabled()
+        if guides_enabled:
+            self.timeline.update()
+            if sprite_positions is None:
+                sprite_positions = {}
+            self.guides.update(self.overlay.debug_store.get_all_snapshots(), sprite_positions)
+        else:
+            self.timeline.update()
+
+    # ------------------------------------------------------------------ Helpers
+    def _refresh_target_names(self) -> None:
+        if self.target_names_provider is None:
+            self._cached_target_names = {}
+            return
+
+        try:
+            names = self.target_names_provider() or {}
+        except Exception:
+            self._cached_target_names = {}
+            return
+
+        normalized: dict[int, str] = {}
+        for key, value in names.items():
+            try:
+                normalized[int(key)] = str(value)
+            except (TypeError, ValueError):
+                continue
+        self._cached_target_names = normalized
+
+    def get_target_names(self) -> dict[int, str]:
+        """Return the most recently cached target-name mapping."""
+        return dict(self._cached_target_names)

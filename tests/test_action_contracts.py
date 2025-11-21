@@ -119,14 +119,14 @@ CLONE_CASES: list[pytest.Param] = [
     ),
     pytest.param(
         lambda: BlinkUntil(
-            0.5,
+            15,
             _make_condition_false(),
             on_stop=_noop,
             on_blink_enter=_identity,
             on_blink_exit=_identity,
         ),
         lambda action, cloned: (
-            _assert_equal(cloned.target_seconds_until_change, action.target_seconds_until_change),
+            _assert_equal(cloned.target_frames_until_change, action.target_frames_until_change),
             _assert_equal(cloned.on_blink_enter, action.on_blink_enter),
             _assert_equal(cloned.on_blink_exit, action.on_blink_exit),
         ),
@@ -194,14 +194,14 @@ CLONE_CASES: list[pytest.Param] = [
     pytest.param(
         lambda: CycleTexturesUntil(
             [_make_texture("0"), _make_texture("1"), _make_texture("2")],
-            frames_per_second=24.0,
+            frames_per_texture=2,
             direction=-1,
             condition=duration(0.75),
             on_stop=_noop,
         ),
         lambda action, cloned: (
             _assert_equal(cloned._textures, action._textures),
-            _assert_equal(cloned._fps, action._fps),
+            _assert_equal(cloned._frames_per_texture, action._frames_per_texture),
             _assert_equal(cloned._direction, action._direction),
             _assert_equal(cloned.on_stop, action.on_stop),
         ),
@@ -281,9 +281,9 @@ SET_FACTOR_CASES = [
         id="follow_path_until",
     ),
     pytest.param(
-        lambda sprite: BlinkUntil(0.5, lambda: False),
-        lambda action: action.current_seconds_until_change,
-        {2.0: 0.25, 0.5: 1.0, 0.0: float("inf"), -1.0: float("inf")},
+        lambda sprite: BlinkUntil(15, lambda: False),
+        lambda action: action.current_frames_until_change,
+        {2.0: 7, 0.5: 30, 0.0: 999999, -1.0: 999999},
         id="blink_until",
     ),
     pytest.param(
@@ -299,7 +299,7 @@ SET_FACTOR_CASES = [
     pytest.param(
         lambda sprite: CycleTexturesUntil(
             [_make_texture("a"), _make_texture("b")],
-            frames_per_second=30.0,
+            frames_per_texture=2,
             direction=1,
             condition=duration(1.0),
         ),
