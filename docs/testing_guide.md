@@ -1,16 +1,28 @@
 """Testing Guide for arcade_actions
 
-This guide covers testing patterns and best practices for the arcade_actions library.
+This guide describes how to exercise the frame-driven ArcadeActions test suite.
 """
 
 # Testing Guide
 
-## Test Structure and Fixtures
+## Philosophy
 
-The test suite uses pytest fixtures defined in `conftest.py`:
+ArcadeActions treats `Action.update_all()` as the single metronome. Tests never depend
+on wall-clock time; they advance discrete frames and assert on deterministic state.
+The suite intentionally stays lean (≈700 tests) so every case either proves core frame
+math or provides a smoke/regression check for a helper. When a behavior involves many
+permutations (patterns, easing, visualizers) we keep one focused smoke test per
+scenario instead of entire matrices.
+
+## Core Fixtures
+
+`tests/conftest.py` exposes shared helpers that keep the global frame counter
+consistent:
 
 ```python
 import pytest
+import arcade
+
 from actions import Action
 from actions.frame_timing import after_frames
 
@@ -24,7 +36,6 @@ class ActionTestBase:
 
 @pytest.fixture
 def test_sprite() -> arcade.Sprite:
-    """Create a sprite with texture for testing."""
     sprite = arcade.Sprite(":resources:images/items/star.png")
     sprite.center_x = 100
     sprite.center_y = 100
@@ -370,72 +381,19 @@ class TestBoundaryCallbacks:
         events = []
         state = {"velocity": 10}
 
-        def on_boundary_enter(sprite_obj, axis, side):
-            events.append(("enter", axis, side))
-            if side == "right":
-                state["velocity"] = -10  # Reverse direction
+## Frame Helpers
 
-        def on_boundary_exit(sprite_obj, axis, side):
-            events.append(("exit", axis, side))
+Every timing assertion uses the primitives from `actions.frame_timing`:
 
-        def velocity_provider():
-            return (state["velocity"], 0)
+- `after_frames(n)` returns a condition that completes once at frame `n`.
+- `every_frames(n, callback)` wraps a callback that fires on frame multiples.
+- `within_frames(start, end)` guards logic that must run only inside a band of frames.
 
-        action = MoveUntil(
-            velocity=(0, 0),
-            condition=infinite,
-            bounds=(0, 0, 200, 200),
-            boundary_behavior="limit",
-            velocity_provider=velocity_provider,
-            on_boundary_enter=on_boundary_enter,
-            on_boundary_exit=on_boundary_exit,
-        )
-        action.apply(sprite, tag="test")
-
-        # Hit boundary and reverse
-        Action.update_all(0.016)
-        sprite.update()
-
-        # Move away from boundary
-        Action.update_all(0.016)
-        sprite.update()
-
-        assert len(events) == 2
-        assert events[0] == ("enter", "x", "right")
-        assert events[1] == ("exit", "x", "right")
-```
-
-## Testing Velocity Providers
-
-Test dynamic velocity provision for complex movement patterns:
+Example assertions from `tests/test_frame_timing.py`:
 
 ```python
-from actions import Action, MoveUntil, infinite
-
-class TestVelocityProvider:
-    """Test velocity_provider functionality."""
-
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_velocity_provider_basic(self, test_sprite):
-        """Test basic velocity_provider functionality."""
-        sprite = test_sprite
-        velocity_calls = []
-
-        def velocity_provider():
-            velocity_calls.append(True)
-            return (5, 0)
-
-        action = MoveUntil(
-            velocity=(0, 0),
-            condition=infinite,
-            velocity_provider=velocity_provider,
-        )
-        action.apply(sprite, tag="test")
-
-        Action.update_all(0.016)
+from actions import Action, move_until
+from actions.frame_timing import after_frames
 
         assert len(velocity_calls) == 2  # Called in apply_effect and update_effect
         assert sprite.change_x == 5
@@ -514,23 +472,6 @@ def test_glow_renders_and_sets_uniforms(test_sprite):
         condition=after_frames(seconds_to_frames(0.05)),
         uniforms_provider=uniforms_provider,
     )
-    action.apply(test_sprite)
-    
-    # Drive updates
-    Action.update_all(0.016)
-    Action.update_all(0.016)
-    
-    # Verify rendering
-    assert fake.render_calls >= 1
-    
-    # Verify uniforms were set
-    assert "time" in fake.program
-    assert fake.program["time"] == 1.5
-    
-    # Complete the action
-    Action.update_all(0.06)
-    assert action.done
-
 
 def test_glow_camera_offset_correction(test_sprite):
     """Test GlowUntil corrects world coords to screen coords."""
@@ -585,6 +526,8 @@ class FakeEmitter:
     def destroy(self):
         self.destroy_calls += 1
 
+    assert not action.done
+    assert test_sprite.center_x == 140  # 4 frames of motion
 
 def test_emitter_per_sprite_follows_position(test_sprite_list):
     """Test EmitParticlesUntil creates and updates emitters per sprite."""
@@ -673,16 +616,11 @@ def test_custom_anchor_offset(test_sprite):
     assert emitter.center_y == test_sprite.center_y + offset[1]
 ```
 
-**Key Points:**
-- Use fakes to avoid GL/particle system dependencies
-- Test lifecycle: creation, updates, cleanup
-- Verify position/rotation tracking
-- Check `_emitters_snapshot` for post-completion verification
-- Validate anchor offset calculations
+## Composition Tests
 
-## Testing BlinkUntil with Visibility Callbacks
-
-Test BlinkUntil callback functionality for collision management and game state synchronization:
+Sequence and parallel helpers are validated with the same primitives.
+`tests/test_composite.py` uses short frame windows to prove ordering rather than
+sleeping:
 
 ```python
 from actions import Action, blink_until, infinite
@@ -1001,16 +939,12 @@ def test_formation_parameter_validation():
 
 ## Testing Best Practices
 
-1. **Use ActionTestBase and pytest fixtures:**
-```python
-from tests.conftest import ActionTestBase
+    seq.apply(test_sprite, tag="sequence-smoke")
+    for _ in range(3):  # finish delay
+        Action.update_all(1 / 60)
 
-class TestYourAction(ActionTestBase):
-    """Test suite for your action."""
-    
-    def test_your_action(self, test_sprite):
-        sprite = test_sprite  # Use provided fixture
-        # Your test logic here
+    assert seq.current_index == 1
+    assert test_sprite.change_x == 5
 ```
 
 2. **Test action lifecycle with global update system:**
@@ -1053,127 +987,35 @@ def test_invalid_parameters(self, test_sprite):
         Ease(MoveUntil((5, 0), infinite), frames=0)
 ```
 
-4. **Test callbacks and conditions:**
-```python
-def test_action_completion_callback(self, test_sprite):
-    sprite = test_sprite
-    callback_called = False
-    callback_data = None
-    
-    def on_stop(data=None):
-        nonlocal callback_called, callback_data
-        callback_called = True
-        callback_data = data
-    
-    def condition():
-        return {"result": "success"}
-    
-    action = MoveUntil((5, 0), condition, on_stop=on_stop)
-    action.apply(sprite, tag="test")
-    
-    Action.update_all(0.016)
-    
-    assert callback_called
-    assert callback_data == {"result": "success"}
-```
+- `tests/test_frame_actions.py` covers `BlinkUntil`, `CallbackUntil`, `DelayUntil`,
+  `Ease`, `TweenUntil`, and `CycleTexturesUntil` using explicit frame counts.
+- `tests/test_frame_timing.py` exercises the primitives themselves along with
+  `Action.current_frame()` semantics, including pause behavior.
+- `tests/test_pattern_smoke.py` keeps a single regression test per pattern factory
+  (`create_zigzag_pattern`, `create_wave_pattern`, `create_spiral_pattern`,
+  `create_bounce_pattern`). These smoke tests verify the frame-first parameters
+  (`velocity`, `width`, `height`, `after_frames`) without re-running the large matrix
+  from the legacy suite.
+- `tests/test_ease_smoke.py` replaces the legacy easing battery with a minimal check
+  that guarantees easing curves read `frames_completed / total_frames`.
 
-5. **Test action factor scaling:**
-```python
-def test_action_factor_scaling(self, test_sprite):
-    sprite = test_sprite
-    action = MoveUntil((100, 0), infinite)
-    action.apply(sprite, tag="test")
-    
-    # Test normal speed
-    Action.update_all(0.016)
-    assert sprite.change_x == 100
-    
-    # Test scaled speed
-    action.set_factor(0.5)
-    assert sprite.change_x == 50
-    
-    action.set_factor(2.0)
-    assert sprite.change_x == 200
-```
+## Writing New Tests
 
-## Common Testing Patterns
+1. **Drive behavior with frames.** Iteratively call `Action.update_all(1/60)` (or
+   `Action.update_all(0)` if you only need to advance bookkeeping) and assert when the
+   boundary frame hits.
+2. **Favor smoke coverage for helpers.** If a helper accepts multiple optional flags,
+   choose the most representative combination. Public API samples cover the rest, so
+   the suite remains lean.
+3. **Reset external state.** Any test that mutates globals beyond the Action system
+   should patch or monkeypatch within the test and restore the previous value.
+4. **Validate pause safety.** When testing pause/resume, wrap `Action.pause_all()` and
+   `Action.resume_all()` inside the frame loop and assert `Action.current_frame()`
+   advances only when updates run.
 
-1. **Testing velocity changes with current velocity system:**
-```python
-def test_velocity_changes(self, test_sprite):
-    sprite = test_sprite
-    
-    # Test positive velocity
-    action = MoveUntil((5, 0), infinite)
-    action.apply(sprite, tag="test")
-    Action.update_all(0.016)
-    assert sprite.change_x == 5
-    
-    # Test velocity update
-    action.set_current_velocity((-10, 0))
-    assert sprite.change_x == -10
-```
+## Running the Suite
 
-2. **Testing custom conditions:**
-```python
-def test_custom_condition(self, test_sprite):
-    sprite = test_sprite
-    target_x = 200
-    
-    def reach_target():
-        return sprite.center_x >= target_x
-    
-    action = MoveUntil((5, 0), reach_target)
-    action.apply(sprite, tag="test")
-    
-    # Run until condition met
-    for _ in range(50):  # Prevent infinite loop
-        Action.update_all(0.016)
-        sprite.update()  # Apply velocity to position
-        if action.done:
-            break
-    
-    assert sprite.center_x >= target_x
-    assert action.done
-```
-
-3. **Testing global action management:**
-```python
-def test_action_tags(self, test_sprite):
-    sprite = test_sprite
-    
-    # Apply multiple actions with tags
-    move_action = MoveUntil((5, 0), infinite)
-    rotate_action = RotateUntil(180, infinite)
-    
-    move_action.apply(sprite, tag="movement")
-    rotate_action.apply(sprite, tag="rotation")
-    
-    Action.update_all(0.016)
-    assert sprite.change_x == 5
-    assert sprite.change_angle == 180
-    
-    # Stop specific action by tag
-    Action.stop_actions_for_target(sprite, tag="movement")
-    Action.update_all(0.016)
-    assert sprite.change_x == 0  # Movement stopped
-    assert sprite.change_angle == 180  # Rotation continues
-```
-
-4. **Testing sprite lists:**
-```python
-def test_sprite_list_actions(self, test_sprite_list):
-    sprite_list = test_sprite_list
-    action = MoveUntil((5, 0), infinite)
-    action.apply(sprite_list, tag="group_move")
-    
-    Action.update_all(0.016)
-    
-    # Test all sprites move together
-    for sprite in sprite_list:
-        assert sprite.change_x == 5
-        assert sprite.change_y == 0
-```
+Always invoke tests through uv to ensure the managed environment is active:
 
 5. **Testing action cleanup:**
 ```python
@@ -1193,153 +1035,23 @@ def test_action_cleanup(self, test_sprite):
     assert sprite.change_x == 0  # Velocity cleared
 ```
 
-## Physics Integration Testing
+Use `-k` filters or direct paths for faster iterations:
 
-When testing physics-aware actions, use a stub physics engine to verify routing behavior:
-
-### Testing Physics Routing
-
-```python
-from actions import Action, MoveUntil, RotateUntil, FollowPathUntil, infinite
-import arcade
-
-class StubPhysicsEngine:
-    """Minimal stub for testing physics routing."""
-    
-    def __init__(self):
-        self._sprites = {}
-        self.calls = []  # Track method calls
-    
-    def add_sprite(self, sprite, mass=1.0):
-        self._sprites[id(sprite)] = sprite
-    
-    def has_sprite(self, sprite):
-        return id(sprite) in self._sprites
-    
-    def set_velocity(self, sprite, velocity):
-        self.calls.append(("set_velocity", sprite, velocity))
-    
-    def get_velocity(self, sprite):
-        self.calls.append(("get_velocity", sprite))
-        return (0.0, 0.0)
-    
-    def apply_impulse(self, sprite, impulse):
-        self.calls.append(("apply_impulse", sprite, impulse))
-    
-    def set_angular_velocity(self, sprite, omega):
-        self.calls.append(("set_angular_velocity", sprite, omega))
-
-def test_moveuntil_with_physics(monkeypatch):
-    """Test MoveUntil routes through physics engine."""
-    from actions import physics_adapter as pa
-    
-    engine = StubPhysicsEngine()
-    sprite = arcade.Sprite()
-    engine.add_sprite(sprite)
-    
-    # Patch detect_engine to return our stub
-    original_detect = pa.detect_engine
-    def fake_detect(sprite, *, provided=None):
-        if engine.has_sprite(sprite):
-            return engine
-        return original_detect(sprite, provided=provided)
-    
-    monkeypatch.setattr(pa, "detect_engine", fake_detect)
-    
-    # Apply action
-    action = MoveUntil((5, 0), infinite)
-    action.apply(sprite)
-    
-    Action.update_all(1/60)
-    
-    # Verify physics engine method was called
-    assert any(call[0] == "set_velocity" for call in engine.calls)
-
-def test_followpath_physics_steering():
-    """Test FollowPathUntil physics steering mode."""
-    engine = StubPhysicsEngine()
-    sprite = arcade.Sprite()
-    sprite.center_x = 100
-    sprite.center_y = 100
-    engine.add_sprite(sprite)
-    
-    path = [(100, 100), (200, 100)]
-    action = FollowPathUntil(
-        control_points=path,
-        velocity=100,
-        condition=infinite,
-        use_physics=True,        # Enable physics mode
-        steering_gain=5.0,
-        rotate_with_path=True
-    )
-    action.apply(sprite)
-    
-    # Update with physics engine
-    Action.update_all(1/60, physics_engine=engine)
-    
-    # Verify steering impulses were applied
-    assert any(call[0] == "apply_impulse" for call in engine.calls)
-    # Verify rotation via physics
-    assert any(call[0] == "set_angular_velocity" for call in engine.calls)
+```bash
+uv run python -m pytest tests/test_frame_timing.py -k after_frames
 ```
 
-### Testing Physics Fallback
+## Troubleshooting
 
-Test that actions fall back gracefully when no physics engine is present:
+- **Action counter drift:** confirm your test or fixture resets `Action._frame_counter`
+  before and after execution.
+- **Arcade resources:** when instantiating sprites in tight loops, create them with
+  `arcade.SpriteSolidColor` to bypass texture IO.
+- **Long-running sequences:** prefer `after_frames` conditions instead of explicit
+  loops inside actions. This keeps assertions readable and gives the debugger
+  deterministic stepping behavior.
 
-```python
-def test_moveuntil_fallback_without_engine():
-    """Test MoveUntil falls back to direct velocity when no physics."""
-    sprite = arcade.Sprite()
-    
-    action = MoveUntil((7, -3), infinite)
-    action.apply(sprite)
-    
-    Action.update_all(1/60)
-    
-    # Should set sprite attributes directly
-    assert sprite.change_x == 7
-    assert sprite.change_y == -3
+The suite must remain deterministic under debugger pause/step. When adding new tests,
+verify they complete successfully when breakpoints interrupt `Action.update_all()` so
+the frame-based API remains intuitive during debugging.
 
-def test_followpath_kinematic_mode():
-    """Test FollowPathUntil defaults to kinematic movement."""
-    sprite = arcade.Sprite()
-    sprite.center_x = 100
-    sprite.center_y = 100
-    initial_x = sprite.center_x
-    
-    path = [(100, 100), (200, 100)]
-    action = FollowPathUntil(
-        control_points=path,
-        velocity=100,
-        condition=infinite,
-        use_physics=False  # Explicit kinematic mode
-    )
-    action.apply(sprite)
-    
-    Action.update_all(1/60)
-    
-    # Position should be updated directly
-    assert sprite.center_x > initial_x
-```
-
-### Testing with Action.update_all Physics Parameter
-
-```python
-def test_physics_engine_parameter():
-    """Test passing physics engine to Action.update_all."""
-    engine = StubPhysicsEngine()
-    sprite = arcade.Sprite()
-    engine.add_sprite(sprite)
-    
-    action = MoveUntil((5, 0), infinite)
-    action.apply(sprite)
-    
-    # Pass engine via update_all
-    Action.update_all(1/60, physics_engine=engine)
-    
-    # Engine methods should be called
-    assert len(engine.calls) > 0
-```
-
-See `tests/test_pymunk_integration.py` and `tests/test_physics_followpath.py` for complete examples. 

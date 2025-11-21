@@ -33,20 +33,28 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
-      - name: Install dependencies (bare package, no extras)
+      - name: Install dependencies (bare package, no optional extras)
         run: uv sync --dev
 
-      - name: Run tests (excluding integration tests that need extras)
-        run: uv run pytest tests/ -v --tb=short --ignore=tests/integration
-      
-      - name: Install Xvfb and GL libs (Linux Python 3.11 only)
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      - name: Install Xvfb and GL libs (Linux only - needed for sprite/display tests)
+        if: matrix.os == 'ubuntu-latest'
         env:
           DISPLAY: ':99.0'
         run: |
           sudo apt-get update -y
           sudo apt-get install -y xvfb x11-utils libxkbcommon-x11-0 libgl1 libglu1-mesa mesa-utils
           /sbin/start-stop-daemon --start --quiet --pidfile /tmp/xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
+
+      - name: Run unit tests (Linux - excludes tests requiring optional dependencies)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          DISPLAY: ':99.0'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: uv run pytest tests/ -v --tb=short --ignore=tests/integration
+
+      - name: Run unit tests (Windows/macOS - excludes tests requiring optional dependencies)
+        if: matrix.os != 'ubuntu-latest'
+        run: uv run pytest tests/ -v --tb=short --ignore=tests/integration
 
       - name: Install statemachine extra for examples (Linux Python 3.11 only)
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
@@ -76,6 +84,9 @@ jobs:
 
       - name: Run tests with coverage (Linux Python 3.11 only)
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        env:
+          DISPLAY: ':99.0'
+          LIBGL_ALWAYS_SOFTWARE: '1'
         run: uv run pytest tests/ --cov=actions --cov-report=xml --cov-report=term-missing --ignore=tests/integration
 
       - name: Upload coverage to Codecov (Linux Python 3.11 only)
@@ -86,9 +97,12 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
-  test-integration:
-    name: Integration tests with optional dependencies
+  test-optional-deps:
+    name: Tests requiring optional dependencies
     runs-on: ubuntu-latest
+    # Note: tests/integration/ contains tests that require optional dependencies
+    # (like python-statemachine). These are excluded from the main test run
+    # because they need extras installed.
 
     steps:
       - name: Checkout repository
@@ -105,8 +119,22 @@ jobs:
       - name: Install dependencies with statemachine extra
         run: uv sync --extra statemachine --dev
 
-      - name: Run integration tests
+      - name: Install Xvfb and GL libs (needed for sprite/display tests)
+        env:
+          DISPLAY: ':99.0'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y xvfb x11-utils libxkbcommon-x11-0 libgl1 libglu1-mesa mesa-utils
+          /sbin/start-stop-daemon --start --quiet --pidfile /tmp/xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
+
+      - name: Run tests requiring optional dependencies
+        env:
+          DISPLAY: ':99.0'
+          LIBGL_ALWAYS_SOFTWARE: '1'
         run: uv run pytest tests/integration/ -v --tb=short
 
       - name: Run full test suite to ensure no regressions
+        env:
+          DISPLAY: ':99.0'
+          LIBGL_ALWAYS_SOFTWARE: '1'
         run: uv run pytest tests/ -v --tb=short

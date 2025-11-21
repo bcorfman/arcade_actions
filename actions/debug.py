@@ -9,8 +9,10 @@ prints a console message when such an event occurs.
 
 import math
 import time
+from typing import TYPE_CHECKING
 
-import arcade
+if TYPE_CHECKING:
+    import arcade
 
 from actions.base import Action
 from actions.conditional import infinite

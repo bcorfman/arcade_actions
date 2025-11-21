@@ -208,6 +208,7 @@ class PlayerAnimationState(StateMachine):
         if self.current_state == self.climb:
             if vertical != 0:
                 if not Action.get_actions_for_target(self.player, tag="animation"):
+                    # 6 FPS = 10 frames per texture at 60 FPS (60/6 = 10)
                     cycle_textures_until(
                         self.player,
                         textures=self.player.climbing_textures,

@@ -1069,7 +1069,9 @@ def test_repeat_with_wallclock_drift_no_jump():
     sys.modules["time"].time = fake_time
 
     try:
-        # Setup sprite and repeating full-wave action
+        # Setup sprite and repeating full-wave action.  In the frame-based
+        # timing model, `velocity` is pixels per frame, so we use a modest
+        # value to avoid intentionally large per-frame jumps.
         sprite = arcade.Sprite()
         sprite.center_x = 100
         sprite.center_y = 100

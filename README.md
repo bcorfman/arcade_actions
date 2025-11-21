@@ -21,7 +21,8 @@
 
 # ArcadeActions extension library for Arcade 3.x
 [![codecov](https://codecov.io/gh/bcorfman/arcade_actions/graph/badge.svg?token=9AIZD1GLND)](https://codecov.io/gh/bcorfman/arcade_actions)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bcorfman/arcade_actions)
+
+Documentation here: [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bcorfman/arcade_actions)
 
 ## 🚀 Quick Appeal
 
@@ -189,7 +190,7 @@ docs/
 - **Repeat actions** - Repeat an action indefinitely (use `repeat()`)
 
 #### Boundary Handling (actions/conditional.py)
-- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors
+- **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors using edge-based coordinates
 
 #### Formation Management (actions/formation.py)
 - **Formation functions** - Grid, line, circle, diamond, V-formation, triangle, hexagonal grid, arc, concentric rings, cross, and arrow positioning

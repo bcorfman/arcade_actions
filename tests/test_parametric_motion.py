@@ -29,7 +29,7 @@ class TestParametricMotion:
         sprite.center_x = 100
         sprite.center_y = 100
 
-        # Linear relative motion: dx = 100*t, dy = 50*t over 1.0s
+        # Linear relative motion: dx = 100*t, dy = 50*t over 60 frames (1.0s at 60 FPS)
         def offset_fn(t: float) -> tuple[float, float]:
             return 100.0 * t, 50.0 * t
 
@@ -60,7 +60,7 @@ class TestParametricMotion:
 
         action = ParametricMotionUntil(
             offset_fn=offset_fn,
-            condition=after_frames(30),  # 0.5 seconds at 60 FPS
+            condition=after_frames(30),  # 0.5s at 60 FPS
             rotate_with_path=True,
             rotation_offset=0.0,
         )
@@ -95,7 +95,9 @@ class TestParametricMotion:
 
         # Half speed
         action.set_factor(0.5)
-        Action.update_all(0.5)  # half a second of sim time
+        # Run for 30 frames (0.5 seconds worth)
+        for _ in range(30):
+            Action.update_all(1 / 60)
         pos_half_speed = (sprite.center_x, sprite.center_y)
 
         # Reset and test full speed for comparison
@@ -108,7 +110,9 @@ class TestParametricMotion:
         )
         action2.apply(sprite, tag="param_factor_full")
         action2.set_factor(1.0)
-        Action.update_all(0.5)
+        # Run for 30 frames (0.5 seconds worth)
+        for _ in range(30):
+            Action.update_all(1 / 60)
         pos_full_speed = (sprite.center_x, sprite.center_y)
 
         # X displacement should be greater at full speed than at half speed
@@ -130,7 +134,7 @@ class TestParametricMotion:
 
         action = ParametricMotionUntil(
             offset_fn=offset_fn,
-            condition=after_frames(12),  # 0.2 seconds at 60 FPS
+            condition=after_frames(12),  # 0.2s at 60 FPS
             on_stop=on_stop,
         )
         action.apply(sprite, tag="param_on_stop")
@@ -175,7 +179,7 @@ class TestPriority5_ParametricMotionDebug:
         action.apply(sprite, tag="motion")
 
         # Run until jump occurs
-        for _ in range(35):  # Run past t=0.5
+        for _ in range(35):  # Run past t=0.5 (30 frames = 0.5 seconds)
             Action.update_all(1 / 60)
 
         # Verify debug output was printed (lines 1736-1741)
@@ -185,4 +189,4 @@ class TestPriority5_ParametricMotionDebug:
         assert "thr=100.0" in captured.out  # Verify threshold printed
 
         # Action should still work despite the jump
-        assert not action.done or action._elapsed >= 0.5
+        assert not action.done or action._elapsed_frames >= 30.0

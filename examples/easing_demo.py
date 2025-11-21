@@ -123,19 +123,23 @@ class EaseDemoView(arcade.View):
         """Launch a missile with smooth acceleration using Ease wrapper."""
 
         def on_boundary_hit(sprite, axis, side):
-            """Reset missile position when it hits the right boundary."""
-            sprite.center_x = X_START
-            sprite.trail_points.clear()
+            """Clear trail when missile wraps to the other side."""
+            if side == "right":  # Only clear trail when wrapping from right edge
+                sprite.trail_points.clear()
 
         # Create continuous movement action (missile flies until hitting boundary)
-        bounds = (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
-        continuous_flight = move_until(
-            missile,
+        # Note: Don't apply the action yet - Ease will apply it
+        from actions.conditional import MoveUntil
+
+        # Edge-based bounds: missile is 16px wide (radius=8), so add half-width to boundaries
+        # This allows the sprite center to reach the full window width
+        bounds = (-8, -8, WINDOW_WIDTH + 8, WINDOW_HEIGHT + 8)
+        continuous_flight = MoveUntil(
             velocity=(MISSILE_VELOCITY, 0),  # Cruise velocity
             condition=infinite,  # Never stop on its own
             bounds=bounds,
             boundary_behavior="wrap",
-            on_boundary_exit=on_boundary_hit,
+            on_boundary_enter=on_boundary_hit,
         )
 
         # Wrap with Ease for smooth acceleration to cruise speed

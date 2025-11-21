@@ -57,6 +57,13 @@ MAX_STARS: int = 400
 VERTICAL_MARGIN: int = 5
 
 # ---------------------------------------------------------------------------
+# Blink configuration
+# ---------------------------------------------------------------------------
+BLINK_GROUP_COUNT = 5
+BLINK_RATE_MIN_FRAMES = 12  # ~0.2 seconds at 60 FPS
+BLINK_RATE_MAX_FRAMES = 24  # ~0.4 seconds at 60 FPS
+
+# ---------------------------------------------------------------------------
 # Ship configuration
 # ---------------------------------------------------------------------------
 PLAYER_SHIP_SPEED = 5
@@ -306,7 +313,7 @@ class PlayerShip(arcade.Sprite):
                 self,
                 velocity=(direction, 0),
                 condition=infinite,
-                bounds=(LEFT_BOUND + self.width / 2, 0, RIGHT_BOUND - self.width / 2, WINDOW_HEIGHT),
+                bounds=(LEFT_BOUND, 0, RIGHT_BOUND, WINDOW_HEIGHT),
                 boundary_behavior="limit",
                 tag="player_move",
             )

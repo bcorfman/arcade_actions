@@ -1781,7 +1781,6 @@ class ParametricMotionUntil(_Action):
         condition: _Callable[[], _Any],
         on_stop: _Callable[[_Any], None] | _Callable[[], None] | None = None,
         *,
-        explicit_duration: float | None = None,
         rotate_with_path: bool = False,
         rotation_offset: float = 0.0,
         # --- debug ---
@@ -1791,8 +1790,8 @@ class ParametricMotionUntil(_Action):
         super().__init__(condition=condition, on_stop=on_stop)
         self._offset_fn = offset_fn
         self._origins: dict[int, tuple[float, float]] = {}
-        self._elapsed = 0.0
-        self._duration = explicit_duration  # May be filled in apply_effect
+        self._elapsed_frames = 0.0
+        self._frame_duration: float | None = None  # extracted from after_frames() condition
         self.rotate_with_path = rotate_with_path
         self.rotation_offset = rotation_offset
         self._prev_offset = None  # Track previous offset for rotation calculation
@@ -1867,15 +1866,13 @@ class ParametricMotionUntil(_Action):
         self._prev_offset = current_offset
 
         if progress >= 1.0:
-            # Skip final position snap to prevent jumps when sprite count changes
-            # This happens when enemies are destroyed during wave patterns
-            # self.remove_effect()  # commented out to prevent position jumps
+            if not hasattr(self.condition, "_frame_count"):
+                # No frame-based condition is driving completion; mark done ourselves.
+                self._condition_met = True
+                self.done = True
 
-            self._condition_met = True
-            self.done = True
-
-            if self.on_stop:
-                self.on_stop(None)
+                if self.on_stop:
+                    self.on_stop(None)
 
     def remove_effect(self) -> None:
         """
@@ -1893,7 +1890,6 @@ class ParametricMotionUntil(_Action):
             self._offset_fn,
             _clone_condition(self.condition),
             self.on_stop,
-            explicit_duration=self._duration,
             rotate_with_path=self.rotate_with_path,
             rotation_offset=self.rotation_offset,
             debug=self._debug,
@@ -1902,11 +1898,13 @@ class ParametricMotionUntil(_Action):
 
     def reset(self) -> None:
         """Reset the action to its initial state."""
-        self._elapsed = 0.0
+        self._elapsed_frames = 0.0
         self._origins.clear()
         self._prev_offset = None
         self._condition_met = False
         self.done = False
+        # Keep duration configuration (seconds or frames) so a reused action
+        # instance behaves consistently after reset.
 
     def set_factor(self, factor: float) -> None:
         """Scale the motion speed by the given factor.

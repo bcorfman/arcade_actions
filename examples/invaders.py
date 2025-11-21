@@ -302,6 +302,8 @@ class GameView(arcade.View):
                     on_stop=handle_enemy_bullet_collision,
                 )
 
+            # Track which x positions have already attempted to fire this frame,
+            # matching the original a85b5af semantics (one possible shooter per column).
             x_spawn.append(enemy.center_x)
 
     def on_update(self, delta_time):

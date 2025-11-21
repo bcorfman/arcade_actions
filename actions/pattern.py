@@ -30,8 +30,8 @@ def create_zigzag_pattern(
         segments: Number of zigzag segments to create
         condition: Stop condition (use after_frames() or infinite)
 
-    Returns:
-        ParametricMotionUntil action that creates zigzag movement
+        Returns:
+            ParametricMotionUntil action that creates zigzag movement
 
     Example:
         from actions.frame_timing import after_frames

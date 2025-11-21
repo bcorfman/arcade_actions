@@ -377,29 +377,36 @@ class TestAxisHelperIntegration:
         assert test_sprite.change_y == 2
 
     def test_axis_helpers_with_different_boundaries(self, test_sprite):
-        """Test axis helpers with different boundary behaviors."""
+        """Test axis helpers with different boundary behaviors.
+
+        Sprite is 128x128, so bounds must be at least 128px wide/tall.
+        """
         from actions.composite import parallel
 
         test_sprite.change_x = 0
         test_sprite.change_y = 0
-        test_sprite.center_x = 100
-        test_sprite.center_y = 100
+        test_sprite.center_x = 200
+        test_sprite.center_y = 200
 
         # X-axis with limit behavior
+        # Sprite is 128px wide, so bounds need to be at least 128px wide
+        # Left edge: 36, Right edge: 364 (span = 328px > 128px)
         x_action = move_x_until(
             target=test_sprite,
             dx=-5,
             condition=infinite,
-            bounds=(100, 0, 200, 200),
+            bounds=(36, 0, 364, 400),
             boundary_behavior="limit",
         )
 
         # Y-axis with bounce behavior
+        # Sprite is 128px tall, so bounds need to be at least 128px tall
+        # Bottom edge: 36, Top edge: 364 (span = 328px > 128px)
         y_action = move_y_until(
             target=test_sprite,
             dy=3,
             condition=infinite,
-            bounds=(0, 100, 200, 200),
+            bounds=(0, 36, 400, 364),
             boundary_behavior="bounce",
         )
 

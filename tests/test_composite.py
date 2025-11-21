@@ -6,7 +6,6 @@ from actions.base import Action
 from actions.composite import parallel, repeat, sequence
 from actions.conditional import CycleTexturesUntil, DelayUntil
 from actions.frame_timing import after_frames
-from actions.frame_timing import after_frames
 
 
 def create_test_sprite() -> arcade.Sprite:

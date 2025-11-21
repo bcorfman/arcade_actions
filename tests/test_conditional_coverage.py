@@ -414,7 +414,9 @@ class TestParametricMotionUntilCoverage:
         assert abs(sprite.angle - 90) < 5
 
     def test_parametric_motion_zero_duration_fallback(self):
-        """Test ParametricMotionUntil with condition that has no extractable duration."""
+        """Test ParametricMotionUntil with condition that has no extractable frame count."""
+        from actions.frame_timing import after_frames
+
         sprite = arcade.Sprite()
         sprite.center_x = 100
         sprite.center_y = 100
@@ -422,19 +424,18 @@ class TestParametricMotionUntilCoverage:
         def offset_fn(t):
             return (t * 100, 0)
 
-        # Use a condition without closure (can't extract duration)
+        # Use a condition without frame metadata (should default to 0 frames = instant)
         def custom_condition():
             return False
 
         action = ParametricMotionUntil(
             offset_fn,
             custom_condition,
-            explicit_duration=0.5,
         )
         action.apply(sprite, tag="motion")
 
-        # Should use explicit_duration
-        assert action._duration == 0.5
+        # Should default to 0 frames (instant completion)
+        assert action._frame_duration == 0.0
 
     def test_parametric_motion_completes_naturally(self):
         """Test ParametricMotionUntil completes when duration elapses."""

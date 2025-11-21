@@ -41,7 +41,7 @@ X_START = 40
 X_END = 1200
 Y_INTERVAL = 60
 BALL_RADIUS = 13
-TWEEN_FRAMES = seconds_to_frames(6.0)
+TWEEN_FRAMES = seconds_to_frames(6.0)  # 360 frames at 60 FPS
 
 # List of (easing function, label) to demonstrate with TweenUntil
 EASING_FUNCTIONS = [
