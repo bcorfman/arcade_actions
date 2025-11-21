@@ -4,7 +4,7 @@ import arcade
 
 from actions.base import Action
 from actions.composite import parallel, repeat, sequence
-from actions.conditional import CycleTexturesUntil, DelayUntil, duration
+from actions.conditional import CycleTexturesUntil, DelayUntil
 from actions.frame_timing import after_frames
 
 
@@ -32,6 +32,12 @@ def advance_frames(count: int) -> None:
         Action.update_all(0.016)
 
 
+def advance_action(action, frames: int) -> None:
+    """Call update on the provided action for a fixed number of frames."""
+    for _ in range(frames):
+        action.update(0.016)
+
+
 class TestSequenceFunction:
     """Test suite for sequence() function."""
 
@@ -49,8 +55,8 @@ class TestSequenceFunction:
     def test_sequence_with_actions_initialization(self):
         """Test sequence initialization with actions."""
 
-        action1 = DelayUntil(duration(0.1))
-        action2 = DelayUntil(duration(0.1))
+        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         assert len(seq.actions) == 2
@@ -72,8 +78,8 @@ class TestSequenceFunction:
         """Test that sequence starts the first action."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.1))
-        action2 = DelayUntil(duration(0.1))
+        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         seq.target = sprite
@@ -86,15 +92,15 @@ class TestSequenceFunction:
         """Test that sequence advances to next action when current completes."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.05))
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         seq.target = sprite
         seq.start()
 
         # Update until first action completes
-        seq.update(0.06)
+        advance_action(seq, 3)
 
         assert action1.done
         assert seq.current_action == action2
@@ -104,16 +110,16 @@ class TestSequenceFunction:
         """Test that sequence completes when all actions are done."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.05))
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         seq.target = sprite
         seq.start()
 
         # Update until both actions complete
-        seq.update(0.06)  # Complete first action
-        seq.update(0.06)  # Complete second action
+        advance_action(seq, 3)  # Complete first action
+        advance_action(seq, 3)  # Complete second action
 
         assert action1.done
         assert action2.done
@@ -124,8 +130,8 @@ class TestSequenceFunction:
         """Test that stopping sequence stops the current action."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(1.0))  # Long duration so it won't complete
-        action2 = DelayUntil(duration(0.1))
+        action1 = DelayUntil(after_frames(60))  # 1 second at 60 FPS  # Long duration so it won't complete
+        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         seq.target = sprite
@@ -137,8 +143,8 @@ class TestSequenceFunction:
     def test_sequence_clone(self):
         """Test sequence cloning."""
 
-        action1 = DelayUntil(duration(0.1))
-        action2 = DelayUntil(duration(0.1))
+        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         cloned = seq.clone()
@@ -164,8 +170,8 @@ class TestParallelFunction:
     def test_parallel_with_actions_initialization(self):
         """Test parallel initialization with actions."""
 
-        action1 = DelayUntil(duration(0.1))
-        action2 = DelayUntil(duration(0.1))
+        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
         par = parallel(action1, action2)
 
         assert len(par.actions) == 2
@@ -185,8 +191,8 @@ class TestParallelFunction:
         """Test that parallel starts all actions simultaneously."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.1))
-        action2 = DelayUntil(duration(0.1))
+        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
         par = parallel(action1, action2)
 
         par.target = sprite
@@ -199,20 +205,20 @@ class TestParallelFunction:
         """Test that parallel completes when all actions are done."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.1))  # Longer duration
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS  # Longer duration
         par = parallel(action1, action2)
 
         par.target = sprite
         par.start()
 
         # Update until first action completes
-        par.update(0.06)
+        advance_action(par, 3)
         assert action1.done
         assert not par.done  # Parallel not done until all actions done
 
         # Update until second action completes
-        par.update(0.05)
+        advance_action(par, 3)
         assert action2.done
         assert par.done
 
@@ -220,8 +226,8 @@ class TestParallelFunction:
         """Test that stopping parallel stops all actions."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(1.0))  # Long duration
-        action2 = DelayUntil(duration(1.0))  # Long duration
+        action1 = DelayUntil(after_frames(60))  # 1 second at 60 FPS  # Long duration
+        action2 = DelayUntil(after_frames(60))  # 1 second at 60 FPS  # Long duration
         par = parallel(action1, action2)
 
         par.target = sprite
@@ -234,8 +240,8 @@ class TestParallelFunction:
     def test_parallel_clone(self):
         """Test parallel cloning."""
 
-        action1 = DelayUntil(duration(0.1))
-        action2 = DelayUntil(duration(0.1))
+        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
         par = parallel(action1, action2)
 
         cloned = par.clone()
@@ -257,57 +263,57 @@ class TestOperatorOverloading:
         """Test that the '+' operator creates a sequential action."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.05))
+        action1 = DelayUntil(after_frames(1))
+        action2 = DelayUntil(after_frames(1))
 
         # Use + operator to create sequence
         sequence_action = action1 + action2
         sequence_action.apply(sprite)
 
         # Should behave like a sequence - first action runs, then second
-        Action.update_all(0.06)  # Complete first action
+        advance_frames(3)  # Complete first action
         assert action1.done
 
-        Action.update_all(0.06)  # Complete second action
+        advance_frames(3)  # Complete second action
         assert action2.done
 
     def test_pipe_operator_creates_parallel(self):
         """Test that the '|' operator creates a parallel action."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.1))  # Different duration
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS  # Different duration
 
         # Use | operator to create parallel
         parallel_action = action1 | action2
         parallel_action.apply(sprite)
 
         # Should behave like a parallel - both run simultaneously
-        Action.update_all(0.06)  # Complete first action
+        advance_frames(3)  # Complete first action
         assert action1.done
         assert not action2.done  # Second still running
 
-        Action.update_all(0.05)  # Complete second action
+        advance_frames(3)  # Complete second action
         assert action2.done
 
     def test_mixed_operator_composition(self):
         """Test mixing + and | operators for complex compositions."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.05))
-        action3 = DelayUntil(duration(0.05))
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action3 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
 
         # Create a sequence where the second step is parallel actions
         complex_action = action1 + (action2 | action3)
         complex_action.apply(sprite)
 
         # First action should complete first
-        Action.update_all(0.06)
+        advance_frames(3)
         assert action1.done
 
         # After first action completes, parallel actions should run and complete
-        Action.update_all(0.06)
+        advance_frames(3)
         assert action2.done
         assert action3.done
 
@@ -315,20 +321,20 @@ class TestOperatorOverloading:
         """Test operator precedence with explicit parentheses."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.05))
-        action3 = DelayUntil(duration(0.05))
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action3 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
 
         # Test a + (b | c) - explicit parentheses
         composed = action1 + (action2 | action3)
         composed.apply(sprite)
 
         # First action completes
-        Action.update_all(0.06)
+        advance_frames(3)
         assert action1.done
 
         # Then parallel actions complete
-        Action.update_all(0.06)
+        advance_frames(3)
         assert action2.done
         assert action3.done
 
@@ -344,22 +350,22 @@ class TestNestedComposites:
         """Test sequence containing parallel actions using operators."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.05))
-        action3 = DelayUntil(duration(0.05))
-        action4 = DelayUntil(duration(0.05))
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action3 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action4 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
 
         # Create sequence of parallels using operators
         composed = (action1 | action2) + (action3 | action4)
         composed.apply(sprite)
 
         # Update until first parallel completes
-        Action.update_all(0.06)
+        advance_frames(3)
         assert action1.done
         assert action2.done
 
         # Update until second parallel completes
-        Action.update_all(0.06)
+        advance_frames(3)
         assert action3.done
         assert action4.done
 
@@ -367,18 +373,18 @@ class TestNestedComposites:
         """Test parallel containing sequence actions using operators."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.05))
-        action3 = DelayUntil(duration(0.05))
-        action4 = DelayUntil(duration(0.05))
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action3 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action4 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
 
         # Create parallel of sequences using operators
         composed = (action1 + action2) | (action3 + action4)
         composed.apply(sprite)
 
         # Both sequences run in parallel, each taking 2 updates (0.05 + 0.05)
-        Action.update_all(0.06)  # Complete first actions in each sequence
-        Action.update_all(0.06)  # Complete second actions in each sequence
+        advance_frames(3)  # Complete first actions in each sequence
+        advance_frames(3)  # Complete second actions in each sequence
 
         # All actions should be done
         assert action1.done
@@ -393,23 +399,23 @@ class TestNestedComposites:
         sprite2 = create_test_sprite()
 
         # Traditional function approach
-        action1_func = DelayUntil(duration(0.05))
-        action2_func = DelayUntil(duration(0.05))
+        action1_func = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2_func = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         traditional = sequence(action1_func, action2_func)
         traditional.apply(sprite1)
 
         # Operator approach
-        action1_op = DelayUntil(duration(0.05))
-        action2_op = DelayUntil(duration(0.05))
+        action1_op = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2_op = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         operator_based = action1_op + action2_op
         operator_based.apply(sprite2)
 
         # Both should behave identically - complete first actions
-        Action.update_all(0.06)
+        advance_frames(3)
         assert action1_func.done == action1_op.done
 
         # Complete second actions
-        Action.update_all(0.06)
+        advance_frames(3)
         assert action2_func.done == action2_op.done
 
 
@@ -423,7 +429,7 @@ class TestRepeatFunction:
     def test_repeat_initialization(self):
         """Test repeat initialization."""
 
-        action = DelayUntil(duration(0.1))
+        action = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
         rep = repeat(action)
 
         assert rep.action == action
@@ -434,7 +440,7 @@ class TestRepeatFunction:
         """Test that repeat starts the first iteration of the action."""
 
         sprite = create_test_sprite()
-        action = DelayUntil(duration(0.05))
+        action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         rep = repeat(action)
 
         rep.target = sprite
@@ -448,7 +454,7 @@ class TestRepeatFunction:
         """Test that repeat restarts the action when it completes."""
 
         sprite = create_test_sprite()
-        action = DelayUntil(duration(0.05))
+        action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         rep = repeat(action)
 
         rep.target = sprite
@@ -458,7 +464,7 @@ class TestRepeatFunction:
         first_iteration = rep.current_action
 
         # Update until first iteration completes
-        rep.update(0.06)
+        advance_action(rep, 3)
         assert first_iteration.done
 
         # Should have started a new iteration
@@ -469,7 +475,7 @@ class TestRepeatFunction:
         """Test that repeat continues indefinitely."""
 
         sprite = create_test_sprite()
-        action = DelayUntil(duration(0.05))
+        action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         rep = repeat(action)
 
         rep.target = sprite
@@ -481,7 +487,7 @@ class TestRepeatFunction:
             assert not rep.done
 
             # Complete this iteration
-            rep.update(0.06)
+            advance_action(rep, 3)
             assert current_action.done
 
             # Trigger start of next iteration (may be deferred one frame)
@@ -494,7 +500,7 @@ class TestRepeatFunction:
         """Test that stopping repeat stops the current action."""
 
         sprite = create_test_sprite()
-        action = DelayUntil(duration(1.0))  # Long duration
+        action = DelayUntil(after_frames(60))  # 1 second at 60 FPS  # Long duration
         rep = repeat(action)
 
         rep.target = sprite
@@ -507,7 +513,7 @@ class TestRepeatFunction:
     def test_repeat_clone(self):
         """Test repeat cloning."""
 
-        action = DelayUntil(duration(0.1))
+        action = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
         rep = repeat(action)
 
         cloned = rep.clone()
@@ -530,8 +536,8 @@ class TestRepeatFunction:
         """Test repeat with a composite action (sequence)."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.05))
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         seq = sequence(action1, action2)
         rep = repeat(seq)
 
@@ -544,8 +550,8 @@ class TestRepeatFunction:
         assert not rep.done
 
         # Complete first iteration (both delays)
-        rep.update(0.06)  # Complete first delay
-        rep.update(0.06)  # Complete second delay, complete sequence
+        advance_action(rep, 3)  # Complete first delay
+        advance_action(rep, 3)  # Complete second delay, complete sequence
 
         # Ensure the repeat schedules a new iteration (might begin next frame)
         if rep.current_action is None:
@@ -561,12 +567,12 @@ class TestRepeatFunction:
         sprite = create_test_sprite()
 
         # Move right for a short duration
-        move_action = MoveUntil(velocity=(100, 0), condition=duration(0.05))
+        move_action = MoveUntil(velocity=(100, 0), condition=after_frames(3))  # 0.05 seconds at 60 FPS
         rep = repeat(move_action)
         rep.apply(sprite, tag="test_repeat")
 
         # Update to complete first iteration
-        Action.update_all(0.06)
+        advance_frames(3)
 
         # Ensure a new iteration has started (may require zero-dt tick)
         if sprite.change_x == 0:
@@ -575,7 +581,7 @@ class TestRepeatFunction:
         assert sprite.change_x == 100  # Velocity should be set by new iteration
 
         # Update again with partial duration - iteration should still be running
-        Action.update_all(0.03)
+        advance_frames(2)
 
         # Should still have velocity from repeat cycles
         assert sprite.change_x == 100
@@ -592,8 +598,8 @@ class TestRepeatIntegration:
         """Test repeat action used within a sequence."""
 
         sprite = create_test_sprite()
-        setup_action = DelayUntil(duration(0.05))
-        repeating_action = DelayUntil(duration(0.05))
+        setup_action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        repeating_action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
 
         # Create sequence: setup action + repeating action
         rep = repeat(repeating_action)
@@ -602,12 +608,12 @@ class TestRepeatIntegration:
         seq.apply(sprite)
 
         # First, setup action should run
-        Action.update_all(0.06)  # Complete setup
+        advance_frames(3)  # Complete setup
 
         # Now repeat should start and run indefinitely
         # Since repeat never completes, sequence never completes
-        Action.update_all(0.06)  # First repeat iteration
-        Action.update_all(0.06)  # Second repeat iteration
+        advance_frames(3)  # First repeat iteration
+        advance_frames(3)  # Second repeat iteration
 
         # Sequence should still be running the repeat
         actions = Action.get_actions_for_target(sprite)
@@ -617,8 +623,8 @@ class TestRepeatIntegration:
         """Test repeat action used within a parallel."""
 
         sprite = create_test_sprite()
-        finite_action = DelayUntil(duration(0.1))
-        repeating_action = DelayUntil(duration(0.05))
+        finite_action = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        repeating_action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
 
         # Create parallel: finite action + repeating action
         rep = repeat(repeating_action)
@@ -627,8 +633,8 @@ class TestRepeatIntegration:
         par.apply(sprite)
 
         # Both should start
-        Action.update_all(0.06)  # First repeat cycle completes, finite still running
-        Action.update_all(0.06)  # Finite action completes, second repeat cycle
+        advance_frames(3)  # First repeat cycle completes, finite still running
+        advance_frames(3)  # Finite action completes, second repeat cycle
 
         # Since repeat never completes, parallel never completes naturally
         actions = Action.get_actions_for_target(sprite)
@@ -638,8 +644,8 @@ class TestRepeatIntegration:
         """Test that repeat works with operator overloading (+, |)."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.05))
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
 
         # Create complex composition using operators
         rep = repeat(action1)
@@ -648,11 +654,11 @@ class TestRepeatIntegration:
         composed.apply(sprite)
 
         # Update to complete first action
-        Action.update_all(0.06)
+        advance_frames(3)
 
         # Now repeat should be running
-        Action.update_all(0.06)  # First repeat iteration
-        Action.update_all(0.06)  # Second repeat iteration
+        advance_frames(3)  # First repeat iteration
+        advance_frames(3)  # Second repeat iteration
 
         # Should still be active
         actions = Action.get_actions_for_target(sprite)
@@ -674,7 +680,7 @@ class TestVelocityForwarding:
 
         # Test 1: Parallel forwarding
         move_action1 = MoveUntil((5, 0), infinite)
-        delay_action1 = DelayUntil(duration(1.0))
+        delay_action1 = DelayUntil(after_frames(60))  # 1 second at 60 FPS
 
         par = parallel(move_action1, delay_action1)
         par.apply(sprite, tag="velocity_test")
@@ -690,7 +696,7 @@ class TestVelocityForwarding:
 
         # Test 2: Sequence forwarding (should forward to current action)
         move_action2 = MoveUntil((7, 1), infinite)
-        delay_action2 = DelayUntil(duration(1.0))
+        delay_action2 = DelayUntil(after_frames(60))  # 1 second at 60 FPS
 
         seq = sequence(move_action2, delay_action2)
         seq.apply(sprite, tag="sequence_velocity_test")
@@ -739,7 +745,7 @@ class TestVelocityForwarding:
             """A custom action that explicitly doesn't have set_current_velocity."""
 
             def __init__(self):
-                super().__init__(duration(1.0))
+                super().__init__(after_frames(60))
 
         move_action = MoveUntil((3, 4), infinite)
         custom_action = CustomAction()
@@ -761,7 +767,7 @@ class TestVelocityForwarding:
         sprite = create_test_sprite()
 
         # Create a sequence but don't start it
-        seq = sequence(DelayUntil(duration(0.1)))
+        seq = sequence(DelayUntil(after_frames(6)))  # 0.1 seconds at 60 FPS
         # Don't apply it to a sprite so current_action remains None
 
         # This should not raise an error
@@ -777,7 +783,7 @@ class TestVelocityForwarding:
         sprite = create_test_sprite()
 
         # Create a repeat but don't start it
-        rep = repeat(DelayUntil(duration(0.1)))
+        rep = repeat(DelayUntil(after_frames(6)))  # 0.1 seconds at 60 FPS
         # Don't apply it to a sprite so current_action remains None
 
         # This should not raise an error
@@ -809,7 +815,7 @@ class TestVelocityForwarding:
         # Create a custom action that raises AttributeError when set_current_velocity is called
         class ActionWithoutVelocity(DelayUntil):
             def __init__(self):
-                super().__init__(duration(0.1))
+                super().__init__(after_frames(6))
 
         action_without_velocity = ActionWithoutVelocity()
         seq = sequence(action_without_velocity)
@@ -830,7 +836,7 @@ class TestVelocityForwarding:
         # Create a custom action that raises AttributeError
         class ActionWithoutVelocity(DelayUntil):
             def __init__(self):
-                super().__init__(duration(0.1))
+                super().__init__(after_frames(6))
 
         action_without_velocity = ActionWithoutVelocity()
         rep = repeat(action_without_velocity)
@@ -996,13 +1002,13 @@ class TestCompositeReset:
         """Test that repeat.reset() resets state and child action."""
         sprite = create_test_sprite()
 
-        action = DelayUntil(duration(0.05))
+        action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         rep = repeat(action)
 
         rep.apply(sprite, tag="test_repeat_reset")
 
         # Run until first iteration completes
-        Action.update_all(0.06)
+        advance_frames(3)
 
         # First iteration should complete, but repeat continues
         assert rep.current_action is not None
@@ -1149,8 +1155,8 @@ class TestPriority1_EmptyCompositeRepresentation:
 
     def test_sequence_repr(self):
         """Test sequence __repr__ method - covers line 108-109 in composite.py."""
-        action1 = DelayUntil(duration(0.1))
-        action2 = DelayUntil(duration(0.2))
+        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(12))  # 0.2 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         repr_str = repr(seq)
@@ -1159,8 +1165,8 @@ class TestPriority1_EmptyCompositeRepresentation:
 
     def test_parallel_repr(self):
         """Test parallel __repr__ method - covers line 189-190 in composite.py."""
-        action1 = DelayUntil(duration(0.1))
-        action2 = DelayUntil(duration(0.2))
+        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(12))  # 0.2 seconds at 60 FPS
         par = parallel(action1, action2)
 
         repr_str = repr(par)
@@ -1169,7 +1175,7 @@ class TestPriority1_EmptyCompositeRepresentation:
 
     def test_repeat_repr(self):
         """Test repeat __repr__ method - covers line 287 in composite.py."""
-        action = DelayUntil(duration(0.1))
+        action = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
         rep = repeat(action)
 
         repr_str = repr(rep)
@@ -1189,7 +1195,7 @@ class TestPriority4_AttributeErrorHandling:
         sprite = create_test_sprite()
 
         # DelayUntil doesn't support velocity control in meaningful way
-        action = DelayUntil(duration(1.0))
+        action = DelayUntil(after_frames(60))  # 1 second at 60 FPS
         seq = sequence(action)
         seq.apply(sprite, tag="test")
 
@@ -1204,7 +1210,7 @@ class TestPriority4_AttributeErrorHandling:
         sprite = create_test_sprite()
 
         # DelayUntil doesn't support velocity control
-        action = DelayUntil(duration(1.0))
+        action = DelayUntil(after_frames(60))  # 1 second at 60 FPS
         rep = repeat(action)
         rep.apply(sprite, tag="test")
 
@@ -1240,15 +1246,15 @@ class TestPriority2_SequenceEdgeCases:
         """Test sequence starts next action when current is None - lines 56-58."""
         sprite = create_test_sprite()
 
-        action1 = DelayUntil(duration(0.05))
-        action2 = DelayUntil(duration(0.05))
+        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         seq.target = sprite
         seq.start()
 
         # Complete first action
-        seq.update(0.06)
+        advance_action(seq, 3)
 
         # At this point current_action should transition
         assert action1.done
@@ -1297,7 +1303,7 @@ class TestPriority4_RepeatEdgeCases:
         """Test repeat starts clone when current_action is None - lines 253-255."""
         sprite = create_test_sprite()
 
-        action = DelayUntil(duration(0.05))
+        action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
         rep = repeat(action)
 
         rep.target = sprite
@@ -1309,7 +1315,7 @@ class TestPriority4_RepeatEdgeCases:
         assert first_action is not action  # Should be a clone
 
         # Complete current action
-        rep.update(0.06)
+        advance_action(rep, 3)
 
         # Should have started a new clone
         assert rep.current_action is not None

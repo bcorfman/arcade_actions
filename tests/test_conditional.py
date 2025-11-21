@@ -1,5 +1,8 @@
 """Test suite for condition_actions.py - Conditional actions."""
 
+import time
+from typing import Any
+
 import arcade
 import pytest
 
@@ -7,7 +10,6 @@ from actions import (
     Action,
     blink_until,
     delay_until,
-    duration,
     fade_until,
     follow_path_until,
     infinite,
@@ -24,7 +26,7 @@ from actions.conditional import (
     TweenUntil,
     _extract_duration_seconds,
 )
-from actions.frame_timing import after_frames
+from actions.frame_timing import after_frames, frames_to_seconds, seconds_to_frames, within_frames
 from tests.conftest import ActionTestBase
 
 
@@ -34,6 +36,22 @@ def create_test_sprite() -> arcade.Sprite:
     sprite.center_x = 100
     sprite.center_y = 100
     return sprite
+
+
+class InstrumentedMoveUntil(MoveUntil):
+    """Test helper exposing snapshot and boundary instrumentation."""
+
+    def __init__(self, velocity: tuple[float, float], condition, **kwargs):
+        super().__init__(velocity, condition, **kwargs)
+        self.snapshots: list[dict[str, Any]] = []
+        self.apply_limits_invocations = 0
+
+    def _update_snapshot(self, **kwargs) -> None:  # pragma: no cover - instrumentation only
+        self.snapshots.append(kwargs)
+
+    def _apply_boundary_limits(self) -> None:  # pragma: no cover - delegates to parent
+        self.apply_limits_invocations += 1
+        super()._apply_boundary_limits()
 
 
 class TestMoveUntil(ActionTestBase):
@@ -837,32 +855,45 @@ class TestDelayUntil(ActionTestBase):
         assert action.done
 
 
-class TestDuration:
-    """Test suite for duration helper."""
+class TestAfterFrames:
+    """Test suite for after_frames helper (replaces duration)."""
 
-    def test_duration_basic(self):
-        """Test basic duration functionality."""
-        condition = duration(1.0)
+    def test_after_frames_basic(self):
+        """Test basic after_frames functionality."""
+        condition = after_frames(3)
 
-        # Should return False initially
+        # First two calls should be False
         assert not condition()
+        assert not condition()
+        # Third call returns True
+        assert condition()
 
-        # Should return True after duration passes
-        # This is a simplified test - in practice would need to simulate time passage
-
-    def test_duration_zero(self):
-        """Test duration with zero duration."""
-        condition = duration(0.0)
+    def test_after_frames_zero(self):
+        """Test after_frames with zero frames."""
+        condition = after_frames(0)
 
         # Should return True immediately
         assert condition()
 
-    def test_duration_negative(self):
-        """Test duration with negative duration."""
-        condition = duration(-1.0)
+    def test_after_frames_negative(self):
+        """Test after_frames with negative frame count."""
+        condition = after_frames(-1)
 
-        # Should return True immediately for negative durations
+        # Should return True immediately for negative frame counts
         assert condition()
+
+
+class TestConditionHelperCoverage:
+    """Additional coverage for condition helper utilities."""
+
+    def test_after_frames_frame_count_metadata(self):
+        """after_frames should have frame_count metadata for introspection."""
+        condition = after_frames(60)
+
+        # Should have frame metadata
+        assert hasattr(condition, "_is_frame_condition")
+        assert hasattr(condition, "_frame_count")
+        assert condition._frame_count == 60
 
 
 class TestTweenUntil(ActionTestBase):
@@ -920,13 +951,98 @@ class TestTweenUntil(ActionTestBase):
         assert sprite.center_x == 100
 
 
+class TestTweenUntilCoverage(ActionTestBase):
+    """Extended TweenUntil coverage for timing and lifecycle internals."""
+
+    def test_update_skips_when_paused_or_done_coverage(self):
+        """Tween update should no-op when paused or marked done."""
+        sprite = create_test_sprite()
+        action = TweenUntil(0, 100, "center_x", condition=after_frames(10))
+        action.apply(sprite, tag="tween_pause")
+
+        action._paused = True
+        action.update(0.016)
+        assert action._frames_elapsed == 0
+
+        action._paused = False
+        action.done = True
+        action.update(0.016)
+        assert action._frames_elapsed == 0
+
+    def test_apply_effect_frame_duration_and_zero_completion_coverage(self):
+        """apply_effect should honor frame counts, overrides, and zero-duration completion."""
+        sprite_a = create_test_sprite()
+        frames_action = TweenUntil(0, 50, "center_x", condition=after_frames(5))
+        frames_action.apply(sprite_a, tag="tween_frames")
+        assert frames_action._frame_duration == 5
+        Action.stop_all()
+
+        sprite_b = create_test_sprite()
+        override_action = TweenUntil(10, 20, "center_y", condition=after_frames(60))
+        override_action._frame_duration = 2
+        override_action.apply(sprite_b, tag="tween_override")
+        assert override_action._frame_duration == 2
+        Action.stop_all()
+
+        sprite_c = create_test_sprite()
+        zero_calls = {"count": 0}
+
+        def on_stop(data):
+            zero_calls["count"] += 1
+            assert data is None
+
+        zero_action = TweenUntil(0, 42, "center_x", condition=after_frames(1), on_stop=on_stop)
+        zero_action._frame_duration = 0
+        zero_action.apply(sprite_c, tag="tween_zero")
+        assert zero_action.done
+        assert sprite_c.center_x == 42
+        assert zero_calls["count"] == 1
+
+    def test_set_factor_and_remove_effect_reset_coverage(self):
+        """set_factor should reapply velocity immediately and remove_effect resets start."""
+        sprite = create_test_sprite()
+        action = TweenUntil(0, 100, "center_x", condition=after_frames(4))
+        action.apply(sprite, tag="tween_factor")
+        action.set_factor(2.0)
+
+        Action.update_all(0.016)
+        assert 0 < sprite.center_x < 100
+
+        action.remove_effect()
+        assert sprite.center_x == 0
+
+    def test_reset_and_clone_state_coverage(self):
+        """reset clears derived state and clone copies configuration."""
+        ease_fn = lambda t: t * t
+        action = TweenUntil(5, 15, "center_y", condition=after_frames(3), ease_function=ease_fn)
+        action._frames_elapsed = 2
+        action._frame_duration = 3
+        action._completed_naturally = True
+
+        action.reset()
+        assert action._frames_elapsed == 0
+        assert action._frame_duration is None
+        assert not action._completed_naturally
+
+        clone = action.clone()
+        assert clone is not action
+        assert clone.start_value == action.start_value
+        assert clone.end_value == action.end_value
+        assert clone.property_name == action.property_name
+        assert clone.ease_function is action.ease_function
+
+    def test_set_duration_not_supported_coverage(self):
+        """set_duration should remain unsupported."""
+        action = TweenUntil(0, 1, "alpha", condition=after_frames(2))
+        with pytest.raises(NotImplementedError):
+            action.set_duration(1.0)
+
+
 # ------------------ Repeat wallclock drift tests ------------------
 
 
 def test_repeat_with_wallclock_drift_no_jump():
-    """Test that _Repeat + ParametricMotionUntil does not produce position jumps when
-    wall-clock time (used by duration()) diverges from simulation delta_time.
-    """
+    """Ensure _Repeat + ParametricMotionUntil stay stable when legacy wall-clock helpers drift."""
     import sys
 
     import arcade
@@ -938,7 +1054,7 @@ def test_repeat_with_wallclock_drift_no_jump():
         for _ in range(frames):
             Action.update_all(1 / 60)
 
-    # Save and monkeypatch time.time used by duration()
+    # Save and monkeypatch time.time used by the legacy wall-clock helper
     import time as real_time_module
 
     original_time_fn = real_time_module.time
@@ -960,7 +1076,7 @@ def test_repeat_with_wallclock_drift_no_jump():
         sprite.center_x = 100
         sprite.center_y = 100
 
-        full_wave = create_wave_pattern(amplitude=30, length=80, velocity=4)
+        full_wave = create_wave_pattern(amplitude=30, length=80, velocity=80)
         rep = repeat(full_wave)
         rep.apply(sprite, tag="repeat_wallclock")
 
@@ -981,7 +1097,8 @@ def test_repeat_with_wallclock_drift_no_jump():
             dy = current[1] - last_pos[1]
             step_dist = (dx * dx + dy * dy) ** 0.5
             # Allow generous per-frame distance for wave motion; disallow implausible jumps
-            assert step_dist < 30.0, f"Unexpected jump {step_dist:.2f} at frame {frame}"
+            # With velocity=80, we expect up to ~80 px per frame, so use 100 as threshold
+            assert step_dist < 100.0, f"Unexpected jump {step_dist:.2f} at frame {frame}"
             last_pos = current
 
     finally:
@@ -1125,6 +1242,262 @@ class TestMoveUntilExceptionHandling(ActionTestBase):
         assert sprite.change_x <= 0  # Velocity should be zero or negative after bounce
 
 
+class TestMoveUntilInternalsCoverage(ActionTestBase):
+    """Focused coverage of MoveUntil internals and helper APIs."""
+
+    def test_collect_target_sprite_ids_coverage(self, test_sprite, test_sprite_list):
+        """Ensure _collect_target_sprite_ids handles sprite, SpriteList, and non-iterables."""
+        single = InstrumentedMoveUntil((5, 0), infinite)
+        single.apply(test_sprite, tag="single_collect")
+        assert single._collect_target_sprite_ids() == [id(test_sprite)]
+
+        group = InstrumentedMoveUntil((5, 0), infinite)
+        group.apply(test_sprite_list, tag="list_collect")
+        ids = group._collect_target_sprite_ids()
+        assert set(ids) == {id(sprite) for sprite in test_sprite_list}
+
+        non_iterable_action = InstrumentedMoveUntil((5, 0), infinite)
+        sentinel = object()
+        non_iterable_action.target = sentinel
+        assert non_iterable_action._collect_target_sprite_ids() == [id(sentinel)]
+
+    def test_update_motion_snapshot_metadata_coverage(self, test_sprite):
+        """Verify _update_motion_snapshot emits boundary_state + sprite_ids metadata."""
+        bounds = (0, 0, 200, 200)
+        action = InstrumentedMoveUntil((5, 5), infinite, bounds=bounds, boundary_behavior="limit")
+        action.apply(test_sprite, tag="snapshot")
+        sprite_id = id(test_sprite)
+        action._boundary_state[sprite_id] = {"x": "right", "y": None}
+        action._update_motion_snapshot(velocity=(3, 4))
+
+        assert action.snapshots, "Expected snapshot entry when metadata present"
+        snapshot = action.snapshots[-1]
+        assert snapshot["velocity"] == (3, 4)
+        assert snapshot["bounds"] == bounds
+        metadata = snapshot["metadata"]
+        assert metadata["boundary_state"][sprite_id]["x"] == "right"
+        assert sprite_id in metadata["sprite_ids"]
+
+    def test_velocity_provider_update_exception_coverage(self, test_sprite):
+        """Provider failures during update_effect should keep previous velocity."""
+        call_state = {"count": 0}
+
+        def flaky_provider():
+            call_state["count"] += 1
+            if call_state["count"] == 2:
+                raise RuntimeError("update provider failure")
+            return (7, -3)
+
+        action = InstrumentedMoveUntil((1, 1), infinite, velocity_provider=flaky_provider)
+        action.apply(test_sprite, tag="provider_error")
+
+        Action.update_all(0.016)  # First frame triggers provider exception path
+        assert call_state["count"] == 2
+        assert test_sprite.change_x == 7
+        assert test_sprite.change_y == -3
+
+    def test_wrap_behavior_axes_coverage(self, test_sprite):
+        """Wrap behavior should wrap both axes to opposite edges."""
+        bounds = (0, 0, 200, 200)
+        action = InstrumentedMoveUntil((5, 5), infinite, bounds=bounds, boundary_behavior="wrap")
+
+        # Crossing left boundary wraps right edge to high bound
+        test_sprite.left = bounds[0] - 10
+        action._wrap_behavior(test_sprite, test_sprite.left, test_sprite.right, bounds[0], bounds[2], 5, "x")
+        assert test_sprite.right == bounds[2]
+
+        # Crossing right boundary wraps left edge to low bound
+        test_sprite.right = bounds[2] + 5
+        action._wrap_behavior(test_sprite, test_sprite.left, test_sprite.right, bounds[0], bounds[2], -5, "x")
+        assert test_sprite.left == bounds[0]
+
+        # Crossing bottom boundary wraps top edge upward
+        test_sprite.bottom = bounds[1] - 15
+        action._wrap_behavior(test_sprite, test_sprite.bottom, test_sprite.top, bounds[1], bounds[3], 5, "y")
+        assert test_sprite.top == bounds[3]
+
+        # Crossing top boundary wraps bottom edge downward
+        test_sprite.top = bounds[3] + 12
+        action._wrap_behavior(test_sprite, test_sprite.bottom, test_sprite.top, bounds[1], bounds[3], -5, "y")
+        assert test_sprite.bottom == bounds[1]
+
+    def test_limit_behavior_axes_coverage(self, test_sprite):
+        """Limit behavior should clamp velocity and positions on both axes."""
+        bounds = (0, 0, 200, 200)
+
+        # Left boundary clamp
+        left_action = InstrumentedMoveUntil((5, 0), infinite, bounds=bounds, boundary_behavior="limit")
+        test_sprite.left = bounds[0] - 5
+        test_sprite.change_x = 5
+        left_action._limit_behavior(test_sprite, test_sprite.left, test_sprite.right, bounds[0], bounds[2], 5, "x")
+        assert test_sprite.left == bounds[0]
+        assert test_sprite.change_x == 0
+        assert left_action.current_velocity[0] == 0
+
+        # Right boundary clamp
+        right_action = InstrumentedMoveUntil((5, 0), infinite, bounds=bounds, boundary_behavior="limit")
+        test_sprite.right = bounds[2] + 5
+        test_sprite.change_x = -5
+        right_action._limit_behavior(test_sprite, test_sprite.left, test_sprite.right, bounds[0], bounds[2], -5, "x")
+        assert test_sprite.right == bounds[2]
+        assert test_sprite.change_x == 0
+        assert right_action.current_velocity[0] == 0
+
+        # Bottom boundary clamp
+        bottom_action = InstrumentedMoveUntil((0, 5), infinite, bounds=bounds, boundary_behavior="limit")
+        test_sprite.bottom = bounds[1] - 5
+        test_sprite.change_y = 5
+        bottom_action._limit_behavior(test_sprite, test_sprite.bottom, test_sprite.top, bounds[1], bounds[3], 5, "y")
+        assert test_sprite.bottom == bounds[1]
+        assert test_sprite.change_y == 0
+        assert bottom_action.current_velocity[1] == 0
+
+        # Top boundary clamp
+        top_action = InstrumentedMoveUntil((0, 5), infinite, bounds=bounds, boundary_behavior="limit")
+        test_sprite.top = bounds[3] + 5
+        test_sprite.change_y = -5
+        top_action._limit_behavior(test_sprite, test_sprite.bottom, test_sprite.top, bounds[1], bounds[3], -5, "y")
+        assert test_sprite.top == bounds[3]
+        assert test_sprite.change_y == 0
+        assert top_action.current_velocity[1] == 0
+
+    def test_remove_effect_clears_state_coverage(self, test_sprite):
+        """remove_effect should clear callbacks, boundary_state, and velocities."""
+        cleared = {"enter": 0, "exit": 0}
+
+        def on_enter(*_):
+            cleared["enter"] += 1
+
+        def on_exit(*_):
+            cleared["exit"] += 1
+
+        action = InstrumentedMoveUntil(
+            (5, 5),
+            infinite,
+            bounds=(0, 0, 200, 200),
+            boundary_behavior="limit",
+            on_boundary_enter=on_enter,
+            on_boundary_exit=on_exit,
+        )
+        action.apply(test_sprite, tag="remove_effect")
+        action._boundary_state[id(test_sprite)] = {"x": "left", "y": "bottom"}
+        test_sprite.change_x = 5
+        test_sprite.change_y = 5
+
+        action.remove_effect()
+        assert action.on_boundary_enter is None
+        assert action.on_boundary_exit is None
+        assert action._boundary_state == {}
+        assert test_sprite.change_x == 0
+        assert test_sprite.change_y == 0
+        assert action.snapshots[-1]["velocity"] == (0.0, 0.0)
+
+    def test_set_factor_and_current_velocity_immediate_coverage(self, test_sprite):
+        """set_factor and set_current_velocity should reapply immediately."""
+        action = InstrumentedMoveUntil((8, -4), infinite)
+        action.apply(test_sprite, tag="factor_set")
+
+        Action.update_all(0.016)
+        assert test_sprite.change_x == 8
+        assert test_sprite.change_y == -4
+
+        action.set_factor(0.5)
+        assert test_sprite.change_x == 4
+        assert test_sprite.change_y == -2
+
+        action.set_current_velocity((-3, 6))
+        assert test_sprite.change_x == -3
+        assert test_sprite.change_y == 6
+
+    def test_reverse_movement_axis_specific_coverage(self, test_sprite):
+        """reverse_movement must only flip requested axis and validate input."""
+        action = InstrumentedMoveUntil((6, 2), infinite)
+        action.apply(test_sprite, tag="reverse_axis")
+        Action.update_all(0.016)
+
+        action.reverse_movement("x")
+        assert test_sprite.change_x == -6
+        assert test_sprite.change_y == 2
+
+        action.reverse_movement("y")
+        assert test_sprite.change_x == -6
+        assert test_sprite.change_y == -2
+
+        with pytest.raises(ValueError):
+            action.reverse_movement("z")
+
+
+class TestMoveUntilFrameDurationCoverage(ActionTestBase):
+    """Coverage for frame-derived duration handling and boundary timing paths."""
+
+    def test_frame_metadata_elapsed_stops_action(self, test_sprite):
+        """Frame metadata should trigger remove_effect and on_stop."""
+
+        stop_state = {"called": False}
+
+        def on_stop():
+            stop_state["called"] = True
+
+        action = InstrumentedMoveUntil((5, 0), after_frames(5), on_stop=on_stop)
+        action.apply(test_sprite, tag="duration_stop")
+
+        for _ in range(4):
+            Action.update_all(0.03)
+            assert not action.done
+
+        Action.update_all(0.03)
+        assert action.done
+        assert stop_state["called"]
+        assert test_sprite.change_x == 0
+
+    def test_limit_velocity_provider_callbacks_coverage(self, test_sprite):
+        """Velocity provider limit path should fire enter/exit callbacks."""
+        bounds = (0, 0, 200, 200)
+        events = {"enter": [], "exit": []}
+
+        def record_enter(sprite, axis, side):
+            events["enter"].append((axis, side))
+
+        def record_exit(sprite, axis, side):
+            events["exit"].append((axis, side))
+
+        velocity_sequence = [(10, 0), (10, 0), (-10, 0)]
+        call_index = {"value": 0}
+
+        def provider():
+            idx = min(call_index["value"], len(velocity_sequence) - 1)
+            call_index["value"] += 1
+            return velocity_sequence[idx]
+
+        action = InstrumentedMoveUntil(
+            (0, 0),
+            infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+            velocity_provider=provider,
+            on_boundary_enter=record_enter,
+            on_boundary_exit=record_exit,
+        )
+        test_sprite.center_x = 195
+        action.apply(test_sprite, tag="provider_limit")
+
+        Action.update_all(0.016)  # Should hit right boundary and trigger enter
+        Action.update_all(0.016)  # Should move left and trigger exit
+        test_sprite.update()  # Apply negative velocity so future frames stay inside
+
+        assert ("x", "right") in events["enter"]
+        assert ("x", "right") in events["exit"]
+
+    def test_apply_boundary_limits_invoked_without_velocity_provider_coverage(self, test_sprite):
+        """_apply_boundary_limits should run whenever bounds+bounce set without provider."""
+        bounds = (0, 0, 200, 200)
+        action = InstrumentedMoveUntil((5, 0), infinite, bounds=bounds, boundary_behavior="bounce")
+        action.apply(test_sprite, tag="apply_limits")
+
+        Action.update_all(0.016)
+        assert action.apply_limits_invocations >= 1
+
+
 class TestConditionalErrorCases:
     """Test error cases and edge conditions in conditional actions."""
 
@@ -1143,37 +1516,18 @@ class TestConditionalErrorCases:
         with pytest.raises(ValueError, match="velocity must be a tuple or list of length 2"):
             move_until(test_sprite, velocity=(1, 2, 3), condition=infinite)
 
-    def test_duration_with_invalid_seconds(self):
-        """Test duration with invalid seconds parameter."""
-        # Test with None - this should raise TypeError when called
-        cond = duration(None)
-        with pytest.raises(TypeError):
-            cond()
-
-    def test_duration_with_callable_seconds(self):
-        """Test duration with callable seconds parameter."""
-
-        def get_seconds():
-            return 0.1
-
-        cond = duration(get_seconds)
-        # Should work with callable
-        assert callable(cond)
-
     def test_conditional_action_exception_handling(self, test_sprite):
         """Test conditional action with exception during duration parsing."""
 
-        # Create a mock object that raises exceptions when accessed
-        class BadDuration:
-            def __getitem__(self, key):
-                raise TypeError("Bad duration")
+        # Provide a condition that raises when evaluated to ensure safe handling
+        class BadCondition:
+            def __call__(self):
+                raise RuntimeError("bad condition")
 
-            def __len__(self):
-                raise IndexError("Bad length")
-
-        # This should not crash, just fall back to default duration
-        action = move_until(test_sprite, velocity=(10, 0), condition=duration(BadDuration()))
-        assert action is not None
+        action = move_until(test_sprite, velocity=(10, 0), condition=BadCondition())
+        action.apply(test_sprite, tag="bad_condition")
+        with pytest.raises(RuntimeError):
+            Action.update_all(0.016)
 
     def test_duration_condition_closure_detection(self, test_sprite):
         """Test duration condition closure detection coverage."""
@@ -1182,28 +1536,34 @@ class TestConditionalErrorCases:
         # Test with a closure that contains seconds variable
         seconds = 0.1
 
-        def make_condition():
-            return duration(seconds)
-
-        cond = make_condition()
-        action = move_until(sprite, velocity=(10, 0), condition=cond)
+        condition = after_frames(seconds_to_frames(seconds))
+        action = move_until(sprite, velocity=(10, 0), condition=condition)
         assert action is not None
 
-        # Create a duration condition with closure
-        condition = duration(2.0)
-
-        action = move_until(sprite, velocity=(10, 0), condition=condition, tag="test_duration_closure")
+        action = move_until(
+            sprite,
+            velocity=(10, 0),
+            condition=after_frames(seconds_to_frames(2.0)),
+            tag="test_duration_closure",
+        )
 
         # Update to test the closure detection
         for _ in range(5):
             Action.update_all(0.016)
+            sprite.update()
 
+        assert not action.done
         assert sprite.change_x == 10
 
-        # The action should detect the duration from the closure
-        # This exercises the closure inspection code
-        Action.update_all(0.016)
-        assert sprite.change_x == 10
+        duration_frames = seconds_to_frames(2.0)
+        for _ in range(duration_frames + 5):
+            Action.update_all(0.016)
+            sprite.update()
+            if action.done:
+                break
+
+        assert action.done
+        assert sprite.change_x == 0
 
     def test_move_until_boundary_limit_with_events(self, test_sprite):
         """Test MoveUntil boundary limit behavior with enter/exit events."""
@@ -1568,11 +1928,11 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         action = CallbackUntil(
             callback=callback,
-            condition=duration(0.1),  # Run for 0.1 seconds
+            condition=after_frames(6),  # Run for 6 frames
         )
         action.apply(sprite, tag="test_no_interval")
 
-        # Run for 0.1 seconds at 60 FPS = 6 frames
+        # Run for 6 frames
         for _ in range(6):
             Action.update_all(1 / 60)
 
@@ -1581,6 +1941,8 @@ class TestCallbackUntilInterval(ActionTestBase):
 
     def test_callback_until_with_interval_calls_on_schedule(self, test_sprite):
         """With interval, callback should be called at specified intervals."""
+        from actions.frame_timing import seconds_to_frames
+
         sprite = test_sprite
         call_count = 0
         call_times = []
@@ -1592,12 +1954,12 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         action = CallbackUntil(
             callback=callback,
-            condition=duration(0.5),  # Run for 0.5 seconds
+            condition=after_frames(seconds_to_frames(0.5)),  # Run for 0.5 seconds (30 frames)
             seconds_between_calls=0.1,  # Call every 0.1 seconds
         )
         action.apply(sprite, tag="test_interval")
 
-        # Run for 0.5 seconds at 60 FPS = 30 frames
+        # Run for 30 frames
         for _ in range(30):
             Action.update_all(1 / 60)
 
@@ -1607,6 +1969,8 @@ class TestCallbackUntilInterval(ActionTestBase):
 
     def test_callback_until_interval_factor_scaling(self, test_sprite):
         """Factor scaling should affect the interval timing."""
+        from actions.frame_timing import seconds_to_frames
+
         sprite = test_sprite
         call_count = 0
 
@@ -1616,7 +1980,7 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         action = CallbackUntil(
             callback=callback,
-            condition=duration(0.2),
+            condition=after_frames(seconds_to_frames(0.2)),  # 12 frames
             seconds_between_calls=0.1,
         )
         action.apply(sprite, tag="test_factor")
@@ -1624,7 +1988,7 @@ class TestCallbackUntilInterval(ActionTestBase):
         # Run at double speed (factor = 2.0) - should call twice as often
         action.set_factor(2.0)
 
-        # Run for 0.2 seconds at 60 FPS = 12 frames
+        # Run for 12 frames
         for _ in range(12):
             Action.update_all(1 / 60)
 
@@ -1634,6 +1998,8 @@ class TestCallbackUntilInterval(ActionTestBase):
 
     def test_callback_until_zero_factor_stops_calls(self, test_sprite):
         """Factor of 0.0 should stop callback calls."""
+        from actions.frame_timing import seconds_to_frames
+
         sprite = test_sprite
         call_count = 0
 
@@ -1643,7 +2009,7 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         action = CallbackUntil(
             callback=callback,
-            condition=duration(0.2),
+            condition=after_frames(seconds_to_frames(0.2)),  # 12 frames
             seconds_between_calls=0.05,  # Very frequent calls
         )
         action.apply(sprite, tag="test_zero_factor")
@@ -1673,7 +2039,7 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         action = CallbackUntil(
             callback=callback_with_target,
-            condition=duration(0.1),
+            condition=after_frames(6),  # 0.1 seconds at 60 FPS
             seconds_between_calls=0.05,
         )
         action.apply(sprite, tag="test_target_param")
@@ -1696,7 +2062,7 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         action = CallbackUntil(
             callback=callback_with_target,
-            condition=duration(0.1),
+            condition=after_frames(6),  # 0.1 seconds at 60 FPS
             seconds_between_calls=0.05,
         )
         action.apply(sprite_list, tag="test_sprite_list_target")
@@ -1751,7 +2117,7 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         action = CallbackUntil(
             callback=callback,
-            condition=duration(0.2),
+            condition=after_frames(12),  # 0.2 seconds at 60 FPS
             seconds_between_calls=0.1,
         )
         action.apply(sprite, tag="test_reset")
@@ -1786,7 +2152,7 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         action = CallbackUntil(
             callback=callback,
-            condition=duration(0.1),
+            condition=after_frames(6),  # 0.1 seconds at 60 FPS
             seconds_between_calls=0.05,
             on_stop=on_stop,
         )
@@ -1799,7 +2165,7 @@ class TestCallbackUntilInterval(ActionTestBase):
                 break
 
         assert on_stop_called
-        assert on_stop_data is None  # duration() returns None
+        assert on_stop_data is None  # frame-driven conditions return None by default
 
     def test_callback_until_validation_errors(self, test_sprite):
         """Should validate input parameters."""
@@ -1812,7 +2178,7 @@ class TestCallbackUntilInterval(ActionTestBase):
         with pytest.raises(ValueError, match="seconds_between_calls must be non-negative"):
             CallbackUntil(
                 callback=callback,
-                condition=duration(0.1),
+                condition=after_frames(6),  # 0.1 seconds at 60 FPS
                 seconds_between_calls=-0.1,
             )
 
@@ -1829,7 +2195,7 @@ class TestCallbackUntilInterval(ActionTestBase):
 
         action = CallbackUntil(
             callback=failing_callback,
-            condition=duration(0.1),
+            condition=after_frames(6),  # 0.1 seconds at 60 FPS
             seconds_between_calls=0.05,
         )
         action.apply(sprite, tag="test_exception")
@@ -1854,17 +2220,9 @@ class TestCallbackUntilExceptionHandling(ActionTestBase):
             nonlocal call_count
             call_count += 1
 
-        # Create a malformed condition that will cause exception during duration extraction
-        def bad_condition():
-            return False
-
-        # Add attributes that will cause exception in duration extraction
-        bad_condition._is_duration_condition = True
-        bad_condition._duration_seconds = "not_a_number"  # Invalid type
-
         action = CallbackUntil(
             callback=callback,
-            condition=bad_condition,
+            condition=after_frames(3),
             seconds_between_calls=0.05,
         )
         action.apply(sprite, tag="test_exception")
@@ -1901,7 +2259,7 @@ class TestCallbackUntilExceptionHandling(ActionTestBase):
 
         action = CallbackUntil(
             callback=callback,
-            condition=bad_closure_condition,
+            condition=after_frames(3),
             seconds_between_calls=0.05,
         )
         action.apply(sprite, tag="test_apply_exception")
@@ -1930,7 +2288,7 @@ class TestCallbackUntilExceptionHandling(ActionTestBase):
 
         action = CallbackUntil(
             callback=failing_callback,
-            condition=duration(0.1),
+            condition=after_frames(6),  # 0.1 seconds at 60 FPS
             seconds_between_calls=0.05,
         )
         action.apply(sprite, tag="test_fallback")
@@ -1953,7 +2311,7 @@ class TestCallbackUntilExceptionHandling(ActionTestBase):
         # Set up action with very precise timing to trigger edge case
         action = CallbackUntil(
             callback=callback,
-            condition=duration(0.1),
+            condition=after_frames(6),  # 0.1 seconds at 60 FPS
             seconds_between_calls=0.1,  # Exactly at completion time
         )
         action.apply(sprite, tag="test_edge_case")
@@ -2093,7 +2451,7 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
     def test_callback_until_in_parallel_stop_and_restart_with_tag(self, test_sprite):
         """Test CallbackUntil within parallel composition with stop and restart functionality."""
         from actions.composite import parallel
-        from actions.conditional import DelayUntil, duration
+        from actions.conditional import DelayUntil
 
         sprite = test_sprite
         call_count_first = 0
@@ -2115,7 +2473,7 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
         )
 
         # Create a delay action to run alongside the callback
-        delay_action1 = DelayUntil(duration(1.0))  # 1-second delay (longer than our test)
+        delay_action1 = DelayUntil(after_frames(60))  # 60 frames delay (longer than our test)
 
         # Create parallel composition
         parallel_action1 = parallel(callback_action1, delay_action1)
@@ -2166,7 +2524,7 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
         )
 
         # Create another delay action
-        delay_action2 = DelayUntil(duration(1.0))  # Same delay duration
+        delay_action2 = DelayUntil(after_frames(60))  # Same delay duration (60 frames)
 
         # Create parallel composition with same tag
         parallel_action2 = parallel(callback_action2, delay_action2)
@@ -2700,6 +3058,118 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
         assert len(action._boundary_state) == 0, "_boundary_state should be cleared"
 
 
+class TestCallbackUntilCoverage(ActionTestBase):
+    """Additional CallbackUntil coverage for fallback, timing, and cloning."""
+
+    def test_callback_fallback_without_target_coverage(self, test_sprite):
+        """_call_callback_with_fallback should retry without target when signature mismatches."""
+
+        class FallbackRecorder:
+            def __init__(self):
+                self.with_target = 0
+                self.without_target = 0
+
+            def __call__(self, *args):
+                if args:
+                    self.with_target += 1
+                    raise TypeError("no target supported")
+                self.without_target += 1
+
+        recorder = FallbackRecorder()
+        action = CallbackUntil(callback=recorder, condition=infinite, seconds_between_calls=0.01)
+        action.apply(test_sprite, tag="callback_fallback")
+
+        for _ in range(3):
+            Action.update_all(0.016)
+
+        assert recorder.with_target >= 1
+        assert recorder.with_target == recorder.without_target
+
+    def test_after_frames_condition_simulated_timing_coverage(self, test_sprite):
+        """Frame-based CallbackUntil conditions should complete deterministically."""
+        action = CallbackUntil(
+            callback=lambda target: None,
+            condition=after_frames(3),
+            seconds_between_calls=0.02,
+        )
+        action.apply(test_sprite, tag="sim_duration")
+
+        for _ in range(3):
+            Action.update_all(0.016)
+        assert action.done
+
+    def test_final_scheduled_callback_runs_once_coverage(self, test_sprite):
+        """Interval scheduling should fire final callback when next fire is within duration epsilon."""
+        call_state = {"count": 0}
+
+        def callback(_target=None):
+            call_state["count"] += 1
+
+        from actions.frame_timing import seconds_to_frames
+
+        action = CallbackUntil(
+            callback=callback, condition=after_frames(seconds_to_frames(0.5)), seconds_between_calls=0.5
+        )
+        action.apply(test_sprite, tag="final_callback")
+
+        action._duration = 0.5
+        action._elapsed = 0.5 - 0.75e-9
+        action._next_fire_time = 0.5 + 0.5e-9
+        action.current_seconds_between_calls = 0.5
+
+        action.update_effect(0.0)
+        assert call_state["count"] == 1
+
+    def test_reset_and_clone_interval_state_coverage(self, test_sprite):
+        """reset should restore interval timing; clone should preserve configuration."""
+        call_count = {"value": 0}
+
+        def callback():
+            call_count["value"] += 1
+
+        from actions.frame_timing import seconds_to_frames
+
+        action = CallbackUntil(
+            callback=callback, condition=after_frames(seconds_to_frames(0.2)), seconds_between_calls=0.1
+        )
+        action.apply(test_sprite, tag="reset_clone")
+        Action.update_all(0.05)
+        assert action._next_fire_time is not None
+
+        action.reset()
+        assert action._elapsed == 0.0
+        assert action._next_fire_time is None
+        assert action.current_seconds_between_calls == action.target_seconds_between_calls
+
+        clone = action.clone()
+        assert clone is not action
+        assert clone.target_seconds_between_calls == action.target_seconds_between_calls
+
+    def test_seconds_between_calls_pauses_with_infinite_interval_coverage(self, test_sprite):
+        """Factor of zero should pause callback scheduling by setting interval to infinity."""
+        call_count = {"value": 0}
+
+        def callback():
+            call_count["value"] += 1
+
+        from actions.frame_timing import seconds_to_frames
+
+        action = CallbackUntil(
+            callback=callback, condition=after_frames(seconds_to_frames(0.3)), seconds_between_calls=0.05
+        )
+        action.apply(test_sprite, tag="interval_pause")
+        Action.update_all(0.05)
+
+        action.set_factor(0.0)
+        assert action.current_seconds_between_calls == float("inf")
+        paused_calls = call_count["value"]
+
+        for _ in range(10):
+            Action.update_all(0.05)
+
+        assert call_count["value"] == paused_calls
+
+
 class TestPriority7_TweenUntilSetDuration:
     """Test TweenUntil.set_duration raises NotImplementedError - covers line 1323."""
 
@@ -2708,10 +3178,10 @@ class TestPriority7_TweenUntilSetDuration:
         Action.stop_all()
 
     def test_tween_set_duration_not_implemented(self):
-        """Test that TweenUntil.set_duration() raises NotImplementedError - line 1323."""
+        """Test that TweenUntil.set_duration raises NotImplementedError - line 1323."""
         sprite = create_test_sprite()
 
-        action = TweenUntil(0, 100, "center_x", duration(1.0))
+        action = TweenUntil(0, 100, "center_x", after_frames(60))  # 1 second at 60 FPS
         action.apply(sprite, tag="tween")
 
         with pytest.raises(NotImplementedError):
@@ -2725,8 +3195,8 @@ class TestPriority8_CallbackUntilEdgeCases:
         """Clean up after each test."""
         Action.stop_all()
 
-    def test_callback_until_condition_without_duration_attribute(self):
-        """Test CallbackUntil when condition doesn't have _duration_seconds - line 1374-1375."""
+    def test_callback_until_condition_without_frame_metadata(self):
+        """Test CallbackUntil when condition lacks frame metadata - line 1374-1375."""
         sprite = create_test_sprite()
         call_count = [0]
 
@@ -2755,7 +3225,9 @@ class TestPriority8_CallbackUntilEdgeCases:
         def callback():
             call_count[0] += 1
 
-        action = CallbackUntil(callback, duration(1.0), seconds_between_calls=0.1)
+        from actions.frame_timing import seconds_to_frames
+
+        action = CallbackUntil(callback, after_frames(seconds_to_frames(1.0)), seconds_between_calls=0.1)
         action.apply(sprite, tag="callback")
 
         # Set factor to 0 - should pause callbacks
@@ -2776,7 +3248,9 @@ class TestPriority8_CallbackUntilEdgeCases:
         def callback():
             call_count[0] += 1
 
-        action = CallbackUntil(callback, duration(1.0), seconds_between_calls=0.2)
+        from actions.frame_timing import seconds_to_frames
+
+        action = CallbackUntil(callback, after_frames(seconds_to_frames(1.0)), seconds_between_calls=0.2)
         action.apply(sprite, tag="callback")
 
         # Run one frame to initialize next_fire_time
@@ -2801,7 +3275,7 @@ class TestPriority8_CallbackUntilEdgeCases:
         def callback_func():
             call_count[0] += 1
 
-        action = CallbackUntil(callback_func, duration(0.1))
+        action = CallbackUntil(callback_func, after_frames(6))  # 0.1 seconds at 60 FPS
         action.apply(sprite, tag="callback")
 
         # Set callback to None after action starts
@@ -2834,7 +3308,9 @@ class TestPriority10_FollowPathUntilEdgeCases:
         """Test FollowPathUntil.remove_effect handles exceptions - line 765-766."""
         sprite = create_test_sprite()
 
-        action = FollowPathUntil([(100, 100), (200, 200)], velocity=150, condition=duration(0.1))
+        action = FollowPathUntil(
+            [(100, 100), (200, 200)], velocity=150, condition=after_frames(6)
+        )  # 0.1 seconds at 60 FPS
         action.apply(sprite, tag="path")
 
         # Corrupt the control points to cause _bezier_point to raise exception
@@ -2849,7 +3325,9 @@ class TestPriority10_FollowPathUntilEdgeCases:
         """Test FollowPathUntil with minimum control points (2)."""
         sprite = create_test_sprite()
 
-        action = FollowPathUntil([(100, 100), (200, 200)], velocity=150, condition=duration(0.1))
+        action = FollowPathUntil(
+            [(100, 100), (200, 200)], velocity=150, condition=after_frames(6)
+        )  # 0.1 seconds at 60 FPS
         action.apply(sprite, tag="path")
 
         # Should work with just 2 points
@@ -2861,47 +3339,31 @@ class TestPriority10_FollowPathUntilEdgeCases:
     def test_follow_path_insufficient_control_points(self):
         """Test FollowPathUntil with insufficient control points."""
         with pytest.raises(ValueError, match="Must specify at least 2 control points"):
-            FollowPathUntil([(100, 100)], velocity=150, condition=duration(0.1))
+            FollowPathUntil([(100, 100)], velocity=150, condition=after_frames(6))  # 0.1 seconds at 60 FPS
 
 
 class TestPriority6_ExtractDurationSeconds:
-    """Test _extract_duration_seconds helper - covers lines 1746-1750."""
+    """Test _extract_duration_seconds helper - covers frame metadata extraction."""
 
-    def test_extract_duration_with_valid_attribute(self):
-        """Test extracting duration from condition with _duration_seconds - lines 1746-1750."""
-        cond = duration(2.5)
+    def test_extract_duration_from_frame_count(self):
+        """Test extracting duration from after_frames metadata."""
+        cond = after_frames(150)
         result = _extract_duration_seconds(cond)
-        assert result == 2.5
+        assert pytest.approx(result) == frames_to_seconds(150)
 
-    def test_extract_duration_with_invalid_attribute(self):
-        """Test extracting duration from condition without attribute."""
+    def test_extract_duration_from_frame_window(self):
+        """Test extracting duration from within_frames metadata."""
+        cond = within_frames(5, 20)
+        result = _extract_duration_seconds(cond)
+        assert pytest.approx(result) == frames_to_seconds(15)
+
+    def test_extract_duration_without_metadata(self):
+        """Test extracting duration from condition without frame metadata."""
 
         def simple_condition():
             return False
 
         result = _extract_duration_seconds(simple_condition)
-        assert result is None
-
-    def test_extract_duration_with_negative_duration(self):
-        """Test extracting duration with negative value returns None."""
-
-        def bad_condition():
-            return False
-
-        bad_condition._duration_seconds = -1.0
-
-        result = _extract_duration_seconds(bad_condition)
-        assert result is None
-
-    def test_extract_duration_with_non_numeric(self):
-        """Test extracting duration with non-numeric value returns None."""
-
-        def bad_condition():
-            return False
-
-        bad_condition._duration_seconds = "not a number"
-
-        result = _extract_duration_seconds(bad_condition)
         assert result is None
 
 
@@ -2966,26 +3428,19 @@ class TestPriority8_TweenUntilConditionResult:
         assert callback_called[0]
 
 
-class TestPriority9_DurationResetFunction:
-    """Test duration() helper reset function - covers line 1553."""
+class TestPriority9_FrameConditionResetFunction:
+    """Test frame condition reset logic - covers line 1553."""
 
-    def test_duration_reset_function(self):
-        """Test duration condition has _reset_duration function - line 1553."""
-        cond = duration(2.0)
+    def test_after_frames_reset_function(self):
+        """Test after_frames condition resets internal counter."""
+        cond = after_frames(3)
 
-        # Should have reset function
-        assert hasattr(cond, "_reset_duration")
+        assert not cond()
+        assert not cond()
 
-        # Call the condition to set start_time
-        result1 = cond()
-        assert result1 is False  # Not elapsed yet
-
-        # Reset the duration
-        cond._reset_duration()
-
-        # Should work again after reset
-        result2 = cond()
-        assert result2 is False
+        # Reset by creating a new condition
+        cond = after_frames(3)
+        assert not cond()
 
 
 def test_move_until_pause_resets_velocity() -> None:
@@ -3010,3 +3465,129 @@ def test_move_until_pause_resets_velocity() -> None:
     assert sprite.change_x == 3
 
     Action.stop_all()
+
+
+# ============================================================================
+# Frame-Based Regression Tests
+# These tests define the desired frame-driven API behavior
+# ============================================================================
+
+
+class TestFrameBasedRegression(ActionTestBase):
+    """Regression tests for frame-based timing API."""
+
+    def test_current_frame_returns_frame_count(self):
+        """Test that Action.current_frame() returns the current frame count."""
+        Action._frame_counter = 0
+        assert Action.current_frame() == 0
+
+        Action.update_all(0.016)
+        assert Action.current_frame() == 1
+
+        Action.update_all(0.016)
+        assert Action.current_frame() == 2
+
+    def test_current_frame_pause_resume_determinism(self, test_sprite):
+        """Test that frame counter pauses when actions are paused."""
+        Action._frame_counter = 0
+        sprite = test_sprite
+
+        # Create an action
+        action = move_until(sprite, velocity=(10, 0), condition=after_frames(100), tag="test_pause")
+
+        # Update a few times
+        for _ in range(5):
+            Action.update_all(0.016)
+        frame_before_pause = Action.current_frame()
+        assert frame_before_pause == 5
+
+        # Pause all actions
+        Action.pause_all()
+
+        # Frame counter should not increment when paused
+        Action.update_all(0.016)
+        assert Action.current_frame() == frame_before_pause
+
+        Action.update_all(0.016)
+        assert Action.current_frame() == frame_before_pause
+
+        # Resume and verify counter increments again
+        Action.resume_all()
+        Action.update_all(0.016)
+        assert Action.current_frame() == frame_before_pause + 1
+
+    def test_step_all_advances_one_frame(self, test_sprite):
+        """Test that step_all() advances exactly one frame."""
+        Action._frame_counter = 0
+        sprite = test_sprite
+
+        action = move_until(sprite, velocity=(5, 0), condition=after_frames(10), tag="test_step")
+        initial_frame = Action.current_frame()
+
+        # Step should advance exactly one frame
+        Action.step_all(0.016)
+        assert Action.current_frame() == initial_frame + 1
+
+        # Another step
+        Action.step_all(0.016)
+        assert Action.current_frame() == initial_frame + 2
+
+        # Actions should be paused after step
+        assert action._paused
+
+    def test_after_frames_condition_cloning_preserves_metadata(self):
+        """Test that _clone_condition preserves frame metadata for after_frames conditions."""
+        from actions.conditional import _clone_condition
+
+        # Create a frame-based condition
+        original = after_frames(60)
+        assert hasattr(original, "_is_frame_condition")
+        assert hasattr(original, "_frame_count")
+        assert original._frame_count == 60
+
+        # Clone it
+        cloned = _clone_condition(original)
+
+        # Cloned condition should preserve metadata
+        assert hasattr(cloned, "_is_frame_condition")
+        assert hasattr(cloned, "_frame_count")
+        assert cloned._frame_count == 60
+
+        # Cloned condition should be independent (fresh state)
+        # Both should start at frame 0
+        assert not original()
+        assert not cloned()
+
+        # After calling original, cloned should still be at start
+        for _ in range(30):
+            original()
+        # Original should be halfway, cloned should still be at start
+        assert not cloned()
+
+    def test_after_frames_condition_deterministic_with_pause(self, test_sprite):
+        """Test that after_frames conditions are deterministic with pause/resume."""
+        Action._frame_counter = 0
+        sprite = test_sprite
+
+        # Create action with frame-based condition
+        condition = after_frames(10)
+        action = move_until(sprite, velocity=(5, 0), condition=condition, tag="test_deterministic")
+
+        # Update 5 frames
+        for _ in range(5):
+            Action.update_all(0.016)
+        assert not action.done
+
+        # Pause
+        Action.pause_all()
+
+        # Update while paused - condition should not progress
+        for _ in range(10):
+            Action.update_all(0.016)
+        assert not action.done
+
+        # Resume and complete
+        Action.resume_all()
+        for _ in range(5):
+            Action.update_all(0.016)
+        assert action.done

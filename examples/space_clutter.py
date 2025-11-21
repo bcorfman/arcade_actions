@@ -19,10 +19,10 @@ import arcade
 
 from actions import (
     Action,
+    BlinkUntil,
     DelayUntil,
     MoveUntil,
     arrange_grid,
-    blink_until,
     center_window,
     create_formation_entry_from_sprites,
     create_wave_pattern,
@@ -39,6 +39,13 @@ from actions.frame_timing import seconds_to_frames
 WINDOW_WIDTH = 720
 WINDOW_HEIGHT = 1024
 WINDOW_TITLE = "Space Clutter!"
+
+# ---------------------------------------------------------------------------
+# Blink configuration
+# ---------------------------------------------------------------------------
+BLINK_GROUP_COUNT = 5
+BLINK_RATE_MIN_FRAMES = 12  # ~0.2 seconds at 60 FPS
+BLINK_RATE_MAX_FRAMES = 24  # ~0.4 seconds at 60 FPS
 
 # ---------------------------------------------------------------------------
 # Starfield configuration
@@ -114,15 +121,15 @@ class Starfield:
     def __init__(self):
         """Populate sprite list with stars, and start actions."""
         self.star_list = arcade.SpriteList()
+        self._blink_groups: list[arcade.SpriteList] = []
 
         bounds = (0, -VERTICAL_MARGIN, WINDOW_WIDTH, WINDOW_HEIGHT + VERTICAL_MARGIN)
 
-        # Group stars by blink rate for efficient action management
         blink_rates = [
             int(BLINK_RATE_MIN_FRAMES + i * (BLINK_RATE_MAX_FRAMES - BLINK_RATE_MIN_FRAMES) / (BLINK_GROUP_COUNT - 1))
             for i in range(BLINK_GROUP_COUNT)
         ]
-        blink_groups = [arcade.SpriteList() for _ in range(BLINK_GROUP_COUNT)]
+        self._blink_groups = [arcade.SpriteList() for _ in range(BLINK_GROUP_COUNT)]
         group_indices = list(range(BLINK_GROUP_COUNT))
         random.shuffle(group_indices)
         group_cycle = itertools.cycle(group_indices)
@@ -133,13 +140,12 @@ class Starfield:
             self.star_list.append(star)
 
             group_index = next(group_cycle)
-            blink_groups[group_index].append(star)
+            self._blink_groups[group_index].append(star)
 
-        # Apply BlinkUntil to each group SpriteList instead of individual stars
-        for blink_list, blink_rate_frames in zip(blink_groups, blink_rates):
+        for blink_list, blink_rate_frames in zip(self._blink_groups, blink_rates):
             if len(blink_list) == 0:
                 continue
-            blink_until(blink_list, frames_until_change=blink_rate_frames, condition=infinite)
+            BlinkUntil(frames_until_change=blink_rate_frames, condition=infinite).apply(blink_list)
 
         move_until(
             self.star_list,

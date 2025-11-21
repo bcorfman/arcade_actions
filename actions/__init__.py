@@ -7,7 +7,7 @@ Actions available:
 - Scaling: ScaleUntil
 - Visual: FadeUntil, BlinkUntil
 - Path: FollowPathUntil
-- Timing: DelayUntil, duration, time_elapsed
+- Timing: DelayUntil, time_elapsed
 - Easing: Ease wrapper for smooth acceleration/deceleration effects
 - Interpolation: TweenUntil for direct property animation from start to end value
 - Composition: sequence() and parallel() functions for combining actions
@@ -39,7 +39,6 @@ from .conditional import (
     RotateUntil,
     ScaleUntil,
     TweenUntil,
-    duration,
     infinite,
 )
 
@@ -148,7 +147,6 @@ __all__ = [
     "CycleTexturesUntil",
     "GlowUntil",
     "EmitParticlesUntil",
-    "duration",
     "infinite",
     # Frame-based timing primitives
     "after_frames",

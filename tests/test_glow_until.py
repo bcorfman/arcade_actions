@@ -3,7 +3,7 @@ import types
 import pytest
 
 from actions import Action
-from actions.conditional import duration
+from actions.frame_timing import after_frames
 
 
 class FakeShadertoy:
@@ -54,7 +54,7 @@ class TestGlowUntil:
 
         action = GlowUntil(
             shadertoy_factory=make_shadertoy_factory(fake),
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
             uniforms_provider=uniforms_provider,
             get_camera_bottom_left=get_camera_bottom_left,
         )
@@ -83,7 +83,7 @@ class TestGlowUntil:
         fake = FakeShadertoy()
         action = GlowUntil(
             shadertoy_factory=make_shadertoy_factory(fake),
-            condition=duration(0.1),
+            condition=after_frames(6),  # 0.1 seconds at 60 FPS
             auto_resize=True,
         )
 
@@ -108,7 +108,7 @@ class TestGlowUntilErrorHandling:
 
         action = GlowUntil(
             shadertoy_factory=failing_factory,
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
         )
         action.apply(types.SimpleNamespace())
 
@@ -125,7 +125,7 @@ class TestGlowUntilErrorHandling:
 
         action = GlowUntil(
             shadertoy_factory=lambda size: None,  # Returns None
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
         )
         action.apply(types.SimpleNamespace())
 
@@ -144,7 +144,7 @@ class TestGlowUntilErrorHandling:
 
         action = GlowUntil(
             shadertoy_factory=make_shadertoy_factory(fake),
-            condition=duration(0.01),  # Very short duration
+            condition=after_frames(1),  # 0.01 seconds at 60 FPS (1 frame) - Very short duration
             on_stop=failing_callback,
         )
         action.apply(types.SimpleNamespace())
@@ -164,7 +164,7 @@ class TestGlowUntilErrorHandling:
 
         action = GlowUntil(
             shadertoy_factory=make_shadertoy_factory(fake),
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
             uniforms_provider=failing_uniforms_provider,
         )
         action.apply(types.SimpleNamespace())
@@ -187,7 +187,7 @@ class TestGlowUntilErrorHandling:
 
         action = GlowUntil(
             shadertoy_factory=make_shadertoy_factory(fake),
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
             uniforms_provider=uniforms_provider,
             get_camera_bottom_left=failing_camera_provider,
         )
@@ -209,7 +209,7 @@ class TestGlowUntilErrorHandling:
 
         action = GlowUntil(
             shadertoy_factory=make_shadertoy_factory(fake),
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
         )
         action.apply(types.SimpleNamespace())
 
@@ -229,7 +229,7 @@ class TestGlowUntilErrorHandling:
 
         action = GlowUntil(
             shadertoy_factory=make_shadertoy_factory(fake),
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
             auto_resize=True,
         )
         action.apply(types.SimpleNamespace())
@@ -252,7 +252,7 @@ class TestGlowUntilErrorHandling:
 
         original = GlowUntil(
             shadertoy_factory=make_shadertoy_factory(fake),
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
             uniforms_provider=uniforms_provider,
             get_camera_bottom_left=camera_provider,
             auto_resize=False,

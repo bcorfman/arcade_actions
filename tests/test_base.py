@@ -5,7 +5,8 @@ import pytest
 
 from actions import Action
 from actions.base import CompositeAction
-from actions.conditional import MoveUntil, duration, infinite
+from actions.conditional import MoveUntil, infinite
+from actions.frame_timing import after_frames
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -709,7 +710,7 @@ class TestBonusCoverage_BaseActionSafeCall:
         def callback():
             callback_executed[0] = True
 
-        action = MoveUntil((5, 0), duration(0.1), on_stop=callback)
+        action = MoveUntil((5, 0), after_frames(1), on_stop=callback)  # completes next frame
         action.apply(sprite, tag="move")
 
         # Manually deactivate callbacks
@@ -740,7 +741,7 @@ class TestBonusCoverage_UpdateAllPhaseLogic:
             callback_called[0] = True
 
         # Create action that completes immediately
-        action = MoveUntil((5, 0), duration(0.01), on_stop=on_stop)
+        action = MoveUntil((5, 0), after_frames(1), on_stop=on_stop)  # 0.01 seconds at 60 FPS (1 frame)
         action.apply(sprite, tag="move")
 
         # Update once to mark as done

@@ -26,6 +26,7 @@ from actions.formation import (
     arrange_v_formation,
 )
 from actions.pattern import create_formation_entry_from_sprites
+from actions.conditional import _extract_duration_seconds
 
 
 @pytest.fixture(autouse=True)
@@ -456,21 +457,11 @@ def _extract_delay_from_action(action):
     if hasattr(action, "_duration") and action._duration is not None:
         return action._duration
 
-    # Check if action has a condition that's from duration() helper
+    # Check if action has a condition with frame metadata
     if hasattr(action, "condition") and action.condition:
-        try:
-            # Check if condition is from duration() helper by looking for closure
-            if (
-                hasattr(action.condition, "__closure__")
-                and action.condition.__closure__
-                and len(action.condition.__closure__) >= 1
-            ):
-                # Get the seconds value from the closure
-                seconds = action.condition.__closure__[0].cell_contents
-                if isinstance(seconds, (int, float)) and seconds > 0:
-                    return seconds
-        except (AttributeError, IndexError, TypeError):
-            pass
+        seconds = _extract_duration_seconds(action.condition)
+        if seconds and seconds > 0:
+            return seconds
 
     # Check if action is a sequence and search through its sub-actions
     if hasattr(action, "actions") and isinstance(action.actions, list):

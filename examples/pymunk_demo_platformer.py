@@ -165,7 +165,6 @@ class PlayerAnimationState(StateMachine):
 
     def on_enter_walk(self):
         textures = [pair[self._tex_idx()] for pair in self.player.walk_textures]
-        # 10 FPS = 6 frames per texture at 60 FPS (60/10 = 6)
         cycle_textures_until(self.player, textures=textures, frames_per_texture=6, tag="animation")
 
     def on_enter_jump(self):

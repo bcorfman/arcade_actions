@@ -181,7 +181,7 @@ class GuideManager:
     def __init__(self, initial_enabled: bool = False):
         """
         Initialize guide manager with all guides.
-        
+
         Args:
             initial_enabled: Whether guides should be enabled initially (default: False)
         """

@@ -2,7 +2,8 @@
 
 import arcade
 
-from actions import Action, duration
+from actions import Action
+from actions.frame_timing import after_frames
 from actions.helpers import callback_until, cycle_textures_until, move_by, move_to
 from tests.conftest import ActionTestBase
 
@@ -172,7 +173,7 @@ class TestCallbackUntilHelper(ActionTestBase):
             nonlocal call_count
             call_count += 1
 
-        action = callback_until(sprite, callback=callback, condition=duration(0.1))
+        action = callback_until(sprite, callback=callback, condition=after_frames(6))  # 0.1 seconds at 60 FPS
 
         # Run for a few frames
         for _ in range(6):
@@ -190,7 +191,9 @@ class TestCallbackUntilHelper(ActionTestBase):
             nonlocal call_count
             call_count += 1
 
-        action = callback_until(sprite, callback=callback, condition=duration(0.1), seconds_between_calls=0.05)
+        action = callback_until(
+            sprite, callback=callback, condition=after_frames(6), seconds_between_calls=0.05
+        )  # 0.1 seconds at 60 FPS
 
         # Run for 6 frames (0.1 seconds)
         for _ in range(6):
@@ -208,7 +211,10 @@ class TestCallbackUntilHelper(ActionTestBase):
             received_targets.append(target)
 
         action = callback_until(
-            sprite, callback=callback_with_target, condition=duration(0.05), seconds_between_calls=0.05
+            sprite,
+            callback=callback_with_target,
+            condition=after_frames(3),
+            seconds_between_calls=0.05,  # 0.05 seconds at 60 FPS
         )
 
         # Run for enough frames to trigger callback
@@ -230,7 +236,9 @@ class TestCallbackUntilHelper(ActionTestBase):
             nonlocal on_stop_called
             on_stop_called = True
 
-        action = callback_until(sprite, callback=callback, condition=duration(0.05), on_stop=on_stop)
+        action = callback_until(
+            sprite, callback=callback, condition=after_frames(3), on_stop=on_stop
+        )  # 0.05 seconds at 60 FPS
 
         # Run until completion
         for _ in range(10):
@@ -247,7 +255,9 @@ class TestCallbackUntilHelper(ActionTestBase):
         def callback():
             pass
 
-        action = callback_until(sprite, callback=callback, condition=duration(0.1), tag="test_tag")
+        action = callback_until(
+            sprite, callback=callback, condition=after_frames(6), tag="test_tag"
+        )  # 0.1 seconds at 60 FPS
 
         # Verify action was applied with tag
         assert action.target == sprite
@@ -268,8 +278,7 @@ class TestCycleTexturesUntilHelper(ActionTestBase):
             arcade.Texture.create_empty("tex3", (10, 10)),
         ]
 
-        # Use a simple condition instead of duration() since CycleTexturesUntil
-        # doesn't have simulation-time tracking
+        # Use a simple frame-based condition since CycleTexturesUntil doesn't have simulation-time tracking
         frame_count = 0
 
         def stop_after_frames():
@@ -329,7 +338,7 @@ class TestCycleTexturesUntilHelper(ActionTestBase):
             sprite,
             textures=textures,
             direction=-1,  # Backward
-            condition=duration(0.1),
+            condition=after_frames(6),  # 0.1 seconds at 60 FPS
         )
 
         # Action should be applied and running
@@ -347,7 +356,7 @@ class TestCycleTexturesUntilHelper(ActionTestBase):
             nonlocal on_stop_called
             on_stop_called = True
 
-        # Use a simple condition instead of duration()
+        # Use a simple frame-based condition here
         frame_count = 0
 
         def stop_condition():
@@ -371,7 +380,9 @@ class TestCycleTexturesUntilHelper(ActionTestBase):
 
         textures = [arcade.Texture.create_empty("tex1", (10, 10))]
 
-        action = cycle_textures_until(sprite, textures=textures, condition=duration(0.1), tag="texture_cycle")
+        action = cycle_textures_until(
+            sprite, textures=textures, condition=after_frames(6), tag="texture_cycle"
+        )  # 0.1 seconds at 60 FPS
 
         # Verify action was applied
         assert action.target == sprite

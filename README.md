@@ -286,7 +286,7 @@ Arrange functions contract:
 | Periodic callbacks | `callback_until` helper | `callback_until(sprite, callback=fn, condition=cond, seconds_between_calls=0.1)` |
 | Shader/particle effects | `callback_until` for temporal control | `callback_until(sprite, lambda: emitter.update(), condition=cond)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, bounds=b, boundary_behavior="bounce")` |
-| Smooth acceleration | `ease()` helper | `ease(sprite, action, duration=2.0)` |
+| Smooth acceleration | `ease()` helper | `ease(sprite, action, frames=seconds_to_frames(2.0))` |
 | Property animation | `tween_until` helper | `tween_until(sprite, 0, 100, "center_x", ...)` |
 
 ### State Machine Integration

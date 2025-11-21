@@ -8,10 +8,9 @@ from actions.conditional import (
     MoveUntil,
     ParametricMotionUntil,
     TweenUntil,
-    duration,
     infinite,
 )
-from actions.frame_timing import after_frames
+from actions.frame_timing import after_frames, seconds_to_frames
 
 
 class TestMoveUntilCoverage:
@@ -166,7 +165,7 @@ class TestMoveUntilCoverage:
         def on_stop():
             callback_called.append(True)
 
-        action = MoveUntil((5, 0), duration(0.1), on_stop=on_stop)
+        action = MoveUntil((5, 0), condition=after_frames(seconds_to_frames(0.1)), on_stop=on_stop)
         action.apply(sprite, tag="move")
 
         # Update until duration elapses
@@ -344,7 +343,7 @@ class TestParametricMotionUntilCoverage:
         def offset_fn(t):
             return (t * 100, t * 100)
 
-        action = ParametricMotionUntil(offset_fn, duration(1.0))
+        action = ParametricMotionUntil(offset_fn, condition=after_frames(seconds_to_frames(1.0)))
         action.apply(sprite, tag="motion")
 
         # Run for a bit
@@ -375,7 +374,7 @@ class TestParametricMotionUntilCoverage:
 
         action = ParametricMotionUntil(
             offset_fn,
-            duration(1.0),
+            after_frames(seconds_to_frames(1.0)),
             rotate_with_path=True,
         )
         action.apply(sprite, tag="motion")
@@ -401,7 +400,7 @@ class TestParametricMotionUntilCoverage:
         # Add 90 degree offset (e.g., sprite artwork points up by default)
         action = ParametricMotionUntil(
             offset_fn,
-            duration(1.0),
+            after_frames(seconds_to_frames(1.0)),
             rotate_with_path=True,
             rotation_offset=90.0,
         )
@@ -446,22 +445,25 @@ class TestParametricMotionUntilCoverage:
 
         completed = []
 
-        def on_complete(data):
+        def on_complete(data=None):
             completed.append(True)
 
         def offset_fn(t):
             return (t * 100, 0)
 
+        frames = seconds_to_frames(0.1)
         action = ParametricMotionUntil(
             offset_fn,
-            duration(0.1),
+            after_frames(frames),
             on_stop=on_complete,
         )
         action.apply(sprite, tag="motion")
 
         # Run until completion
-        for _ in range(10):
+        for _ in range(frames + 5):
             Action.update_all(1 / 60)
+            if action.done:
+                break
 
         assert action.done
         assert len(completed) == 1

@@ -35,7 +35,7 @@ class TestParametricMotion:
 
         action = ParametricMotionUntil(
             offset_fn=offset_fn,
-            condition=after_frames(60),
+            condition=after_frames(seconds_to_frames(1.0)),
         )
         action.apply(sprite, tag="param_basic")
 
@@ -104,7 +104,10 @@ class TestParametricMotion:
         Action.stop_all()
         sprite.center_x = 10
         sprite.center_y = 20
-        action2 = ParametricMotionUntil(offset_fn=offset_fn, condition=after_frames(60))
+        action2 = ParametricMotionUntil(
+            offset_fn=offset_fn,
+            condition=after_frames(seconds_to_frames(1.0)),
+        )
         action2.apply(sprite, tag="param_factor_full")
         action2.set_factor(1.0)
         # Run for 30 frames (0.5 seconds worth)
@@ -168,7 +171,7 @@ class TestPriority5_ParametricMotionDebug:
         # (debug output only prints when rotate_with_path=True)
         action = ParametricMotionUntil(
             offset_fn,
-            after_frames(60),  # 1 second at 60 FPS
+            after_frames(seconds_to_frames(1.0)),
             debug=True,
             debug_threshold=100.0,  # 100 pixels threshold
             rotate_with_path=True,  # Required for debug output

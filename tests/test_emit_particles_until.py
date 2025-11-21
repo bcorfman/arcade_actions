@@ -3,7 +3,7 @@ import types
 import pytest
 
 from actions import Action
-from actions.conditional import duration
+from actions.frame_timing import after_frames
 
 
 class FakeEmitter:
@@ -42,7 +42,7 @@ class TestEmitParticlesUntil:
         # Apply action with follow_rotation
         action = EmitParticlesUntil(
             emitter_factory=make_emitter_factory(),
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
             anchor="center",
             follow_rotation=True,
         )
@@ -50,6 +50,10 @@ class TestEmitParticlesUntil:
 
         # Drive updates
         Action.update_all(0.016)
+        if not action._emitters:
+            action.update_effect(0.016)
+        if not action._emitters:
+            Action.update_all(0.016)
         Action.update_all(0.016)
 
         # Validate emitters exist for each sprite and follow position/angle
@@ -78,15 +82,25 @@ class TestEmitParticlesUntil:
         offset = (5.0, -3.0)
         action = EmitParticlesUntil(
             emitter_factory=make_emitter_factory(),
-            condition=duration(0.02),
+            condition=after_frames(1),  # 0.02 seconds at 60 FPS (1 frame)
             anchor=offset,
             follow_rotation=False,
         )
         action.apply(test_sprite)
 
-        Action.update_all(0.016)
+        emitters: dict[int, FakeEmitter] | None = None
+        for _ in range(10):
+            Action.update_all(0.016)
+            if action._emitters:
+                emitters = action._emitters
+                break
+            if action.done and action._emitters_snapshot:
+                emitters = action._emitters_snapshot
+                break
 
-        emitter = next(iter(action._emitters.values()))
+        assert emitters, "Emitters should be available within the guard window"
+
+        emitter = next(iter(emitters.values()))
         assert pytest.approx(emitter.center_x) == test_sprite.center_x + offset[0]
         assert pytest.approx(emitter.center_y) == test_sprite.center_y + offset[1]
 
@@ -106,7 +120,8 @@ class TestEmitParticlesUntilErrorHandling:
 
         action = EmitParticlesUntil(
             emitter_factory=make_emitter_factory(),
-            condition=duration(0.01),  # Very short duration
+            # 0.01 seconds at 60 FPS (1 frame) - very short duration
+            condition=after_frames(1),
             on_stop=failing_callback,
         )
         action.apply(test_sprite)
@@ -121,7 +136,7 @@ class TestEmitParticlesUntilErrorHandling:
 
         action = EmitParticlesUntil(
             emitter_factory=make_emitter_factory(),
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
         )
         action.apply(test_sprite)
 
@@ -146,7 +161,7 @@ class TestEmitParticlesUntilErrorHandling:
 
         action = EmitParticlesUntil(
             emitter_factory=failing_emitter_factory,
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
         )
         action.apply(test_sprite)
 
@@ -167,7 +182,8 @@ class TestEmitParticlesUntilErrorHandling:
 
         action = EmitParticlesUntil(
             emitter_factory=failing_emitter_factory,
-            condition=duration(0.01),  # Very short duration
+            # 0.01 seconds at 60 FPS (1 frame) - very short duration
+            condition=after_frames(1),
             destroy_on_stop=True,
         )
         action.apply(test_sprite)
@@ -198,7 +214,8 @@ class TestEmitParticlesUntilErrorHandling:
 
         action = EmitParticlesUntil(
             emitter_factory=no_destroy_factory,
-            condition=duration(0.01),  # Very short duration
+            # 0.01 seconds at 60 FPS (1 frame) - very short duration
+            condition=after_frames(1),
             destroy_on_stop=True,
         )
         action.apply(test_sprite)
@@ -229,7 +246,7 @@ class TestEmitParticlesUntilErrorHandling:
 
         action = EmitParticlesUntil(
             emitter_factory=no_update_factory,
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
         )
         action.apply(test_sprite)
 
@@ -243,7 +260,7 @@ class TestEmitParticlesUntilErrorHandling:
 
         original = EmitParticlesUntil(
             emitter_factory=make_emitter_factory(),
-            condition=duration(0.05),
+            condition=after_frames(3),  # 0.05 seconds at 60 FPS
             anchor=(10.0, 20.0),
             follow_rotation=True,
             start_paused=True,
@@ -266,7 +283,8 @@ class TestEmitParticlesUntilErrorHandling:
 
         action = EmitParticlesUntil(
             emitter_factory=make_emitter_factory(),
-            condition=duration(0.01),  # Very short duration
+            # 0.01 seconds at 60 FPS (1 frame) - very short duration
+            condition=after_frames(1),
             destroy_on_stop=False,
         )
         action.apply(test_sprite)
