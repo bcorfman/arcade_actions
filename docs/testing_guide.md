@@ -115,6 +115,7 @@ Test easing functionality that provides smooth acceleration/deceleration for con
 
 ```python
 from actions import Action, MoveUntil, Ease, infinite
+from actions.frame_timing import seconds_to_frames
 from arcade import easing
 
 class TestEase(ActionTestBase):
@@ -126,7 +127,7 @@ class TestEase(ActionTestBase):
         
         # Create continuous movement action (never stops on its own)
         continuous_move = MoveUntil((100, 0), infinite)
-        easing_wrapper = Ease(continuous_move, duration=2.0, ease_function=easing.ease_in_out)
+        easing_wrapper = Ease(continuous_move, frames=seconds_to_frames(2.0), ease_function=easing.ease_in_out)
         
         easing_wrapper.apply(sprite, tag="test_ease")
         
@@ -149,7 +150,7 @@ class TestEase(ActionTestBase):
         """Test that Ease properly scales wrapped action velocity."""
         sprite = test_sprite
         move = MoveUntil((100, 0), infinite)
-        ease_action = Ease(move, duration=1.0)
+        ease_action = Ease(move, frames=seconds_to_frames(1.0))
         
         ease_action.apply(sprite, tag="test")
         
@@ -1038,9 +1039,9 @@ def test_invalid_parameters(self, test_sprite):
     with pytest.raises(ValueError):
         MoveUntil(velocity=(1,), condition=infinite)  # Wrong length
     
-    # Test invalid duration
+    # Test invalid frame count
     with pytest.raises(ValueError):
-        Ease(MoveUntil((5, 0), infinite), duration=-1.0)
+        Ease(MoveUntil((5, 0), infinite), frames=0)
 ```
 
 4. **Test callbacks and conditions:**

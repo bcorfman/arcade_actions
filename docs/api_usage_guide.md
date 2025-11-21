@@ -194,7 +194,7 @@ ArcadeActions provides two distinct but complementary approaches for creating sm
 
 **Purpose:** Ease wraps continuous actions (like `MoveUntil`, `FollowPathUntil`, `RotateUntil`) and modulates their intensity over time, creating smooth acceleration and deceleration effects.
 
-**How it works:** The `ease()` helper function wraps an existing action and applies the eased effect to a target. After the easing duration completes, the wrapped action continues running at full intensity until its own condition is met.
+**How it works:** The `ease()` helper function wraps an existing action and applies the eased effect to a target. After the easing ramp (expressed in frames) completes, the wrapped action continues running at full intensity until its own condition is met.
 
 **Key characteristics:**
 - Wraps existing continuous actions
@@ -204,12 +204,12 @@ ArcadeActions provides two distinct but complementary approaches for creating sm
 - Supports complex actions like curved path following
 
 ```python
-from actions import ease, infinite, move_until, follow_path_until
+from actions import ease, infinite, move_until, follow_path_until, seconds_to_frames
 from arcade import easing
 
 # Example 1: Smooth missile launch
 missile_movement = move_until(missile, velocity=(300, 0), condition=infinite)  # Continuous movement
-ease(missile, missile_movement, duration=1.5, ease_function=easing.ease_out)
+ease(missile, missile_movement, frames=seconds_to_frames(1.5), ease_function=easing.ease_out)
 
 # Result: Missile smoothly accelerates to 300px/s over 1.5 seconds, then continues at that speed
 
@@ -218,12 +218,12 @@ path_points = [(100, 100), (200, 200), (400, 150), (500, 100)]
 path_action = follow_path_until(
     enemy, path_points, velocity=250, condition=infinite
 )
-ease(enemy, path_action, duration=2.0, ease_function=easing.ease_in_out)
+ease(enemy, path_action, frames=seconds_to_frames(2.0), ease_function=easing.ease_in_out)
 # Result: Enemy smoothly accelerates along curved path while rotating to face direction
 
 # Example 3: Formation movement
 formation_move = move_until(enemy_formation, velocity=(100, 0), condition=infinite)
-ease(enemy_formation, formation_move, duration=1.0, ease_function=easing.ease_in)
+ease(enemy_formation, formation_move, frames=seconds_to_frames(1.0), ease_function=easing.ease_in)
 # Result: Entire formation smoothly accelerates to marching speed
 ```
 
@@ -282,7 +282,7 @@ You can use both techniques together for complex animations:
 
 ```python
 # Sequential combination: precise positioning followed by smooth movement
-from actions import TweenUntil, MoveUntil, duration, ease, sequence
+from actions import TweenUntil, MoveUntil, duration, ease, seconds_to_frames, sequence
 
 def create_guard_behavior(guard_sprite):
     # Step 1: Precise positioning
@@ -297,13 +297,13 @@ def create_guard_behavior(guard_sprite):
     
     # Add easing to the patrol movement after positioning
     # Note: This requires more complex timing - simpler to use separate actions
-    ease(guard_sprite, patrol_move, duration=1.0)
+    ease(guard_sprite, patrol_move, frames=seconds_to_frames(1.0))
 ```
 
 ### Advanced Easing Patterns
 
 ```python
-from actions import ease, fade_until, infinite, move_until, rotate_until
+from actions import ease, fade_until, infinite, move_until, rotate_until, seconds_to_frames
 from arcade import easing
 
 # Multiple concurrent eased effects
@@ -312,9 +312,9 @@ rotate_action = rotate_until(sprite, angular_velocity=360, condition=infinite)
 fade_action = fade_until(sprite, fade_velocity=-100, condition=infinite)
 
 # Apply different easing curves to each effect
-ease(sprite, move_action, duration=2.0, ease_function=easing.ease_in_out)
-ease(sprite, rotate_action, duration=1.5, ease_function=easing.ease_in)
-ease(sprite, fade_action, duration=3.0, ease_function=easing.ease_out)
+ease(sprite, move_action, frames=seconds_to_frames(2.0), ease_function=easing.ease_in_out)
+ease(sprite, rotate_action, frames=seconds_to_frames(1.5), ease_function=easing.ease_in)
+ease(sprite, fade_action, frames=seconds_to_frames(3.0), ease_function=easing.ease_out)
 ```
 
 ## Usage Patterns
@@ -1216,12 +1216,12 @@ The `ease()` helper function provides smooth acceleration and deceleration effec
 ### Basic Easing Usage
 
 ```python
-from actions import duration, ease, move_until
+from actions import duration, ease, move_until, seconds_to_frames
 from arcade import easing
 
 # Wrap any conditional action with easing
 move = move_until(sprite, velocity=(200, 0), condition=duration(3.0))
-ease(sprite, move, duration=2.0, ease_function=easing.ease_in_out)
+ease(sprite, move, frames=seconds_to_frames(2.0), ease_function=easing.ease_in_out)
 
 # The sprite will smoothly accelerate to full speed, then decelerate
 ```
@@ -1231,18 +1231,18 @@ Use Arcade's built-in easing functions for different effects:
 
 ```python
 from arcade import easing
-from actions import duration, ease, move_until
+from actions import duration, ease, move_until, seconds_to_frames
 
 move = move_until(sprite, velocity=(200, 0), condition=duration(3.0))
 
 # Slow start, fast finish
-ease(sprite, move, duration=2.0, ease_function=easing.ease_in)
+ease(sprite, move, frames=seconds_to_frames(2.0), ease_function=easing.ease_in)
 
 # Fast start, slow finish  
-ease(sprite, move, duration=2.0, ease_function=easing.ease_out)
+ease(sprite, move, frames=seconds_to_frames(2.0), ease_function=easing.ease_out)
 
 # Slow start, fast middle, slow finish (default)
-ease(sprite, move, duration=2.0, ease_function=easing.ease_in_out)
+ease(sprite, move, frames=seconds_to_frames(2.0), ease_function=easing.ease_in_out)
 ```
 
 ### Easing with Path Following and Rotation
@@ -1250,6 +1250,8 @@ Create smooth curved movements with automatic sprite rotation:
 
 ```python
 # Complex curved missile trajectory with easing
+from actions import ease, follow_path_until, seconds_to_frames
+from arcade import easing
 control_points = [(player.center_x, player.center_y),
                   (target.center_x + 100, target.center_y + 50),  # Arc over target
                   (target.center_x, target.center_y)]
@@ -1264,7 +1266,7 @@ missile_path = follow_path_until(
 )
 
 # Add smooth acceleration/deceleration to the path following
-ease(missile_sprite, missile_path, duration=1.5, ease_function=easing.ease_in_out)
+ease(missile_sprite, missile_path, frames=seconds_to_frames(1.5), ease_function=easing.ease_in_out)
 
 # Missile will smoothly accelerate along the curved path while rotating to face direction
 ```
@@ -1273,7 +1275,8 @@ ease(missile_sprite, missile_path, duration=1.5, ease_function=easing.ease_in_ou
 Apply different easing to multiple effects simultaneously:
 
 ```python
-from actions import ease, move_until, rotate_until, fade_until
+from actions import ease, move_until, rotate_until, fade_until, infinite, seconds_to_frames
+from arcade import easing
 
 # Create multiple effects with different easing curves
 move = move_until(sprite, velocity=(200, 100), condition=infinite)
@@ -1281,9 +1284,9 @@ rotate = rotate_until(sprite, angular_velocity=360, condition=infinite)  # Full 
 fade = fade_until(sprite, fade_velocity=-200, condition=infinite)     # Fade to transparent
 
 # Apply different easing to each effect
-ease(sprite, move, duration=2.0, ease_function=easing.ease_in_out)
-ease(sprite, rotate, duration=1.5, ease_function=easing.ease_in)
-ease(sprite, fade, duration=3.0, ease_function=easing.ease_out)
+ease(sprite, move, frames=seconds_to_frames(2.0), ease_function=easing.ease_in_out)
+ease(sprite, rotate, frames=seconds_to_frames(1.5), ease_function=easing.ease_in)
+ease(sprite, fade, frames=seconds_to_frames(3.0), ease_function=easing.ease_out)
 
 # Sprite moves, rotates, and fades with different easing curves
 ```
@@ -1292,6 +1295,7 @@ ease(sprite, fade, duration=3.0, ease_function=easing.ease_out)
 Create your own easing curves:
 
 ```python
+from actions import duration, ease, move_until, seconds_to_frames
 def bounce_ease(t):
     """Custom bouncing ease function."""
     if t < 0.5:
@@ -1300,7 +1304,7 @@ def bounce_ease(t):
         return -1 + (4 - 2 * t) * t
 
 move = move_until(sprite, velocity=(200, 0), condition=duration(3.0))
-ease(sprite, move, duration=2.0, ease_function=bounce_ease)
+ease(sprite, move, frames=seconds_to_frames(2.0), ease_function=bounce_ease)
 ```
 
 ## Action Management
@@ -1593,8 +1597,9 @@ Action.stop_actions_for_target(sprite, tag="effects")
 ### 5. Choose the Right Animation Approach
 ```python
 # Good: Use Easing for continuous actions
+from actions import seconds_to_frames
 move_action = move_until(sprite, velocity=(200, 0), condition=infinite)
-ease(sprite, move_action, duration=1.5)
+ease(sprite, move_action, frames=seconds_to_frames(1.5))
 
 # Good: Use TweenUntil for precise property changes
 tween_until(sprite, start_value=0, end_value=100, property_name="center_x", condition=duration(1.0))
@@ -1629,7 +1634,7 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 | Shader/particle effects | `callback_until` for temporal control | `callback_until(sprite, lambda: emitter.update(), condition=cond)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, velocity=vel, condition=cond, bounds=b)` |
 | Delayed execution | Direct classes in sequences | `sequence(DelayUntil(duration(1.0)), action)` |
-| Smooth acceleration | `ease` helper | `ease(sprite, action, duration=2.0)` |
+| Smooth acceleration | `ease` helper | `ease(sprite, action, frames=seconds_to_frames(2.0))` |
 | Property animation | `tween_until` helper | `tween_until(sprite, start_val=start, end_val=end, "prop", duration(1.0))` |
 
 The ArcadeActions framework provides a clean, declarative way to create complex game behaviors while leveraging Arcade's native sprite system!
