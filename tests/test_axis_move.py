@@ -361,3 +361,647 @@ class TestAxisMoveIntegration:
         assert isinstance(y_clone, MoveYUntil)
         assert x_clone.target_velocity == (1, 0)
         assert y_clone.target_velocity == (0, 1)
+
+
+class TestMoveXUntilBoundaries:
+    """Test suite for MoveXUntil boundary behaviors - comprehensive coverage."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_move_x_until_bounce_left_boundary(self, test_sprite):
+        """Test MoveXUntil bounces off left boundary."""
+        test_sprite.center_x = 5  # Just inside left boundary
+        test_sprite.center_y = 100
+        test_sprite.change_x = 0
+        test_sprite.change_y = 10  # Preserve Y velocity
+
+        bounds = (0, 0, 800, 600)
+        action = MoveXUntil(
+            velocity=(-5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        test_sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Should have bounced (positive velocity)
+        assert test_sprite.change_x > 0
+        assert test_sprite.change_y == 10  # Y velocity preserved
+        assert test_sprite.center_x >= 0  # Within bounds
+
+    def test_move_x_until_bounce_right_boundary(self, test_sprite):
+        """Test MoveXUntil bounces off right boundary."""
+        test_sprite.center_x = 795  # Just inside right boundary
+        test_sprite.center_y = 100
+        test_sprite.change_x = 0
+        test_sprite.change_y = 10  # Preserve Y velocity
+
+        bounds = (0, 0, 800, 600)
+        action = MoveXUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        test_sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Should have bounced (negative velocity)
+        assert test_sprite.change_x < 0
+        assert test_sprite.change_y == 10  # Y velocity preserved
+        assert test_sprite.center_x <= 800  # Within bounds
+
+    def test_move_x_until_wrap_left_boundary(self, test_sprite):
+        """Test MoveXUntil wraps from left to right boundary."""
+        test_sprite.center_x = 0  # At left boundary
+        test_sprite.center_y = 100
+        test_sprite.change_x = 0
+        test_sprite.change_y = 10  # Preserve Y velocity
+
+        bounds = (0, 0, 800, 600)
+        action = MoveXUntil(
+            velocity=(-5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="wrap",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Force sprite beyond left boundary and invoke boundary handler directly
+        test_sprite.center_x = bounds[0] - 1
+        action._handle_x_boundaries()
+
+        # Should have wrapped to right side
+        assert test_sprite.center_x == bounds[2]
+        assert test_sprite.change_y == 10  # Y velocity preserved
+
+    def test_move_x_until_wrap_right_boundary(self, test_sprite):
+        """Test MoveXUntil wraps from right to left boundary."""
+        test_sprite.center_x = 800  # At right boundary
+        test_sprite.center_y = 100
+        test_sprite.change_x = 0
+        test_sprite.change_y = 10  # Preserve Y velocity
+
+        bounds = (0, 0, 800, 600)
+        action = MoveXUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="wrap",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Force sprite beyond right boundary and invoke boundary handler
+        test_sprite.center_x = bounds[2] + 1
+        action._handle_x_boundaries()
+
+        # Should have wrapped to left side
+        assert test_sprite.center_x == bounds[0]
+        assert test_sprite.change_y == 10  # Y velocity preserved
+
+    def test_move_x_until_limit_left_boundary(self, test_sprite):
+        """Test MoveXUntil limits at left boundary."""
+        test_sprite.center_x = 0  # At left boundary
+        test_sprite.center_y = 100
+        test_sprite.change_x = 0
+        test_sprite.change_y = 10  # Preserve Y velocity
+
+        bounds = (0, 0, 800, 600)
+        action = MoveXUntil(
+            velocity=(-5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Force sprite beyond left boundary and invoke boundary handler
+        test_sprite.center_x = bounds[0] - 5
+        action._handle_x_boundaries()
+
+        # Should be limited at left boundary with zero velocity
+        assert test_sprite.center_x == bounds[0]
+        assert test_sprite.change_x == 0
+        assert test_sprite.change_y == 10  # Y velocity preserved
+
+    def test_move_x_until_limit_right_boundary(self, test_sprite):
+        """Test MoveXUntil limits at right boundary."""
+        test_sprite.center_x = 800  # At right boundary
+        test_sprite.center_y = 100
+        test_sprite.change_x = 0
+        test_sprite.change_y = 10  # Preserve Y velocity
+
+        bounds = (0, 0, 800, 600)
+        action = MoveXUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Force sprite beyond right boundary and invoke boundary handler
+        test_sprite.center_x = bounds[2] + 5
+        action._handle_x_boundaries()
+
+        # Should be limited at right boundary with zero velocity
+        assert test_sprite.center_x == bounds[2]
+        assert test_sprite.change_x == 0
+        assert test_sprite.change_y == 10  # Y velocity preserved
+
+    def test_move_x_until_boundary_callback_left(self, test_sprite):
+        """Test MoveXUntil calls on_boundary_enter callback for left boundary."""
+        test_sprite.center_x = 5  # Just inside left boundary
+        test_sprite.center_y = 100
+        test_sprite.change_x = 0
+
+        boundary_events = []
+
+        def on_boundary_enter(sprite, axis, side):
+            boundary_events.append((sprite, axis, side))
+
+        bounds = (0, 0, 800, 600)
+        action = MoveXUntil(
+            velocity=(-5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+            on_boundary_enter=on_boundary_enter,
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        test_sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Callback should have been called with correct parameters
+        assert len(boundary_events) > 0
+        assert boundary_events[0][0] == test_sprite
+        assert boundary_events[0][1] == "x"
+        assert boundary_events[0][2] == "left"
+
+    def test_move_x_until_boundary_callback_right(self, test_sprite):
+        """Test MoveXUntil calls on_boundary_enter callback for right boundary."""
+        test_sprite.center_x = 795  # Just inside right boundary
+        test_sprite.center_y = 100
+        test_sprite.change_x = 0
+
+        boundary_events = []
+
+        def on_boundary_enter(sprite, axis, side):
+            boundary_events.append((sprite, axis, side))
+
+        bounds = (0, 0, 800, 600)
+        action = MoveXUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+            on_boundary_enter=on_boundary_enter,
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        test_sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Callback should have been called with correct parameters
+        assert len(boundary_events) > 0
+        assert boundary_events[0][0] == test_sprite
+        assert boundary_events[0][1] == "x"
+        assert boundary_events[0][2] == "right"
+
+    def test_move_x_until_update_effect_with_boundaries(self, test_sprite):
+        """Test MoveXUntil.update_effect() triggers boundary handling."""
+        test_sprite.center_x = 800  # At right boundary
+        test_sprite.center_y = 100
+        test_sprite.change_x = 5
+
+        bounds = (0, 0, 800, 600)
+        action = MoveXUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+        )
+        action.apply(test_sprite)
+
+        # Call update_effect directly to test boundary handling path
+        action.update_effect(0.016)
+
+        # Should have triggered boundary handling (velocity reversed)
+        assert test_sprite.change_x < 0
+
+    def test_move_x_until_velocity_provider_with_boundaries(self, test_sprite):
+        """Test MoveXUntil with velocity_provider and boundary handling."""
+        test_sprite.center_x = 800  # At right boundary
+        test_sprite.center_y = 100
+        test_sprite.change_x = 0
+        test_sprite.change_y = 10  # Preserve Y velocity
+
+        velocity_value = [5]  # Use list to allow modification
+
+        def velocity_provider():
+            return (velocity_value[0], 0)
+
+        bounds = (0, 0, 800, 600)
+        action = MoveXUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+            velocity_provider=velocity_provider,
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        preserved_y = test_sprite.change_y
+        # Force sprite beyond right boundary and invoke boundary handler
+        test_sprite.center_x = bounds[2] + 5
+        action._handle_x_boundaries()
+
+        # Should have bounced
+        assert test_sprite.change_x < 0
+        assert test_sprite.change_y == preserved_y
+
+    def test_move_x_until_boundary_with_sprite_list(self, test_sprite_list):
+        """Test MoveXUntil boundary behavior with sprite list."""
+        bounds = (0, 0, 800, 600)
+        for sprite in test_sprite_list:
+            sprite.center_x = 795  # Just inside right boundary
+            sprite.center_y = 100
+            sprite.change_x = 0
+            sprite.change_y = 10  # Preserve Y velocity
+
+        action = MoveXUntil(
+            velocity=(5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+        )
+        action.apply(test_sprite_list)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprites to new positions
+        for sprite in test_sprite_list:
+            sprite.update()
+        # Check boundaries on new positions
+        Action.update_all(0.001)
+
+        # All sprites should have bounced
+        for sprite in test_sprite_list:
+            assert sprite.change_x < 0
+            assert sprite.change_y == 10  # Y velocity preserved
+
+
+class TestMoveYUntilBoundaries:
+    """Test suite for MoveYUntil boundary behaviors - comprehensive coverage."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_move_y_until_bounce_bottom_boundary(self, test_sprite):
+        """Test MoveYUntil bounces off bottom boundary."""
+        test_sprite.center_x = 100
+        test_sprite.center_y = 5  # Just inside bottom boundary
+        test_sprite.change_x = 10  # Preserve X velocity
+        test_sprite.change_y = 0
+
+        bounds = (0, 0, 800, 600)
+        action = MoveYUntil(
+            velocity=(0, -5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        test_sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Should have bounced (positive velocity)
+        assert test_sprite.change_y > 0
+        assert test_sprite.change_x == 10  # X velocity preserved
+        assert test_sprite.center_y >= 0  # Within bounds
+
+    def test_move_y_until_bounce_top_boundary(self, test_sprite):
+        """Test MoveYUntil bounces off top boundary."""
+        test_sprite.center_x = 100
+        test_sprite.center_y = 595  # Just inside top boundary
+        test_sprite.change_x = 10  # Preserve X velocity
+        test_sprite.change_y = 0
+
+        bounds = (0, 0, 800, 600)
+        action = MoveYUntil(
+            velocity=(0, 5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        test_sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Should have bounced (negative velocity)
+        assert test_sprite.change_y < 0
+        assert test_sprite.change_x == 10  # X velocity preserved
+        assert test_sprite.center_y <= 600  # Within bounds
+
+    def test_move_y_until_wrap_bottom_boundary(self, test_sprite):
+        """Test MoveYUntil wraps from bottom to top boundary."""
+        test_sprite.center_x = 100
+        test_sprite.center_y = 0  # At bottom boundary
+        test_sprite.change_x = 10  # Preserve X velocity
+        test_sprite.change_y = 0
+
+        bounds = (0, 0, 800, 600)
+        action = MoveYUntil(
+            velocity=(0, -5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="wrap",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Force sprite beyond bottom boundary and invoke boundary handler
+        test_sprite.center_y = bounds[1] - 1
+        action._handle_y_boundaries()
+
+        # Should have wrapped to top side
+        assert test_sprite.center_y == bounds[3]
+        assert test_sprite.change_x == 10  # X velocity preserved
+
+    def test_move_y_until_wrap_top_boundary(self, test_sprite):
+        """Test MoveYUntil wraps from top to bottom boundary."""
+        test_sprite.center_x = 100
+        test_sprite.center_y = 600  # At top boundary
+        test_sprite.change_x = 10  # Preserve X velocity
+        test_sprite.change_y = 0
+
+        bounds = (0, 0, 800, 600)
+        action = MoveYUntil(
+            velocity=(0, 5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="wrap",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Force sprite beyond top boundary and invoke boundary handler
+        test_sprite.center_y = bounds[3] + 1
+        action._handle_y_boundaries()
+
+        # Should have wrapped to bottom side
+        assert test_sprite.center_y == bounds[1]
+        assert test_sprite.change_x == 10  # X velocity preserved
+
+    def test_move_y_until_limit_bottom_boundary(self, test_sprite):
+        """Test MoveYUntil limits at bottom boundary."""
+        test_sprite.center_x = 100
+        test_sprite.center_y = 0  # At bottom boundary
+        test_sprite.change_x = 10  # Preserve X velocity
+        test_sprite.change_y = 0
+
+        bounds = (0, 0, 800, 600)
+        action = MoveYUntil(
+            velocity=(0, -5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Force sprite beyond bottom boundary and invoke boundary handler
+        test_sprite.center_y = bounds[1] - 5
+        action._handle_y_boundaries()
+
+        # Should be limited at bottom boundary with zero velocity
+        assert test_sprite.center_y == bounds[1]
+        assert test_sprite.change_y == 0
+        assert test_sprite.change_x == 10  # X velocity preserved
+
+    def test_move_y_until_limit_top_boundary(self, test_sprite):
+        """Test MoveYUntil limits at top boundary."""
+        test_sprite.center_x = 100
+        test_sprite.center_y = 600  # At top boundary
+        test_sprite.change_x = 10  # Preserve X velocity
+        test_sprite.change_y = 0
+
+        bounds = (0, 0, 800, 600)
+        action = MoveYUntil(
+            velocity=(0, 5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="limit",
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Force sprite beyond top boundary and invoke boundary handler
+        test_sprite.center_y = bounds[3] + 5
+        action._handle_y_boundaries()
+
+        # Should be limited at top boundary with zero velocity
+        assert test_sprite.center_y == bounds[3]
+        assert test_sprite.change_y == 0
+        assert test_sprite.change_x == 10  # X velocity preserved
+
+    def test_move_y_until_boundary_callback_bottom(self, test_sprite):
+        """Test MoveYUntil calls on_boundary_enter callback for bottom boundary."""
+        test_sprite.center_x = 100
+        test_sprite.center_y = 5  # Just inside bottom boundary
+        test_sprite.change_y = 0
+
+        boundary_events = []
+
+        def on_boundary_enter(sprite, axis, side):
+            boundary_events.append((sprite, axis, side))
+
+        bounds = (0, 0, 800, 600)
+        action = MoveYUntil(
+            velocity=(0, -5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+            on_boundary_enter=on_boundary_enter,
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        test_sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Callback should have been called with correct parameters
+        assert len(boundary_events) > 0
+        assert boundary_events[0][0] == test_sprite
+        assert boundary_events[0][1] == "y"
+        assert boundary_events[0][2] == "bottom"
+
+    def test_move_y_until_boundary_callback_top(self, test_sprite):
+        """Test MoveYUntil calls on_boundary_enter callback for top boundary."""
+        test_sprite.center_x = 100
+        test_sprite.center_y = 595  # Just inside top boundary
+        test_sprite.change_y = 0
+
+        boundary_events = []
+
+        def on_boundary_enter(sprite, axis, side):
+            boundary_events.append((sprite, axis, side))
+
+        bounds = (0, 0, 800, 600)
+        action = MoveYUntil(
+            velocity=(0, 5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+            on_boundary_enter=on_boundary_enter,
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprite to new position
+        test_sprite.update()
+        # Check boundaries on new position
+        Action.update_all(0.001)
+
+        # Callback should have been called with correct parameters
+        assert len(boundary_events) > 0
+        assert boundary_events[0][0] == test_sprite
+        assert boundary_events[0][1] == "y"
+        assert boundary_events[0][2] == "top"
+
+    def test_move_y_until_update_effect_with_boundaries(self, test_sprite):
+        """Test MoveYUntil.update_effect() triggers boundary handling."""
+        test_sprite.center_x = 100
+        test_sprite.center_y = 600  # At top boundary
+        test_sprite.change_y = 5
+
+        bounds = (0, 0, 800, 600)
+        action = MoveYUntil(
+            velocity=(0, 5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+        )
+        action.apply(test_sprite)
+
+        # Call update_effect directly to test boundary handling path
+        action.update_effect(0.016)
+
+        # Should have triggered boundary handling (velocity reversed)
+        assert test_sprite.change_y < 0
+
+    def test_move_y_until_velocity_provider_with_boundaries(self, test_sprite):
+        """Test MoveYUntil with velocity_provider and boundary handling."""
+        test_sprite.center_x = 100
+        test_sprite.center_y = 600  # At top boundary
+        test_sprite.change_x = 10  # Preserve X velocity
+        test_sprite.change_y = 0
+
+        velocity_value = [5]  # Use list to allow modification
+
+        def velocity_provider():
+            return (0, velocity_value[0])
+
+        bounds = (0, 0, 800, 600)
+        action = MoveYUntil(
+            velocity=(0, 5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+            velocity_provider=velocity_provider,
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        preserved_x = test_sprite.change_x
+        # Force sprite beyond top boundary and invoke boundary handler
+        test_sprite.center_y = bounds[3] + 5
+        action._handle_y_boundaries()
+
+        # Should have bounced
+        assert test_sprite.change_y < 0
+        assert test_sprite.change_x == preserved_x
+
+    def test_move_y_until_boundary_with_sprite_list(self, test_sprite_list):
+        """Test MoveYUntil boundary behavior with sprite list."""
+        bounds = (0, 0, 800, 600)
+        for sprite in test_sprite_list:
+            sprite.center_x = 100
+            sprite.center_y = 595  # Just inside top boundary
+            sprite.change_x = 10  # Preserve X velocity
+            sprite.change_y = 0
+
+        action = MoveYUntil(
+            velocity=(0, 5),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="bounce",
+        )
+        action.apply(test_sprite_list)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Move sprites to new positions
+        for sprite in test_sprite_list:
+            sprite.update()
+        # Check boundaries on new positions
+        Action.update_all(0.001)
+
+        # All sprites should have bounced
+        for sprite in test_sprite_list:
+            assert sprite.change_y < 0
+            assert sprite.change_x == 10  # X velocity preserved
