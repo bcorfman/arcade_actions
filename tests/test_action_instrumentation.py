@@ -9,7 +9,7 @@ import pytest
 import arcade
 from actions.base import Action
 from actions.visualizer.instrumentation import DebugDataStore
-from actions.conditional import MoveUntil, duration
+from actions.conditional import MoveUntil
 
 
 class MockAction(Action):

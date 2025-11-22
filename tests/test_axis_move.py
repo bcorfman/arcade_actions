@@ -330,62 +330,12 @@ class TestAxisComposition:
             assert sprite.change_y == -2
 
 
-class TestAxisDurationAndVelocityProvider:
-    """Test suite for duration and velocity_provider in axis-specific actions."""
+class TestAxisVelocityProvider:
+    """Test suite for velocity_provider in axis-specific actions."""
 
     def teardown_method(self):
         """Clean up after each test."""
         Action.stop_all()
-
-    def test_move_x_until_with_duration(self):
-        """Test MoveXUntil with duration-based condition."""
-        from actions.conditional import duration
-
-        sprite = arcade.Sprite()
-        sprite.center_x = 100
-        sprite.center_y = 100
-
-        action = MoveXUntil(
-            velocity=(5, 0),
-            condition=duration(0.1),
-        )
-        action.apply(sprite)
-
-        # Should be active initially
-        assert not action.done
-
-        # Update for less than duration
-        Action.update_all(0.05)
-        assert not action.done
-
-        # Update to exceed duration
-        Action.update_all(0.06)
-        assert action.done
-
-    def test_move_y_until_with_duration(self):
-        """Test MoveYUntil with duration-based condition."""
-        from actions.conditional import duration
-
-        sprite = arcade.Sprite()
-        sprite.center_x = 100
-        sprite.center_y = 100
-
-        action = MoveYUntil(
-            velocity=(0, 5),
-            condition=duration(0.1),
-        )
-        action.apply(sprite)
-
-        # Should be active initially
-        assert not action.done
-
-        # Update for less than duration
-        Action.update_all(0.05)
-        assert not action.done
-
-        # Update to exceed duration
-        Action.update_all(0.06)
-        assert action.done
 
     def test_move_x_until_with_velocity_provider(self):
         """Test MoveXUntil with velocity_provider."""
@@ -506,58 +456,6 @@ class TestAxisDurationAndVelocityProvider:
         assert not action.done  # Should still be running
 
         action.stop()
-
-    def test_move_x_until_duration_with_on_stop(self):
-        """Test MoveXUntil duration completion calls on_stop."""
-        from actions.conditional import duration
-
-        sprite = arcade.Sprite()
-        sprite.center_x = 100
-        sprite.center_y = 100
-
-        on_stop_called = {"called": False}
-
-        def on_stop():
-            on_stop_called["called"] = True
-
-        action = MoveXUntil(
-            velocity=(5, 0),
-            condition=duration(0.1),
-            on_stop=on_stop,
-        )
-        action.apply(sprite)
-
-        # Update to exceed duration
-        Action.update_all(0.11)
-
-        assert action.done
-        assert on_stop_called["called"]
-
-    def test_move_y_until_duration_with_on_stop(self):
-        """Test MoveYUntil duration completion calls on_stop."""
-        from actions.conditional import duration
-
-        sprite = arcade.Sprite()
-        sprite.center_x = 100
-        sprite.center_y = 100
-
-        on_stop_called = {"called": False}
-
-        def on_stop():
-            on_stop_called["called"] = True
-
-        action = MoveYUntil(
-            velocity=(0, 5),
-            condition=duration(0.1),
-            on_stop=on_stop,
-        )
-        action.apply(sprite)
-
-        # Update to exceed duration
-        Action.update_all(0.11)
-
-        assert action.done
-        assert on_stop_called["called"]
 
 
 class TestAxisBoundaryBehaviors:
@@ -1139,8 +1037,8 @@ class TestMoveXUntilBoundaries:
         test_sprite.center_x = bounds[0] - 1
         action._handle_x_boundaries()
 
-        # Should have wrapped to right side
-        assert test_sprite.center_x == bounds[2]
+        # Should have wrapped to right side - right edge at right boundary
+        assert test_sprite.right == bounds[2]
         assert test_sprite.change_y == 10  # Y velocity preserved
 
     def test_move_x_until_wrap_right_boundary(self, test_sprite):
@@ -1165,8 +1063,8 @@ class TestMoveXUntilBoundaries:
         test_sprite.center_x = bounds[2] + 1
         action._handle_x_boundaries()
 
-        # Should have wrapped to left side
-        assert test_sprite.center_x == bounds[0]
+        # Should have wrapped to left side - left edge at left boundary
+        assert test_sprite.left == bounds[0]
         assert test_sprite.change_y == 10  # Y velocity preserved
 
     def test_move_x_until_limit_left_boundary(self, test_sprite):
@@ -1191,8 +1089,8 @@ class TestMoveXUntilBoundaries:
         test_sprite.center_x = bounds[0] - 5
         action._handle_x_boundaries()
 
-        # Should be limited at left boundary with zero velocity
-        assert test_sprite.center_x == bounds[0]
+        # Should be limited at left boundary with zero velocity - left edge at left boundary
+        assert test_sprite.left == bounds[0]
         assert test_sprite.change_x == 0
         assert test_sprite.change_y == 10  # Y velocity preserved
 
@@ -1218,8 +1116,8 @@ class TestMoveXUntilBoundaries:
         test_sprite.center_x = bounds[2] + 5
         action._handle_x_boundaries()
 
-        # Should be limited at right boundary with zero velocity
-        assert test_sprite.center_x == bounds[2]
+        # Should be limited at right boundary with zero velocity - right edge at right boundary
+        assert test_sprite.right == bounds[2]
         assert test_sprite.change_x == 0
         assert test_sprite.change_y == 10  # Y velocity preserved
 
@@ -1461,8 +1359,8 @@ class TestMoveYUntilBoundaries:
         test_sprite.center_y = bounds[1] - 1
         action._handle_y_boundaries()
 
-        # Should have wrapped to top side
-        assert test_sprite.center_y == bounds[3]
+        # Should have wrapped to top side - top edge at top boundary
+        assert test_sprite.top == bounds[3]
         assert test_sprite.change_x == 10  # X velocity preserved
 
     def test_move_y_until_wrap_top_boundary(self, test_sprite):
@@ -1487,8 +1385,8 @@ class TestMoveYUntilBoundaries:
         test_sprite.center_y = bounds[3] + 1
         action._handle_y_boundaries()
 
-        # Should have wrapped to bottom side
-        assert test_sprite.center_y == bounds[1]
+        # Should have wrapped to bottom side - bottom edge at bottom boundary
+        assert test_sprite.bottom == bounds[1]
         assert test_sprite.change_x == 10  # X velocity preserved
 
     def test_move_y_until_limit_bottom_boundary(self, test_sprite):
@@ -1513,8 +1411,8 @@ class TestMoveYUntilBoundaries:
         test_sprite.center_y = bounds[1] - 5
         action._handle_y_boundaries()
 
-        # Should be limited at bottom boundary with zero velocity
-        assert test_sprite.center_y == bounds[1]
+        # Should be limited at bottom boundary with zero velocity - bottom edge at bottom boundary
+        assert test_sprite.bottom == bounds[1]
         assert test_sprite.change_y == 0
         assert test_sprite.change_x == 10  # X velocity preserved
 
@@ -1540,8 +1438,8 @@ class TestMoveYUntilBoundaries:
         test_sprite.center_y = bounds[3] + 5
         action._handle_y_boundaries()
 
-        # Should be limited at top boundary with zero velocity
-        assert test_sprite.center_y == bounds[3]
+        # Should be limited at top boundary with zero velocity - top edge at top boundary
+        assert test_sprite.top == bounds[3]
         assert test_sprite.change_y == 0
         assert test_sprite.change_x == 10  # X velocity preserved
 

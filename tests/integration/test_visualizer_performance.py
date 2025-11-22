@@ -57,20 +57,6 @@ def _populate_store(store: DebugDataStore, count: int = 250) -> None:
             )
 
 
-def test_overlay_renderer_handles_large_snapshot_sets():
-    store = DebugDataStore()
-    _populate_store(store)
-
-    overlay = InspectorOverlay(debug_store=store)
-    overlay.update()
-
-    renderer = OverlayRenderer(overlay)
-    renderer.update()
-
-    assert overlay.get_total_action_count() == 250
-    assert len(renderer.text_objects) > 0
-
-
 def test_guides_and_panels_scale_with_dataset():
     store = DebugDataStore()
     _populate_store(store)

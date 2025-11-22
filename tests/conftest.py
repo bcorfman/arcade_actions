@@ -369,8 +369,11 @@ def window():
 
 @pytest.fixture
 def test_sprite(window) -> arcade.Sprite:
-    """Create a sprite with texture for testing."""
-    sprite = arcade.Sprite(":resources:images/items/star.png")
+    """Create a sprite with texture for testing.
+    
+    Uses SpriteSolidColor for faster test execution (avoids texture file I/O).
+    """
+    sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE)
     sprite.center_x = 100
     sprite.center_y = 100
     sprite.angle = 0
@@ -381,10 +384,13 @@ def test_sprite(window) -> arcade.Sprite:
 
 @pytest.fixture
 def test_sprite_list(window) -> arcade.SpriteList:
-    """Create a SpriteList with test sprites."""
+    """Create a SpriteList with test sprites.
+    
+    Uses SpriteSolidColor for faster test execution (avoids texture file I/O).
+    """
     sprite_list = arcade.SpriteList()
-    sprite1 = arcade.Sprite(":resources:images/items/star.png")
-    sprite2 = arcade.Sprite(":resources:images/items/star.png")
+    sprite1 = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE)
+    sprite2 = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE)
     sprite1.center_x = 50
     sprite2.center_x = 150
     sprite_list.append(sprite1)

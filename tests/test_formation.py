@@ -37,8 +37,11 @@ def cleanup_actions():
 
 
 def create_test_sprite() -> arcade.Sprite:
-    """Create a sprite with texture for testing."""
-    sprite = arcade.Sprite(":resources:images/items/star.png")
+    """Create a sprite with texture for testing.
+    
+    Uses SpriteSolidColor for faster test execution (avoids texture file I/O).
+    """
+    sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE)
     sprite.center_x = 100
     sprite.center_y = 100
     return sprite
@@ -668,7 +671,7 @@ def test_create_formation_entry_from_sprites_basic():
 
 def test_create_formation_entry_from_sprites_spawn_positions():
     """Test that spawn positions are within window bounds."""
-    sprites = [arcade.Sprite(":resources:images/items/star.png", scale=0.5) for _ in range(4)]
+    sprites = [arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE) for _ in range(4)]
     formation = arrange_grid(sprites, rows=2, cols=2, start_x=100, start_y=100, spacing_x=50, spacing_y=50)
 
     window_bounds = (0, 0, 800, 600)
@@ -696,7 +699,7 @@ def test_create_formation_entry_from_sprites_requires_window_bounds():
 
 def test_create_formation_entry_from_sprites_three_phase_movement():
     """Test that movement has proper structure."""
-    sprites = [arcade.Sprite(":resources:images/items/star.png", scale=0.5) for _ in range(4)]
+    sprites = [arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE) for _ in range(4)]
     formation = arrange_grid(sprites, rows=2, cols=2, start_x=100, start_y=100, spacing_x=50, spacing_y=50)
 
     window_bounds = (0, 0, 800, 600)
@@ -712,7 +715,7 @@ def test_create_formation_entry_from_sprites_three_phase_movement():
 
 def test_create_formation_entry_from_sprites_collision_avoidance():
     """Test that collision avoidance is implemented."""
-    sprites = [arcade.Sprite(":resources:images/items/star.png", scale=0.5) for _ in range(4)]
+    sprites = [arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE) for _ in range(4)]
     formation = arrange_grid(sprites, rows=2, cols=2, start_x=100, start_y=100, spacing_x=50, spacing_y=50)
 
     window_bounds = (0, 0, 800, 600)
@@ -731,7 +734,7 @@ def test_create_formation_entry_from_sprites_collision_avoidance():
 
 def test_create_formation_entry_from_sprites_parameter_defaults():
     """Test parameter defaults."""
-    sprites = [arcade.Sprite(":resources:images/items/star.png", scale=0.5) for _ in range(4)]
+    sprites = [arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE) for _ in range(4)]
     formation = arrange_grid(sprites, rows=2, cols=2, start_x=100, start_y=100, spacing_x=50, spacing_y=50)
 
     window_bounds = (0, 0, 800, 600)
@@ -743,7 +746,7 @@ def test_create_formation_entry_from_sprites_parameter_defaults():
 
 def test_create_formation_entry_from_sprites_center_first_ordering():
     """Test that sprites are ordered center-first."""
-    sprites = [arcade.Sprite(":resources:images/items/star.png", scale=0.5) for _ in range(4)]
+    sprites = [arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE) for _ in range(4)]
     formation = arrange_grid(sprites, rows=2, cols=2, start_x=100, start_y=100, spacing_x=50, spacing_y=50)
 
     window_bounds = (0, 0, 800, 600)
@@ -766,7 +769,7 @@ def test_create_formation_entry_from_sprites_empty_formation():
 
 def test_create_formation_entry_from_sprites_custom_parameters():
     """Test with custom parameters."""
-    sprites = [arcade.Sprite(":resources:images/items/star.png", scale=0.5) for _ in range(4)]
+    sprites = [arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE) for _ in range(4)]
     formation = arrange_grid(sprites, rows=2, cols=2, start_x=100, start_y=100, spacing_x=50, spacing_y=50)
 
     window_bounds = (0, 0, 800, 600)

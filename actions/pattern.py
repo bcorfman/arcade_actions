@@ -154,6 +154,9 @@ def create_wave_pattern(
     # Calculate the sub-range parameters (span maps linearly to frames)
     span = end_progress - start_progress
     sub_frames = int(full_frames * span)
+    # Ensure at least 1 frame for non-zero spans to allow animation
+    if span > 0 and sub_frames == 0:
+        sub_frames = 1
 
     def _full_offset(t: float) -> tuple[float, float]:
         # Triangular time-base 0→1→0 to make sure we return to origin in X
@@ -785,9 +788,18 @@ def create_formation_entry_from_sprites(
     sprite_distances.sort(key=distance_from_center)
 
     # Use min-conflicts algorithm for optimal sprite-to-spawn assignment
-    optimal_assignments = _min_conflicts_sprite_assignment(
-        target_formation, spawn_positions, max_iterations=1000, time_limit=0.1
-    )
+    # Fast path for small formations: use shorter time limit and fewer iterations
+    num_sprites = len(target_formation)
+    if num_sprites <= 4:
+        # Small formations: greedy assignment is usually good enough, minimal optimization
+        optimal_assignments = _min_conflicts_sprite_assignment(
+            target_formation, spawn_positions, max_iterations=50, time_limit=0.01
+        )
+    else:
+        # Larger formations: full optimization
+        optimal_assignments = _min_conflicts_sprite_assignment(
+            target_formation, spawn_positions, max_iterations=1000, time_limit=0.1
+        )
 
     # Convert single assignment to wave format for compatibility
     enemy_waves_with_assignments = [optimal_assignments] if optimal_assignments else []
