@@ -42,6 +42,7 @@ class DebugControlManager:
     def __post_init__(self) -> None:
         # Assume overlay provides access to debug store
         self._cached_target_names: dict[int, str] = {}
+        self._target_names_frame = -1  # Track when we last refreshed target names
         self.snapshot_exporter = SnapshotExporter(
             self.overlay.debug_store,
             self.snapshot_directory,
@@ -101,7 +102,12 @@ class DebugControlManager:
 
     def update(self, sprite_positions: dict[int, tuple[float, float]] | None = None) -> None:
         """Update all connected components."""
-        self._refresh_target_names()
+        # Only refresh target names every 60 frames (~1 second at 60 FPS) to reduce overhead
+        current_frame = self.overlay.debug_store.current_frame
+        if current_frame - self._target_names_frame >= 60:
+            self._refresh_target_names()
+            self._target_names_frame = current_frame
+        
         self.overlay.update()
 
         if self.condition_panel_visible:

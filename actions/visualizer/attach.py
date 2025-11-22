@@ -85,17 +85,70 @@ def is_visualizer_attached() -> bool:
     return _VISUALIZER_SESSION is not None
 
 
-def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
-    """Attempt to collect sprite positions from active actions."""
+# Cache for sprite positions to avoid expensive recalculation every frame
+_position_cache: dict[int, tuple[float, float]] = {}
+_cached_action_count = 0
+_cached_action_ids: set[int] = set()
+_cached_targets: dict[int, object] = {}  # target_id -> target object
 
+
+def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
+    """Attempt to collect sprite positions from active actions.
+    
+    Uses caching to avoid expensive iteration when action set hasn't changed.
+    """
+    global _position_cache, _cached_action_count, _cached_action_ids, _cached_targets
+    
+    current_actions = Action._active_actions  # type: ignore[attr-defined]
+    current_count = len(current_actions)
+    current_ids = {id(a) for a in current_actions}
+    
+    # If action set hasn't changed, use cached targets and update positions
+    if current_count == _cached_action_count and current_ids == _cached_action_ids:
+        # Fast path: update positions from cached targets
+        positions = {}
+        for target_id, target in _cached_targets.items():
+            try:
+                if hasattr(target, "center_x") and hasattr(target, "center_y"):
+                    positions[target_id] = (target.center_x, target.center_y)
+                else:
+                    # SpriteList case - calculate average and update individual sprites
+                    sum_x = 0.0
+                    sum_y = 0.0
+                    count = 0
+                    try:
+                        for sprite in target:
+                            try:
+                                sprite_id = id(sprite)
+                                positions[sprite_id] = (sprite.center_x, sprite.center_y)
+                                sum_x += sprite.center_x
+                                sum_y += sprite.center_y
+                                count += 1
+                            except AttributeError:
+                                continue
+                        if count:
+                            positions[target_id] = (sum_x / count, sum_y / count)
+                    except TypeError:
+                        pass
+            except (AttributeError, TypeError):
+                continue
+        _position_cache = positions
+        return positions
+    
+    # Slow path: rebuild cache from scratch
     positions: dict[int, tuple[float, float]] = {}
-    # Iterate over active actions and attempt to read positions directly.
-    for action in list(Action._active_actions):  # type: ignore[attr-defined]
+    _cached_targets.clear()
+    
+    for action in current_actions:
         target = getattr(action, "target", None)
         if target is None:
             continue
+        
+        target_id = id(target)
+        
         try:
-            positions[id(target)] = (target.center_x, target.center_y)
+            positions[target_id] = (target.center_x, target.center_y)
+            _cached_targets[target_id] = target
             continue
         except AttributeError:
             pass
@@ -107,16 +160,22 @@ def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
             count = 0
             for sprite in target:
                 try:
-                    positions[id(sprite)] = (sprite.center_x, sprite.center_y)
+                    sprite_id = id(sprite)
+                    positions[sprite_id] = (sprite.center_x, sprite.center_y)
                     sum_x += sprite.center_x
                     sum_y += sprite.center_y
                     count += 1
                 except AttributeError:
                     continue
             if count:
-                positions[id(target)] = (sum_x / count, sum_y / count)
+                positions[target_id] = (sum_x / count, sum_y / count)
+            _cached_targets[target_id] = target
         except TypeError:
             continue
+    
+    _position_cache = positions
+    _cached_action_count = current_count
+    _cached_action_ids = current_ids
     return positions
 
 
@@ -487,6 +546,7 @@ def attach_visualizer(
                     on_close_callback=_on_event_window_closed,
                     target_names_provider=session.target_names_provider,
                     forward_key_handler=manager.handle_key_press if manager is not None else None,
+                    main_window=session.window,
                 )
             except Exception as exc:
                 print(f"[ACE] Failed to open event window: {exc!r}")
@@ -497,8 +557,7 @@ def attach_visualizer(
             move_to_primary_monitor(window, offset_x=40, offset_y=60)
             window.set_visible(True)
             session.event_window = window
-            if session.window is not None:
-                window_commands.set_window(session.window)
+            window.request_main_window_focus()
         else:
             if session.event_window is not None:
                 try:
@@ -531,14 +590,19 @@ def attach_visualizer(
         if _VISUALIZER_SESSION is None:
             return
         _install_window_handler(_VISUALIZER_SESSION)
+        session = _VISUALIZER_SESSION
+        
+        # Collect sprite positions (cached for performance)
+        # Note: positions are primarily used for guides, but we collect them always
+        # for test compatibility and potential future use
         positions: dict[int, tuple[float, float]] = {}
-        provider = _VISUALIZER_SESSION.sprite_positions_provider
+        provider = session.sprite_positions_provider
         if provider is not None:
             try:
                 positions = provider() or {}
             except Exception:
                 positions = {}
-        session = _VISUALIZER_SESSION
+        
         session.control_manager.update(positions)
         session.renderer.update()
         session.guide_renderer.update()
@@ -649,3 +713,4 @@ def enable_visualizer_hotkey(
 
     actual_window.push_handlers(on_key_press=on_key_press)
     return True
+

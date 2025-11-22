@@ -228,9 +228,9 @@ class OverlayRenderer:
         if not self.overlay.visible:
             return
 
-        self._last_text_specs = []
-        self.text_objects = []
-        _sync_text_objects(self.text_objects, self._text_specs, self._last_text_specs)
+        # Only sync text objects if specs changed (optimization)
+        if self._text_specs != self._last_text_specs:
+            _sync_text_objects(self.text_objects, self._text_specs, self._last_text_specs)
 
         # Draw shapes first (backgrounds, progress bars)
         for rect in self._background_rects:
