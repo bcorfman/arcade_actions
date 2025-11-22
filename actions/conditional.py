@@ -1771,8 +1771,10 @@ class ParametricMotionUntil(_Action):
 
     The *offset_fn* receives progress *t* (0→1) and returns (dx, dy) offsets that
     are **added** to each sprite's origin captured at *apply* time.  Completion is
-    governed by the same *condition* mechanism used elsewhere (typically the
-    ``after_frames()`` helper).
+    governed by the *condition* parameter (typically ``after_frames()``).
+
+    Frame-based timing only: Use ``after_frames(N)`` to specify duration in frames.
+    If you have a duration in seconds, convert it first using ``seconds_to_frames()``.
     """
 
     def __init__(
@@ -1809,13 +1811,21 @@ class ParametricMotionUntil(_Action):
 
         self.for_each_sprite(capture_origin)
 
-        if self._duration is None:
-            extracted = _extract_duration_seconds(self.condition)
-            if extracted is not None:
-                self._duration = extracted
+        # Reset timing state
+        self._elapsed_frames = 0.0
+        self._frame_duration = None
 
-            if self._duration is None or self._duration == 0:
-                self._duration = 0.0
+        # Extract frame count from after_frames() condition
+        frame_count = getattr(self.condition, "_frame_count", None)
+        precise_duration = getattr(self.condition, "_frame_duration_precise", None)
+        if isinstance(frame_count, int) and frame_count > 0:
+            if isinstance(precise_duration, (int, float)) and precise_duration > 0:
+                self._frame_duration = float(precise_duration)
+            else:
+                self._frame_duration = float(frame_count)
+        else:
+            # No frame count metadata – complete immediately
+            self._frame_duration = 0.0
 
         # Do not pre-position sprites; offsets are relative to captured origins
         self._prev_offset = self._offset_fn(0.0)
@@ -1823,8 +1833,10 @@ class ParametricMotionUntil(_Action):
     def update_effect(self, delta_time: float) -> None:  # noqa: D401
         from math import hypot, degrees, atan2
 
-        self._elapsed += delta_time * self._factor
-        progress = min(1.0, self._elapsed / self._duration) if self._duration > 0 else 1.0
+        # Frame-based timing: advance by one frame per update, scaled by factor
+        self._elapsed_frames += self._factor
+        total = self._frame_duration or 0.0
+        progress = min(1.0, self._elapsed_frames / total) if total > 0 else 1.0
 
         # Clamp progress to 1.0 for offset calculation to ensure exact endpoint positioning
         clamped_progress = min(1.0, progress)

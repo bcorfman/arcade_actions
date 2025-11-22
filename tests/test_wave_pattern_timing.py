@@ -28,7 +28,12 @@ REFERENCE_PATH = Path(__file__).with_name("data") / "wave_reference_a85.json"
 class TestWavePatternTiming:
     """Frame-based sampling tests for create_wave_pattern."""
 
+    def setup_method(self):
+        """Clean up action state before each test."""
+        Action.stop_all()
+
     def teardown_method(self):
+        """Clean up action state after each test."""
         Action.stop_all()
 
     def test_wave_pattern_animates_over_multiple_frames(self):

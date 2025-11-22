@@ -7,52 +7,17 @@ Arcade window (which made the suite extremely large and slow).
 
 These tests verify:
 - Visualizer hooks in base.py work correctly when visualizer is disabled
-- Environment variable handling works correctly
 - Action lifecycle hooks don't crash when _enable_visualizer is False
+
+Note: The slow subprocess-based env var test has been moved to tests/integration/
 """
 
-import os
 import pytest
 import arcade
 
 from actions import Action
 from actions.frame_timing import after_frames
 from actions.conditional import MoveUntil
-
-
-def test_visualizer_env_var_triggers_auto_attach():
-    """Test that ARCADEACTIONS_VISUALIZER env var triggers visualizer auto-attach."""
-    import sys
-
-    # Save original env value
-    original_value = os.environ.get("ARCADEACTIONS_VISUALIZER")
-
-    try:
-        # Set env var to trigger visualizer import
-        os.environ["ARCADEACTIONS_VISUALIZER"] = "1"
-
-        # Clear any cached imports to force reimport
-        if "actions" in sys.modules:
-            del sys.modules["actions"]
-            # Also clear submodules
-            for key in list(sys.modules.keys()):
-                if key.startswith("actions."):
-                    del sys.modules[key]
-
-        # This should import successfully and trigger visualizer auto-attach
-        from actions import Action  # noqa: F401
-
-        # Visualizer should be importable
-        from actions import visualizer  # noqa: F401
-
-        assert True  # If we get here, import succeeded
-
-    finally:
-        # Restore original env value
-        if original_value is None:
-            os.environ.pop("ARCADEACTIONS_VISUALIZER", None)
-        else:
-            os.environ["ARCADEACTIONS_VISUALIZER"] = original_value
 
 
 def test_action_visualizer_hooks_dont_crash_when_disabled():

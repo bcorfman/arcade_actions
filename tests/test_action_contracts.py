@@ -322,7 +322,6 @@ SET_FACTOR_CASES = [
         lambda sprite: ParametricMotionUntil(
             lambda t: (t * 5.0, t * 2.5),
             after_frames(60),  # 1 second at 60 FPS
-            explicit_duration=1.0,
         ),
         lambda action: action._factor,
         {0.0: 0.0, 0.5: 0.5, 2.0: 2.0},

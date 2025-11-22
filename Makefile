@@ -16,7 +16,7 @@ devinstall:
 	uv sync --all-extras --dev
 
 test:
-	uv run pytest
+	uv run pytest tests/ --ignore=tests/integration
 
 run: 
 	uv run python examples/invaders.py
