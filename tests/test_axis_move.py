@@ -5,12 +5,15 @@ These tests verify that axis-specific actions only affect their respective axes
 and can be safely composed via parallel() for orthogonal motion.
 """
 
-import pytest
+import warnings
+
 import arcade
-from actions.base import Action
-from actions.conditional import infinite
-from actions.composite import parallel
+import pytest
+
 from actions.axis_move import MoveXUntil, MoveYUntil
+from actions.base import Action
+from actions.composite import parallel
+from actions.conditional import infinite
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -1120,6 +1123,38 @@ class TestMoveXUntilBoundaries:
         assert test_sprite.right == bounds[2]
         assert test_sprite.change_x == 0
         assert test_sprite.change_y == 10  # Y velocity preserved
+
+    def test_move_x_until_boundary_callback_without_side_param(self, test_sprite):
+        """Boundary callbacks should support signatures without the side parameter."""
+        Action._warned_bad_callbacks.clear()
+        bounds = (0, 0, 100, 100)
+        events: list[tuple[arcade.Sprite, str]] = []
+
+        def on_boundary(sprite, axis):
+            events.append((sprite, axis))
+
+        test_sprite.center_x = bounds[0]
+        action = MoveXUntil(
+            velocity=(-5, 0),
+            condition=infinite,
+            bounds=bounds,
+            boundary_behavior="wrap",
+            on_boundary_enter=on_boundary,
+        )
+        action.apply(test_sprite)
+
+        # Update action to set velocity
+        Action.update_all(0.1)
+        # Force sprite beyond left boundary to trigger callback
+        test_sprite.center_x = bounds[0] - 5
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("error")
+            action._handle_x_boundaries()
+
+        assert not caught
+        assert events, "Boundary callback should have been invoked"
+        assert events[-1] == (test_sprite, "x")
 
     def test_move_x_until_boundary_callback_left(self, test_sprite):
         """Test MoveXUntil calls on_boundary_enter callback for left boundary."""

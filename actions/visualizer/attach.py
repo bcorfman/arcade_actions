@@ -542,6 +542,13 @@ def attach_visualizer(
         session.control_manager.update(positions)
         session.renderer.update()
         session.guide_renderer.update()
+        visualizer_data = {
+            "frame": Action.current_frame(),
+            "active_actions": len(Action._active_actions),
+            "pending_actions": len(Action._pending_actions),
+            "snapshots": len(getattr(session.debug_store, "active_snapshots", {})),
+            "overlay_total": session.overlay.get_total_action_count(),
+        }
 
     session = VisualizerSession(
         debug_store=debug_store,

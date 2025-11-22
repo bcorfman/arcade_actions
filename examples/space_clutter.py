@@ -33,6 +33,7 @@ from actions import (
 )
 from actions.frame_timing import seconds_to_frames
 
+
 # ---------------------------------------------------------------------------
 # Window configuration
 # ---------------------------------------------------------------------------
@@ -284,7 +285,7 @@ class PlayerShip(arcade.Sprite):
             shot_vel_y = PLAYER_SHIP_FIRE_SPEED * math.cos(angle_rad)
 
         def cleanup_shot():
-            Action.stop_actions_for_target(shot)
+            Action.stop_actions_for_target(shot, tag="player_shot")
             shot.remove_from_sprite_lists()
 
         move_until(
@@ -292,6 +293,7 @@ class PlayerShip(arcade.Sprite):
             velocity=(shot_vel_x, shot_vel_y),
             condition=lambda: shot.top > WINDOW_HEIGHT,
             on_stop=cleanup_shot,
+            tag="player_shot",
         )
         self.shot_list.append(shot)
 
@@ -313,7 +315,9 @@ class PlayerShip(arcade.Sprite):
         if right_pressed and not left_pressed:
             direction = PLAYER_SHIP_SPEED
         if direction != 0:
+            # Stop all movement actions (tagged and untagged) before creating new one
             Action.stop_actions_for_target(self, tag="player_move")
+            Action.stop_actions_for_target(self)  # Also stop any untagged movement actions
             move_until(
                 self,
                 velocity=(direction, 0),
@@ -323,7 +327,9 @@ class PlayerShip(arcade.Sprite):
                 tag="player_move",
             )
         else:
+            # Stop all movement actions when no keys are pressed
             Action.stop_actions_for_target(self, tag="player_move")
+            Action.stop_actions_for_target(self)  # Also stop any untagged movement actions
 
     def update(self, delta_time):
         super().update(delta_time)
@@ -423,15 +429,19 @@ class StarfieldView(arcade.View):
         self.wave_count += 1
 
         # Stop all existing enemy actions for both sprite list and individual sprites
+        # Stop by tag first, then stop all actions to catch any untagged ones
         Action.stop_actions_for_target(self.enemy_list, tag="enemy_formation_entry")
+        existing_wave_actions = len(Action.get_actions_for_target(self.enemy_list, tag="enemy_wave"))
         Action.stop_actions_for_target(self.enemy_list, tag="enemy_wave")
         Action.stop_actions_for_target(self.enemy_list, tag="formation_completion_watcher")
+        Action.stop_actions_for_target(self.enemy_list)  # Stop any remaining actions
 
         # Also stop actions for individual sprites to prevent accumulation
         for sprite in self.enemy_list:
             Action.stop_actions_for_target(sprite, tag="enemy_formation_entry")
             Action.stop_actions_for_target(sprite, tag="enemy_wave")
             Action.stop_actions_for_target(sprite, tag="formation_completion_watcher")
+            Action.stop_actions_for_target(sprite)  # Stop any remaining actions
 
         # Create target formation only once (optimization 1 & 2)
         if self.enemy_formation is None:
@@ -524,11 +534,25 @@ class StarfieldView(arcade.View):
 
         def start_wave_motion():
             """Start repeating wave motion for the entire enemy formation."""
+            # Stop any existing wave actions first to prevent accumulation
+            Action.stop_actions_for_target(self.enemy_list, tag="enemy_wave")
+            for sprite in self.enemy_list:
+                Action.stop_actions_for_target(sprite, tag="enemy_wave")
+            # Ensure per-sprite entry actions are cleaned up before starting the wave motion
+            entry_stop_count = 0
+            for sprite in self.enemy_list:
+                active = Action.get_actions_for_target(sprite, tag="enemy_formation_entry")
+                if active:
+                    entry_stop_count += len(active)
+                    Action.stop_actions_for_target(sprite, tag="enemy_formation_entry")
+
             wave_speed = _per_frame_speed(80)
             quarter_wave = create_wave_pattern(
                 amplitude=30, length=80, velocity=wave_speed, start_progress=0.75, end_progress=1.0
             )
-            full_wave = create_wave_pattern(amplitude=30, length=80, velocity=wave_speed, debug=True, debug_threshold=19)
+            full_wave = create_wave_pattern(
+                amplitude=30, length=80, velocity=wave_speed, debug=True, debug_threshold=19
+            )
 
             # Repeat the wave forever so enemies keep swaying
             repeating_wave = sequence(quarter_wave, repeat(full_wave))
@@ -560,14 +584,14 @@ class StarfieldView(arcade.View):
 
             def handle_powerup(collision_data):
                 # Stop actions for the powerup_list (action is applied to the list, not individual sprite)
-                Action.stop_actions_for_target(self.powerup_list)
+                Action.stop_actions_for_target(self.powerup_list, tag="powerup")
                 if collision_data["powerup_hit"]:
                     self.ship.current_powerup = powerup.texture_index
                     powerup.remove_from_sprite_lists()
                     shots_colliding = collision_data["powerup_hit"]
                     if shots_colliding:
                         for shot in shots_colliding:
-                            Action.stop_actions_for_target(shot)
+                            Action.stop_actions_for_target(shot, tag="player_shot")
                             shot.remove_from_sprite_lists()
                         self.ship.powerup_hit()
                 if collision_data["offscreen"]:
@@ -580,6 +604,7 @@ class StarfieldView(arcade.View):
                 velocity=(0, -5),
                 condition=powerup_condition,
                 on_stop=handle_powerup,
+                tag="powerup",
             )
 
     # ---------------------------------------------------------------------
@@ -611,7 +636,7 @@ class StarfieldView(arcade.View):
             enemies_hit = arcade.check_for_collision_with_list(shot, self.enemy_list)
             if enemies_hit:
                 # Stop actions and remove the shot
-                Action.stop_actions_for_target(shot)
+                Action.stop_actions_for_target(shot, tag="player_shot")
                 shot.remove_from_sprite_lists()
 
                 # Stop actions and remove hit enemies
