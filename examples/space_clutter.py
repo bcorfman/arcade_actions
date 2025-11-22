@@ -103,6 +103,11 @@ GEM_BLUE = ":resources:/images/items/gemBlue.png"
 EXPLOSION_TEXTURE_COUNT = 60
 
 
+def _per_frame_speed(pixels_per_second: float) -> float:
+    """Convert legacy pixels-per-second values to pixels per frame."""
+    return pixels_per_second / 60.0
+
+
 def _random_star_position() -> tuple[float, float]:
     """Return a random (x, y) position slightly above the top of the screen."""
     x = random.uniform(0, WINDOW_WIDTH)
@@ -514,12 +519,16 @@ class StarfieldView(arcade.View):
             all_enemies_arrived._stable = getattr(all_enemies_arrived, "_stable", 0) + 1
             return all_enemies_arrived._stable >= stable_frames_required
 
+        # Reset the condition's state for the new wave
+        all_enemies_arrived._stable = 0
+
         def start_wave_motion():
             """Start repeating wave motion for the entire enemy formation."""
+            wave_speed = _per_frame_speed(80)
             quarter_wave = create_wave_pattern(
-                amplitude=30, length=80, velocity=80, start_progress=0.75, end_progress=1.0
+                amplitude=30, length=80, velocity=wave_speed, start_progress=0.75, end_progress=1.0
             )
-            full_wave = create_wave_pattern(amplitude=30, length=80, velocity=80, debug=True, debug_threshold=19)
+            full_wave = create_wave_pattern(amplitude=30, length=80, velocity=wave_speed, debug=True, debug_threshold=19)
 
             # Repeat the wave forever so enemies keep swaying
             repeating_wave = sequence(quarter_wave, repeat(full_wave))
