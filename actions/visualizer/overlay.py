@@ -148,6 +148,8 @@ class InspectorOverlay:
         self.groups: list[TargetGroup] = []
         self.highlighted_target_id: int | None = None
         self._highlight_index: int = -1
+        # Cache for action cards to avoid recreating them every frame
+        self._card_cache: dict[int, ActionCard] = {}  # action_id -> ActionCard
 
     def toggle(self) -> None:
         """Toggle overlay visibility."""
@@ -158,6 +160,7 @@ class InspectorOverlay:
         Update overlay from debug store data.
 
         Rebuilds target groups and action cards from current snapshots.
+        Uses caching to reuse ActionCard objects when snapshots haven't changed.
         """
         if not self.visible:
             self.groups = []
@@ -169,6 +172,10 @@ class InspectorOverlay:
         # Apply tag filter if specified
         if self.filter_tag:
             snapshots = [s for s in snapshots if s.tag == self.filter_tag]
+
+        # Update card cache: remove cards for actions that no longer exist
+        current_action_ids = {s.action_id for s in snapshots}
+        self._card_cache = {aid: card for aid, card in self._card_cache.items() if aid in current_action_ids}
 
         # Group snapshots by target_id
         groups_dict: dict[int, TargetGroup] = {}
@@ -182,7 +189,16 @@ class InspectorOverlay:
                     target_type=snapshot.target_type,
                 )
 
-            card = ActionCard(snapshot, width=self.width - 20)
+            # Reuse cached card if available, otherwise create new one
+            action_id = snapshot.action_id
+            if action_id in self._card_cache:
+                card = self._card_cache[action_id]
+                # Update the card's snapshot reference
+                card.snapshot = snapshot
+            else:
+                card = ActionCard(snapshot, width=self.width - 20)
+                self._card_cache[action_id] = card
+            
             groups_dict[target_id].add_card(card)
 
         # Convert to list and sort by target_id for consistent ordering

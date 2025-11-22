@@ -33,6 +33,7 @@ class EventInspectorWindow(arcade.Window):
         timeline_cls: type[TimelineStrip] = TimelineStrip,
         timeline_renderer_cls: type[TimelineRenderer] = TimelineRenderer,
         forward_key_handler: Callable[[int, int], bool] | None = None,
+        main_window: arcade.Window | None = None,
     ) -> None:
         super().__init__(width=width, height=height, title=title, resizable=True, visible=False)
         self.background_color = (20, 24, 38)
@@ -44,6 +45,7 @@ class EventInspectorWindow(arcade.Window):
         self._font_size = self._min_font_size
         self._should_draw = False
         self._forward_key_handler = forward_key_handler
+        self._main_window = main_window
 
         try:
             self.set_minimum_size(width, height)  # type: ignore[attr-defined]
@@ -130,7 +132,34 @@ class EventInspectorWindow(arcade.Window):
         # No interactive controls; clicks are ignored.
         return
 
+    def _schedule_focus_restore(self, delay: float) -> None:
+        if self._main_window is None:
+            return
+
+        def _activate_main_window(_dt: float) -> None:
+            if self._main_window is None:
+                return
+            try:
+                window_commands.set_window(self._main_window)
+            except Exception:
+                pass
+            try:
+                self._main_window.activate()
+            except Exception:
+                pass
+
+        arcade.schedule_once(_activate_main_window, delay)
+
+    def request_main_window_focus(self) -> None:
+        """Schedule multiple attempts to restore focus to the main window."""
+        if self._main_window is None:
+            return
+        for delay in (0.0, 0.01, 0.05):
+            self._schedule_focus_restore(delay)
+
     def on_key_press(self, symbol: int, modifiers: int) -> None:  # noqa: ARG002
+        # Only handle F4 to close the window
+        # All other keys should be forwarded to the main game window
         if symbol == arcade.key.F4:
             if self._forward_key_handler is not None:
                 handled = False
@@ -141,6 +170,40 @@ class EventInspectorWindow(arcade.Window):
                 if handled:
                     return
             self.close()
+        else:
+            self._forward_to_main_window("on_key_press", symbol, modifiers)
+
+    def on_key_release(self, symbol: int, modifiers: int) -> None:  # noqa: ARG002
+        """Forward key releases so movement stop/start stays in sync."""
+        self._forward_to_main_window("on_key_release", symbol, modifiers)
+
+    def _forward_to_main_window(self, handler_name: str, symbol: int, modifiers: int) -> None:
+        # First try the debug handler (for function keys)
+        if self._forward_key_handler is not None and handler_name == "on_key_press":
+            try:
+                handled = bool(self._forward_key_handler(symbol, modifiers))
+                if handled:
+                    return
+            except Exception:
+                pass
+
+        if self._main_window is None:
+            return
+
+        try:
+            # Use dispatch_event to ensure the event reaches the current View
+            # Direct method access (getattr(window, "on_key_press")) only hits the Window's
+            # default implementation, which doesn't delegate to Views unless manually overridden.
+            self._main_window.dispatch_event(handler_name, symbol, modifiers)
+        except Exception:
+            # Fallback: try calling the method directly if dispatch_event fails
+            # (e.g. if main_window isn't a real Window but a mock/stub)
+            try:
+                handler = getattr(self._main_window, handler_name, None)
+                if handler is not None:
+                    handler(symbol, modifiers)
+            except Exception:
+                pass
 
     def set_visible(self, visible: bool) -> None:
         try:
@@ -148,6 +211,9 @@ class EventInspectorWindow(arcade.Window):
         except Exception:
             pass
         self._should_draw = bool(visible)
+        if visible:
+            self.request_main_window_focus()
+            self._update_font_size_for_window(self._base_width, self._base_height)
 
     def on_resize(self, width: int, height: int) -> None:
         if width < self._base_width or height < self._base_height:

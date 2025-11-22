@@ -254,6 +254,43 @@ def test_event_window_ignores_initial_f4(monkeypatch, store: DebugDataStore):
     assert close_calls
 
 
+def test_event_window_forwards_key_release(monkeypatch, store: DebugDataStore):
+    def fake_init(self, width=0, height=0, title="", resizable=True, **kwargs):
+        self._width = width or 520
+        self._height = height or 360
+        self._scale = 1.0
+        self._context = object()
+        self._ctx = object()
+
+    _mock_event_window_base(monkeypatch, init=fake_init)
+
+    class DummyMainWindow:
+        def __init__(self) -> None:
+            self.pressed: list[tuple[int, int]] = []
+            self.released: list[tuple[int, int]] = []
+
+        def dispatch_event(self, event_type: str, *args) -> None:
+            if event_type == "on_key_press":
+                self.on_key_press(*args)
+            elif event_type == "on_key_release":
+                self.on_key_release(*args)
+
+        def on_key_press(self, symbol: int, modifiers: int) -> None:
+            self.pressed.append((symbol, modifiers))
+
+        def on_key_release(self, symbol: int, modifiers: int) -> None:
+            self.released.append((symbol, modifiers))
+
+    dummy_main = DummyMainWindow()
+    window = EventInspectorWindow(store, main_window=dummy_main)
+
+    window.on_key_press(arcade.key.LEFT, 0)
+    window.on_key_release(arcade.key.LEFT, 0)
+
+    assert dummy_main.pressed == [(arcade.key.LEFT, 0)]
+    assert dummy_main.released == [(arcade.key.LEFT, 0)]
+
+
 def test_event_window_on_close_handles_callback_error(monkeypatch, store: DebugDataStore):
     """Test that on_close handles callback exceptions gracefully."""
 
@@ -292,6 +329,43 @@ def test_event_window_on_close_handles_callback_error(monkeypatch, store: DebugD
     # Should have attempted to call callback and logged error
     assert error_occurred
     assert any("Error in event window close callback" in str(call) for call in print_calls)
+
+
+def test_event_window_request_focus_schedules_activation(monkeypatch, store: DebugDataStore):
+    def fake_init(self, width=0, height=0, title="", resizable=True, **kwargs):
+        self._width = width or 520
+        self._height = height or 360
+        self._scale = 1.0
+        self._context = object()
+        self._ctx = object()
+
+    _mock_event_window_base(monkeypatch, init=fake_init)
+
+    scheduled_delays: list[float] = []
+
+    def fake_schedule(callback, delay):
+        scheduled_delays.append(delay)
+        callback(0.0)
+
+    monkeypatch.setattr(arcade, "schedule_once", fake_schedule)
+
+    set_window_values: list[object | None] = []
+    monkeypatch.setattr(window_commands, "set_window", lambda value: set_window_values.append(value))
+
+    class DummyMainWindow:
+        def __init__(self) -> None:
+            self.activations = 0
+
+        def activate(self) -> None:
+            self.activations += 1
+
+    dummy_main = DummyMainWindow()
+    window = EventInspectorWindow(store, main_window=dummy_main)
+
+    window.request_main_window_focus()
+
+    assert scheduled_delays == [0.0, 0.01, 0.05]
+    assert dummy_main.activations == len(scheduled_delays)
 
 
 def test_event_window_font_scales_with_resize(monkeypatch, store: DebugDataStore):
