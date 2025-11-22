@@ -157,32 +157,32 @@ class MoveXUntil(MoveUntil):
                     sprite.change_x = abs(sprite.change_x)
                     sprite.left = left
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "x", "left")
+                        self._safe_call(self.on_boundary_enter, sprite, "x", "left")
                 elif self.boundary_behavior == "wrap":
                     sprite.right = right
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "x", "left")
+                        self._safe_call(self.on_boundary_enter, sprite, "x", "left")
                 elif self.boundary_behavior == "limit":
                     sprite.left = left
                     sprite.change_x = 0
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "x", "left")
+                        self._safe_call(self.on_boundary_enter, sprite, "x", "left")
 
             elif sprite.right >= right:
                 if self.boundary_behavior == "bounce":
                     sprite.change_x = -abs(sprite.change_x)
                     sprite.right = right
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "x", "right")
+                        self._safe_call(self.on_boundary_enter, sprite, "x", "right")
                 elif self.boundary_behavior == "wrap":
                     sprite.left = left
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "x", "right")
+                        self._safe_call(self.on_boundary_enter, sprite, "x", "right")
                 elif self.boundary_behavior == "limit":
                     sprite.right = right
                     sprite.change_x = 0
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "x", "right")
+                        self._safe_call(self.on_boundary_enter, sprite, "x", "right")
 
         self.for_each_sprite(handle_sprite_boundaries)
 
@@ -346,32 +346,32 @@ class MoveYUntil(MoveUntil):
                     sprite.change_y = abs(sprite.change_y)
                     sprite.bottom = bottom
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "y", "bottom")
+                        self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
                 elif self.boundary_behavior == "wrap":
                     sprite.top = top
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "y", "bottom")
+                        self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
                 elif self.boundary_behavior == "limit":
                     sprite.bottom = bottom
                     sprite.change_y = 0
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "y", "bottom")
+                        self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
 
             elif sprite.top >= top:
                 if self.boundary_behavior == "bounce":
                     sprite.change_y = -abs(sprite.change_y)
                     sprite.top = top
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "y", "top")
+                        self._safe_call(self.on_boundary_enter, sprite, "y", "top")
                 elif self.boundary_behavior == "wrap":
                     sprite.bottom = bottom
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "y", "top")
+                        self._safe_call(self.on_boundary_enter, sprite, "y", "top")
                 elif self.boundary_behavior == "limit":
                     sprite.top = top
                     sprite.change_y = 0
                     if self.on_boundary_enter:
-                        self.on_boundary_enter(sprite, "y", "top")
+                        self._safe_call(self.on_boundary_enter, sprite, "y", "top")
 
         self.for_each_sprite(handle_sprite_boundaries)
 

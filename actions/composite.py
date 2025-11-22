@@ -2,7 +2,31 @@
 Composite actions that combine other actions.
 """
 
+import json
+import time
+
 from .base import Action, CompositeAction
+
+
+# region agent log helper
+def _agent_debug_log(*, hypothesis_id: str, location: str, message: str, data: dict | None = None) -> None:
+    payload = {
+        "sessionId": "debug-session",
+        "runId": "pre-fix",
+        "hypothesisId": hypothesis_id,
+        "location": location,
+        "message": message,
+        "data": data or {},
+        "timestamp": time.time(),
+    }
+    try:
+        with open("/home/bcorfman/dev/arcade_actions/.cursor/debug.log", "a", encoding="utf-8") as log_file:
+            log_file.write(json.dumps(payload) + "\n")
+    except Exception:
+        pass
+
+
+# endregion agent log helper
 
 
 class _Sequence(CompositeAction):
@@ -219,6 +243,14 @@ class _Repeat(CompositeAction):
             self.current_action = self.action.clone()
             self.current_action.target = self.target
             self.current_action.start()
+            # region agent log
+            _agent_debug_log(
+                hypothesis_id="H7",
+                location="composite._Repeat.start",
+                message="repeat_clone_start",
+                data={"repeat_id": id(self), "clone_id": id(self.current_action)},
+            )
+            # endregion agent log
         else:
             # No action to repeat - complete immediately
             self.done = True
@@ -244,15 +276,39 @@ class _Repeat(CompositeAction):
         # Check if current action completed after update
         if self.current_action and self.current_action.done:
             # Action finished. Immediately start the next iteration.
+            # region agent log
+            _agent_debug_log(
+                hypothesis_id="H7",
+                location="composite._Repeat.update",
+                message="repeat_clone_done",
+                data={"repeat_id": id(self), "completed_clone_id": id(self.current_action)},
+            )
+            # endregion agent log
             self.current_action = self.action.clone()
             self.current_action.target = self.target
             self.current_action.start()
+            # region agent log
+            _agent_debug_log(
+                hypothesis_id="H7",
+                location="composite._Repeat.update",
+                message="repeat_clone_start",
+                data={"repeat_id": id(self), "clone_id": id(self.current_action)},
+            )
+            # endregion agent log
 
         # Start current action if needed
         if self.current_action is None:
             self.current_action = self.action.clone()
             self.current_action.target = self.target
             self.current_action.start()
+            # region agent log
+            _agent_debug_log(
+                hypothesis_id="H7",
+                location="composite._Repeat.update",
+                message="repeat_clone_start",
+                data={"repeat_id": id(self), "clone_id": id(self.current_action)},
+            )
+            # endregion agent log
 
     def stop(self) -> None:
         """Stop the repeat action and the current iteration."""

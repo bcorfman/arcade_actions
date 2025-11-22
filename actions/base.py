@@ -97,6 +97,7 @@ class Action(ABC, Generic[_T]):
         self._condition_met = False
         self._elapsed = 0.0
         self.condition_data: Any = None
+        self._instrumented = False  # Set True when action is applied via Action.apply()
 
     # Note on local imports in operator overloads:
     # These imports are done locally (not at module level) to avoid circular
@@ -136,9 +137,10 @@ class Action(ABC, Generic[_T]):
         self.target = target
         if tag is not None:
             self.tag = tag
+        self._instrumented = True
 
         # Instrumentation: record creation
-        if Action._enable_visualizer:
+        if self._instrumentation_active():
             self._record_event("created")
 
         if Action._is_updating:
@@ -155,7 +157,7 @@ class Action(ABC, Generic[_T]):
         self._is_active = True
 
         # Instrumentation: record started and create snapshot
-        if Action._enable_visualizer:
+        if self._instrumentation_active():
             self._record_event("started")
             self._update_snapshot()
 
@@ -181,7 +183,7 @@ class Action(ABC, Generic[_T]):
             condition_result = self.condition()
 
             # Instrumentation: record condition evaluation
-            if Action._enable_visualizer:
+            if self._instrumentation_active():
                 self._record_condition_evaluation(condition_result)
 
             if condition_result:
@@ -191,7 +193,7 @@ class Action(ABC, Generic[_T]):
                 self.done = True
 
                 # Instrumentation: record stopped
-                if Action._enable_visualizer:
+                if self._instrumentation_active():
                     self._record_event("stopped", condition_data=condition_result)
 
                 if self.on_stop:
@@ -220,16 +222,20 @@ class Action(ABC, Generic[_T]):
         """Stop the action and remove it from the global action manager."""
         _debug_log_action(self, 2, f"stop() called done={self.done} _is_active={self._is_active}")
 
-        # Instrumentation: record removed
-        if Action._enable_visualizer:
+        # Set flags FIRST to prevent race conditions where _update_snapshot()
+        # is called after _record_event("removed") removes the snapshot but
+        # before the flags are set, allowing the snapshot to be recreated
+        self._callbacks_active = False
+        self.done = True
+        self._is_active = False
+
+        # Instrumentation: record removed (snapshot will be removed from store)
+        if self._instrumentation_active():
             self._record_event("removed")
 
         if self in Action._active_actions:
             Action._active_actions.remove(self)
             _debug_log_action(self, 2, "removed from _active_actions")
-        self._callbacks_active = False
-        self.done = True
-        self._is_active = False
         self.remove_effect()
         _debug_log_action(self, 2, f"stop() completed done={self.done} _is_active={self._is_active}")
 
@@ -527,6 +533,9 @@ class Action(ABC, Generic[_T]):
 
         Action._execute_callback_impl(fn, *args)
 
+    def _instrumentation_active(self) -> bool:
+        return self._instrumented and Action._enable_visualizer and Action._debug_store is not None
+
     @staticmethod
     def _execute_callback_impl(fn: Callable, *args) -> None:
         """Execute callback with exception handling - for internal use and testing.
@@ -556,24 +565,55 @@ class Action(ABC, Generic[_T]):
             # Determine preferred signature based on args
             has_meaningful_args = args and not (len(args) == 1 and args[0] is None)
 
-            try:
-                # Try preferred signature first
-                if has_meaningful_args:
-                    fn(*args)
-                else:
-                    fn()
-                return
-            except TypeError as exc:
-                # Try alternative signature as fallback
-                _warn_signature_mismatch(exc)
+            def _call_with_args(call_args: tuple[Any, ...] | None) -> tuple[bool, TypeError | None]:
                 try:
-                    if has_meaningful_args:
-                        fn()  # Fallback: try without args
-                    elif args:
-                        fn(*args)  # Fallback: try with args if available
-                except TypeError:
-                    # Both signatures failed - already warned, give up silently
-                    pass
+                    if call_args is None:
+                        fn()
+                    else:
+                        fn(*call_args)
+                    return True, None
+                except TypeError as error:
+                    return False, error
+
+            # Try preferred signature first
+            initial_args = args if has_meaningful_args else None
+            succeeded, error = _call_with_args(initial_args)
+            if succeeded:
+                return
+
+            # Initial call failed - we'll need to warn if fallback succeeds
+            initial_error = error
+            fallback_error = error
+            fallback_called = False
+
+            fallback_variants: list[tuple[Any, ...]] = []
+            if has_meaningful_args:
+                for size in range(len(args) - 1, -1, -1):
+                    fallback_variants.append(args[:size])
+            else:
+                if args:
+                    fallback_variants.append(args)
+                fallback_variants.append(tuple())
+
+            for variant in fallback_variants:
+                # Avoid retrying the same signature twice
+                if has_meaningful_args and variant == args:
+                    continue
+                call_args = variant if variant else None
+                succeeded, error = _call_with_args(call_args)
+                if succeeded:
+                    fallback_called = True
+                    break
+                fallback_error = error
+
+            if fallback_called:
+                # Fallback succeeded, but initial call failed - warn about mismatch
+                _warn_signature_mismatch(initial_error)
+                return
+
+            if fallback_error is not None:
+                # All fallbacks failed - warn about the final error
+                _warn_signature_mismatch(fallback_error)
         except Exception as exc:
             # Catch other exceptions to prevent action system crashes
             # Log them at debug level 2+ to help troubleshoot bad callbacks
@@ -601,7 +641,7 @@ class Action(ABC, Generic[_T]):
             event_type: Type of event ("created", "started", "stopped", "removed")
             **details: Additional event-specific details
         """
-        if not Action._debug_store:
+        if not self._instrumentation_active():
             return
 
         target_id = id(self.target) if self.target else 0
@@ -632,7 +672,7 @@ class Action(ABC, Generic[_T]):
         Args:
             result: The value returned by the condition function
         """
-        if not Action._debug_store:
+        if not self._instrumentation_active():
             return
 
         # Get string representation of condition - use EAFP with genuine fallback
@@ -665,7 +705,13 @@ class Action(ABC, Generic[_T]):
         Args:
             **kwargs: Additional snapshot fields to update
         """
-        if not Action._debug_store:
+        if not self._instrumentation_active():
+            return
+
+        # Don't update snapshot if action is done or not active
+        # This prevents race conditions where stop() removes the snapshot
+        # but _update_snapshot() is called afterward and recreates it
+        if self.done or not self._is_active:
             return
 
         target_id = id(self.target) if self.target else 0

@@ -1,9 +1,32 @@
 from collections.abc import Callable
+import json
+import time
 from typing import Any
 
 from actions import physics_adapter as _pa
 from actions.base import Action as _Action
 from actions.frame_timing import frames_to_seconds
+
+
+# region agent log helper
+def _agent_debug_log(*, hypothesis_id: str, location: str, message: str, data: dict | None = None) -> None:
+    payload = {
+        "sessionId": "debug-session",
+        "runId": "pre-fix",
+        "hypothesisId": hypothesis_id,
+        "location": location,
+        "message": message,
+        "data": data or {},
+        "timestamp": time.time(),
+    }
+    try:
+        with open("/home/bcorfman/dev/arcade_actions/.cursor/debug.log", "a", encoding="utf-8") as log_file:
+            log_file.write(json.dumps(payload) + "\n")
+    except Exception:
+        pass
+
+
+# endregion agent log helper
 
 
 def _debug_log(message: str, *, action: str = "CallbackUntil", level: int = 3) -> None:
@@ -1811,6 +1834,17 @@ class ParametricMotionUntil(_Action):
 
         self.for_each_sprite(capture_origin)
 
+        if not getattr(self, "_agent_logged_apply", False):
+            # region agent log
+            _agent_debug_log(
+                hypothesis_id="H3",
+                location="conditional.ParametricMotionUntil.apply_effect",
+                message="param_motion_apply",
+                data={"action_id": id(self), "sprite_count": len(self._origins)},
+            )
+            # endregion agent log
+            self._agent_logged_apply = True
+
         # Reset timing state
         self._elapsed_frames = 0.0
         self._frame_duration = None
@@ -1877,6 +1911,30 @@ class ParametricMotionUntil(_Action):
         # Store current offset for next frame's rotation calculation
         self._prev_offset = current_offset
 
+        if not getattr(self, "_agent_logged_update", False):
+            sample_pos = None
+            try:
+                iterator = iter(self.target)
+                sample_sprite = next(iterator)
+                sample_pos = (sample_sprite.center_x, sample_sprite.center_y)
+            except Exception:
+                sample_pos = None
+            # region agent log
+            _agent_debug_log(
+                hypothesis_id="H4",
+                location="conditional.ParametricMotionUntil.update_effect",
+                message="param_motion_update",
+                data={
+                    "action_id": id(self),
+                    "progress": clamped_progress,
+                    "dx": dx,
+                    "dy": dy,
+                    "sample_pos": sample_pos,
+                },
+            )
+            # endregion agent log
+            self._agent_logged_update = True
+
         if progress >= 1.0:
             if not hasattr(self.condition, "_frame_count"):
                 # No frame-based condition is driving completion; mark done ourselves.
@@ -1895,7 +1953,12 @@ class ParametricMotionUntil(_Action):
         multiple actions overlap, this causes visible position jumps.
         """
         # Disabled to prevent jumps - let patterns complete naturally
-        pass
+        _agent_debug_log(
+            hypothesis_id="H7",
+            location="conditional.ParametricMotionUntil.remove_effect",
+            message="param_motion_removed",
+            data={"action_id": id(self)},
+        )
 
     def clone(self) -> "ParametricMotionUntil":  # type: ignore[name-defined]
         return ParametricMotionUntil(
