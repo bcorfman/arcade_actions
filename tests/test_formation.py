@@ -38,7 +38,7 @@ def cleanup_actions():
 
 def create_test_sprite() -> arcade.Sprite:
     """Create a sprite with texture for testing.
-    
+
     Uses SpriteSolidColor for faster test execution (avoids texture file I/O).
     """
     sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE)
