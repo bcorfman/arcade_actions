@@ -13,7 +13,6 @@ import random
 import arcade
 
 from actions import Action, arrange_grid, center_window, move_until
-from actions.frame_timing import every_frames
 
 SPRITE_SCALING_PLAYER = 0.75
 SPRITE_SCALING_ENEMY = 0.75
@@ -172,18 +171,15 @@ class GameView(arcade.View):
         )
 
     def start_enemy_firing(self):
-        """Start frame-based enemy firing using every_frames helper"""
+        """Start frame-based enemy firing that matches original behavior.
+
+        We call allow_enemies_to_fire once per frame (via CallbackUntil) so the
+        firing frequency matches the original time-based version from a85b5af,
+        while still going through the Actions system for proper pause/step.
+        """
         from actions import CallbackUntil, infinite
 
-        # Use every_frames to create a ticker that fires every 60 frames
-        # This ensures deterministic behavior with pause/resume/step debugging
-        fire_ticker = every_frames(60, self.allow_enemies_to_fire)
-
-        # CallbackUntil with the ticker as the callback - it will fire every 60 frames
-        firing_action = CallbackUntil(
-            callback=fire_ticker,
-            condition=infinite,  # Never stop
-        )
+        firing_action = CallbackUntil(callback=self.allow_enemies_to_fire, condition=infinite)
         firing_action.apply(self.enemy_list, tag="enemy_firing")
 
     def reverse_enemy_direction(self):
