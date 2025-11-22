@@ -263,8 +263,12 @@ def create_spiral_pattern(
     # Use provided condition or default to completing after calculated frames
     final_condition = condition if condition is not None else after_frames(total_frames)
 
+    # FollowPathUntil still uses time-based velocity (velocity * delta_time), so convert
+    # from pixels-per-frame to pixels-per-second for compatibility
+    velocity_pps = velocity * 60.0  # Convert to pixels per second at 60 FPS
+
     return FollowPathUntil(
-        control_points, velocity, final_condition, rotate_with_path=True, rotation_offset=rotation_offset
+        control_points, velocity_pps, final_condition, rotate_with_path=True, rotation_offset=rotation_offset
     )
 
 
