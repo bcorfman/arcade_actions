@@ -68,6 +68,10 @@ class _Sequence(CompositeAction):
         """Update the current action and advance to next when done."""
         super().update(delta_time)
 
+        # If paused, don't update nested actions
+        if self._paused:
+            return
+
         # Handle empty sequence
         if not self.actions:
             if not self.done:
@@ -119,6 +123,26 @@ class _Sequence(CompositeAction):
         """Create a copy of this _Sequence action."""
         return _Sequence(*(action.clone() for action in self.actions))
 
+    def pause(self) -> None:
+        """Pause the sequence and propagate to nested actions."""
+        super().pause()
+        # Pause current action if it exists
+        if self.current_action is not None:
+            self.current_action.pause()
+        # Also pause all actions in the sequence (to handle actions not yet started)
+        for action in self.actions:
+            action.pause()
+
+    def resume(self) -> None:
+        """Resume the sequence and propagate to nested actions."""
+        super().resume()
+        # Resume current action if it exists
+        if self.current_action is not None:
+            self.current_action.resume()
+        # Also resume all actions in the sequence
+        for action in self.actions:
+            action.resume()
+
     def set_current_velocity(self, velocity: tuple[float, float]) -> None:
         """Forward velocity setting to the currently running action."""
         if self.current_action is not None:
@@ -167,6 +191,10 @@ class _Parallel(CompositeAction):
         """Update all actions and check for completion."""
         super().update(delta_time)
 
+        # If paused, don't update nested actions
+        if self._paused:
+            return
+
         # Handle empty parallel
         if not self.actions:
             if not self.done:
@@ -203,6 +231,18 @@ class _Parallel(CompositeAction):
     def clone(self) -> "_Parallel":
         """Create a copy of this _Parallel action."""
         return _Parallel(*(action.clone() for action in self.actions))
+
+    def pause(self) -> None:
+        """Pause the parallel action and propagate to all nested actions."""
+        super().pause()
+        for action in self.actions:
+            action.pause()
+
+    def resume(self) -> None:
+        """Resume the parallel action and propagate to all nested actions."""
+        super().resume()
+        for action in self.actions:
+            action.resume()
 
     def set_current_velocity(self, velocity: tuple[float, float]) -> None:
         """Forward velocity setting to all child actions that support it."""
@@ -261,6 +301,10 @@ class _Repeat(CompositeAction):
 
         # ---------------------------------------------------------------
         super().update(delta_time)
+
+        # If paused, don't update nested actions
+        if self._paused:
+            return
 
         # Handle no action case
         if not self.action:
@@ -329,6 +373,18 @@ class _Repeat(CompositeAction):
     def clone(self) -> "_Repeat":
         """Create a copy of this _Repeat action."""
         return _Repeat(self.action.clone() if self.action else None)
+
+    def pause(self) -> None:
+        """Pause the repeat action and propagate to the current nested action."""
+        super().pause()
+        if self.current_action is not None:
+            self.current_action.pause()
+
+    def resume(self) -> None:
+        """Resume the repeat action and propagate to the current nested action."""
+        super().resume()
+        if self.current_action is not None:
+            self.current_action.resume()
 
     def set_current_velocity(self, velocity: tuple[float, float]) -> None:
         """Forward velocity setting to the currently running action."""

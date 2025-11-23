@@ -78,6 +78,7 @@ class Action(ABC, Generic[_T]):
     _enable_visualizer: bool = False  # Enable instrumentation hooks
     _frame_counter: int = 0  # Track frame count for visualization
     _debug_store = None  # Injected DebugDataStore dependency
+    _is_stepping: bool = False  # Flag to track when we're in a step cycle
 
     def __init__(
         self,
@@ -261,9 +262,13 @@ class Action(ABC, Generic[_T]):
     @classmethod
     def step_all(cls, delta_time: float, *, physics_engine=None) -> None:
         """Advance all actions by a single step while keeping them paused."""
-        cls.resume_all()
-        cls.update_all(delta_time, physics_engine=physics_engine)
-        cls.pause_all()
+        cls._is_stepping = True
+        try:
+            cls.resume_all()
+            cls.update_all(delta_time, physics_engine=physics_engine)
+            cls.pause_all()
+        finally:
+            cls._is_stepping = False
 
     @staticmethod
     def stop_actions_for_target(target: arcade.Sprite | arcade.SpriteList, tag: str | None = None) -> None:

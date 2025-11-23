@@ -4,7 +4,7 @@ import arcade
 
 from actions.base import Action
 from actions.composite import parallel, repeat, sequence
-from actions.conditional import CycleTexturesUntil, DelayUntil
+from actions.conditional import CycleTexturesUntil, DelayUntil, MoveUntil, infinite
 from actions.frame_timing import after_frames
 
 
@@ -1349,3 +1349,314 @@ class TestPriority10_CompositeEmptyHandling:
         repr_str = repr(rep)
         assert "_Repeat" in repr_str
         assert "None" in repr_str
+
+
+class TestPausePropagation:
+    """Test suite for pause/resume propagation in composite actions."""
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_sequence_pause_propagates_to_current_action(self):
+        """Test that pausing a sequence pauses its current nested action."""
+        sprite = create_test_sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Create a sequence with MoveUntil actions
+        action1 = MoveUntil((5, 0), condition=infinite)
+        action2 = MoveUntil((0, 5), condition=infinite)
+        seq = sequence(action1, action2)
+        seq.apply(sprite)
+
+        # Update to start the first action
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Verify sprite moved
+        assert sprite.center_x > 100
+        initial_x = sprite.center_x
+
+        # Pause the sequence
+        seq.pause()
+
+        # Verify both sequence and current action are paused
+        assert seq._paused
+        assert seq.current_action._paused
+
+        # Update - sprite should not move
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Position should not change (velocity should be 0)
+        assert sprite.center_x == initial_x
+        assert sprite.change_x == 0
+
+    def test_sequence_resume_propagates_to_current_action(self):
+        """Test that resuming a sequence resumes its current nested action."""
+        sprite = create_test_sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        action1 = MoveUntil((5, 0), condition=infinite)
+        action2 = MoveUntil((0, 5), condition=infinite)
+        seq = sequence(action1, action2)
+        seq.apply(sprite)
+
+        # Update to start
+        Action.update_all(0.016)
+        sprite.update()
+        initial_x = sprite.center_x
+
+        # Pause
+        seq.pause()
+        assert seq._paused
+        assert seq.current_action._paused
+
+        # Resume
+        seq.resume()
+        assert not seq._paused
+        assert not seq.current_action._paused
+
+        # Update - sprite should move again
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Position should change
+        assert sprite.center_x > initial_x
+        assert sprite.change_x == 5
+
+    def test_sequence_pause_propagates_to_all_actions(self):
+        """Test that pausing a sequence pauses all actions in the sequence."""
+        sprite = create_test_sprite()
+        action1 = MoveUntil((5, 0), condition=infinite)
+        action2 = MoveUntil((0, 5), condition=infinite)
+        seq = sequence(action1, action2)
+
+        # Pause before starting
+        seq.pause()
+
+        # All actions should be paused
+        assert action1._paused
+        assert action2._paused
+
+    def test_repeat_pause_propagates_to_current_action(self):
+        """Test that pausing a repeat pauses its current cloned action."""
+        sprite = create_test_sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Create a repeat with MoveUntil
+        move_action = MoveUntil((5, 0), condition=after_frames(10))
+        rep = repeat(move_action)
+        rep.apply(sprite)
+
+        # Update to start
+        Action.update_all(0.016)
+        sprite.update()
+        initial_x = sprite.center_x
+
+        # Pause the repeat
+        rep.pause()
+
+        # Verify both repeat and current action are paused
+        assert rep._paused
+        assert rep.current_action._paused
+
+        # Update - sprite should not move
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Position should not change
+        assert sprite.center_x == initial_x
+        assert sprite.change_x == 0
+
+    def test_repeat_resume_propagates_to_current_action(self):
+        """Test that resuming a repeat resumes its current cloned action."""
+        sprite = create_test_sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        move_action = MoveUntil((5, 0), condition=after_frames(10))
+        rep = repeat(move_action)
+        rep.apply(sprite)
+
+        # Update to start
+        Action.update_all(0.016)
+        sprite.update()
+        initial_x = sprite.center_x
+
+        # Pause
+        rep.pause()
+
+        # Resume
+        rep.resume()
+        assert not rep._paused
+        assert not rep.current_action._paused
+
+        # Update - sprite should move again
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Position should change
+        assert sprite.center_x > initial_x
+        assert sprite.change_x == 5
+
+    def test_parallel_pause_propagates_to_all_actions(self):
+        """Test that pausing a parallel pauses all its nested actions."""
+        sprite = create_test_sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        action1 = MoveUntil((5, 0), condition=infinite)
+        action2 = MoveUntil((0, 5), condition=infinite)
+        par = parallel(action1, action2)
+        par.apply(sprite)
+
+        # Update to start
+        Action.update_all(0.016)
+        sprite.update()
+        initial_x = sprite.center_x
+        initial_y = sprite.center_y
+
+        # Pause the parallel
+        par.pause()
+
+        # Verify parallel and all nested actions are paused
+        assert par._paused
+        assert action1._paused
+        assert action2._paused
+
+        # Update - sprite should not move
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Position should not change
+        assert sprite.center_x == initial_x
+        assert sprite.center_y == initial_y
+        assert sprite.change_x == 0
+        assert sprite.change_y == 0
+
+    def test_parallel_resume_propagates_to_all_actions(self):
+        """Test that resuming a parallel resumes all its nested actions."""
+        sprite = create_test_sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        action1 = MoveUntil((5, 0), condition=infinite)
+        action2 = MoveUntil((0, 5), condition=infinite)
+        par = parallel(action1, action2)
+        par.apply(sprite)
+
+        # Update to apply effects (like test_move_until_pause_resets_velocity)
+        Action.update_all(1 / 60)
+
+        # Verify velocity is applied (last action wins for same axis, so X might be 0)
+        # But both actions should be running
+        assert action1._is_active
+        assert action2._is_active
+        # At least one velocity should be set (Y from action2)
+        assert sprite.change_y == 5
+
+        initial_x = sprite.center_x
+        initial_y = sprite.center_y
+
+        # Pause
+        par.pause()
+
+        # Verify velocity is cleared
+        assert sprite.change_x == 0
+        assert sprite.change_y == 0
+        assert par._paused
+        assert action1._paused
+        assert action2._paused
+
+        # Update while paused - position should not change
+        Action.update_all(1 / 60)
+        sprite.update()
+        assert sprite.center_x == initial_x
+        assert sprite.center_y == initial_y
+
+        # Resume
+        par.resume()
+        assert not par._paused
+        assert not action1._paused
+        assert not action2._paused
+
+        # Update - velocity should be restored
+        Action.update_all(1 / 60)
+        # At least Y velocity should be restored
+        assert sprite.change_y == 5
+
+    def test_pause_all_pauses_composites_and_nested_actions(self):
+        """Test that Action.pause_all() pauses composite actions and their nested actions."""
+        sprite = create_test_sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Create a sequence wrapped in repeat (like pattern_demo.py does)
+        action1 = MoveUntil((5, 0), condition=after_frames(10))
+        action2 = MoveUntil((0, 5), condition=after_frames(10))
+        seq = sequence(action1, action2)
+        rep = repeat(seq)
+        rep.apply(sprite)
+
+        # Update to start
+        Action.update_all(0.016)
+        sprite.update()
+        initial_x = sprite.center_x
+
+        # Pause all actions
+        Action.pause_all()
+
+        # Verify all are paused
+        # Note: seq is the template, not the active one. The active one is rep.current_action
+        assert rep._paused
+        assert rep.current_action._paused  # This is the cloned sequence
+        assert rep.current_action.current_action._paused  # This is the current MoveUntil
+
+        # Update - sprite should not move
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Position should not change
+        assert sprite.center_x == initial_x
+        assert sprite.change_x == 0
+
+    def test_resume_all_resumes_composites_and_nested_actions(self):
+        """Test that Action.resume_all() resumes composite actions and their nested actions."""
+        sprite = create_test_sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        action1 = MoveUntil((5, 0), condition=after_frames(10))
+        action2 = MoveUntil((0, 5), condition=after_frames(10))
+        seq = sequence(action1, action2)
+        rep = repeat(seq)
+        rep.apply(sprite)
+
+        # Update to start
+        Action.update_all(0.016)
+        sprite.update()
+        initial_x = sprite.center_x
+
+        # Pause all
+        Action.pause_all()
+
+        # Resume all
+        Action.resume_all()
+
+        # Verify all are resumed
+        assert not rep._paused
+        assert not seq._paused
+        assert not rep.current_action._paused
+        assert not rep.current_action.current_action._paused
+
+        # Update - sprite should move again
+        Action.update_all(0.016)
+        sprite.update()
+
+        # Position should change
+        assert sprite.center_x > initial_x
+        assert sprite.change_x == 5

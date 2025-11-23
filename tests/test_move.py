@@ -5,7 +5,7 @@ import arcade
 from actions import move_until
 from actions.base import Action
 from actions.conditional import MoveUntil, infinite
-from actions.pattern import time_elapsed
+from actions.pattern import time_elapsed, create_bounce_pattern, create_patrol_pattern
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -666,3 +666,310 @@ class TestPriority1_VelocityProviderBoundaryCallbacks:
 
         assert len(exit_calls) > 0
         assert ("y", "top") in exit_calls
+
+
+class TestBounceStepBoundaryResponse:
+    """Test that bounce/patrol actions respond to boundary checking when stepped after pause.
+    
+    Reproduces the issue where F6 (pause) followed by F7 (step) causes sprites
+    to continue at original velocity without responding to boundaries.
+    
+    CRITICAL BUG: After F7 (step), sprites continue moving as if unpaused instead
+    of staying paused and stepping frame-by-frame.
+    """
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        Action.stop_all()
+
+    def test_bounce_responds_to_boundary_when_stepped_after_pause(self):
+        """Test that bounce actions check boundaries during step after pause.
+        
+        Reproduces the issue where F6 (pause) followed by F7 (step) causes
+        sprites to continue at original velocity without responding to boundaries.
+        """
+        sprite = create_test_sprite()
+        sprite.center_x = 230  # Right edge = 230 + 64 = 294, close to boundary at 300
+        sprite.center_y = 200
+        
+        # Create bounce pattern moving RIGHT toward boundary (like pattern_demo.py)
+        bounds = (100, 100, 300, 300)
+        bounce = create_bounce_pattern(velocity=(10, 0), bounds=bounds)
+        bounce.apply(sprite)
+        
+        # Apply velocity once to set it on sprite (but don't move yet)
+        Action.update_all(1 / 60)
+        # Don't call sprite.update() yet - we want sprite to be BEFORE boundary
+        
+        # Position sprite so its right edge is just before boundary
+        # Right boundary is at 300, sprite width is 128 (radius=64)
+        # So center_x = 300 - 64 = 236 would put right edge at boundary
+        # We want it slightly before: center_x = 235, right_edge = 299
+        sprite.center_x = 235  # Right edge will be 299, just before boundary
+        sprite.right = 299  # Ensure right edge is exactly at 299
+        
+        # Pause (like F6) - should save current velocity
+        Action.pause_all()
+        saved_velocity = bounce._paused_velocity
+        assert saved_velocity[0] > 0, f"Expected saved velocity moving right, got {saved_velocity}"
+        
+        # Step (like F7) - should restore velocity AND check boundaries
+        # During this step, sprite at right_edge=299 with velocity=10 would cross boundary
+        Action.step_all(1 / 60)
+        
+        # Right edge before update: 299
+        # Velocity: 10 (moving right)
+        # After update, right edge would be: 299 + 10 = 309 (crosses boundary at 300)
+        # Boundary check should reverse velocity BEFORE sprite.update() is called
+        sprite_right_edge_before_update = sprite.right
+        velocity_after_step_all = sprite.change_x
+        
+        # Boundary check should have run during step_all() and reversed velocity
+        # because: sprite.right (299) + sprite.change_x (10) > 300
+        assert sprite.change_x < 0, (
+            f"After step_all(), boundary check should have reversed velocity. "
+            f"Sprite at right_edge={sprite_right_edge_before_update:.1f} with velocity={velocity_after_step_all} "
+            f"would cross boundary at 300, but velocity not reversed. "
+            f"Got {sprite.change_x}, expected negative. "
+            f"Action current_velocity={bounce.current_velocity}"
+        )
+        assert bounce.current_velocity[0] < 0, (
+            f"Action current_velocity should be negative after boundary check in step_all(), "
+            f"got {bounce.current_velocity}"
+        )
+        
+        # Now apply the reversed velocity
+        sprite.update()
+        # Sprite should move left now (velocity was reversed)
+        assert sprite.change_x < 0, f"Sprite should be moving left after bounce, got {sprite.change_x}"
+        
+        # Step again - should continue in reversed direction
+        Action.step_all(1 / 60)
+        sprite.update()
+        assert sprite.change_x < 0, (
+            f"After second step, sprite should still be moving left, got {sprite.change_x}"
+        )
+
+    def test_bounce_continues_at_saved_velocity_without_boundary_check_on_step(self):
+        """Test reproduces the bug: bounce continues at saved velocity without boundary check.
+        
+        This test reproduces the exact issue the user described:
+        - Sprite is moving, then paused (F6)
+        - When stepped (F7), sprite continues at saved velocity
+        - Boundary checking doesn't happen during the step
+        - Sprite crosses boundary without bouncing
+        """
+        sprite = create_test_sprite()
+        sprite.center_x = 200
+        sprite.center_y = 200
+        
+        # Create bounce pattern (like pattern_demo.py)
+        bounds = (100, 100, 300, 300)
+        bounce = create_bounce_pattern(velocity=(2, 1), bounds=bounds)
+        bounce.apply(sprite)
+        
+        # Let sprite move normally for a bit (like in the demo)
+        for _ in range(10):
+            Action.update_all(1 / 60)
+            sprite.update()
+        
+        # Now sprite is moving somewhere - pause it (like F6)
+        # At this point, sprite has some velocity saved
+        Action.pause_all()
+        
+        # Get the saved velocity - this is what will be restored on step
+        saved_velocity_before_step = bounce._paused_velocity
+        position_before_step = (sprite.center_x, sprite.center_y)
+        velocity_before_step = (sprite.change_x, sprite.change_y)
+        
+        # Position sprite so it would cross boundary during step
+        # Right boundary is at 300, sprite width 128, so right edge = center_x + 64
+        # Set center_x so right edge is just before boundary  
+        sprite.center_x = 235  # Right edge = 299
+        sprite.right = 299
+        
+        # Set velocity manually to ensure we're moving right toward boundary
+        # The saved velocity might have been reversed already
+        bounce._paused_velocity = (10, 0)  # Force saved velocity to be moving right
+        bounce.current_velocity = (10, 0)
+        sprite.change_x = 10
+        
+        # Step (like F7) - should restore velocity and check boundaries
+        Action.step_all(1 / 60)
+        
+        # At this point:
+        # - Velocity should be restored from saved_velocity (10, moving right)
+        # - Boundary check should see: right_edge (299) + velocity (10) > boundary (300)
+        # - Boundary check should reverse velocity BEFORE sprite.update()
+        
+        sprite_right_edge_before_update = sprite.right
+        velocity_after_step_all = sprite.change_x
+        current_velocity_after_step = bounce.current_velocity[0]
+        
+        # BUG REPRODUCTION: When sprite at right_edge=299 with velocity=10 would cross boundary at 300,
+        # the boundary check should reverse velocity, but it's NOT happening during step cycles
+        # This is the exact bug the user described
+        would_cross = sprite_right_edge_before_update + velocity_after_step_all > 300
+        
+        if would_cross:
+            # This assertion will FAIL if the bug exists (velocity not reversed)
+            # It will PASS if the bug is fixed (velocity correctly reversed)
+            assert sprite.change_x < 0, (
+                f"BUG REPRODUCTION: After step_all(), sprite at right_edge={sprite_right_edge_before_update:.1f} "
+                f"with velocity={velocity_after_step_all} would cross boundary at 300, "
+                f"but velocity was NOT reversed during step_all(). "
+                f"Got sprite.change_x={sprite.change_x} (expected negative), "
+                f"Action current_velocity={bounce.current_velocity} (expected negative X). "
+                f"This indicates boundary checking is not working during step cycles. "
+                f"The sprite continues at its original saved velocity without responding to boundaries."
+            )
+            assert bounce.current_velocity[0] < 0, (
+                f"Action current_velocity should be negative after boundary check in step_all(), "
+                f"got {bounce.current_velocity}"
+            )
+        
+        # Apply velocity and verify boundary check worked
+        sprite.update()
+        
+        # If sprite crossed boundary, velocity should have been reversed
+        if sprite.right > 300:
+            assert sprite.change_x < 0, (
+                f"Sprite crossed boundary but velocity not reversed. "
+                f"Got {sprite.change_x}, expected negative"
+            )
+
+    def test_patrol_responds_to_boundary_when_stepped_after_pause(self):
+        """Test that patrol actions check boundaries during step after pause."""
+        sprite = create_test_sprite()
+        sprite.center_x = 200
+        sprite.center_y = 100
+        
+        # Create patrol pattern moving RIGHT (like pattern_demo.py)
+        bounds = (100, 0, 300, 600)
+        velocity = (2.0, 0.0)  # Use same velocity as pattern_demo.py
+        patrol = create_patrol_pattern(velocity, bounds)
+        patrol.apply(sprite)
+        
+        # Let sprite move for a bit (like in demo)
+        for _ in range(10):
+            Action.update_all(1 / 60)
+            sprite.update()
+        
+        # Pause (like F6)
+        Action.pause_all()
+        saved_velocity = patrol._paused_velocity
+        
+        # Position sprite just before right boundary
+        # Right boundary is at 300, sprite width 128, so right edge = center_x + 64
+        # Set center_x so right edge is just before boundary
+        sprite.center_x = 235  # Right edge = 299
+        sprite.right = 299
+        
+        # Step (like F7) - should restore velocity AND check boundaries
+        Action.step_all(1 / 60)
+        
+        # Check if sprite would cross boundary
+        sprite_right_edge = sprite.right  # Should be 299
+        would_cross = sprite_right_edge + sprite.change_x > 300
+        
+        if would_cross:
+            # Would cross boundary - velocity should be reversed
+            assert sprite.change_x < 0, (
+                f"Patrol sprite would cross right boundary (right_edge={sprite_right_edge:.1f}, "
+                f"velocity={sprite.change_x}, boundary=300), but velocity not reversed. "
+                f"Action current_velocity={patrol.current_velocity}"
+            )
+            assert patrol.current_velocity[0] < 0, (
+                f"Action current_velocity should be negative after boundary check, "
+                f"got {patrol.current_velocity}"
+            )
+        
+        # Apply the velocity
+        sprite.update()
+        
+        # If we crossed boundary, verify velocity was reversed
+        if sprite.right > 300:
+            assert sprite.change_x < 0, (
+                f"Patrol sprite crossed boundary but velocity not reversed. "
+                f"Got {sprite.change_x}, expected negative"
+            )
+
+    def test_step_keeps_sprites_paused_after_step_cycle(self):
+        """CRITICAL BUG: After stepping (F7), sprites continue moving as if unpaused.
+        
+        The bug: After step_all() returns, sprites continue moving because velocities
+        remain set on sprites even though actions are paused.
+        
+        This reproduces the exact issue:
+        - Pause with F6 - sprites stop
+        - Step with F7 - should advance ONE frame while paused
+        - Game loop continues - sprites should NOT continue moving (but they do!)
+        """
+        sprite = create_test_sprite()
+        sprite.center_x = 200
+        sprite.center_y = 200
+        
+        # Create bounce pattern (like pattern_demo.py)
+        bounds = (100, 100, 300, 300)
+        bounce = create_bounce_pattern(velocity=(2, 1), bounds=bounds)
+        bounce.apply(sprite)
+        
+        # Move sprite normally for a bit
+        for _ in range(5):
+            Action.update_all(1 / 60)
+            sprite.update()
+        
+        position_before_pause = (sprite.center_x, sprite.center_y)
+        
+        # Pause (F6) - should stop sprite
+        Action.pause_all()
+        assert bounce._paused, "Action should be paused after pause_all()"
+        assert sprite.change_x == 0.0 and sprite.change_y == 0.0, (
+            f"Velocities should be cleared after pause, got ({sprite.change_x}, {sprite.change_y})"
+        )
+        
+        # Step (F7) - should advance ONE frame while paused
+        Action.step_all(1 / 60)
+        
+        # After step_all() but BEFORE sprite.update():
+        # - Actions should still be paused
+        # - Velocities should be set so sprite.update() can move it one frame
+        assert bounce._paused, "Action should still be paused after step_all()"
+        
+        # sprite.update() is called by game loop after step_all() returns
+        sprite.update()
+        position_after_step = (sprite.center_x, sprite.center_y)
+        
+        # Verify sprite moved one frame
+        assert position_after_step != position_before_pause, (
+            f"Sprite should have moved one frame during step. "
+            f"Before: {position_before_pause}, After: {position_after_step}"
+        )
+        
+        # BUG: Velocities are still set on sprite after step_all() returns!
+        # When game loop calls update_all() then sprite.update() again, sprite continues moving
+        # even though actions are paused
+        # Simulate game loop: update_all() should clear velocities (but doesn't due to bug)
+        Action.update_all(1 / 60)  # This should clear velocities when paused
+        # Now sprite.update() should not move sprite because velocities are cleared
+        sprite.update()
+        position_after_second_update = (sprite.center_x, sprite.center_y)
+        
+        # After step_all() returns, when update_all() is called (even though paused),
+        # velocities should be cleared. Then sprite.update() shouldn't move the sprite.
+        # This is the bug: velocities remain set, so sprite continues moving
+        assert position_after_second_update == position_after_step, (
+            f"BUG REPRODUCTION: After step_all() returns, sprite continues moving even though "
+            f"actions are paused. Position changed from {position_after_step} to "
+            f"{position_after_second_update} when it should have stayed at {position_after_step}. "
+            f"Sprite velocities after update_all(): ({sprite.change_x}, {sprite.change_y}). "
+            f"Action paused: {bounce._paused}. "
+            f"Velocities are not being cleared after stepping completes - sprite continues at "
+            f"saved velocity without responding to boundaries or staying paused."
+        )
+        
+        # Velocities should be cleared after update_all() is called (actions are paused)
+        assert sprite.change_x == 0.0 and sprite.change_y == 0.0, (
+            f"After step_all() returns and update_all() is called, velocities should be cleared "
+            f"since actions are paused. Got ({sprite.change_x}, {sprite.change_y}), expected (0, 0)."
+        )
