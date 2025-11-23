@@ -596,3 +596,4 @@ def test_non_function_keys_not_handled(monkeypatch, window: arcade.Window | None
         except (ImportError, AttributeError):
             pass
         monkeypatch.delenv("ARCADEACTIONS_VISUALIZER", raising=False)
+

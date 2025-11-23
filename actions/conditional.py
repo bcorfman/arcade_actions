@@ -366,6 +366,63 @@ class MoveUntil(_Action):
                 )
                 pass
 
+        # Re-apply velocity if not using velocity_provider (to handle resume after pause)
+        # This ensures velocity is set on sprites during step_all() cycles
+        if not self.velocity_provider:
+            # Apply current velocity to all sprites
+            # But preserve manually set velocity if sprite is at boundary and moving away
+            # (only if velocity is different from action's velocity, indicating it was manually set)
+            def set_velocity(sprite):
+                sprite_id = id(sprite)
+                if self.boundary_behavior == "limit" and self.bounds:
+                    state = self._boundary_state.get(sprite_id, {"x": None, "y": None})
+                    left, bottom, right, top = self.bounds
+                    
+                    # Check if sprite is at boundary (by position) and moving away
+                    # Only preserve if velocity is different from action's velocity (manually set)
+                    at_right_boundary = abs(sprite.right - right) < 0.1  # Allow small floating point differences
+                    at_left_boundary = abs(sprite.left - left) < 0.1
+                    at_top_boundary = abs(sprite.top - top) < 0.1
+                    at_bottom_boundary = abs(sprite.bottom - bottom) < 0.1
+                    
+                    # Check if velocity was manually set (different from action's velocity)
+                    manually_set_x = abs(sprite.change_x - self.current_velocity[0]) > 0.001
+                    manually_set_y = abs(sprite.change_y - self.current_velocity[1]) > 0.001
+                    
+                    moving_away_x = False
+                    if at_right_boundary and sprite.change_x < 0 and manually_set_x:
+                        # At right boundary, moving left (away), and velocity was manually set
+                        moving_away_x = True
+                    elif at_left_boundary and sprite.change_x > 0 and manually_set_x:
+                        # At left boundary, moving right (away), and velocity was manually set
+                        moving_away_x = True
+                    
+                    moving_away_y = False
+                    if at_top_boundary and sprite.change_y < 0 and manually_set_y:
+                        # At top boundary, moving down (away), and velocity was manually set
+                        moving_away_y = True
+                    elif at_bottom_boundary and sprite.change_y > 0 and manually_set_y:
+                        # At bottom boundary, moving up (away), and velocity was manually set
+                        moving_away_y = True
+                    
+                    # Preserve manually set velocity if moving away from boundary
+                    if moving_away_x:
+                        # Keep current change_x (manually set)
+                        sprite.change_y = self.current_velocity[1]
+                    elif moving_away_y:
+                        # Keep current change_y (manually set)
+                        sprite.change_x = self.current_velocity[0]
+                    else:
+                        # Normal case: apply action's velocity
+                        sprite.change_x = self.current_velocity[0]
+                        sprite.change_y = self.current_velocity[1]
+                else:
+                    # Normal case: apply action's velocity
+                    sprite.change_x = self.current_velocity[0]
+                    sprite.change_y = self.current_velocity[1]
+
+            self.for_each_sprite(set_velocity)
+
         # Check boundaries if configured
         # For "limit" behavior with velocity_provider, boundaries are already handled above.
         # For "bounce" and "wrap" behaviors, we need to check boundaries every frame.
@@ -389,6 +446,11 @@ class MoveUntil(_Action):
             action="MoveUntil",
         )
 
+        # Track callbacks triggered in this frame to prevent duplicates
+        if not hasattr(self, "_frame_callback_tracker"):
+            self._frame_callback_tracker = set()
+        self._frame_callback_tracker.clear()
+
         def apply_limits(sprite):
             if not self.bounds:
                 return
@@ -405,83 +467,153 @@ class MoveUntil(_Action):
             # For limit behavior, check if sprite would cross boundaries and clamp using edge-based coordinates
             if self.boundary_behavior == "limit":
                 # First, clamp sprites that are already outside bounds
-                if sprite.left < left:
+                if sprite.left <= left:
+                    # At or past left boundary - clamp and clear velocity
+                    # But don't clear if sprite is moving away (manually set velocity)
                     sprite.left = left
-                    sprite.change_x = 0
-                    if current_state["x"] != "left":
+                    # Only clear velocity if sprite is moving toward boundary or stationary
+                    # (not if it's moving away with manually set velocity)
+                    if sprite.change_x <= 0:
+                        sprite.change_x = 0
+                    # Only trigger callback if not already at this boundary and not already triggered this frame
+                    callback_key = (sprite_id, "x", "left")
+                    if current_state["x"] != "left" and callback_key not in self._frame_callback_tracker:
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "x", "left")
+                            self._frame_callback_tracker.add(callback_key)
                         current_state["x"] = "left"
-                elif sprite.right > right:
+                elif sprite.right >= right:
+                    # At or past right boundary - clamp and clear velocity
+                    # But don't clear if sprite is moving away (manually set velocity)
                     sprite.right = right
-                    sprite.change_x = 0
-                    if current_state["x"] != "right":
+                    # Only clear velocity if sprite is moving toward boundary or stationary
+                    # (not if it's moving away with manually set velocity)
+                    if sprite.change_x >= 0:
+                        sprite.change_x = 0
+                    # Only trigger callback if not already at this boundary and not already triggered this frame
+                    callback_key = (sprite_id, "x", "right")
+                    if current_state["x"] != "right" and callback_key not in self._frame_callback_tracker:
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "x", "right")
+                            self._frame_callback_tracker.add(callback_key)
                         current_state["x"] = "right"
 
-                if sprite.bottom < bottom:
+                if sprite.bottom <= bottom:
+                    # At or past bottom boundary - clamp and clear velocity
+                    # But don't clear if sprite is moving away (manually set velocity)
                     sprite.bottom = bottom
-                    sprite.change_y = 0
-                    if current_state["y"] != "bottom":
+                    # Only clear velocity if sprite is moving toward boundary or stationary
+                    # (not if it's moving away with manually set velocity)
+                    if sprite.change_y <= 0:
+                        sprite.change_y = 0
+                    # Only trigger callback if not already at this boundary and not already triggered this frame
+                    callback_key = (sprite_id, "y", "bottom")
+                    if current_state["y"] != "bottom" and callback_key not in self._frame_callback_tracker:
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
+                            self._frame_callback_tracker.add(callback_key)
                         current_state["y"] = "bottom"
-                elif sprite.top > top:
+                elif sprite.top >= top:
+                    # At or past top boundary - clamp and clear velocity
+                    # But don't clear if sprite is moving away (manually set velocity)
                     sprite.top = top
-                    sprite.change_y = 0
-                    if current_state["y"] != "top":
+                    # Only clear velocity if sprite is moving toward boundary or stationary
+                    # (not if it's moving away with manually set velocity)
+                    if sprite.change_y >= 0:
+                        sprite.change_y = 0
+                    # Only trigger callback if not already at this boundary and not already triggered this frame
+                    callback_key = (sprite_id, "y", "top")
+                    if current_state["y"] != "top" and callback_key not in self._frame_callback_tracker:
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "y", "top")
+                            self._frame_callback_tracker.add(callback_key)
                         current_state["y"] = "top"
 
                 # Check horizontal movement using edge positions
-                if sprite.change_x > 0 and sprite.right + sprite.change_x > right:
+                # Check if sprite would cross boundary (only if not already handled above)
+                # Skip if sprite is already at or past boundary (handled by checks above)
+                # Also skip if sprite is exactly at boundary (handled by checks above)
+                if sprite.right < right and sprite.change_x > 0 and sprite.right + sprite.change_x > right:
                     # Would cross right boundary
-                    if current_state["x"] != "right":
+                    callback_key = (sprite_id, "x", "right")
+                    if current_state["x"] != "right" and callback_key not in self._frame_callback_tracker:
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "x", "right")
+                            self._frame_callback_tracker.add(callback_key)
                         current_state["x"] = "right"
                     sprite.right = right
                     sprite.change_x = 0
-                elif sprite.change_x < 0 and sprite.left + sprite.change_x < left:
+                elif sprite.left > left and sprite.change_x < 0 and sprite.left + sprite.change_x < left:
                     # Would cross left boundary
-                    if current_state["x"] != "left":
+                    callback_key = (sprite_id, "x", "left")
+                    if current_state["x"] != "left" and callback_key not in self._frame_callback_tracker:
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "x", "left")
+                            self._frame_callback_tracker.add(callback_key)
                         current_state["x"] = "left"
                     sprite.left = left
                     sprite.change_x = 0
                 elif current_state["x"] is not None:
                     # Was at boundary, now moving away
-                    old_side = current_state["x"]
-                    if self.on_boundary_exit:
-                        self._safe_call(self.on_boundary_exit, sprite, "x", old_side)
-                    current_state["x"] = None
+                    # Only reset state if sprite is actually moving away from boundary
+                    # (not just at boundary with zero velocity)
+                    is_moving_away = False
+                    if current_state["x"] == "right" and sprite.change_x < 0:
+                        is_moving_away = True
+                    elif current_state["x"] == "left" and sprite.change_x > 0:
+                        is_moving_away = True
+                    
+                    if is_moving_away:
+                        old_side = current_state["x"]
+                        if self.on_boundary_exit:
+                            self._safe_call(self.on_boundary_exit, sprite, "x", old_side)
+                        current_state["x"] = None
 
                 # Check vertical movement using edge positions
-                if sprite.change_y > 0 and sprite.top + sprite.change_y > top:
+                # Check if sprite would cross boundary OR is at boundary and moving toward it
+                # But skip if sprite is already outside bounds (handled by first check above)
+                if sprite.top < top and sprite.change_y > 0 and sprite.top + sprite.change_y > top:
                     # Would cross top boundary
-                    if current_state["y"] != "top":
+                    callback_key = (sprite_id, "y", "top")
+                    if current_state["y"] != "top" and callback_key not in self._frame_callback_tracker:
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "y", "top")
+                            self._frame_callback_tracker.add(callback_key)
                         current_state["y"] = "top"
                     sprite.top = top
                     sprite.change_y = 0
-                elif sprite.change_y < 0 and sprite.bottom + sprite.change_y < bottom:
+                elif sprite.bottom > bottom and sprite.change_y < 0 and sprite.bottom + sprite.change_y < bottom:
                     # Would cross bottom boundary
+                    callback_key = (sprite_id, "y", "bottom")
+                    if current_state["y"] != "bottom" and callback_key not in self._frame_callback_tracker:
+                        if self.on_boundary_enter:
+                            self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
+                            self._frame_callback_tracker.add(callback_key)
+                        current_state["y"] = "bottom"
+                    sprite.bottom = bottom
+                    sprite.change_y = 0
+                elif sprite.bottom == bottom and sprite.change_y < 0:
+                    # Already at bottom boundary and moving into it - clear velocity
                     if current_state["y"] != "bottom":
                         if self.on_boundary_enter:
                             self._safe_call(self.on_boundary_enter, sprite, "y", "bottom")
                         current_state["y"] = "bottom"
-                    sprite.bottom = bottom
                     sprite.change_y = 0
                 elif current_state["y"] is not None:
                     # Was at boundary, now moving away
-                    old_side = current_state["y"]
-                    if self.on_boundary_exit:
-                        self._safe_call(self.on_boundary_exit, sprite, "y", old_side)
-                    current_state["y"] = None
+                    # Only reset state if sprite is actually moving away from boundary
+                    # (not just at boundary with zero velocity)
+                    is_moving_away = False
+                    if current_state["y"] == "top" and sprite.change_y < 0:
+                        is_moving_away = True
+                    elif current_state["y"] == "bottom" and sprite.change_y > 0:
+                        is_moving_away = True
+                    
+                    if is_moving_away:
+                        old_side = current_state["y"]
+                        if self.on_boundary_exit:
+                            self._safe_call(self.on_boundary_exit, sprite, "y", old_side)
+                        current_state["y"] = None
             else:
                 # For other boundary behaviors, use the existing method
                 self._check_boundaries(sprite)
@@ -556,30 +688,72 @@ class MoveUntil(_Action):
 
         previous_side = current_state[axis]
 
+        # Get velocity for this axis
+        velocity = sprite.change_x if axis == "x" else sprite.change_y
+
+        # For bounce/wrap behaviors, check predicted movement to trigger boundary enter callback
+        # For limit behavior, use current position
+        predicted_side = None
+        if self.boundary_behavior == "bounce" or self.boundary_behavior == "wrap":
+            # Check if predicted movement would cross boundary
+            if velocity > 0:  # Moving toward high boundary
+                predicted_high = high_edge + velocity
+                if predicted_high > high_bound:
+                    predicted_side = "right" if axis == "x" else "top"
+            elif velocity < 0:  # Moving toward low boundary
+                predicted_low = low_edge + velocity
+                if predicted_low < low_bound:
+                    predicted_side = "left" if axis == "x" else "bottom"
+
         # Detect enter/exit events
-        if current_side != previous_side:
+        # For bounce/wrap: use predicted_side if available, otherwise current_side
+        # For limit: use current_side
+        effective_side = predicted_side if (predicted_side is not None and (self.boundary_behavior == "bounce" or self.boundary_behavior == "wrap")) else current_side
+
+        if effective_side != previous_side:
             # Exit event (was on a side, now not or on different side)
             if previous_side is not None:
                 if self.on_boundary_exit:
                     self._safe_call(self.on_boundary_exit, sprite, axis, previous_side)
 
             # Enter event (now on a side, was not before or was on different side)
-            if current_side is not None:
+            if effective_side is not None:
                 if self.on_boundary_enter:
-                    self._safe_call(self.on_boundary_enter, sprite, axis, current_side)
+                    self._safe_call(self.on_boundary_enter, sprite, axis, effective_side)
 
-        # Update state
+        # Update state - use current_side for state tracking (actual position)
+        # but effective_side for callback triggering (predicted for bounce/wrap)
         current_state[axis] = current_side
 
-        # Apply boundary behavior if touching boundary
-        if current_side is not None:
+        # Apply boundary behavior based on predicted movement (would cross boundary)
+        # instead of current position (is at boundary) for bounce/wrap behaviors
+        # This allows frame-by-frame stepping to work correctly
+        should_apply_behavior = False
+
+        if self.boundary_behavior == "bounce" or self.boundary_behavior == "wrap":
+            # For bounce/wrap, check if sprite WOULD cross boundary
+            if velocity > 0:  # Moving toward high boundary
+                predicted_high = high_edge + velocity
+                if predicted_high > high_bound:
+                    should_apply_behavior = True
+            elif velocity < 0:  # Moving toward low boundary
+                predicted_low = low_edge + velocity
+                if predicted_low < low_bound:
+                    should_apply_behavior = True
+            # If velocity is 0 or sprite is at boundary but not moving toward it, don't bounce
+        else:
+            # For limit and other behaviors, use current position check
+            if current_side is not None:
+                should_apply_behavior = True
+
+        if should_apply_behavior:
             self._apply_boundary_behavior(
                 sprite,
                 low_edge,
                 high_edge,
                 low_bound,
                 high_bound,
-                sprite.change_x if axis == "x" else sprite.change_y,
+                velocity,
                 axis,
             )
 
@@ -596,25 +770,44 @@ class MoveUntil(_Action):
             handler(sprite, low_edge, high_edge, low_bound, high_bound, velocity, axis)
 
     def _bounce_behavior(self, sprite, low_edge, high_edge, low_bound, high_bound, velocity, axis):
-        """Handle bounce boundary behavior using edge-based coordinates."""
+        """Handle bounce boundary behavior using edge-based coordinates.
+        
+        Only bounces when sprite would cross boundary (predicted movement),
+        not when sprite is already at boundary. This allows frame-by-frame
+        stepping to work correctly.
+        """
         if axis == "x":
-            sprite.change_x = -sprite.change_x
-            self.current_velocity = (-self.current_velocity[0], self.current_velocity[1])
-            self.target_velocity = (-self.target_velocity[0], self.target_velocity[1])
-            # Keep sprite in bounds using edge positions
-            if low_edge <= low_bound:
-                sprite.left = low_bound
-            elif high_edge >= high_bound:
-                sprite.right = high_bound
+            # Check if would cross boundary based on predicted movement
+            would_cross_low = velocity < 0 and low_edge + velocity < low_bound
+            would_cross_high = velocity > 0 and high_edge + velocity > high_bound
+
+            if would_cross_low or would_cross_high:
+                # Reverse velocity
+                sprite.change_x = -sprite.change_x
+                self.current_velocity = (-self.current_velocity[0], self.current_velocity[1])
+                self.target_velocity = (-self.target_velocity[0], self.target_velocity[1])
+
+                # Clamp sprite to boundary if it would cross
+                if would_cross_low:
+                    sprite.left = low_bound
+                elif would_cross_high:
+                    sprite.right = high_bound
         else:  # axis == "y"
-            sprite.change_y = -sprite.change_y
-            self.current_velocity = (self.current_velocity[0], -self.current_velocity[1])
-            self.target_velocity = (self.target_velocity[0], -self.target_velocity[1])
-            # Keep sprite in bounds using edge positions
-            if low_edge <= low_bound:
-                sprite.bottom = low_bound
-            elif high_edge >= high_bound:
-                sprite.top = high_bound
+            # Check if would cross boundary based on predicted movement
+            would_cross_low = velocity < 0 and low_edge + velocity < low_bound
+            would_cross_high = velocity > 0 and high_edge + velocity > high_bound
+
+            if would_cross_low or would_cross_high:
+                # Reverse velocity
+                sprite.change_y = -sprite.change_y
+                self.current_velocity = (self.current_velocity[0], -self.current_velocity[1])
+                self.target_velocity = (self.target_velocity[0], -self.target_velocity[1])
+
+                # Clamp sprite to boundary if it would cross
+                if would_cross_low:
+                    sprite.bottom = low_bound
+                elif would_cross_high:
+                    sprite.top = high_bound
 
     def _wrap_behavior(self, sprite, low_edge, high_edge, low_bound, high_bound, velocity, axis):
         """Handle wrap boundary behavior using edge-based coordinates."""
@@ -735,10 +928,39 @@ class MoveUntil(_Action):
     def pause(self) -> None:
         if self._paused:
             return
+        # Save current velocity before pausing
+        # During stepping, this happens after update_effect() has run and boundary checks
+        # have modified current_velocity, so we save the correct velocity for next resume
         self._paused_velocity = self.current_velocity
         super().pause()
         if not self.done:
-            self.set_current_velocity((0.0, 0.0))
+            # During stepping, keep velocities set so sprite.update() can use them
+            # During normal pause, clear velocities immediately
+            if not _Action._is_stepping:
+                self.set_current_velocity((0.0, 0.0))
+
+    def update(self, delta_time: float) -> None:
+        """
+        Update the action.
+        
+        Override to clear velocities when paused (but not during stepping).
+        This ensures that after step_all() completes, velocities are cleared
+        so sprites don't continue moving when actions are paused.
+        """
+        if not self._is_active or self.done:
+            return
+        
+        # If paused, clear velocities that might have been left from stepping
+        # This happens when step_all() completes: velocities are set for sprite.update(),
+        # but after sprite.update() runs, we need to clear them so sprite doesn't continue moving
+        if self._paused:
+            if not _Action._is_stepping:
+                # Not currently stepping - clear any velocities left from previous step
+                self.set_current_velocity((0.0, 0.0))
+            return
+
+        # Call parent update which handles update_effect() and condition checking
+        super().update(delta_time)
 
     def resume(self) -> None:
         if not self._paused:
