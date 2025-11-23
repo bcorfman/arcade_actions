@@ -374,6 +374,29 @@ class MoveUntil(_Action):
             # (only if velocity is different from action's velocity, indicating it was manually set)
             def set_velocity(sprite):
                 sprite_id = id(sprite)
+                # For wrap/bounce behaviors with zero velocity, preserve manually set velocity
+                # (common pattern: action handles boundaries, external code sets velocity)
+                if self.boundary_behavior in ("wrap", "bounce"):
+                    action_has_zero_velocity = abs(self.current_velocity[0]) < 0.001 and abs(self.current_velocity[1]) < 0.001
+                    if action_has_zero_velocity:
+                        # Check if velocity was manually set (different from action's velocity)
+                        manually_set_x = abs(sprite.change_x - self.current_velocity[0]) > 0.001
+                        manually_set_y = abs(sprite.change_y - self.current_velocity[1]) > 0.001
+                        # Preserve manually set velocity - action is only for boundary handling
+                        if not manually_set_x:
+                            sprite.change_x = self.current_velocity[0]
+                        if not manually_set_y:
+                            sprite.change_y = self.current_velocity[1]
+                        # If both velocities are manually set, don't override anything
+                        if manually_set_x and manually_set_y:
+                            return
+                        # If only one is manually set, apply the other from action
+                        if manually_set_x:
+                            sprite.change_y = self.current_velocity[1]
+                        elif manually_set_y:
+                            sprite.change_x = self.current_velocity[0]
+                        return
+                
                 if self.boundary_behavior == "limit" and self.bounds:
                     state = self._boundary_state.get(sprite_id, {"x": None, "y": None})
                     left, bottom, right, top = self.bounds
@@ -721,9 +744,9 @@ class MoveUntil(_Action):
                 if self.on_boundary_enter:
                     self._safe_call(self.on_boundary_enter, sprite, axis, effective_side)
 
-        # Update state - use current_side for state tracking (actual position)
-        # but effective_side for callback triggering (predicted for bounce/wrap)
-        current_state[axis] = current_side
+        # Update state - use effective_side for state tracking (predicted for bounce/wrap, current for limit)
+        # This ensures exit callbacks trigger correctly for wrap/bounce behaviors
+        current_state[axis] = effective_side
 
         # Apply boundary behavior based on predicted movement (would cross boundary)
         # instead of current position (is at boundary) for bounce/wrap behaviors
