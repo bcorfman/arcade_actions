@@ -146,5 +146,5 @@ cython_debug/
 
 # log files
 demo.log
-
+action_log.txt
 *.code-workspace
