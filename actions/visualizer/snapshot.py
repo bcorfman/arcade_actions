@@ -34,22 +34,77 @@ class SnapshotExporter:
 
         snapshot_entries: list[dict[str, object]] = []
         for snapshot in self.debug_store.get_all_snapshots():
-            snapshot_dict = asdict(snapshot)
+            try:
+                snapshot_dict = asdict(snapshot)
+            except (NotImplementedError, TypeError) as e:
+                # Handle sprites that don't support deep copying
+                # Convert manually, skipping problematic fields
+                snapshot_dict = {
+                    "action_id": snapshot.action_id,
+                    "action_type": snapshot.action_type,
+                    "target_id": snapshot.target_id,
+                    "target_type": snapshot.target_type,
+                    "tag": snapshot.tag,
+                    "is_active": snapshot.is_active,
+                    "is_paused": snapshot.is_paused,
+                    "factor": snapshot.factor,
+                    "elapsed": snapshot.elapsed,
+                    "progress": snapshot.progress,
+                    "velocity": snapshot.velocity,
+                    "bounds": snapshot.bounds,
+                    "boundary_state": None if snapshot.boundary_state is None else dict(snapshot.boundary_state),
+                    "last_condition_result": str(snapshot.last_condition_result)
+                    if snapshot.last_condition_result is not None
+                    else None,
+                    "condition_str": snapshot.condition_str,
+                    "metadata": f"<unable to serialize: {type(e).__name__}>",
+                }
             snapshot_dict["target_name"] = target_names.get(snapshot.target_id)
             snapshot_entries.append(snapshot_dict)
 
         event_entries: list[dict[str, object]] = []
         for event in self.debug_store.get_recent_events():
-            event_dict = asdict(event)
+            try:
+                event_dict = asdict(event)
+            except (NotImplementedError, TypeError):
+                # Handle events with non-serializable details
+                event_dict = {
+                    "frame": event.frame,
+                    "timestamp": event.timestamp,
+                    "event_type": event.event_type,
+                    "action_id": event.action_id,
+                    "action_type": event.action_type,
+                    "target_id": event.target_id,
+                    "target_type": event.target_type,
+                    "tag": event.tag,
+                    "details": "<unable to serialize>",
+                }
             event_dict["target_name"] = target_names.get(event.target_id)
             event_entries.append(event_dict)
+
+        evaluation_entries: list[dict[str, object]] = []
+        for evaluation in self.debug_store.get_recent_evaluations():
+            try:
+                evaluation_dict = asdict(evaluation)
+            except (NotImplementedError, TypeError):
+                # Handle evaluations with non-serializable variables
+                evaluation_dict = {
+                    "frame": evaluation.frame,
+                    "timestamp": evaluation.timestamp,
+                    "action_id": evaluation.action_id,
+                    "action_type": evaluation.action_type,
+                    "result": str(evaluation.result),
+                    "condition_str": evaluation.condition_str,
+                    "variables": "<unable to serialize>",
+                }
+            evaluation_entries.append(evaluation_dict)
 
         data = {
             "stats": self.debug_store.get_statistics(),
             "target_names": target_names,
             "snapshots": snapshot_entries,
             "events": event_entries,
-            "evaluations": [asdict(evaluation) for evaluation in self.debug_store.get_recent_evaluations()],
+            "evaluations": evaluation_entries,
         }
 
         filename = f"snapshot_{int(time.time() * 1000)}.json"

@@ -203,6 +203,66 @@ def test_snapshot_includes_target_names(control_context):
     assert any(snapshot["target_name"] == "self.enemy_list" for snapshot in data["snapshots"])
 
 
+def test_snapshot_handles_non_serializable_sprites(control_context):
+    """Test that snapshot export handles sprites that can't be deep copied."""
+    store, overlay, _, _, _, _, manager, snapshot_dir = control_context
+
+    # Create a mock sprite that raises NotImplementedError on deepcopy
+    class NonSerializableSprite:
+        def __init__(self):
+            self.x = 100
+            self.y = 200
+
+        def __deepcopy__(self, memo):
+            raise NotImplementedError("This sprite doesn't support deepcopy")
+
+    # Create snapshot with non-serializable metadata
+    store.update_frame(1, 0.016)
+    store.record_event(
+        "created",
+        action_id=1,
+        action_type="MoveUntil",
+        target_id=888,
+        target_type="Sprite",
+        tag="shield",
+    )
+
+    # Add snapshot with problematic metadata
+    store.update_snapshot(
+        action_id=1,
+        action_type="MoveUntil",
+        target_id=888,
+        target_type="Sprite",
+        tag="shield",
+        is_active=True,
+        is_paused=False,
+        factor=1.0,
+        elapsed=0.0,
+        progress=None,
+        metadata={"sprite_ref": NonSerializableSprite()},  # This will cause asdict() to fail
+    )
+    overlay.update()
+
+    # Export should succeed despite non-serializable metadata
+    press(manager, arcade.key.F9)
+
+    files = list(snapshot_dir.glob("snapshot_*.json"))
+    assert len(files) == 1
+
+    # Verify the snapshot was written and contains basic data
+    data = json.loads(files[0].read_text())
+    assert "snapshots" in data
+    assert len(data["snapshots"]) == 1
+
+    snapshot = data["snapshots"][0]
+    assert snapshot["action_id"] == 1
+    assert snapshot["action_type"] == "MoveUntil"
+    assert snapshot["target_id"] == 888
+    assert snapshot["tag"] == "shield"
+    # Metadata should be marked as unable to serialize
+    assert "unable to serialize" in str(snapshot["metadata"]).lower()
+
+
 def test_f4_toggles_condition_panel(control_context):
     _, _, _, condition_debugger, _, _, manager, _ = control_context
     assert manager.condition_panel_visible is False

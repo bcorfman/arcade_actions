@@ -51,6 +51,21 @@ class MoveTo(_Action):
         # Remove from active actions immediately
         self.stop()
 
+    def update(self, delta_time: float) -> None:
+        """Override to execute when not paused (handles pause/resume).
+
+        Uses existing _paused flag and done state - no new flags needed.
+        """
+        if not self._is_active or self.done:
+            return
+
+        # If paused, don't execute (wait for resume)
+        if self._paused:
+            return
+
+        # Not paused and not done - execute the move
+        self.apply_effect()
+
     def clone(self) -> MoveTo:
         return MoveTo(self.target_position, on_stop=self.on_stop)
 
@@ -93,6 +108,21 @@ class MoveBy(_Action):
             self._safe_call(self.on_stop, None)
         # Remove from active actions immediately
         self.stop()
+
+    def update(self, delta_time: float) -> None:
+        """Override to execute when not paused (handles pause/resume).
+
+        Uses existing _paused flag and done state - no new flags needed.
+        """
+        if not self._is_active or self.done:
+            return
+
+        # If paused, don't execute (wait for resume)
+        if self._paused:
+            return
+
+        # Not paused and not done - execute the move
+        self.apply_effect()
 
     def clone(self) -> MoveBy:
         return MoveBy(self.offset, on_stop=self.on_stop)

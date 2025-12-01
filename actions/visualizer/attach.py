@@ -94,15 +94,15 @@ _cached_targets: dict[int, object] = {}  # target_id -> target object
 
 def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
     """Attempt to collect sprite positions from active actions.
-    
+
     Uses caching to avoid expensive iteration when action set hasn't changed.
     """
     global _position_cache, _cached_action_count, _cached_action_ids, _cached_targets
-    
+
     current_actions = Action._active_actions  # type: ignore[attr-defined]
     current_count = len(current_actions)
     current_ids = {id(a) for a in current_actions}
-    
+
     # If action set hasn't changed, use cached targets and update positions
     if current_count == _cached_action_count and current_ids == _cached_action_ids:
         # Fast path: update positions from cached targets
@@ -134,18 +134,18 @@ def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
                 continue
         _position_cache = positions
         return positions
-    
+
     # Slow path: rebuild cache from scratch
     positions: dict[int, tuple[float, float]] = {}
     _cached_targets.clear()
-    
+
     for action in current_actions:
         target = getattr(action, "target", None)
         if target is None:
             continue
-        
+
         target_id = id(target)
-        
+
         try:
             positions[target_id] = (target.center_x, target.center_y)
             _cached_targets[target_id] = target
@@ -172,7 +172,7 @@ def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
             _cached_targets[target_id] = target
         except TypeError:
             continue
-    
+
     _position_cache = positions
     _cached_action_count = current_count
     _cached_action_ids = current_ids
@@ -591,7 +591,7 @@ def attach_visualizer(
             return
         _install_window_handler(_VISUALIZER_SESSION)
         session = _VISUALIZER_SESSION
-        
+
         # Collect sprite positions (cached for performance)
         # Note: positions are primarily used for guides, but we collect them always
         # for test compatibility and potential future use
@@ -602,7 +602,7 @@ def attach_visualizer(
                 positions = provider() or {}
             except Exception:
                 positions = {}
-        
+
         session.control_manager.update(positions)
         session.renderer.update()
         session.guide_renderer.update()
@@ -713,4 +713,3 @@ def enable_visualizer_hotkey(
 
     actual_window.push_handlers(on_key_press=on_key_press)
     return True
-

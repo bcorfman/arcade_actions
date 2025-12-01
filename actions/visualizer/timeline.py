@@ -72,11 +72,13 @@ class TimelineStrip:
             if self._last_update_frame >= 0 and current_frame - self._last_update_frame < self._update_interval:
                 return  # Skip this frame
             self._last_update_frame = current_frame
-            
+
             # Build snapshot map for contextual data
             snapshots = self.debug_store.get_all_snapshots()
-            snapshot_by_action = {snapshot.action_id: snapshot for snapshot in snapshots if snapshot.action_id is not None}
-            
+            snapshot_by_action = {
+                snapshot.action_id: snapshot for snapshot in snapshots if snapshot.action_id is not None
+            }
+
             # Get set of active action IDs from snapshots (source of truth for what's currently active)
             active_action_ids = {snapshot.action_id for snapshot in snapshots if snapshot.is_active}
 
@@ -93,12 +95,12 @@ class TimelineStrip:
                 # Defensive checks: skip invalid snapshots
                 if snapshot is None or not snapshot.is_active:
                     continue  # Skip inactive or invalid snapshots
-                
+
                 action_id = snapshot.action_id
                 # Defensive check: skip snapshots with invalid action_id
                 if action_id is None:
                     continue
-                    
+
                 entry = self._entry_cache.get(action_id)
                 if entry:
                     # Update existing entry
@@ -124,15 +126,19 @@ class TimelineStrip:
 
             # SECOND: Process events to fill in historical data and handle removed actions
             # First, collect all stopped/removed action IDs (for inferring active state when no snapshot exists)
-            stopped_action_ids: set[int] = {event.action_id for event in events if event.event_type in {"stopped", "removed"} and event.action_id is not None}
-            
+            stopped_action_ids: set[int] = {
+                event.action_id
+                for event in events
+                if event.event_type in {"stopped", "removed"} and event.action_id is not None
+            }
+
             for event in events:
                 # Defensive check: skip events with invalid action_id
                 if event.action_id is None:
                     continue
-                    
+
                 entry = self._entry_cache.get(event.action_id)
-                
+
                 # If entry doesn't exist, create it (this handles cases where snapshot was removed
                 # but we still have events in the ring buffer)
                 if entry is None:
@@ -143,7 +149,9 @@ class TimelineStrip:
                     entry = TimelineEntry(
                         action_id=event.action_id,
                         action_type=event.action_type or "Unknown",
-                        target_id=snapshot.target_id if snapshot else (event.target_id if event.target_id is not None else 0),
+                        target_id=snapshot.target_id
+                        if snapshot
+                        else (event.target_id if event.target_id is not None else 0),
                         target_type=snapshot.target_type if snapshot else (event.target_type or "Unknown"),
                         tag=snapshot.tag if snapshot else event.tag,
                         start_frame=None,
@@ -181,7 +189,7 @@ class TimelineStrip:
 
             # Convert cache to list
             entries = list(self._entry_cache.values())
-            
+
             # Set fallback start_frame for entries that don't have one (so renderer can display them)
             # This handles cases where "created" events were evicted from the ring buffer
             # Crucially, we only do this ONCE per entry if it's None, and then it's persisted in cache
@@ -196,29 +204,32 @@ class TimelineStrip:
             if self.filter_target_id is not None:
                 entries = [entry for entry in entries if entry.target_id == self.filter_target_id]
 
-            # Sort by start frame (earliest first), then by action_id for consistent ordering
-            entries.sort(key=lambda e: (e.start_frame or 0, e.action_id))
+            # Show ONLY active entries to match the overlay display
+            active_entries = [e for e in entries if e.is_active]
 
-            self.entries = entries[: self.max_entries]
-            
-            # Prune cache to prevent memory leaks
-            # Keep active actions and the ones we're displaying
-            # Drop inactive actions that are not in the display list
-            if len(self._entry_cache) > self.max_entries * 2:
-                displayed_ids = {e.action_id for e in self.entries}
-                keys_to_remove = []
-                for aid, entry in self._entry_cache.items():
-                    if not entry.is_active and aid not in displayed_ids:
-                        keys_to_remove.append(aid)
-                for aid in keys_to_remove:
-                    del self._entry_cache[aid]
-                    
+            # Sort by start frame (earliest first), then by action_id for consistent ordering
+            active_entries.sort(key=lambda e: (e.start_frame or 0, e.action_id))
+
+            self.entries = active_entries[: self.max_entries]
+
+            # Prune cache aggressively - keep only active actions
+            # Since we only display active actions, remove all inactive entries from cache
+            keys_to_remove = []
+            for aid, entry in self._entry_cache.items():
+                if not entry.is_active:
+                    keys_to_remove.append(aid)
+
+            for aid in keys_to_remove:
+                del self._entry_cache[aid]
+
         except Exception as e:
             # Defensive: catch any exceptions during update to prevent crashes
             # Log the error but don't crash the game
             import sys
+
             print(f"[ACE Timeline] Error during update: {e!r}", file=sys.stderr)
             import traceback
+
             traceback.print_exc(file=sys.stderr)
             # Keep existing entries on error to avoid blank timeline
             if not self.entries:

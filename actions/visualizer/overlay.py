@@ -198,7 +198,7 @@ class InspectorOverlay:
             else:
                 card = ActionCard(snapshot, width=self.width - 20)
                 self._card_cache[action_id] = card
-            
+
             groups_dict[target_id].add_card(card)
 
         # Convert to list and sort by target_id for consistent ordering

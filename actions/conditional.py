@@ -88,6 +88,9 @@ class MoveUntil(_Action):
         # Track boundary state for enter/exit detection
         self._boundary_state = {}  # {sprite_id: {"x": side_or_None, "y": side_or_None}}
         self._paused_velocity: tuple[float, float] | None = None
+        
+        # Track if we just completed a step and need to preserve velocities for one frame
+        self._step_velocity_pending = False
 
         # Duration tracking for simulation time compatibility
         self._elapsed = 0.0
@@ -377,7 +380,9 @@ class MoveUntil(_Action):
                 # For wrap/bounce behaviors with zero velocity, preserve manually set velocity
                 # (common pattern: action handles boundaries, external code sets velocity)
                 if self.boundary_behavior in ("wrap", "bounce"):
-                    action_has_zero_velocity = abs(self.current_velocity[0]) < 0.001 and abs(self.current_velocity[1]) < 0.001
+                    action_has_zero_velocity = (
+                        abs(self.current_velocity[0]) < 0.001 and abs(self.current_velocity[1]) < 0.001
+                    )
                     if action_has_zero_velocity:
                         # Check if velocity was manually set (different from action's velocity)
                         manually_set_x = abs(sprite.change_x - self.current_velocity[0]) > 0.001
@@ -396,22 +401,22 @@ class MoveUntil(_Action):
                         elif manually_set_y:
                             sprite.change_x = self.current_velocity[0]
                         return
-                
+
                 if self.boundary_behavior == "limit" and self.bounds:
                     state = self._boundary_state.get(sprite_id, {"x": None, "y": None})
                     left, bottom, right, top = self.bounds
-                    
+
                     # Check if sprite is at boundary (by position) and moving away
                     # Only preserve if velocity is different from action's velocity (manually set)
                     at_right_boundary = abs(sprite.right - right) < 0.1  # Allow small floating point differences
                     at_left_boundary = abs(sprite.left - left) < 0.1
                     at_top_boundary = abs(sprite.top - top) < 0.1
                     at_bottom_boundary = abs(sprite.bottom - bottom) < 0.1
-                    
+
                     # Check if velocity was manually set (different from action's velocity)
                     manually_set_x = abs(sprite.change_x - self.current_velocity[0]) > 0.001
                     manually_set_y = abs(sprite.change_y - self.current_velocity[1]) > 0.001
-                    
+
                     moving_away_x = False
                     if at_right_boundary and sprite.change_x < 0 and manually_set_x:
                         # At right boundary, moving left (away), and velocity was manually set
@@ -419,7 +424,7 @@ class MoveUntil(_Action):
                     elif at_left_boundary and sprite.change_x > 0 and manually_set_x:
                         # At left boundary, moving right (away), and velocity was manually set
                         moving_away_x = True
-                    
+
                     moving_away_y = False
                     if at_top_boundary and sprite.change_y < 0 and manually_set_y:
                         # At top boundary, moving down (away), and velocity was manually set
@@ -427,7 +432,7 @@ class MoveUntil(_Action):
                     elif at_bottom_boundary and sprite.change_y > 0 and manually_set_y:
                         # At bottom boundary, moving up (away), and velocity was manually set
                         moving_away_y = True
-                    
+
                     # Preserve manually set velocity if moving away from boundary
                     if moving_away_x:
                         # Keep current change_x (manually set)
@@ -585,7 +590,7 @@ class MoveUntil(_Action):
                         is_moving_away = True
                     elif current_state["x"] == "left" and sprite.change_x > 0:
                         is_moving_away = True
-                    
+
                     if is_moving_away:
                         old_side = current_state["x"]
                         if self.on_boundary_exit:
@@ -631,7 +636,7 @@ class MoveUntil(_Action):
                         is_moving_away = True
                     elif current_state["y"] == "bottom" and sprite.change_y > 0:
                         is_moving_away = True
-                    
+
                     if is_moving_away:
                         old_side = current_state["y"]
                         if self.on_boundary_exit:
@@ -731,7 +736,11 @@ class MoveUntil(_Action):
         # Detect enter/exit events
         # For bounce/wrap: use predicted_side if available, otherwise current_side
         # For limit: use current_side
-        effective_side = predicted_side if (predicted_side is not None and (self.boundary_behavior == "bounce" or self.boundary_behavior == "wrap")) else current_side
+        effective_side = (
+            predicted_side
+            if (predicted_side is not None and (self.boundary_behavior == "bounce" or self.boundary_behavior == "wrap"))
+            else current_side
+        )
 
         if effective_side != previous_side:
             # Exit event (was on a side, now not or on different side)
@@ -794,7 +803,7 @@ class MoveUntil(_Action):
 
     def _bounce_behavior(self, sprite, low_edge, high_edge, low_bound, high_bound, velocity, axis):
         """Handle bounce boundary behavior using edge-based coordinates.
-        
+
         Only bounces when sprite would cross boundary (predicted movement),
         not when sprite is already at boundary. This allows frame-by-frame
         stepping to work correctly.
@@ -961,23 +970,33 @@ class MoveUntil(_Action):
             # During normal pause, clear velocities immediately
             if not _Action._is_stepping:
                 self.set_current_velocity((0.0, 0.0))
+            else:
+                # We're stepping - mark that velocities need to be preserved for one frame
+                # so sprite.update() can move sprites after step_all() completes
+                self._step_velocity_pending = True
 
     def update(self, delta_time: float) -> None:
         """
         Update the action.
-        
+
         Override to clear velocities when paused (but not during stepping).
         This ensures that after step_all() completes, velocities are cleared
         so sprites don't continue moving when actions are paused.
         """
         if not self._is_active or self.done:
             return
-        
+
         # If paused, clear velocities that might have been left from stepping
         # This happens when step_all() completes: velocities are set for sprite.update(),
         # but after sprite.update() runs, we need to clear them so sprite doesn't continue moving
         if self._paused:
             if not _Action._is_stepping:
+                # Check if we just completed a step and velocities need to be preserved
+                # for one frame so sprite.update() can move sprites
+                if self._step_velocity_pending:
+                    # Preserve velocities for this frame, clear the flag
+                    self._step_velocity_pending = False
+                    return
                 # Not currently stepping - clear any velocities left from previous step
                 self.set_current_velocity((0.0, 0.0))
             return
@@ -990,6 +1009,7 @@ class MoveUntil(_Action):
             return
         paused_velocity = self._paused_velocity
         self._paused_velocity = None
+        self._step_velocity_pending = False  # Clear step flag when resuming
         super().resume()
         if not self.done and paused_velocity is not None:
             self.set_current_velocity(paused_velocity)
