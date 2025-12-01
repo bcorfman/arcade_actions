@@ -145,6 +145,7 @@ cython_debug/
 .DS_Store
 
 # log files
+snapshots/
 demo.log
 action_log.txt
 *.code-workspace

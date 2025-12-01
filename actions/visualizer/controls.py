@@ -107,7 +107,7 @@ class DebugControlManager:
         if current_frame - self._target_names_frame >= 60:
             self._refresh_target_names()
             self._target_names_frame = current_frame
-        
+
         self.overlay.update()
 
         if self.condition_panel_visible:

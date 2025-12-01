@@ -13,6 +13,7 @@ import random
 import arcade
 
 from actions import Action, arrange_grid, center_window, move_until
+from actions.helpers import move_to
 
 SPRITE_SCALING_PLAYER = 0.75
 SPRITE_SCALING_ENEMY = 0.75
@@ -328,7 +329,8 @@ class GameView(arcade.View):
     def on_mouse_motion(self, x, y, dx, dy):
         """Move player with mouse"""
         if self.game_state != GAME_OVER:
-            self.player_sprite.center_x = x
+            # Apply MoveTo - will respect pause state automatically
+            move_to(self.player_sprite, x, self.player_sprite.center_y)
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.ESCAPE:

@@ -40,4 +40,3 @@ def test_visualizer_env_var_triggers_auto_attach():
     assert completed.returncode == 0, (
         f"Auto-attach script failed:\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
     )
-

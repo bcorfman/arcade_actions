@@ -133,25 +133,9 @@ class TestTimelineStrip:
         )
 
         timeline.update()
-        # Stopped actions are removed from timeline (synced with overlay)
-        # Wait, stopped actions should stay in timeline until they fall out of window
-        # Ah, the current logic removes them from display if not active for simplicity in this test
-        # But with cache they might persist. Let's check the logic:
-        # "stopped" event sets is_active=False and sets end_frame.
-        # The cache pruning logic keeps inactive entries ONLY if they are in self.entries
-        # self.entries contains all entries.
-        # So it should actually still be there, just inactive.
-        
-        # Let's verify what the code does: 
-        # 1. Cache has entry.
-        # 2. "stopped" event sets is_active=False.
-        # 3. entries list gets it.
-        # 4. So it should be visible but inactive.
-        
-        assert len(timeline.entries) == 1
-        entry = timeline.entries[0]
-        assert entry.is_active is False
-        assert entry.end_frame == 5
+        # Stopped actions are immediately removed from timeline to match overlay behavior
+        # The timeline only shows active actions to stay in sync with the overlay
+        assert len(timeline.entries) == 0
 
     def test_entry_marks_active_when_no_stop_event(self):
         """Timeline should mark entries as active when not yet stopped."""
@@ -225,11 +209,11 @@ class TestTimelineStrip:
         self.store.update_frame(10, 1.0)
         self.store.record_event("created", 100, "MoveUntil", 200, "Sprite", tag="test")
         self.store.record_event("started", 100, "MoveUntil", 200, "Sprite", tag="test")
-        
+
         # Action was "removed" at some point
         self.store.update_frame(20, 2.0)
         self.store.record_event("removed", 100, "MoveUntil", 200, "Sprite", tag="test")
-        
+
         # But now it's active again (snapshot exists)
         self.store.update_frame(30, 3.0)
         self.store.update_snapshot(
@@ -261,35 +245,35 @@ class TestTimelineStrip:
         # 1. Create action with event
         self.store.update_frame(100, 1.0)
         self.store.record_event("created", 999, "MoveUntil", 10, "Sprite")
-        
+
         # 2. Update timeline - should see start_frame=100
         timeline = TimelineStrip(debug_store=self.store)
         timeline.update()
-        
+
         assert len(timeline.entries) == 1
         assert timeline.entries[0].start_frame == 100
-        
+
         # 3. Clear events (simulate eviction)
         self.store.events.clear()
-        
+
         # 4. Create snapshot to keep action active
         self.store.update_frame(200, 2.0)
         self.store.update_snapshot(
-            action_id=999, 
-            action_type="MoveUntil", 
-            target_id=10, 
-            target_type="Sprite", 
-            tag=None, 
+            action_id=999,
+            action_type="MoveUntil",
+            target_id=10,
+            target_type="Sprite",
+            tag=None,
             is_active=True,
             is_paused=False,
             factor=1.0,
             elapsed=1.0,
-            progress=0.5
+            progress=0.5,
         )
-        
+
         # 5. Update timeline again
         timeline.update()
-        
+
         # 6. Should still have start_frame=100 (cached), not current frame 200
         assert len(timeline.entries) == 1
         assert timeline.entries[0].start_frame == 100

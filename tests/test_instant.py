@@ -233,3 +233,168 @@ class TestMoveBy(ActionTestBase):
         assert action.done
         assert sprite.center_x == 100  # Unchanged
         assert sprite.center_y == 200  # Unchanged
+
+
+class TestInstantActionsPauseBehavior(ActionTestBase):
+    """Test suite for instant actions respecting pause state."""
+
+    def test_move_to_starts_paused_when_all_actions_paused(self, test_sprite):
+        """Test that MoveTo starts paused when all other actions are paused."""
+        sprite = test_sprite
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Create and pause another action
+        from actions import move_until
+        from actions.conditional import infinite
+        other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
+        Action.pause_all()
+        assert other_action._paused
+
+        # Create MoveTo while paused - should start paused
+        move_to_action = MoveTo((200, 200))
+        move_to_action.apply(sprite)
+
+        # Should be paused and not executed
+        assert move_to_action._paused
+        assert not move_to_action.done
+        assert sprite.center_x == 100  # Not moved
+        assert sprite.center_y == 100
+
+    def test_move_to_executes_when_resumed(self, test_sprite):
+        """Test that MoveTo executes when resumed after starting paused."""
+        sprite = test_sprite
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Create and pause another action
+        from actions import move_until
+        from actions.conditional import infinite
+        other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
+        Action.pause_all()
+
+        # Create MoveTo while paused
+        move_to_action = MoveTo((200, 200))
+        move_to_action.apply(sprite)
+
+        assert move_to_action._paused
+        assert not move_to_action.done
+        assert sprite.center_x == 100
+
+        # Resume all actions
+        Action.resume_all()
+
+        # Update should execute MoveTo
+        Action.update_all(0.016)
+        assert move_to_action.done
+        assert sprite.center_x == 200
+        assert sprite.center_y == 200
+
+    def test_move_by_starts_paused_when_all_actions_paused(self, test_sprite):
+        """Test that MoveBy starts paused when all other actions are paused."""
+        sprite = test_sprite
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Create and pause another action
+        from actions import move_until
+        from actions.conditional import infinite
+        other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
+        Action.pause_all()
+
+        # Create MoveBy while paused - should start paused
+        move_by_action = MoveBy((50, 75))
+        move_by_action.apply(sprite)
+
+        # Should be paused and not executed
+        assert move_by_action._paused
+        assert not move_by_action.done
+        assert sprite.center_x == 100  # Not moved
+        assert sprite.center_y == 100
+
+    def test_move_by_executes_when_resumed(self, test_sprite):
+        """Test that MoveBy executes when resumed after starting paused."""
+        sprite = test_sprite
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Create and pause another action
+        from actions import move_until
+        from actions.conditional import infinite
+        other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
+        Action.pause_all()
+
+        # Create MoveBy while paused
+        move_by_action = MoveBy((50, 75))
+        move_by_action.apply(sprite)
+
+        assert move_by_action._paused
+        assert not move_by_action.done
+        assert sprite.center_x == 100
+
+        # Resume all actions
+        Action.resume_all()
+
+        # Update should execute MoveBy
+        Action.update_all(0.016)
+        assert move_by_action.done
+        assert sprite.center_x == 150  # 100 + 50
+        assert sprite.center_y == 175  # 100 + 75
+
+    def test_move_to_executes_immediately_when_not_paused(self, test_sprite):
+        """Test that MoveTo still executes immediately when not paused."""
+        sprite = test_sprite
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Create MoveTo when not paused - should execute immediately
+        move_to_action = MoveTo((200, 200))
+        move_to_action.apply(sprite)
+
+        # Should complete immediately
+        assert move_to_action.done
+        assert sprite.center_x == 200
+        assert sprite.center_y == 200
+
+    def test_move_by_executes_immediately_when_not_paused(self, test_sprite):
+        """Test that MoveBy still executes immediately when not paused."""
+        sprite = test_sprite
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Create MoveBy when not paused - should execute immediately
+        move_by_action = MoveBy((50, 75))
+        move_by_action.apply(sprite)
+
+        # Should complete immediately
+        assert move_by_action.done
+        assert sprite.center_x == 150
+        assert sprite.center_y == 175
+
+    def test_move_to_callback_called_on_resume(self, test_sprite):
+        """Test that MoveTo callback is called when executed after resume."""
+        sprite = test_sprite
+        callback_called = False
+
+        def on_stop():
+            nonlocal callback_called
+            callback_called = True
+
+        # Create and pause another action
+        from actions import move_until
+        from actions.conditional import infinite
+        other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
+        Action.pause_all()
+
+        # Create MoveTo with callback while paused
+        move_to_action = MoveTo((200, 200), on_stop=on_stop)
+        move_to_action.apply(sprite)
+
+        assert not callback_called
+
+        # Resume and update
+        Action.resume_all()
+        Action.update_all(0.016)
+
+        assert callback_called
+        assert move_to_action.done

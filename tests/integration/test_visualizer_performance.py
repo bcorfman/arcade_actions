@@ -78,4 +78,3 @@ def test_guides_and_panels_scale_with_dataset():
     assert len(guides.bounds_guide.rectangles) > 0
     assert len(condition_debugger.entries) == condition_debugger.max_entries
     assert len(timeline.entries) <= timeline.max_entries
-

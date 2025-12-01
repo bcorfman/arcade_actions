@@ -515,12 +515,37 @@ class TimelineRenderer:
             else:
                 label_text = f"{entry.action_type}: {target_label}"
             label_y = bottom + max(2.0, (row_height - self.font_size) / 2)
+
+            # Smart text positioning: show inside bar if it fits, otherwise to the left
+            bar_width = right - left
+
+            # Get actual text width using Arcade's Text measurement
+            temp_text = arcade.Text(
+                label_text,
+                0,
+                0,
+                arcade.color.BLACK,
+                self.font_size,
+            )
+            actual_text_width = temp_text.content_width
+            text_padding = 8  # Padding needed inside bar
+
+            if actual_text_width + text_padding < bar_width:
+                # Text fits inside bar - position inside with black text
+                label_x = left + 4
+                label_color = arcade.color.BLACK
+            else:
+                # Text doesn't fit - position to the left of bar with white text
+                # Add extra margin to ensure text doesn't overlap with bar
+                label_x = left - actual_text_width - 8
+                label_color = arcade.color.WHITE
+
             self._text_specs.append(
                 _TextSpec(
                     label_text,
-                    left + 4,
+                    label_x,
                     label_y,
-                    arcade.color.BLACK,
+                    label_color,
                     self.font_size,
                 )
             )

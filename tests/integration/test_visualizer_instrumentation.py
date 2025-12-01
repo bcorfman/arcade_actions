@@ -512,3 +512,103 @@ class TestFrameCounterIntegration:
         Action._enable_visualizer = False
         Action.set_debug_store(None)
         Action.stop_all()
+
+
+class TestTimelinePruning:
+    """Test that timeline entries are properly pruned when actions complete."""
+
+    def test_timeline_shows_only_active_entries(self):
+        """Test that timeline shows only active actions to match the overlay."""
+        from actions import Action
+        from actions.conditional import MoveUntil
+        from actions.frame_timing import after_frames
+        from actions.visualizer.timeline import TimelineStrip
+        import arcade
+
+        store = DebugDataStore()
+        Action.set_debug_store(store)
+        Action._enable_visualizer = True
+        Action._frame_counter = 0
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        timeline = TimelineStrip(store)
+
+        # Create 30 short-lived actions that will complete quickly
+        for i in range(30):
+            action = MoveUntil((5, 0), condition=after_frames(2))
+            action.apply(sprite, tag=f"bullet_{i}")
+            # Run the action until completion
+            for _ in range(5):
+                Action.update_all(0.016)
+
+        # Now create 2 active actions that won't complete
+        active1 = MoveUntil((1, 0), condition=after_frames(1000))
+        active1.apply(sprite, tag="active1")
+        active2 = MoveUntil((1, 0), condition=after_frames(1000))
+        active2.apply(sprite, tag="active2")
+
+        Action.update_all(0.016)
+        timeline.update()
+
+        # Timeline should show ONLY active actions to match overlay
+        assert len(timeline.entries) == 2
+
+        # All entries should be active
+        active_entries = [e for e in timeline.entries if e.is_active]
+        assert len(active_entries) == 2
+
+        # Should have NO inactive entries
+        inactive_entries = [e for e in timeline.entries if not e.is_active]
+        assert len(inactive_entries) == 0
+
+        # Cache should only contain active actions
+        assert len(timeline._entry_cache) == 2
+
+        # Clean up
+        Action._enable_visualizer = False
+        Action.set_debug_store(None)
+        Action.stop_all()
+
+    def test_timeline_removes_inactive_entries_immediately(self):
+        """Test that inactive entries are removed from cache immediately."""
+        from actions import Action
+        from actions.conditional import MoveUntil
+        from actions.frame_timing import after_frames
+        from actions.visualizer.timeline import TimelineStrip
+        import arcade
+
+        store = DebugDataStore()
+        Action.set_debug_store(store)
+        Action._enable_visualizer = True
+        Action._frame_counter = 0
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        timeline = TimelineStrip(store)
+
+        # Create an action and let it complete
+        action1 = MoveUntil((5, 0), condition=after_frames(2))
+        action_id = id(action1)
+        action1.apply(sprite, tag="bullet_1")
+
+        # Run until completion
+        for _ in range(5):
+            Action.update_all(0.016)
+
+        timeline.update()
+
+        # Since we only show active actions, completed action should be removed from cache
+        assert action_id not in timeline._entry_cache
+
+        # Timeline should be empty (no active actions)
+        assert len(timeline.entries) == 0
+
+        # Clean up
+        Action._enable_visualizer = False
+        Action.set_debug_store(None)
+        Action.stop_all()
