@@ -42,16 +42,12 @@ def test_renderer_collects_rectangles_and_text(monkeypatch, overlay_with_progres
     renderer = OverlayRenderer(overlay_with_progress)
     renderer.update()
 
-    # Title + header + body lines + progress -> ensure multiple text objects
-    assert len(renderer.text_objects) >= 3
-    assert len(renderer._background_rects) == 1
-    assert len(renderer._progress_rects) == 1
+    # Simplified overlay only shows title line
+    assert len(renderer.text_objects) == 1
+    assert len(renderer._background_rects) == 0  # No progress bars in simplified overlay
+    assert len(renderer._progress_rects) == 0
 
-    drawn_rects = []
     drawn_text = []
-
-    def fake_draw_lbwh_rectangle_filled(x, y, width, height, color):
-        drawn_rects.append((x, y, width, height, color))
 
     def fake_text_draw(self):
         drawn_text.append(id(self))
@@ -63,14 +59,14 @@ def test_renderer_collects_rectangles_and_text(monkeypatch, overlay_with_progres
     # Mock window with active context
     class MockWindow:
         _context = object()  # Has active context
+        width = 1280
+        height = 720
 
     monkeypatch.setattr(arcade, "get_window", lambda: MockWindow())
-    monkeypatch.setattr(arcade, "draw_lbwh_rectangle_filled", fake_draw_lbwh_rectangle_filled)
     monkeypatch.setattr(arcade.Text, "draw", fake_text_draw, raising=False)
     monkeypatch.setattr(arcade.Text, "initialize", fake_text_initialize, raising=False)
 
     renderer.draw()
-    assert drawn_rects == renderer._background_rects + renderer._progress_rects
     assert len(drawn_text) == len(renderer.text_objects)
 
 
@@ -94,8 +90,11 @@ def test_renderer_handles_cards_without_progress():
     renderer = OverlayRenderer(overlay)
     renderer.update()
 
+    # Simplified overlay doesn't render progress bars
     assert renderer._background_rects == []
     assert renderer._progress_rects == []
+    # But it still renders the title
+    assert len(renderer.text_objects) == 1
 
 
 def test_timeline_renderer_displays_composite_actions(monkeypatch):
@@ -262,7 +261,7 @@ def test_timeline_renderer_uses_target_names(monkeypatch):
 
 
 def test_overlay_renderer_highlights_selected_group():
-    """Test that highlighting a group changes its visual appearance."""
+    """Test that highlighting cycles through targets (no visual change in overlay)."""
     store = DebugDataStore()
     # Create two target groups
     store.update_snapshot(
@@ -289,42 +288,29 @@ def test_overlay_renderer_highlights_selected_group():
         elapsed=0.0,
         progress=None,
     )
-    
+
     overlay = InspectorOverlay(debug_store=store)
     overlay.update()
     renderer = OverlayRenderer(overlay)
-    
-    # Without highlight, all groups should use normal color (YELLOW)
+
+    # Simplified overlay only shows title
     renderer.update()
     text_specs_normal = list(renderer._text_specs)
-    
-    # Find group headers (they're bold)
-    group_headers_normal = [spec for spec in text_specs_normal if spec.bold and "id:" in spec.text]
-    assert len(group_headers_normal) == 2
-    assert all(spec.color == arcade.color.YELLOW for spec in group_headers_normal)
-    
-    # Highlight first group
+    assert len(text_specs_normal) == 1  # Only title
+
+    # Highlight first group - overlay appearance doesn't change
     overlay.highlight_next()
     assert overlay.highlighted_target_id == 100
     overlay.update()
     renderer.update()
     text_specs_highlighted = list(renderer._text_specs)
-    
-    # Find group headers after highlighting
-    group_headers_highlighted = [spec for spec in text_specs_highlighted if spec.bold and "id:" in spec.text]
-    assert len(group_headers_highlighted) == 2
-    
-    # First group (target_id=100) should be highlighted with different color
-    header_100 = [spec for spec in group_headers_highlighted if "(id: 100)" in spec.text][0]
-    header_200 = [spec for spec in group_headers_highlighted if "(id: 200)" in spec.text][0]
-    
-    assert header_100.color != arcade.color.YELLOW  # Highlighted color
-    assert header_200.color == arcade.color.YELLOW  # Normal color
-    assert header_100.color != header_200.color
+
+    # Still only shows title (highlighting is visual in game window and timeline)
+    assert len(text_specs_highlighted) == 1
 
 
 def test_overlay_renderer_highlight_cycles_through_groups():
-    """Test that pressing F8 cycles the highlight through all groups."""
+    """Test that pressing F8 cycles the highlight through all targets."""
     store = DebugDataStore()
     # Create three target groups
     for target_id in [100, 200, 300]:
@@ -340,50 +326,27 @@ def test_overlay_renderer_highlight_cycles_through_groups():
             elapsed=0.0,
             progress=None,
         )
-    
+
     overlay = InspectorOverlay(debug_store=store)
     overlay.update()
-    renderer = OverlayRenderer(overlay)
-    
-    # Highlight first group
+
+    # Highlight cycles through targets (internal state)
     overlay.highlight_next()
-    overlay.update()
-    renderer.update()
-    group_headers = [spec for spec in renderer._text_specs if spec.bold and "id:" in spec.text]
-    highlighted_headers = [spec for spec in group_headers if spec.color != arcade.color.YELLOW]
-    assert len(highlighted_headers) == 1
-    assert "(id: 100)" in highlighted_headers[0].text
-    
-    # Highlight second group
+    assert overlay.highlighted_target_id == 100
+
     overlay.highlight_next()
-    overlay.update()
-    renderer.update()
-    group_headers = [spec for spec in renderer._text_specs if spec.bold and "id:" in spec.text]
-    highlighted_headers = [spec for spec in group_headers if spec.color != arcade.color.YELLOW]
-    assert len(highlighted_headers) == 1
-    assert "(id: 200)" in highlighted_headers[0].text
-    
-    # Highlight third group
+    assert overlay.highlighted_target_id == 200
+
     overlay.highlight_next()
-    overlay.update()
-    renderer.update()
-    group_headers = [spec for spec in renderer._text_specs if spec.bold and "id:" in spec.text]
-    highlighted_headers = [spec for spec in group_headers if spec.color != arcade.color.YELLOW]
-    assert len(highlighted_headers) == 1
-    assert "(id: 300)" in highlighted_headers[0].text
-    
+    assert overlay.highlighted_target_id == 300
+
     # Wrap around to first group
     overlay.highlight_next()
-    overlay.update()
-    renderer.update()
-    group_headers = [spec for spec in renderer._text_specs if spec.bold and "id:" in spec.text]
-    highlighted_headers = [spec for spec in group_headers if spec.color != arcade.color.YELLOW]
-    assert len(highlighted_headers) == 1
-    assert "(id: 100)" in highlighted_headers[0].text
+    assert overlay.highlighted_target_id == 100
 
 
 def test_overlay_renderer_no_highlight_when_none_selected():
-    """Test that no groups are highlighted when highlighted_target_id is None."""
+    """Test that no targets are highlighted when highlighted_target_id is None."""
     store = DebugDataStore()
     store.update_snapshot(
         action_id=1,
@@ -397,15 +360,9 @@ def test_overlay_renderer_no_highlight_when_none_selected():
         elapsed=0.0,
         progress=None,
     )
-    
+
     overlay = InspectorOverlay(debug_store=store)
     overlay.update()
-    renderer = OverlayRenderer(overlay)
-    
+
     # No highlight set
     assert overlay.highlighted_target_id is None
-    renderer.update()
-    
-    group_headers = [spec for spec in renderer._text_specs if spec.bold and "id:" in spec.text]
-    assert len(group_headers) == 1
-    assert group_headers[0].color == arcade.color.YELLOW  # Normal color

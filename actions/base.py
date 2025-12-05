@@ -156,7 +156,7 @@ class Action(ABC, Generic[_T]):
         """Called when the action begins."""
         _debug_log_action(self, 2, f"start() target={self.target} tag={self.tag}")
         self._is_active = True
-        
+
         # If all other active actions are paused, start this action paused too
         # This ensures new actions created during pause (e.g., from mouse clicks)
         # respect the global pause state without game code needing to know about it
@@ -166,11 +166,11 @@ class Action(ABC, Generic[_T]):
             if other_actions and all(a._paused for a in other_actions):
                 self._paused = True
                 # For MoveUntil actions, we need to save paused velocity
-                if hasattr(self, '_paused_velocity') and hasattr(self, 'current_velocity'):
+                if hasattr(self, "_paused_velocity") and hasattr(self, "current_velocity"):
                     self._paused_velocity = self.current_velocity
                 # Don't apply initial effects when starting paused
                 _debug_log_action(self, 2, "starting in paused state (matching global pause)")
-                
+
                 # Instrumentation: record started and create snapshot
                 if self._instrumentation_active():
                     self._record_event("started")

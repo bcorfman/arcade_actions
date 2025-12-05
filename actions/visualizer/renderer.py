@@ -100,6 +100,12 @@ class OverlayRenderer:
         self._background_rects: list[tuple[float, float, float, float, arcade.Color]] = []
         self._progress_rects: list[tuple[float, float, float, float, arcade.Color]] = []
 
+        # Cache measured text widths: text -> (width, is_exact)
+        self._text_width_cache: dict[str, tuple[float, bool]] = {}
+        
+        # Cache for text width measurement
+        self._cached_text_width: dict[str, float] = {}
+
     def update(self) -> None:
         """
         Update rendering elements from overlay data.
@@ -119,32 +125,79 @@ class OverlayRenderer:
         self._background_rects = []
         self._progress_rects = []
 
-        # Calculate positions from top of window
+        # Calculate position based on corner
         try:
             window = arcade.get_window()
-            current_y = window.height - 20  # Start 20 pixels from top
+            window_width = window.width
+            window_height = window.height
         except RuntimeError:
             # Fallback if no window available (e.g., during tests)
-            current_y = 700  # Assume standard height
+            window_width = 1280
+            window_height = 720
 
-        # Render title
-        title_text = f"ACE Inspector - {self.overlay.get_total_action_count()} action(s)"
+        buffer = 20  # Same buffer from all edges
+        title_text = f"ACE Visualizer - {self.overlay.get_total_action_count()} action(s)"
+        text_height = self.font_size + 2
+        
+        # Calculate text width (attempt precise measurement, fall back to estimate)
+        font_size = self.font_size + 2
+        text_width: float | None = None
+        cached_width = self._text_width_cache.get(title_text)
+        if cached_width and cached_width[1]:
+            text_width = cached_width[0]
+        else:
+            measured_width: float | None = None
+            measured_exactly = False
+            try:
+                temp_text = arcade.Text(
+                    title_text,
+                    0,
+                    0,
+                    arcade.color.WHITE,
+                    font_size,
+                    bold=True,
+                )
+                measured_width = temp_text.content_width
+                measured_exactly = True
+            except (AttributeError, RuntimeError, Exception):
+                measured_width = None
+
+            if measured_width is None:
+                # No OpenGL context - use accurate estimate based on measured data
+                # Bold font at size 12: measured at 8.68 pixels per character
+                # Scale proportionally for other font sizes: (8.68/12) ≈ 0.723
+                char_width = font_size * 0.723
+                measured_width = len(title_text) * char_width
+
+            text_width = measured_width
+            self._text_width_cache[title_text] = (text_width, measured_exactly)
+
+        # Calculate position based on corner
+        # Note: y is the baseline of text, so for upper positions we need to account for text height
+        if self.overlay.position == "upper_left":
+            x = buffer
+            y = window_height - buffer - text_height
+        elif self.overlay.position == "upper_right":
+            x = window_width - buffer - text_width
+            y = window_height - buffer - text_height
+        elif self.overlay.position == "lower_right":
+            x = window_width - buffer - text_width
+            y = buffer
+        else:  # lower_left
+            x = buffer
+            y = buffer
+
+        # Render title only
         self._text_specs.append(
             _TextSpec(
                 title_text,
-                self.overlay.x + 5,
-                current_y,
+                x,
+                y,
                 arcade.color.WHITE,
                 self.font_size + 2,
                 True,
             )
         )
-        current_y -= self.line_height * 2
-
-        # Render each group
-        for group in self.overlay.groups:
-            current_y = self._render_group(group, current_y)
-            current_y -= self.line_height  # Gap between groups
 
         # Sync text objects so tests can verify them without calling draw()
         _sync_text_objects(self.text_objects, self._text_specs, self._last_text_specs)
@@ -163,7 +216,7 @@ class OverlayRenderer:
         current_y = start_y
 
         # Check if this group is highlighted
-        is_highlighted = (self.overlay.highlighted_target_id == group.target_id)
+        is_highlighted = self.overlay.highlighted_target_id == group.target_id
         header_color = arcade.color.CYAN if is_highlighted else arcade.color.YELLOW
 
         # Render group header
@@ -407,6 +460,7 @@ class TimelineRenderer:
         row_height: int = 18,
         font_size: int = 9,
         target_names_provider: Callable[[], dict[int, str]] | None = None,
+        highlighted_target_provider: Callable[[], int | None] | None = None,
     ) -> None:
         self.timeline = timeline
         self.width = width
@@ -415,9 +469,11 @@ class TimelineRenderer:
         self.row_height = row_height
         self.font_size = font_size
         self.target_names_provider = target_names_provider
+        self.highlighted_target_provider = highlighted_target_provider
 
         self._background_rect: tuple[float, float, float, float, arcade.Color] | None = None
         self._bars: list[tuple[float, float, float, float, arcade.Color]] = []
+        self._highlight_outlines: list[tuple[float, float, float, float]] = []  # Bars to outline in green
         self.text_objects: list[arcade.Text] = []
         self._text_specs: list[_TextSpec] = []
         self._last_text_specs: list[_TextSpec] = []
@@ -435,7 +491,16 @@ class TimelineRenderer:
     def update(self) -> None:
         self._background_rect = None
         self._bars = []
+        self._highlight_outlines = []
         self._text_specs = []
+
+        # Get currently highlighted target ID
+        highlighted_target_id = None
+        if self.highlighted_target_provider is not None:
+            try:
+                highlighted_target_id = self.highlighted_target_provider()
+            except Exception:
+                pass
 
         entries = [entry for entry in self.timeline.entries if entry.start_frame is not None]
         if not entries:
@@ -497,6 +562,10 @@ class TimelineRenderer:
                 else:
                     color = arcade.color.DARK_ORANGE  # Darker orange for inactive Sprite
             self._bars.append((left, bottom, right, top, color))
+
+            # Track if this bar should be highlighted with green outline
+            if highlighted_target_id is not None and entry.target_id == highlighted_target_id:
+                self._highlight_outlines.append((left, bottom, right, top))
 
             # Build label with target name if available
             target_name = None
@@ -565,6 +634,11 @@ class TimelineRenderer:
         arcade.draw_lbwh_rectangle_filled(*self._background_rect)
         for left, bottom, right, top, color in self._bars:
             arcade.draw_lrbt_rectangle_filled(left, right, bottom, top, color)
+
+        # Draw green outlines for highlighted bars
+        for left, bottom, right, top in self._highlight_outlines:
+            arcade.draw_lrbt_rectangle_outline(left, right, bottom, top, arcade.color.LIME_GREEN, border_width=3)
+
         _sync_text_objects(self.text_objects, self._text_specs, self._last_text_specs)
         try:
             for label in self.text_objects:
@@ -603,7 +677,7 @@ class GuideRenderer:
             for points in path.paths:
                 if len(points) >= 2:
                     arcade.draw_line_strip(points, path.color, 2)
-        
+
         highlight = self.guide_manager.highlight_guide
         if highlight.enabled:
             for left, bottom, right, top in highlight.rectangles:

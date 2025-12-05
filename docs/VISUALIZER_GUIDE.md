@@ -46,22 +46,22 @@ Press **Shift+F3** any time during play to attach the debugger without restartin
 
 When the visualizer is enabled, you get:
 
-1. **Inspector Overlay** - A panel at the top-left of your game window showing:
-   - All active actions
-   - Their targets (sprites/sprite lists)
-   - Progress bars for actions that report progress
-   - Current state information
+1. **Inspector Overlay** - A single-line action counter that cycles through 4 corner positions:
+   - Shows: "ACE Visualizer - N actions"
+   - Press F3 to cycle: upper-left → upper-right → lower-right → lower-left → off → upper-left
 
-2. **ACE Action Timeline Window** - A separate window showing:
+2. **ACE Action Timeline Window** - A separate window (press F4) showing:
    - Timeline bars for each action's lifetime
    - Color-coded by target type (Cyan=SpriteList, Orange=Sprite)
    - Start/end frames for completed actions
    - Active actions extend to the right edge
+   - **Green outlines** around timeline bars for the F8-highlighted target
 
 3. **Visual Guides** - Overlays on the game window:
-   - Velocity vectors showing sprite movement direction and speed
-   - Bounds rectangles for boundary detection
-   - Path splines for complex movement patterns
+   - Velocity vectors showing sprite movement direction and speed (F5 toggle)
+   - Bounds rectangles for boundary detection (F5 toggle)
+   - Path splines for complex movement patterns (F5 toggle)
+   - **Lime green bounding boxes** around F8-highlighted sprites (always shown)
 
 4. **Condition Debugger** - Internal state tracking for condition evaluations, providing behavior-level visibility
 
@@ -71,7 +71,7 @@ Press these keys while the game window is focused:
 
 | Key | Function | What Happens |
 |-----|----------|--------------|
-| **F3** | Toggle Inspector Overlay | Shows/hides the overlay panel in the game window |
+| **F3** | Cycle Overlay Position | Cycles the action counter through corners: upper-left → upper-right → lower-right → lower-left → off |
 | **F4** | Toggle Timeline Window | Shows/hides the separate "ACE Action Timeline" window |
 | **F5** | Toggle Visual Guides | Shows/hides velocity arrows, bounds rectangles, and path trails (F8 highlight boxes are always shown) |
 | **F6** | Pause/Resume Actions | Freezes/unfreezes all action updates |
@@ -83,37 +83,34 @@ Snapshots include the current frame/time, active actions, lifecycle events, and 
 
 ## Understanding F8 (Target Group Highlighting)
 
-When you press F8, it cycles through each target group, providing both overlay and visual highlighting:
-
-### In the Inspector Overlay:
-- **Highlighted groups** appear with **cyan** header text
-- **Normal groups** appear with **yellow** header text
-- Pressing F8 repeatedly cycles through all groups and wraps around
+When you press F8, it cycles through each target (sprite or sprite list) with visual highlighting in **two places**:
 
 ### In the Game Window:
-- **Lime green bounding boxes** are drawn around the highlighted sprite(s)
+- **Lime green bounding boxes** (3px thick) are drawn around the highlighted sprite(s)
 - For **single sprites**: One box around that sprite
 - For **sprite lists**: Boxes around every sprite in the list
-- Boxes have thick (3px) borders for easy visibility
 
-This dual highlighting helps you:
+### In the Timeline Window (F4):
+- **Lime green outlines** (3px thick) are drawn around timeline bars for the highlighted target
+- Makes it easy to see all actions affecting the selected target
+- Helps track action timing and lifecycle for specific sprites
+
+### How It Works:
+- F8 cycles through all unique targets that have actions
+- The simple "ACE Visualizer - N actions" overlay stays unchanged
+- Highlighting is purely visual (no filtering - all actions still shown)
+- Press F8 repeatedly to cycle through all targets and wrap around
+
+This highlighting helps you:
 - Identify which sprite/sprite_list a group of actions belongs to
 - See exactly where the target is in your game world
 - Track down specific actions when many are active
-- Debug spatial issues by connecting actions to visible sprites
+- Debug spatial and timing issues by connecting actions to visible sprites
 
 **Example:** In the invaders game, pressing F8 will cycle through:
-1. `self.enemy_list` → Green boxes around ALL enemy sprites
-2. Individual bullet sprites → Green box around each bullet
-3. `self.player_sprite` → Green box around the player
-
-## Visual Overlay Details
-
-The inspector overlay (toggled with F3) shows information like:
-
-```
-ACE Inspector - 2 action(s)
-```
+1. `self.enemy_list` → Green boxes around ALL enemy sprites + green outlines on enemy movement/firing actions in timeline
+2. Individual bullet sprites → Green box around each bullet + green outline on that bullet's movement action
+3. `self.player_sprite` → Green box around the player + green outline on player movement action
 
 ## Understanding F4 (Timeline Window)
 
@@ -139,9 +136,10 @@ When you press F4:
 
 ### "The overlay is blocking my game"
 
-- Press **F3** to toggle it off
-- The overlay is positioned at the top-left by default
-- It's semi-transparent and shouldn't block most gameplay
+- Press **F3** repeatedly to move it to a different corner or turn it off
+- The overlay is a single line showing action count
+- It cycles through 4 corners before turning off
+- You can position it wherever is least intrusive
 
 ### "I don't see any actions in the timeline"
 
@@ -162,11 +160,12 @@ When you press F4:
 ARCADEACTIONS_VISUALIZER=1 uv run python examples/space_clutter.py
 
 # In the game window:
-# 1. Press F3 to see the inspector overlay (top-left corner)
-# 2. Press F4 to open the timeline window (separate window)
-# 3. Press F5 to see velocity arrows on moving sprites
-# 4. Press F6 to pause, F7 to step frame-by-frame
-# 5. Play the game and watch actions appear/disappear in real-time
+# 1. Look for "ACE Visualizer - N actions" at top-left (press F3 to move or hide)
+# 2. Press F4 to open the timeline window (separate window with detailed action info)
+# 3. Press F8 to cycle through targets - see green boxes in game + green outlines in timeline
+# 4. Press F5 to see velocity arrows, bounds rectangles, and path trails
+# 5. Press F6 to pause, F7 to step frame-by-frame
+# 6. Play the game and watch actions appear/disappear in real-time
 ```
 
 ## Advanced Control

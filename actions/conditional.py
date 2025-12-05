@@ -88,7 +88,7 @@ class MoveUntil(_Action):
         # Track boundary state for enter/exit detection
         self._boundary_state = {}  # {sprite_id: {"x": side_or_None, "y": side_or_None}}
         self._paused_velocity: tuple[float, float] | None = None
-        
+
         # Track if we just completed a step and need to preserve velocities for one frame
         self._step_velocity_pending = False
 
