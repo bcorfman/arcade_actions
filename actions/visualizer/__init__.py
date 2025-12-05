@@ -37,6 +37,7 @@ from .guides import (
     VelocityGuide,
     BoundsGuide,
     PathGuide,
+    HighlightGuide,
     GuideManager,
 )
 from .controls import DebugControlManager
@@ -54,6 +55,7 @@ __all__ = [
     "VelocityGuide",
     "BoundsGuide",
     "PathGuide",
+    "HighlightGuide",
     "GuideManager",
     "DebugControlManager",
     "SnapshotExporter",

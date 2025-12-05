@@ -259,3 +259,153 @@ def test_timeline_renderer_uses_target_names(monkeypatch):
     renderer.update()
     labels = [spec.text for spec in renderer._text_specs]
     assert any("self.enemy_list" in text for text in labels)
+
+
+def test_overlay_renderer_highlights_selected_group():
+    """Test that highlighting a group changes its visual appearance."""
+    store = DebugDataStore()
+    # Create two target groups
+    store.update_snapshot(
+        action_id=1,
+        action_type="MoveUntil",
+        target_id=100,
+        target_type="Sprite",
+        tag=None,
+        is_active=True,
+        is_paused=False,
+        factor=1.0,
+        elapsed=0.0,
+        progress=None,
+    )
+    store.update_snapshot(
+        action_id=2,
+        action_type="RotateUntil",
+        target_id=200,
+        target_type="Sprite",
+        tag=None,
+        is_active=True,
+        is_paused=False,
+        factor=1.0,
+        elapsed=0.0,
+        progress=None,
+    )
+    
+    overlay = InspectorOverlay(debug_store=store)
+    overlay.update()
+    renderer = OverlayRenderer(overlay)
+    
+    # Without highlight, all groups should use normal color (YELLOW)
+    renderer.update()
+    text_specs_normal = list(renderer._text_specs)
+    
+    # Find group headers (they're bold)
+    group_headers_normal = [spec for spec in text_specs_normal if spec.bold and "id:" in spec.text]
+    assert len(group_headers_normal) == 2
+    assert all(spec.color == arcade.color.YELLOW for spec in group_headers_normal)
+    
+    # Highlight first group
+    overlay.highlight_next()
+    assert overlay.highlighted_target_id == 100
+    overlay.update()
+    renderer.update()
+    text_specs_highlighted = list(renderer._text_specs)
+    
+    # Find group headers after highlighting
+    group_headers_highlighted = [spec for spec in text_specs_highlighted if spec.bold and "id:" in spec.text]
+    assert len(group_headers_highlighted) == 2
+    
+    # First group (target_id=100) should be highlighted with different color
+    header_100 = [spec for spec in group_headers_highlighted if "(id: 100)" in spec.text][0]
+    header_200 = [spec for spec in group_headers_highlighted if "(id: 200)" in spec.text][0]
+    
+    assert header_100.color != arcade.color.YELLOW  # Highlighted color
+    assert header_200.color == arcade.color.YELLOW  # Normal color
+    assert header_100.color != header_200.color
+
+
+def test_overlay_renderer_highlight_cycles_through_groups():
+    """Test that pressing F8 cycles the highlight through all groups."""
+    store = DebugDataStore()
+    # Create three target groups
+    for target_id in [100, 200, 300]:
+        store.update_snapshot(
+            action_id=target_id,
+            action_type="MoveUntil",
+            target_id=target_id,
+            target_type="Sprite",
+            tag=None,
+            is_active=True,
+            is_paused=False,
+            factor=1.0,
+            elapsed=0.0,
+            progress=None,
+        )
+    
+    overlay = InspectorOverlay(debug_store=store)
+    overlay.update()
+    renderer = OverlayRenderer(overlay)
+    
+    # Highlight first group
+    overlay.highlight_next()
+    overlay.update()
+    renderer.update()
+    group_headers = [spec for spec in renderer._text_specs if spec.bold and "id:" in spec.text]
+    highlighted_headers = [spec for spec in group_headers if spec.color != arcade.color.YELLOW]
+    assert len(highlighted_headers) == 1
+    assert "(id: 100)" in highlighted_headers[0].text
+    
+    # Highlight second group
+    overlay.highlight_next()
+    overlay.update()
+    renderer.update()
+    group_headers = [spec for spec in renderer._text_specs if spec.bold and "id:" in spec.text]
+    highlighted_headers = [spec for spec in group_headers if spec.color != arcade.color.YELLOW]
+    assert len(highlighted_headers) == 1
+    assert "(id: 200)" in highlighted_headers[0].text
+    
+    # Highlight third group
+    overlay.highlight_next()
+    overlay.update()
+    renderer.update()
+    group_headers = [spec for spec in renderer._text_specs if spec.bold and "id:" in spec.text]
+    highlighted_headers = [spec for spec in group_headers if spec.color != arcade.color.YELLOW]
+    assert len(highlighted_headers) == 1
+    assert "(id: 300)" in highlighted_headers[0].text
+    
+    # Wrap around to first group
+    overlay.highlight_next()
+    overlay.update()
+    renderer.update()
+    group_headers = [spec for spec in renderer._text_specs if spec.bold and "id:" in spec.text]
+    highlighted_headers = [spec for spec in group_headers if spec.color != arcade.color.YELLOW]
+    assert len(highlighted_headers) == 1
+    assert "(id: 100)" in highlighted_headers[0].text
+
+
+def test_overlay_renderer_no_highlight_when_none_selected():
+    """Test that no groups are highlighted when highlighted_target_id is None."""
+    store = DebugDataStore()
+    store.update_snapshot(
+        action_id=1,
+        action_type="MoveUntil",
+        target_id=100,
+        target_type="Sprite",
+        tag=None,
+        is_active=True,
+        is_paused=False,
+        factor=1.0,
+        elapsed=0.0,
+        progress=None,
+    )
+    
+    overlay = InspectorOverlay(debug_store=store)
+    overlay.update()
+    renderer = OverlayRenderer(overlay)
+    
+    # No highlight set
+    assert overlay.highlighted_target_id is None
+    renderer.update()
+    
+    group_headers = [spec for spec in renderer._text_specs if spec.bold and "id:" in spec.text]
+    assert len(group_headers) == 1
+    assert group_headers[0].color == arcade.color.YELLOW  # Normal color

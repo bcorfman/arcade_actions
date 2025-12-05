@@ -120,7 +120,18 @@ class DebugControlManager:
             self.timeline.update()
             if sprite_positions is None:
                 sprite_positions = {}
-            self.guides.update(self.overlay.debug_store.get_all_snapshots(), sprite_positions)
+            
+            # Collect sprite sizes and IDs for highlight guide
+            from actions.visualizer.attach import _collect_sprite_sizes_and_ids
+            sprite_sizes, sprite_ids_in_target = _collect_sprite_sizes_and_ids()
+            
+            self.guides.update(
+                self.overlay.debug_store.get_all_snapshots(),
+                sprite_positions,
+                highlighted_target_id=self.overlay.highlighted_target_id,
+                sprite_sizes=sprite_sizes,
+                sprite_ids_in_target=sprite_ids_in_target,
+            )
         else:
             self.timeline.update()
 
