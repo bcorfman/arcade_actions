@@ -179,6 +179,45 @@ def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
     return positions
 
 
+def _collect_sprite_sizes_and_ids() -> tuple[dict[int, tuple[float, float]], dict[int, list[int]]]:
+    """Collect sprite sizes and sprite IDs that belong to each target.
+    
+    Returns:
+        Tuple of (sprite_sizes, sprite_ids_in_target)
+        - sprite_sizes: Dict mapping sprite ID to (width, height)
+        - sprite_ids_in_target: Dict mapping target ID to list of sprite IDs it contains
+    """
+    sprite_sizes: dict[int, tuple[float, float]] = {}
+    sprite_ids_in_target: dict[int, list[int]] = {}
+    
+    # Use cached targets from position collection
+    for target_id, target in _cached_targets.items():
+        try:
+            # Check if target is a single sprite
+            if hasattr(target, "width") and hasattr(target, "height"):
+                sprite_sizes[target_id] = (target.width, target.height)
+            else:
+                # Target is a SpriteList - collect all sprites in it
+                sprite_list = []
+                try:
+                    for sprite in target:
+                        try:
+                            sprite_id = id(sprite)
+                            if hasattr(sprite, "width") and hasattr(sprite, "height"):
+                                sprite_sizes[sprite_id] = (sprite.width, sprite.height)
+                                sprite_list.append(sprite_id)
+                        except AttributeError:
+                            continue
+                    if sprite_list:
+                        sprite_ids_in_target[target_id] = sprite_list
+                except TypeError:
+                    pass
+        except (AttributeError, TypeError):
+            continue
+    
+    return sprite_sizes, sprite_ids_in_target
+
+
 def _collect_target_names_from_view() -> dict[int, str]:
     """Attempt to collect target names from the current game view.
 

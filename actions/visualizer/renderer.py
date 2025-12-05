@@ -119,8 +119,13 @@ class OverlayRenderer:
         self._background_rects = []
         self._progress_rects = []
 
-        # Calculate positions
-        current_y = self.overlay.y
+        # Calculate positions from top of window
+        try:
+            window = arcade.get_window()
+            current_y = window.height - 20  # Start 20 pixels from top
+        except RuntimeError:
+            # Fallback if no window available (e.g., during tests)
+            current_y = 700  # Assume standard height
 
         # Render title
         title_text = f"ACE Inspector - {self.overlay.get_total_action_count()} action(s)"
@@ -157,13 +162,17 @@ class OverlayRenderer:
         """
         current_y = start_y
 
+        # Check if this group is highlighted
+        is_highlighted = (self.overlay.highlighted_target_id == group.target_id)
+        header_color = arcade.color.CYAN if is_highlighted else arcade.color.YELLOW
+
         # Render group header
         self._text_specs.append(
             _TextSpec(
                 group.get_header_text(),
                 self.overlay.x + 5,
                 current_y,
-                arcade.color.YELLOW,
+                header_color,
                 self.font_size,
                 True,
             )
@@ -594,3 +603,8 @@ class GuideRenderer:
             for points in path.paths:
                 if len(points) >= 2:
                     arcade.draw_line_strip(points, path.color, 2)
+        
+        highlight = self.guide_manager.highlight_guide
+        if highlight.enabled:
+            for left, bottom, right, top in highlight.rectangles:
+                arcade.draw_lrbt_rectangle_outline(left, right, bottom, top, highlight.color, border_width=3)
