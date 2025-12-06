@@ -302,7 +302,7 @@ class GuideManager:
         self.velocity_guide.update(snapshots, sprite_positions)
         self.bounds_guide.update(snapshots)
         self.path_guide.update(snapshots)
-        
+
         # Update highlight guide
         if sprite_sizes is None:
             sprite_sizes = {}
@@ -316,8 +316,8 @@ class GuideManager:
     def any_enabled(self) -> bool:
         """Return True if any guide is enabled."""
         return (
-            self.velocity_guide.enabled 
-            or self.bounds_guide.enabled 
-            or self.path_guide.enabled 
+            self.velocity_guide.enabled
+            or self.bounds_guide.enabled
+            or self.path_guide.enabled
             or self.highlight_guide.enabled
         )

@@ -138,7 +138,7 @@ class TestInspectorOverlay:
         assert overlay.y >= 0
 
     def test_overlay_builds_groups_from_store(self):
-        """Test that overlay builds target groups from debug store data."""
+        """Test that overlay collects target IDs from debug store data."""
         store = DebugDataStore()
 
         # Add some snapshots
@@ -170,10 +170,9 @@ class TestInspectorOverlay:
         overlay = InspectorOverlay(debug_store=store)
         overlay.update()
 
-        # Should create one group for target 100 with 2 cards
-        assert len(overlay.groups) == 1
-        assert overlay.groups[0].target_id == 100
-        assert len(overlay.groups[0].cards) == 2
+        # Should collect one unique target ID (100) from 2 actions
+        assert overlay.get_target_ids() == [100]
+        assert overlay.get_total_action_count() == 2
 
     def test_overlay_can_be_toggled(self):
         """Test that overlay visibility can be toggled."""
@@ -186,7 +185,7 @@ class TestInspectorOverlay:
         assert overlay.visible != initial_state
 
     def test_overlay_respects_disabled_state(self):
-        """Test that overlay doesn't update when disabled."""
+        """Test that overlay collects data even when not visible (for F8)."""
         store = DebugDataStore()
         overlay = InspectorOverlay(debug_store=store, visible=False)
 
@@ -205,8 +204,9 @@ class TestInspectorOverlay:
 
         overlay.update()
 
-        # Should not build groups when disabled
-        assert len(overlay.groups) == 0
+        # Simplified overlay still tracks target IDs for F8 even when not visible
+        assert overlay.get_target_ids() == [100]
+        assert overlay.get_total_action_count() == 1
 
     def test_overlay_highlight_next_target(self):
         """Test cycling highlight across target groups."""
@@ -334,7 +334,5 @@ class TestInspectorOverlay:
         overlay = InspectorOverlay(debug_store=store, filter_tag="movement")
         overlay.update()
 
-        # Should only show movement-tagged action
-        total_cards = sum(len(g.cards) for g in overlay.groups)
-        assert total_cards == 1
-        assert overlay.groups[0].cards[0].snapshot.tag == "movement"
+        # Should only count movement-tagged action
+        assert overlay.get_total_action_count() == 1

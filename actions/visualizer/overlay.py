@@ -133,8 +133,8 @@ class InspectorOverlay:
 
         Args:
             debug_store: Injected DebugDataStore dependency
-            x: X position of overlay
-            y: Y position of overlay
+            x: X position of overlay (unused - calculated from position)
+            y: Y position of overlay (unused - calculated from position)
             width: Width of overlay panel
             visible: Initial visibility state
             filter_tag: Optional tag to filter actions by
@@ -145,27 +145,43 @@ class InspectorOverlay:
         self.width = width
         self.visible = visible
         self.filter_tag = filter_tag
-        self.groups: list[TargetGroup] = []
+        self.position: str = "upper_left"  # Cycles: upper_left -> upper_right -> lower_right -> lower_left -> off
         self.highlighted_target_id: int | None = None
         self._highlight_index: int = -1
-        # Cache for action cards to avoid recreating them every frame
-        self._card_cache: dict[int, ActionCard] = {}  # action_id -> ActionCard
+        self._target_ids: list[int] = []  # Cached list of unique target IDs
 
     def toggle(self) -> None:
-        """Toggle overlay visibility."""
+        """Toggle overlay visibility (deprecated - use cycle_position instead)."""
         self.visible = not self.visible
+
+    def cycle_position(self) -> None:
+        """Cycle overlay position through corners then off."""
+        positions = ["upper_left", "upper_right", "lower_right", "lower_left"]
+
+        if not self.visible:
+            # Turning back on - start at upper_left
+            self.position = "upper_left"
+            self.visible = True
+        elif self.position in positions:
+            current_index = positions.index(self.position)
+            next_index = (current_index + 1) % len(positions)
+
+            if next_index == 0:
+                # Completed cycle - turn off
+                self.visible = False
+            else:
+                self.position = positions[next_index]
+        else:
+            # Invalid state - reset to upper_left
+            self.position = "upper_left"
+            self.visible = True
 
     def update(self) -> None:
         """
         Update overlay from debug store data.
 
-        Rebuilds target groups and action cards from current snapshots.
-        Uses caching to reuse ActionCard objects when snapshots haven't changed.
+        Collects unique target IDs for F8 cycling.
         """
-        if not self.visible:
-            self.groups = []
-            return
-
         # Get all snapshots from store
         snapshots = self.debug_store.get_all_snapshots()
 
@@ -173,48 +189,28 @@ class InspectorOverlay:
         if self.filter_tag:
             snapshots = [s for s in snapshots if s.tag == self.filter_tag]
 
-        # Update card cache: remove cards for actions that no longer exist
-        current_action_ids = {s.action_id for s in snapshots}
-        self._card_cache = {aid: card for aid, card in self._card_cache.items() if aid in current_action_ids}
+        # Collect unique target IDs (sorted for consistent ordering)
+        target_ids_set = {s.target_id for s in snapshots}
+        self._target_ids = sorted(target_ids_set)
 
-        # Group snapshots by target_id
-        groups_dict: dict[int, TargetGroup] = {}
-
-        for snapshot in snapshots:
-            target_id = snapshot.target_id
-
-            if target_id not in groups_dict:
-                groups_dict[target_id] = TargetGroup(
-                    target_id=target_id,
-                    target_type=snapshot.target_type,
-                )
-
-            # Reuse cached card if available, otherwise create new one
-            action_id = snapshot.action_id
-            if action_id in self._card_cache:
-                card = self._card_cache[action_id]
-                # Update the card's snapshot reference
-                card.snapshot = snapshot
-            else:
-                card = ActionCard(snapshot, width=self.width - 20)
-                self._card_cache[action_id] = card
-
-            groups_dict[target_id].add_card(card)
-
-        # Convert to list and sort by target_id for consistent ordering
-        target_ids = sorted(groups_dict.keys())
-        self.groups = [groups_dict[tid] for tid in target_ids]
-
-        if not self.groups:
+        # Clear highlight if target no longer exists
+        if self.highlighted_target_id is not None and self.highlighted_target_id not in self._target_ids:
             self.clear_highlight()
-        elif self.highlighted_target_id in target_ids:
-            self._highlight_index = target_ids.index(self.highlighted_target_id)
-        else:
-            self.clear_highlight()
+
+        # Update highlight index if target still exists
+        if self.highlighted_target_id in self._target_ids:
+            self._highlight_index = self._target_ids.index(self.highlighted_target_id)
 
     def get_total_action_count(self) -> int:
-        """Get total number of actions across all groups."""
-        return sum(len(group.cards) for group in self.groups)
+        """Get total number of active actions."""
+        snapshots = self.debug_store.get_all_snapshots()
+        if self.filter_tag:
+            snapshots = [s for s in snapshots if s.tag == self.filter_tag]
+        return len(snapshots)
+
+    def get_target_ids(self) -> list[int]:
+        """Get list of unique target IDs."""
+        return list(self._target_ids)
 
     def clear_highlight(self) -> None:
         """Clear any highlighted target."""
@@ -231,29 +227,19 @@ class InspectorOverlay:
 
     def _cycle_highlight(self, direction: int) -> None:
         """Cycle highlight forwards or backwards."""
-        if not self.groups:
+        if not self._target_ids:
             self.clear_highlight()
             return
 
-        target_ids = [group.target_id for group in self.groups]
-        if self.highlighted_target_id in target_ids:
-            current_index = target_ids.index(self.highlighted_target_id)
+        if self.highlighted_target_id in self._target_ids:
+            current_index = self._target_ids.index(self.highlighted_target_id)
         else:
             current_index = -1
 
         if current_index == -1:
-            next_index = 0 if direction > 0 else len(target_ids) - 1
+            next_index = 0 if direction > 0 else len(self._target_ids) - 1
         else:
-            next_index = (current_index + direction) % len(target_ids)
+            next_index = (current_index + direction) % len(self._target_ids)
 
         self._highlight_index = next_index
-        self.highlighted_target_id = target_ids[next_index]
-
-    def get_highlighted_group(self) -> TargetGroup | None:
-        """Return the currently highlighted group, if any."""
-        if self.highlighted_target_id is None:
-            return None
-        for group in self.groups:
-            if group.target_id == self.highlighted_target_id:
-                return group
-        return None
+        self.highlighted_target_id = self._target_ids[next_index]

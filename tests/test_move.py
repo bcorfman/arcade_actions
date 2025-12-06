@@ -896,7 +896,7 @@ class TestBounceStepBoundaryResponse:
         - Pause with F6 - sprites stop
         - Step with F7 - advances ONE frame while paused
         - Game loop continues - sprites should NOT continue moving
-        
+
         This test matches the real game loop sequence where on_update() calls
         Action.update_all() BEFORE sprite.update().
         """
@@ -929,7 +929,7 @@ class TestBounceStepBoundaryResponse:
         # After F7 handler returns, arcade's main loop calls on_update()
         # on_update() calls Action.update_all() THEN sprite.update()
         assert bounce._paused, "Action should still be paused after step_all()"
-        
+
         # Simulate game loop: on_update() calls update_all() then sprite.update()
         Action.update_all(1 / 60)  # Preserves velocities for this frame
         sprite.update()  # Sprite moves using velocities from step

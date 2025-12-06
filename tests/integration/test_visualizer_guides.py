@@ -270,7 +270,7 @@ class TestHighlightGuide:
     def test_highlight_guide_initialization(self):
         """Test that highlight guide initializes with always enabled."""
         from actions.visualizer.guides import HighlightGuide
-        
+
         guide = HighlightGuide()
         assert guide.enabled is True
         assert guide.color == arcade.color.LIME_GREEN
@@ -278,108 +278,90 @@ class TestHighlightGuide:
     def test_highlight_guide_draws_box_for_highlighted_target(self):
         """Test that highlight guide draws box around highlighted sprite."""
         from actions.visualizer.guides import HighlightGuide
-        
+
         guide = HighlightGuide()
-        
+
         # Sprite positions
         sprite_positions = {
             100: (150, 250),
             200: (300, 400),
         }
-        
+
         # Sprite sizes (width, height) - would come from actual sprites
         sprite_sizes = {
             100: (50, 50),
             200: (60, 60),
         }
-        
+
         # Highlight sprite 100
-        guide.update(
-            highlighted_target_id=100,
-            sprite_positions=sprite_positions,
-            sprite_sizes=sprite_sizes
-        )
-        
+        guide.update(highlighted_target_id=100, sprite_positions=sprite_positions, sprite_sizes=sprite_sizes)
+
         assert len(guide.rectangles) == 1
         # Rectangle format: (left, bottom, right, top)
         rect = guide.rectangles[0]
         # Center is at (150, 250), size is 50x50
         # So: left=125, bottom=225, right=175, top=275
         assert rect == (125.0, 225.0, 175.0, 275.0)
-    
+
     def test_highlight_guide_draws_boxes_for_sprite_list(self):
         """Test that highlight guide draws boxes around all sprites in a highlighted list."""
         from actions.visualizer.guides import HighlightGuide
-        
+
         guide = HighlightGuide()
-        
+
         # Sprite list contains multiple sprites
         sprite_positions = {
             100: (150, 250),  # The sprite list itself (average position)
             101: (100, 200),  # First sprite in list
             102: (200, 300),  # Second sprite in list
         }
-        
+
         sprite_sizes = {
             101: (40, 40),
             102: (40, 40),
         }
-        
+
         # Sprite IDs that belong to target 100 (the sprite list)
-        sprite_ids_in_target = {
-            100: [101, 102]
-        }
-        
+        sprite_ids_in_target = {100: [101, 102]}
+
         # Highlight sprite list 100
         guide.update(
             highlighted_target_id=100,
             sprite_positions=sprite_positions,
             sprite_sizes=sprite_sizes,
-            sprite_ids_in_target=sprite_ids_in_target
+            sprite_ids_in_target=sprite_ids_in_target,
         )
-        
+
         # Should draw boxes for both sprites in the list
         assert len(guide.rectangles) == 2
-    
+
     def test_highlight_guide_clears_when_no_highlight(self):
         """Test that highlight guide clears rectangles when nothing is highlighted."""
         from actions.visualizer.guides import HighlightGuide
-        
+
         guide = HighlightGuide()
-        
+
         sprite_positions = {100: (150, 250)}
         sprite_sizes = {100: (50, 50)}
-        
+
         # First highlight something
-        guide.update(
-            highlighted_target_id=100,
-            sprite_positions=sprite_positions,
-            sprite_sizes=sprite_sizes
-        )
+        guide.update(highlighted_target_id=100, sprite_positions=sprite_positions, sprite_sizes=sprite_sizes)
         assert len(guide.rectangles) == 1
-        
+
         # Then clear highlight
-        guide.update(
-            highlighted_target_id=None,
-            sprite_positions=sprite_positions,
-            sprite_sizes=sprite_sizes
-        )
+        guide.update(highlighted_target_id=None, sprite_positions=sprite_positions, sprite_sizes=sprite_sizes)
         assert len(guide.rectangles) == 0
-    
+
     def test_highlight_guide_disabled_produces_no_rectangles(self):
         """Test that disabled highlight guide doesn't draw anything."""
         from actions.visualizer.guides import HighlightGuide
-        
+
         guide = HighlightGuide(enabled=False)
-        
+
         sprite_positions = {100: (150, 250)}
         sprite_sizes = {100: (50, 50)}
-        
-        guide.update(
-            highlighted_target_id=100,
-            sprite_positions=sprite_positions,
-            sprite_sizes=sprite_sizes
-        )
-        
+
+        guide.update(highlighted_target_id=100, sprite_positions=sprite_positions, sprite_sizes=sprite_sizes)
+
         # Should not draw anything when disabled
         assert len(guide.rectangles) == 0

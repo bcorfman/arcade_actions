@@ -362,61 +362,61 @@ class TestPauseResumeStepBehavior(ActionTestBase):
 
     def test_new_actions_inherit_pause_state(self, test_sprite):
         """Test that new actions created while paused start in paused state.
-        
+
         This ensures game code doesn't need to know about pause state when
         creating new actions (e.g., firing bullets during pause).
         """
         from actions import move_until
         from actions.conditional import infinite
-        
+
         # Create first sprite with action
         sprite1 = test_sprite
         sprite1.center_x = 100
         sprite1.center_y = 100
-        
+
         action1 = move_until(sprite1, velocity=(2, 0), condition=infinite, tag="action1")
-        
+
         # Run for a few frames
         for _ in range(3):
             Action.update_all(0.016)
             sprite1.update()
-        
+
         position1_before_pause = sprite1.center_x
-        
+
         # Pause all actions
         Action.pause_all()
         assert action1._paused
         assert sprite1.change_x == 0.0
-        
+
         # Create a second sprite with action WHILE paused
         sprite2 = arcade.SpriteSolidColor(10, 10, arcade.color.WHITE)
         sprite2.center_x = 200
         sprite2.center_y = 200
-        
+
         action2 = move_until(sprite2, velocity=(3, 0), condition=infinite, tag="action2")
-        
+
         # The new action should automatically be paused
         assert action2._paused, "New action should inherit paused state"
         assert sprite2.change_x == 0.0, "New action should not set velocity when starting paused"
-        
+
         # Update and verify neither sprite moves
         for _ in range(3):
             Action.update_all(0.016)
             sprite1.update()
             sprite2.update()
-        
+
         assert sprite1.center_x == position1_before_pause, "First sprite should not move while paused"
         assert sprite2.center_x == 200, "Second sprite should not move (started paused)"
-        
+
         # Resume and verify both sprites now move
         Action.resume_all()
         assert not action1._paused
         assert not action2._paused
-        
+
         Action.update_all(0.016)
         sprite1.update()
         sprite2.update()
-        
+
         assert sprite1.center_x > position1_before_pause, "First sprite should move after resume"
         assert sprite2.center_x > 200, "Second sprite should move after resume"
 

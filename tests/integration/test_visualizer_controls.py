@@ -68,11 +68,28 @@ def press(manager: DebugControlManager, key: int) -> None:
 
 def test_f3_toggles_overlay_visibility(control_context):
     _, overlay, _, _, _, _, manager, _ = control_context
+    # F3 now cycles through corners: upper_left -> upper_right -> lower_right -> lower_left -> off -> upper_left
     assert overlay.visible is True
+    assert overlay.position == "upper_left"
+
+    press(manager, arcade.key.F3)
+    assert overlay.visible is True
+    assert overlay.position == "upper_right"
+
+    press(manager, arcade.key.F3)
+    assert overlay.visible is True
+    assert overlay.position == "lower_right"
+
+    press(manager, arcade.key.F3)
+    assert overlay.visible is True
+    assert overlay.position == "lower_left"
+
     press(manager, arcade.key.F3)
     assert overlay.visible is False
+
     press(manager, arcade.key.F3)
     assert overlay.visible is True
+    assert overlay.position == "upper_left"
 
 
 def test_f5_toggles_guides(control_context):

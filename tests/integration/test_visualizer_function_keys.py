@@ -73,18 +73,21 @@ def test_f3_toggles_overlay(monkeypatch, window: arcade.Window | None) -> None:
 
         assert session.keyboard_handler is not None
 
-        # Initial state: overlay should be visible
-        initial_state = session.overlay.visible
+        # Initial state: overlay should be visible at upper_left
+        assert session.overlay.visible is True
+        assert session.overlay.position == "upper_left"
 
-        # Press F3 to toggle
+        # Press F3 to cycle to upper_right
         result = session.keyboard_handler(arcade.key.F3, 0)
         assert result is True  # Key was handled
-        assert session.overlay.visible != initial_state  # State changed
+        assert session.overlay.visible is True
+        assert session.overlay.position == "upper_right"
 
-        # Press F3 again to toggle back
+        # Press F3 again to cycle to lower_right
         result = session.keyboard_handler(arcade.key.F3, 0)
         assert result is True
-        assert session.overlay.visible == initial_state  # Back to original state
+        assert session.overlay.visible is True
+        assert session.overlay.position == "lower_right"
 
     finally:
         detach_visualizer()

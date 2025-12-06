@@ -181,7 +181,7 @@ def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
 
 def _collect_sprite_sizes_and_ids() -> tuple[dict[int, tuple[float, float]], dict[int, list[int]]]:
     """Collect sprite sizes and sprite IDs that belong to each target.
-    
+
     Returns:
         Tuple of (sprite_sizes, sprite_ids_in_target)
         - sprite_sizes: Dict mapping sprite ID to (width, height)
@@ -189,7 +189,7 @@ def _collect_sprite_sizes_and_ids() -> tuple[dict[int, tuple[float, float]], dic
     """
     sprite_sizes: dict[int, tuple[float, float]] = {}
     sprite_ids_in_target: dict[int, list[int]] = {}
-    
+
     # Use cached targets from position collection
     for target_id, target in _cached_targets.items():
         try:
@@ -214,7 +214,7 @@ def _collect_sprite_sizes_and_ids() -> tuple[dict[int, tuple[float, float]], dic
                     pass
         except (AttributeError, TypeError):
             continue
-    
+
     return sprite_sizes, sprite_ids_in_target
 
 
@@ -580,10 +580,17 @@ def attach_visualizer(
             if session.event_window is not None:
                 return
             try:
+                # Create provider function for highlighted target ID
+                def get_highlighted_target() -> int | None:
+                    if session is None or session.overlay is None:
+                        return None
+                    return session.overlay.highlighted_target_id
+
                 window = event_window_cls(
                     debug_store=session.debug_store,
                     on_close_callback=_on_event_window_closed,
                     target_names_provider=session.target_names_provider,
+                    highlighted_target_provider=get_highlighted_target,
                     forward_key_handler=manager.handle_key_press if manager is not None else None,
                     main_window=session.window,
                 )

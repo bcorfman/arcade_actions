@@ -30,6 +30,7 @@ class EventInspectorWindow(arcade.Window):
         height: int = 360,
         on_close_callback: Callable[[], None] | None = None,
         target_names_provider: Callable[[], dict[int, str]] | None = None,
+        highlighted_target_provider: Callable[[], int | None] | None = None,
         timeline_cls: type[TimelineStrip] = TimelineStrip,
         timeline_renderer_cls: type[TimelineRenderer] = TimelineRenderer,
         forward_key_handler: Callable[[int, int], bool] | None = None,
@@ -62,6 +63,7 @@ class EventInspectorWindow(arcade.Window):
             height=height - 2 * self.MARGIN,
             margin=self.MARGIN,
             target_names_provider=target_names_provider,
+            highlighted_target_provider=highlighted_target_provider,
         )
 
         self._timeline_label: arcade.Text | None = None

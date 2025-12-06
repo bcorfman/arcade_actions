@@ -247,6 +247,7 @@ class TestInstantActionsPauseBehavior(ActionTestBase):
         # Create and pause another action
         from actions import move_until
         from actions.conditional import infinite
+
         other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
         Action.pause_all()
         assert other_action._paused
@@ -270,6 +271,7 @@ class TestInstantActionsPauseBehavior(ActionTestBase):
         # Create and pause another action
         from actions import move_until
         from actions.conditional import infinite
+
         other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
         Action.pause_all()
 
@@ -299,6 +301,7 @@ class TestInstantActionsPauseBehavior(ActionTestBase):
         # Create and pause another action
         from actions import move_until
         from actions.conditional import infinite
+
         other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
         Action.pause_all()
 
@@ -321,6 +324,7 @@ class TestInstantActionsPauseBehavior(ActionTestBase):
         # Create and pause another action
         from actions import move_until
         from actions.conditional import infinite
+
         other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
         Action.pause_all()
 
@@ -383,6 +387,7 @@ class TestInstantActionsPauseBehavior(ActionTestBase):
         # Create and pause another action
         from actions import move_until
         from actions.conditional import infinite
+
         other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
         Action.pause_all()
 

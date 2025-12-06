@@ -56,7 +56,7 @@ class DebugControlManager:
     def handle_key_press(self, key: int, modifiers: int = 0) -> bool:
         """Handle a keyboard shortcut; returns True if handled."""
         if key == arcade.key.F3:
-            self.overlay.toggle()
+            self.overlay.cycle_position()
             return True
 
         if key == arcade.key.F4:
@@ -120,11 +120,12 @@ class DebugControlManager:
             self.timeline.update()
             if sprite_positions is None:
                 sprite_positions = {}
-            
+
             # Collect sprite sizes and IDs for highlight guide
             from actions.visualizer.attach import _collect_sprite_sizes_and_ids
+
             sprite_sizes, sprite_ids_in_target = _collect_sprite_sizes_and_ids()
-            
+
             self.guides.update(
                 self.overlay.debug_store.get_all_snapshots(),
                 sprite_positions,
