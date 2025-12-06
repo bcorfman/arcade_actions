@@ -102,9 +102,6 @@ class OverlayRenderer:
 
         # Cache measured text widths: text -> (width, is_exact)
         self._text_width_cache: dict[str, tuple[float, bool]] = {}
-        
-        # Cache for text width measurement
-        self._cached_text_width: dict[str, float] = {}
 
     def update(self) -> None:
         """
@@ -138,7 +135,7 @@ class OverlayRenderer:
         buffer = 20  # Same buffer from all edges
         title_text = f"ACE Visualizer - {self.overlay.get_total_action_count()} action(s)"
         text_height = self.font_size + 2
-        
+
         # Calculate text width (attempt precise measurement, fall back to estimate)
         font_size = self.font_size + 2
         text_width: float | None = None
