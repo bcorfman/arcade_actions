@@ -57,10 +57,10 @@ When the visualizer is enabled, you get:
    - Active actions extend to the right edge
    - **Green outlines** around timeline bars for the F8-highlighted target
 
-3. **Visual Guides** - Overlays on the game window:
-   - Velocity vectors showing sprite movement direction and speed (F5 toggle)
-   - Bounds rectangles for boundary detection (F5 toggle)
-   - Path splines for complex movement patterns (F5 toggle)
+3. **Visual Guides** - Overlays on the game window (F5 toggle)
+   - Velocity vectors showing sprite movement direction and speed 
+   - Bounds rectangles for boundary detection 
+   - Path splines for complex movement patterns 
    - **Lime green bounding boxes** around F8-highlighted sprites (always shown)
 
 4. **Condition Debugger** - Internal state tracking for condition evaluations, providing behavior-level visibility
