@@ -33,6 +33,8 @@ dependencies = [
     "screeninfo>=0.8.1",
     # Optional; provides Python bindings and wheels for SDL2 on many platforms
     "PySDL2>=0.9.16",
+    # For hot-reload file watching
+    "watchdog>=5.0.0",
 ]
 
 [project.urls]
