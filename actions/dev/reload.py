@@ -328,13 +328,18 @@ class ReloadManager:
         Convert file path to Python module name.
 
         Args:
-            file_path: Path to Python file
-            root_path: Root path for relative resolution
+            file_path: Path to Python file (may be relative or absolute)
+            root_path: Root path for relative resolution (may be relative or absolute)
 
         Returns:
             Module name (e.g., "game.waves") or None if path is outside root
         """
         try:
+            # Resolve both paths to absolute to ensure relative_to() works correctly
+            # FileWatcher provides absolute paths, but root_path might be relative
+            file_path = file_path.resolve()
+            root_path = root_path.resolve()
+
             relative = file_path.relative_to(root_path)
             parts = relative.with_suffix("").parts
             if not parts:

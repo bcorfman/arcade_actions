@@ -261,6 +261,43 @@ class TestReloadManager:
         module_name = manager._path_to_module_name(other_path, tmp_path)
         assert module_name is None
 
+    def test_path_to_module_name_with_relative_root_and_absolute_file(self, tmp_path):
+        """Should handle absolute file_path with relative root_path correctly.
+
+        This test verifies the fix for the bug where FileWatcher provides absolute
+        paths but enable_dev_mode may infer a relative root_path, causing
+        relative_to() to fail.
+        """
+        import os
+
+        manager = ReloadManager()
+
+        # Create a file structure: tmp_path/src/game/waves.py
+        src_dir = tmp_path / "src" / "game"
+        src_dir.mkdir(parents=True)
+        waves_file = src_dir / "waves.py"
+        waves_file.write_text("# test")
+
+        # Simulate what happens when enable_dev_mode infers a relative root_path
+        # Save current directory
+        original_cwd = Path.cwd()
+        try:
+            # Change to tmp_path
+            os.chdir(tmp_path)
+
+            # Create relative root path (what enable_dev_mode might create)
+            relative_root = Path("src/game")
+
+            # FileWatcher always provides absolute paths
+            absolute_file = waves_file.resolve()
+
+            # This should work and return "waves" after the fix
+            module_name = manager._path_to_module_name(absolute_file, relative_root)
+            assert module_name == "waves"
+
+        finally:
+            os.chdir(original_cwd)
+
     def test_process_reloads_empty_queue(self):
         """Should handle empty reload queue gracefully."""
         manager = ReloadManager()

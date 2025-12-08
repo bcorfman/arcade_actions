@@ -130,6 +130,68 @@ class TestFileWatcherIntegration:
 
         assert not self.callback_called
 
+    def test_restart_before_debounce_completes_clears_pending_files(self, tmp_path):
+        """Should clear pending files when stopped, preventing stale events on restart.
+
+        This tests the bug where:
+        1. File is modified -> added to _pending_files
+        2. Watcher is stopped BEFORE debounce completes
+        3. Watcher is restarted with set_cutoff_time()
+        4. The old _pending_files bypass cutoff check and get processed
+
+        The fix: _DebounceHandler.stop() must clear _pending_files.
+        """
+        test_file = tmp_path / "test.py"
+        test_file.write_text("# initial")
+
+        callback = self.make_callback()
+        watcher = FileWatcher(paths=[tmp_path], callback=callback, debounce_seconds=0.5)
+        watcher.start()
+
+        # Wait for watcher to initialize
+        time.sleep(0.2)
+
+        # Modify file - this adds it to _pending_files
+        test_file.write_text("# modified")
+
+        # Stop IMMEDIATELY before debounce completes (debounce is 0.5s)
+        time.sleep(0.1)  # Give event time to be detected, but not debounced
+        watcher.stop()
+
+        # At this point, _pending_files should contain test_file
+        # If stop() doesn't clear it, it will be processed on restart
+
+        # Clear callback state
+        self.callback_called = False
+        self.callback_paths = []
+
+        # Restart watcher - this sets a new cutoff_time
+        watcher.start()
+        time.sleep(0.2)
+
+        # Trigger a NEW event to start the debounce worker
+        # This will process both the new event AND any old pending files
+        test_file2 = tmp_path / "test2.py"
+        test_file2.write_text("# new file")
+
+        # Wait for debounce
+        time.sleep(0.8)
+
+        # BUG: Without the fix, the callback will include BOTH files (test.py and test2.py)
+        # FIX: After clearing _pending_files in stop(), callback should only include test2.py
+        if self.callback_called:
+            # Check that only the new file was processed, not the stale one
+            assert len(self.callback_paths) == 1, (
+                f"Expected 1 file (test2.py), but got {len(self.callback_paths)}: {self.callback_paths}. "
+                "Stale pending files from previous session should not be processed."
+            )
+            assert self.callback_paths[0].name == "test2.py", (
+                f"Expected test2.py, but got {self.callback_paths[0].name}. "
+                "Stale pending files (test.py) should not be processed after restart."
+            )
+
+        watcher.stop()
+
     def test_watch_subdirectories(self, tmp_path):
         """Should watch subdirectories recursively."""
         # Create subdirectory structure

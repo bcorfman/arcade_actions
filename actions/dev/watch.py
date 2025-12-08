@@ -139,10 +139,16 @@ class _DebounceHandler(FileSystemEventHandler):
                     # New events arrived - continue loop to process them
 
     def stop(self) -> None:
-        """Stop the debounce worker thread."""
+        """Stop the debounce worker thread and clear pending files."""
         self._stop_debounce = True
         if self._debounce_thread is not None and self._debounce_thread.is_alive():
             self._debounce_thread.join(timeout=1.0)
+
+        # Clear pending files to prevent stale events from being processed
+        # if the watcher is restarted. Without this, files added to _pending_files
+        # during a session would bypass the cutoff_time check on restart.
+        with self._lock:
+            self._pending_files.clear()
 
 
 class FileWatcher:

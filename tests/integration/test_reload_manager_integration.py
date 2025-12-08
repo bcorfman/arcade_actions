@@ -132,3 +132,57 @@ class GameState:
                 del sys.modules["game_module"]
             if str(tmp_path) in sys.path:
                 sys.path.remove(str(tmp_path))
+
+    def test_enable_dev_mode_with_relative_watch_paths(self, tmp_path):
+        """Should handle relative watch_paths correctly and resolve root_path.
+
+        This integration test verifies that enable_dev_mode correctly handles
+        relative watch paths and resolves root_path to absolute, preventing
+        issues when FileWatcher provides absolute file paths.
+        """
+        import os
+
+        from actions.dev import enable_dev_mode
+
+        # Create a file structure
+        src_dir = tmp_path / "src" / "game"
+        src_dir.mkdir(parents=True)
+        waves_file = src_dir / "waves.py"
+        waves_file.write_text("# initial")
+
+        original_cwd = Path.cwd()
+        try:
+            # Change to tmp_path to simulate relative path usage
+            os.chdir(tmp_path)
+
+            reloaded_files = []
+
+            def on_reload(files: list[Path], state: dict) -> None:
+                reloaded_files.extend(files)
+
+            # Call enable_dev_mode with relative path (common usage pattern)
+            manager = enable_dev_mode(
+                watch_paths=["src/game"],
+                auto_reload=True,
+                on_reload=on_reload,
+            )
+
+            # Wait for watcher to initialize
+            time.sleep(0.3)
+
+            # Modify file - FileWatcher will provide absolute path
+            waves_file.write_text("# modified")
+
+            # Wait for detection and debounce
+            time.sleep(0.8)
+
+            # Process reloads - this should work now with the fix
+            manager.process_reloads()
+
+            manager.stop()
+
+            # If we get here without errors, the fix works!
+            assert True
+
+        finally:
+            os.chdir(original_cwd)

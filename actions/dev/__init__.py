@@ -120,6 +120,10 @@ def enable_dev_mode(
         else:
             root_path = Path.cwd()
 
+    # Always resolve root_path to absolute path to avoid issues with
+    # FileWatcher providing absolute paths in callbacks
+    root_path = Path(root_path).resolve()
+
     manager = ReloadManager(
         watch_paths=watch_paths,
         root_path=root_path,
