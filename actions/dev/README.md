@@ -188,12 +188,18 @@ def state_provider() -> dict:
         "enemy_count": len(enemies),
     }
 
+def sprite_provider() -> list:
+    """Provide sprites for state preservation."""
+    # Return list of sprites to preserve positions/angles/scales
+    return [player_sprite] + list(enemy_sprites)
+
 manager = enable_dev_mode(
     watch_paths=["src/game/waves/", "src/game/enemies/"],
     root_path=Path("src/"),
     auto_reload=True,
     on_reload=on_reload,
     state_provider=state_provider,
+    sprite_provider=sprite_provider,
     debounce_seconds=0.3,
 )
 
@@ -246,11 +252,13 @@ manager.force_reload()
 
 ReloadManager automatically preserves:
 
-- **Sprite state**: Position, angle, scale
-- **Action state**: Tags, elapsed time, pause status
+- **Sprite state**: Position, angle, scale (for sprites provided by `sprite_provider`)
+- **Action state**: Tags, elapsed time, pause status (for all active actions)
 - **Custom state**: Provided by `state_provider` callback
 
 State is captured before reload and passed to `on_reload` callback for reconstruction.
+
+**Note**: To enable sprite state preservation, provide a `sprite_provider` callback that returns a list of sprites. Without this, only action and custom state will be preserved.
 
 ### Module Reload Strategy
 
@@ -289,6 +297,62 @@ ReloadManager handles errors gracefully:
 - Exceptions in `state_provider` are caught and ignored
 - Exceptions in `on_reload` callback are not caught (your responsibility)
 
+### Keyboard Shortcut for Manual Reload
+
+Enable keyboard shortcut for manual reload by calling `manager.on_key_press()` in your window's key handler:
+
+```python
+class GameWindow(arcade.Window):
+    def __init__(self):
+        super().__init__(800, 600, "My Game")
+        self.manager = enable_dev_mode(
+            watch_paths=["src/game/"],
+            reload_key="R"  # Enable R key for manual reload
+        )
+    
+    def on_key_press(self, key, modifiers):
+        # Let reload manager handle keyboard shortcuts
+        if self.manager:
+            self.manager.on_key_press(key, modifiers)
+```
+
+Supported reload keys:
+- `"R"` - R key (default)
+- `"F5"` - F5 key
+- `"F6"` - F6 key
+- `None` - Disable keyboard shortcut
+
+### State Preservation Control
+
+Control whether state is preserved during reload:
+
+```python
+# Preserve state (default) - slower but maintains game state
+manager = enable_dev_mode(
+    watch_paths=["src/game/"],
+    preserve_state=True,  # Default
+    state_provider=lambda: {"score": player.score},
+    sprite_provider=lambda: [player_sprite]
+)
+
+# Skip state preservation - faster but loses game state
+manager = enable_dev_mode(
+    watch_paths=["src/game/"],
+    preserve_state=False  # Skip state preservation
+)
+```
+
+When `preserve_state=False`:
+- Reloads are faster (no state capture overhead)
+- Sprite positions, action states, and custom state are NOT preserved
+- Useful for quick iteration when state doesn't matter
+
+When `preserve_state=True` (default):
+- Sprite positions, angles, scales are preserved
+- Action states (tags, elapsed time) are preserved
+- Custom state from `state_provider` is preserved
+- Slower but maintains game continuity
+
 ### Parameters
 
 **enable_dev_mode()**:
@@ -296,8 +360,11 @@ ReloadManager handles errors gracefully:
 - **watch_paths** (`list[Path | str] | None`): Directories to watch (default: current directory)
 - **root_path** (`Path | str | None`): Root path for module resolution (default: inferred from watch_paths)
 - **auto_reload** (`bool`): Automatically reload on file change (default: `True`)
+- **preserve_state** (`bool`): Preserve game state across reloads (default: `True`)
+- **reload_key** (`str | None`): Keyboard key for manual reload (default: `"R"`)
 - **on_reload** (`Callable[[list[Path], dict], None] | None`): Callback after reload
 - **state_provider** (`Callable[[], dict] | None`): Callback to capture custom state
+- **sprite_provider** (`Callable[[], list] | None`): Callback to provide sprites for state preservation
 - **patterns** (`list[str] | None`): File patterns to watch (default: `["*.py"]`)
 - **debounce_seconds** (`float`): Debounce time for file changes (default: `0.3`)
 

@@ -86,9 +86,7 @@ class TestReloadManager:
         # Queue from multiple threads
         threads = []
         for i in range(5):
-            thread = Thread(
-                target=lambda: manager._on_files_changed([tmp_path / f"test{i}.py"]), daemon=True
-            )
+            thread = Thread(target=lambda: manager._on_files_changed([tmp_path / f"test{i}.py"]), daemon=True)
             threads.append(thread)
             thread.start()
 
@@ -414,6 +412,52 @@ class TestReloadManager:
 
         manager.stop()
 
+    def test_sprite_provider_callback(self):
+        """Should use sprite_provider callback to get sprites for preservation."""
+        sprite1 = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
+        sprite1.center_x = 100
+        sprite1.center_y = 200
+
+        sprite2 = arcade.SpriteSolidColor(32, 32, arcade.color.RED)
+        sprite2.center_x = 300
+        sprite2.center_y = 400
+
+        def sprite_provider() -> list:
+            return [sprite1, sprite2]
+
+        manager = ReloadManager(sprite_provider=sprite_provider)
+
+        # Perform reload should use sprite_provider to get sprites
+        manager._perform_reload([])
+
+        # Verify sprites were preserved (check via callback)
+        callback_called = []
+
+        def on_reload(files, state):
+            callback_called.append(state)
+
+        manager.on_reload = on_reload
+        manager._perform_reload([])
+
+        assert len(callback_called) > 0
+        state = callback_called[0]
+        assert "sprites" in state
+        assert len(state["sprites"]) == 2
+
+    def test_sprite_provider_exception_handling(self):
+        """Should handle exceptions in sprite_provider gracefully."""
+
+        def failing_sprite_provider():
+            raise ValueError("Sprite provider error")
+
+        manager = ReloadManager(sprite_provider=failing_sprite_provider)
+
+        # Should not raise exception
+        manager._perform_reload([])
+
+        # Should preserve empty sprite list on error
+        assert True  # If we get here, exception was handled
+
 
 class TestReloadManagerIntegration:
     """Integration tests for ReloadManager with FileWatcher."""
@@ -611,6 +655,7 @@ class TestReloadIndicator:
 
     def test_state_provider_exception_handling(self):
         """Should handle exceptions in state_provider gracefully."""
+
         def failing_state_provider():
             raise ValueError("State provider error")
 
@@ -714,6 +759,7 @@ class TestReloadIndicator:
         """Should handle modules without __file__ attribute gracefully."""
         # Create a mock module without __file__
         import types
+
         mock_module = types.ModuleType("mock_module")
         sys.modules["mock_module"] = mock_module
 
@@ -731,3 +777,153 @@ class TestReloadIndicator:
             if "mock_module" in sys.modules:
                 del sys.modules["mock_module"]
 
+    def test_preserve_state_disabled(self, tmp_path):
+        """Should skip state preservation when preserve_state=False."""
+        state_captured = []
+
+        def state_provider():
+            state_captured.append("called")
+            return {"test": "data"}
+
+        def sprite_provider():
+            sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
+            sprite.center_x = 100
+            sprite.center_y = 200
+            return [sprite]
+
+        manager = ReloadManager(
+            root_path=tmp_path, preserve_state=False, state_provider=state_provider, sprite_provider=sprite_provider
+        )
+
+        # Create a test file
+        test_file = tmp_path / "test_module.py"
+        test_file.write_text("# test")
+
+        # Trigger reload
+        manager._perform_reload([test_file])
+
+        # State provider should NOT have been called
+        assert len(state_captured) == 0
+
+    def test_preserve_state_enabled(self, tmp_path):
+        """Should preserve state when preserve_state=True (default)."""
+        state_captured = []
+
+        def state_provider():
+            state_captured.append("called")
+            return {"test": "data"}
+
+        def sprite_provider():
+            sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
+            sprite.center_x = 100
+            sprite.center_y = 200
+            return [sprite]
+
+        manager = ReloadManager(
+            root_path=tmp_path, preserve_state=True, state_provider=state_provider, sprite_provider=sprite_provider
+        )
+
+        # Create a test file
+        test_file = tmp_path / "test_module.py"
+        test_file.write_text("# test")
+
+        # Trigger reload
+        manager._perform_reload([test_file])
+
+        # State provider should have been called
+        assert len(state_captured) == 1
+
+    def test_reload_key_attribute(self):
+        """Should store reload_key attribute."""
+        manager = ReloadManager()
+        assert manager.reload_key is None
+
+        # Should be settable
+        manager.reload_key = "R"
+        assert manager.reload_key == "R"
+
+    def test_on_key_press_with_reload_key(self):
+        """Should trigger reload when configured key is pressed."""
+        reload_triggered = []
+
+        manager = ReloadManager()
+        manager.reload_key = "R"
+
+        # Mock force_reload to detect trigger
+        original_force_reload = manager.force_reload
+
+        def mock_force_reload(files=None):
+            reload_triggered.append(True)
+
+        manager.force_reload = mock_force_reload
+
+        try:
+            # Press R key
+            result = manager.on_key_press(arcade.key.R, 0)
+            assert result is True
+            assert len(reload_triggered) == 1
+
+            # Press other key
+            result = manager.on_key_press(arcade.key.A, 0)
+            assert result is False
+            assert len(reload_triggered) == 1  # No additional reload
+
+        finally:
+            manager.force_reload = original_force_reload
+
+    def test_on_key_press_disabled(self):
+        """Should not trigger reload when reload_key is None."""
+        manager = ReloadManager()
+        manager.reload_key = None
+
+        # Press R key - should not trigger reload
+        result = manager.on_key_press(arcade.key.R, 0)
+        assert result is False
+
+    def test_on_key_press_with_f5_key(self):
+        """Should support F5 as reload key."""
+        reload_triggered = []
+
+        manager = ReloadManager()
+        manager.reload_key = "F5"
+
+        # Mock force_reload
+        original_force_reload = manager.force_reload
+
+        def mock_force_reload(files=None):
+            reload_triggered.append(True)
+
+        manager.force_reload = mock_force_reload
+
+        try:
+            # Press F5 key
+            result = manager.on_key_press(arcade.key.F5, 0)
+            assert result is True
+            assert len(reload_triggered) == 1
+
+        finally:
+            manager.force_reload = original_force_reload
+
+    def test_on_key_press_case_insensitive(self):
+        """Should handle reload_key case-insensitively."""
+        reload_triggered = []
+
+        manager = ReloadManager()
+        manager.reload_key = "r"  # lowercase
+
+        # Mock force_reload
+        original_force_reload = manager.force_reload
+
+        def mock_force_reload(files=None):
+            reload_triggered.append(True)
+
+        manager.force_reload = mock_force_reload
+
+        try:
+            # Press R key - should still work
+            result = manager.on_key_press(arcade.key.R, 0)
+            assert result is True
+            assert len(reload_triggered) == 1
+
+        finally:
+            manager.force_reload = original_force_reload

@@ -132,11 +132,16 @@ class DemoWave:
                 "enemy_count": len(self.enemies),
             }
 
+        def sprite_provider():
+            """Provide sprites for state preservation."""
+            return list(self.enemies)
+
         self.reload_manager = enable_dev_mode(
             watch_paths=[waves_dir],
             root_path=Path(__file__).parent.parent,
             on_reload=on_reload,
             state_provider=state_provider,
+            sprite_provider=sprite_provider,
         )
 
         # Load initial wave
@@ -201,12 +206,9 @@ class DemoWave:
 
     def on_key_press(self, key: int, modifiers: int) -> None:
         """Handle key presses."""
-        if key == arcade.key.R and self.reload_manager:
-            # Manual reload
-            waves_dir = Path(__file__).parent / "waves"
-            wave_file = waves_dir / "demo_wave.py"
-            if wave_file.exists():
-                self.reload_manager.force_reload([wave_file])
+        # Let reload manager handle keyboard shortcuts (R key for reload)
+        if self.reload_manager:
+            self.reload_manager.on_key_press(key, modifiers)
 
     def on_close(self) -> None:
         """Clean up on window close."""
@@ -225,4 +227,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

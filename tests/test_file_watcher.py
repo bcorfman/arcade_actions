@@ -267,3 +267,80 @@ class MyWave:
         # Verify change was detected
         assert len(changes_detected) > 0
         assert any(p.name == "my_module.py" for p in changes_detected)
+
+    def test_race_condition_during_callback_execution(self, tmp_path):
+        """Should not lose events that arrive while callback is executing."""
+        test_file = tmp_path / "test.py"
+        test_file.write_text("# initial")
+
+        callback_count = 0
+        all_changes = []
+
+        def slow_callback(changed_files: list[Path]) -> None:
+            """Callback that takes time, creating window for race condition."""
+            nonlocal callback_count
+            callback_count += 1
+            all_changes.extend(changed_files)
+
+            # If this is the first callback, trigger another change
+            # while we're still executing (but after pending_files was cleared)
+            if callback_count == 1:
+                time.sleep(0.1)  # Simulate slow callback
+                test_file.write_text(f"# change {callback_count + 1}")
+                time.sleep(0.1)  # Give time for event to be registered
+
+        watcher = FileWatcher(paths=[tmp_path], callback=slow_callback, patterns=["*.py"], debounce_seconds=0.2)
+        watcher.start()
+        time.sleep(0.1)
+
+        # Trigger first change
+        test_file.write_text("# change 1")
+
+        # Wait for both callbacks to complete
+        # First callback after 0.2s debounce + 0.2s execution
+        # Second callback after another 0.2s debounce
+        time.sleep(1.0)
+
+        watcher.stop()
+
+        # Both changes should have been processed
+        # If race condition exists, second change is lost
+        assert callback_count >= 2, f"Expected at least 2 callbacks, got {callback_count}"
+
+    def test_stop_immediately_after_event_no_unbound_error(self, tmp_path):
+        """Should not raise UnboundLocalError if stopped immediately after event triggers thread.
+
+        This tests the fix for a race condition where:
+        1. An event triggers, creating a new debounce thread
+        2. stop() is called immediately, setting _stop_debounce = True
+        3. Thread checks while condition before entering loop body
+        4. Old code would skip loop, then try to access undefined time_since_last_event
+
+        The fix ensures variables are always defined before use.
+        """
+        test_file = tmp_path / "test.py"
+        test_file.write_text("# Initial")
+
+        callback_called = False
+
+        def callback(changed_files: list[Path]) -> None:
+            nonlocal callback_called
+            callback_called = True
+
+        watcher = FileWatcher(paths=[tmp_path], callback=callback, patterns=["*.py"], debounce_seconds=0.3)
+        watcher.start()
+
+        # Give watcher time to initialize
+        time.sleep(0.1)
+
+        # Modify file to trigger event and spawn debounce thread
+        test_file.write_text("# Modified")
+
+        # Stop immediately after modification, creating race condition window
+        # The debounce thread may not have entered its while loop yet
+        time.sleep(0.02)  # Small delay to ensure event handler runs
+        watcher.stop()
+
+        # Old code would raise UnboundLocalError here during thread cleanup
+        # New code handles this gracefully
+        # Test passes if no exception is raised

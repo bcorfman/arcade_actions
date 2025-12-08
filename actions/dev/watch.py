@@ -85,6 +85,10 @@ class _DebounceHandler(FileSystemEventHandler):
         while not self._stop_debounce:
             time.sleep(0.05)  # Check frequently
 
+            # Initialize variables for this iteration
+            should_trigger = False
+            files = []
+
             with self._lock:
                 if not self._pending_files:
                     # No pending changes, exit thread
@@ -96,20 +100,22 @@ class _DebounceHandler(FileSystemEventHandler):
                     # Quiet period passed, trigger callback
                     files = list(self._pending_files)
                     self._pending_files.clear()
-
-                    # Release lock before calling callback
-                    # (callback might be slow)
+                    should_trigger = True
 
             # Call callback outside of lock
-            if time_since_last_event >= self.debounce_seconds:
+            if should_trigger:
                 try:
                     self.callback(files)
                 except Exception as e:
                     # Don't crash the watcher thread on callback errors
                     print(f"Error in file watcher callback: {e}")
 
-                # Exit thread after successful callback
-                break
+                # Check if new events arrived while callback was executing
+                with self._lock:
+                    if not self._pending_files:
+                        # No new events, safe to exit
+                        break
+                    # New events arrived - continue loop to process them
 
     def stop(self) -> None:
         """Stop the debounce worker thread."""
