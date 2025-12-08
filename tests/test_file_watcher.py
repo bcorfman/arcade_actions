@@ -159,6 +159,20 @@ class TestFileWatcher:
         # Should not have been called since only .txt was modified
         assert not self.callback_called
 
+    def test_existing_files_before_start_do_not_trigger(self, tmp_path):
+        """Existing files created before start should not trigger callbacks on start."""
+        preexisting = tmp_path / "test.py"
+        preexisting.write_text("# created before watcher start")
+
+        callback = self.make_callback()
+        watcher = FileWatcher(paths=[tmp_path], callback=callback, patterns=["*.py"], debounce_seconds=0.1)
+        watcher.start()
+
+        time.sleep(0.2)
+        watcher.stop()
+
+        assert not self.callback_called
+
     def test_watch_subdirectories(self, tmp_path):
         """Should watch subdirectories recursively."""
         # Create subdirectory structure

@@ -146,7 +146,6 @@ class DemoWave:
 
         # Load initial wave
         import sys
-        from pathlib import Path
 
         waves_path = Path(__file__).parent / "waves"
         if str(waves_path) not in sys.path:

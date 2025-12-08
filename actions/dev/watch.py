@@ -29,6 +29,7 @@ class _DebounceHandler(FileSystemEventHandler):
         callback: Callable[[list[Path]], None],
         debounce_seconds: float,
         patterns: list[str] | None = None,
+        cutoff_time: float | None = None,
     ):
         """
         Initialize the debounce handler.
@@ -37,17 +38,33 @@ class _DebounceHandler(FileSystemEventHandler):
             callback: Function to call with list of changed file paths
             debounce_seconds: Minimum quiet time before triggering callback
             patterns: List of file patterns to watch (e.g., ["*.py"])
+            cutoff_time: Ignore events whose file mtime is older than this timestamp
         """
         super().__init__()
         self.callback = callback
         self.debounce_seconds = debounce_seconds
         self.patterns = patterns or ["*.py"]
+        self._cutoff_time = cutoff_time
 
         self._pending_files: set[Path] = set()
         self._lock = Lock()
         self._last_event_time = 0.0
         self._debounce_thread: Thread | None = None
         self._stop_debounce = False
+
+    def set_cutoff_time(self, cutoff_time: float) -> None:
+        """Set cutoff time to ignore events older than when watcher started."""
+        self._cutoff_time = cutoff_time
+
+    def _is_after_cutoff(self, path: Path) -> bool:
+        """Return True if the file's mtime is newer than the cutoff."""
+        if self._cutoff_time is None:
+            return True
+        try:
+            return path.stat().st_mtime >= self._cutoff_time
+        except FileNotFoundError:
+            # File disappeared; treat as stale
+            return False
 
     def _matches_pattern(self, path: Path) -> bool:
         """Check if path matches any of the watch patterns."""
@@ -62,6 +79,10 @@ class _DebounceHandler(FileSystemEventHandler):
 
         # Check if file matches patterns
         if not self._matches_pattern(path):
+            return
+
+        # Ignore events older than watcher start time (macOS can deliver late)
+        if not self._is_after_cutoff(path):
             return
 
         # Add to pending files
@@ -175,13 +196,20 @@ class FileWatcher:
         self.debounce_seconds = debounce_seconds
 
         self._observer = Observer()
-        self._handler = _DebounceHandler(callback=callback, debounce_seconds=debounce_seconds, patterns=self.patterns)
+        self._handler = _DebounceHandler(
+            callback=callback,
+            debounce_seconds=debounce_seconds,
+            patterns=self.patterns,
+        )
         self._is_running = False
 
     def start(self) -> None:
         """Start watching files."""
         if self._is_running:
             return
+
+        # Ignore events for files modified before watcher starts
+        self._handler.set_cutoff_time(time.time())
 
         # Schedule observers for each path
         for path in self.paths:
