@@ -1,0 +1,259 @@
+"""
+File watcher service for hot-reload functionality.
+
+Monitors Python files and triggers callbacks when changes are detected,
+with debouncing to avoid excessive reloads during rapid edits.
+"""
+
+from __future__ import annotations
+
+import time
+from collections.abc import Callable
+from pathlib import Path
+from threading import Lock, Thread
+
+from watchdog.events import FileSystemEvent, FileSystemEventHandler
+from watchdog.observers import Observer
+
+
+class _DebounceHandler(FileSystemEventHandler):
+    """
+    Event handler that debounces file system events.
+
+    Collects file change events and triggers a callback only after
+    a quiet period (no events for debounce_seconds).
+    """
+
+    def __init__(
+        self,
+        callback: Callable[[list[Path]], None],
+        debounce_seconds: float,
+        patterns: list[str] | None = None,
+        cutoff_time: float | None = None,
+    ):
+        """
+        Initialize the debounce handler.
+
+        Args:
+            callback: Function to call with list of changed file paths
+            debounce_seconds: Minimum quiet time before triggering callback
+            patterns: List of file patterns to watch (e.g., ["*.py"])
+            cutoff_time: Ignore events whose file mtime is older than this timestamp
+        """
+        super().__init__()
+        self.callback = callback
+        self.debounce_seconds = debounce_seconds
+        self.patterns = patterns or ["*.py"]
+        self._cutoff_time = cutoff_time
+
+        self._pending_files: set[Path] = set()
+        self._lock = Lock()
+        self._last_event_time = 0.0
+        self._debounce_thread: Thread | None = None
+        self._stop_debounce = False
+
+    def set_cutoff_time(self, cutoff_time: float) -> None:
+        """Set cutoff time to ignore events older than when watcher started."""
+        self._cutoff_time = cutoff_time
+
+    def _is_after_cutoff(self, path: Path) -> bool:
+        """Return True if the file's mtime is newer than the cutoff."""
+        if self._cutoff_time is None:
+            return True
+        try:
+            return path.stat().st_mtime >= self._cutoff_time
+        except FileNotFoundError:
+            # File disappeared; treat as stale
+            return False
+
+    def _matches_pattern(self, path: Path) -> bool:
+        """Check if path matches any of the watch patterns."""
+        return any(path.match(pattern) for pattern in self.patterns)
+
+    def on_modified(self, event: FileSystemEvent) -> None:
+        """Handle file modification events."""
+        if event.is_directory:
+            return
+
+        path = Path(event.src_path).resolve()
+
+        # Check if file matches patterns
+        if not self._matches_pattern(path):
+            return
+
+        # Ignore events older than watcher start time (macOS can deliver late)
+        if not self._is_after_cutoff(path):
+            return
+
+        # Add to pending files
+        with self._lock:
+            self._pending_files.add(path)
+            self._last_event_time = time.time()
+
+            # Start debounce thread if not already running
+            if self._debounce_thread is None or not self._debounce_thread.is_alive():
+                self._stop_debounce = False
+                self._debounce_thread = Thread(target=self._debounce_worker, daemon=True)
+                self._debounce_thread.start()
+
+    def _debounce_worker(self) -> None:
+        """
+        Worker thread that waits for quiet period before triggering callback.
+
+        Runs in background, checking if enough time has passed since the last
+        event before calling the callback with accumulated file paths.
+        """
+        while not self._stop_debounce:
+            time.sleep(0.05)  # Check frequently
+
+            # Initialize variables for this iteration
+            should_trigger = False
+            files = []
+
+            with self._lock:
+                if not self._pending_files:
+                    # No pending changes, exit thread
+                    break
+
+                time_since_last_event = time.time() - self._last_event_time
+
+                if time_since_last_event >= self.debounce_seconds:
+                    # Quiet period passed, trigger callback
+                    files = list(self._pending_files)
+                    self._pending_files.clear()
+                    should_trigger = True
+
+            # Call callback outside of lock
+            if should_trigger:
+                try:
+                    self.callback(files)
+                except Exception as e:
+                    # Don't crash the watcher thread on callback errors
+                    print(f"Error in file watcher callback: {e}")
+
+                # Check if new events arrived while callback was executing
+                with self._lock:
+                    if not self._pending_files:
+                        # No new events, safe to exit
+                        break
+                    # New events arrived - continue loop to process them
+
+    def stop(self) -> None:
+        """Stop the debounce worker thread and clear pending files."""
+        self._stop_debounce = True
+        if self._debounce_thread is not None and self._debounce_thread.is_alive():
+            self._debounce_thread.join(timeout=1.0)
+
+        # Clear pending files to prevent stale events from being processed
+        # if the watcher is restarted. Without this, files added to _pending_files
+        # during a session would bypass the cutoff_time check on restart.
+        with self._lock:
+            self._pending_files.clear()
+
+
+class FileWatcher:
+    """
+    Watches file system paths for changes and triggers callbacks.
+
+    Uses watchdog library to monitor files, with debouncing to prevent
+    excessive callback invocations during rapid file modifications.
+
+    Example:
+        def on_reload(changed_files):
+            print(f"Reloading: {changed_files}")
+
+        watcher = FileWatcher(
+            paths=["src/game/"],
+            callback=on_reload,
+            patterns=["*.py"],
+            debounce_seconds=0.3
+        )
+        watcher.start()
+
+        # ... do work ...
+
+        watcher.stop()
+
+    Or use as context manager:
+        with FileWatcher(paths=["src/"], callback=on_reload) as watcher:
+            # ... do work ...
+            pass
+    """
+
+    def __init__(
+        self,
+        paths: list[Path | str],
+        callback: Callable[[list[Path]], None],
+        patterns: list[str] | None = None,
+        debounce_seconds: float = 0.3,
+    ):
+        """
+        Initialize file watcher.
+
+        Args:
+            paths: List of directories or files to watch
+            callback: Function to call with list of changed file paths
+            patterns: File patterns to watch (default: ["*.py"])
+            debounce_seconds: Minimum quiet time before triggering callback (default: 0.3)
+        """
+        self.paths = [Path(p) for p in paths]
+        self.callback = callback
+        self.patterns = patterns or ["*.py"]
+        self.debounce_seconds = debounce_seconds
+
+        self._observer: Observer | None = None
+        self._handler = _DebounceHandler(
+            callback=callback,
+            debounce_seconds=debounce_seconds,
+            patterns=self.patterns,
+        )
+        self._is_running = False
+
+    def start(self) -> None:
+        """Start watching files."""
+        if self._is_running:
+            return
+
+        # Create a fresh observer per start because Observer inherits Thread
+        # and cannot be restarted once stopped.
+        self._observer = Observer()
+
+        # Ignore events for files modified before watcher starts
+        self._handler.set_cutoff_time(time.time())
+
+        # Schedule observers for each path
+        for path in self.paths:
+            if not path.exists():
+                # Skip nonexistent paths (might be created later)
+                continue
+
+            # Watch recursively if it's a directory
+            self._observer.schedule(self._handler, str(path), recursive=path.is_dir())
+
+        self._observer.start()
+        self._is_running = True
+
+    def stop(self) -> None:
+        """Stop watching files."""
+        if not self._is_running:
+            return
+
+        self._handler.stop()
+        if self._observer is not None:
+            self._observer.stop()
+            self._observer.join(timeout=2.0)
+            self._observer = None
+        self._is_running = False
+
+    def is_running(self) -> bool:
+        """Check if watcher is currently running."""
+        return self._is_running
+
+    def __enter__(self) -> FileWatcher:
+        """Enter context manager (starts watching)."""
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit context manager (stops watching)."""
+        self.stop()

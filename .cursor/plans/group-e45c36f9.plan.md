@@ -1,4 +1,33 @@
-<!-- e45c36f9-9f5d-48f2-95d3-5ad5574b9bb4 362fe31a-1e4e-4f4a-ba94-a337ee86f97d -->
+---
+name: Implement AttackGroup, Group Boundary Coordinator, EmitUntil, and Seek/Steer Helper (Test-First)
+overview: ""
+todos:
+  - id: ca5d5039-fb51-4a6e-bab5-f37cfbe07ac6
+    content: Implement AttackGroup orchestrator with DI and arrangement utilities
+    status: pending
+  - id: ae564ee9-b0cf-4881-a8f2-254e80c04387
+    content: Add GroupBoundaryCoordinator for SpriteList leading-edge boundary events
+    status: pending
+  - id: 2e6380a2-782e-4a5d-94ec-f838e1d90150
+    content: Create EmitUntil Action and emit_until helper sugar
+    status: pending
+  - id: ee2fe0ea-d266-4d30-9f11-4053fbec32d2
+    content: Add seek_until helper using MoveUntil with velocity_provider
+    status: pending
+  - id: 559deb61-6c9d-4268-a167-4e980e160bdb
+    content: Export new APIs in actions/__init__.py
+    status: pending
+  - id: d7ca3ea2-f162-4b6f-89a5-d7d2bb91fed1
+    content: Add unit tests for all new components
+    status: pending
+  - id: eb71d936-ebea-4d88-a9c6-c6da8574b6c2
+    content: Update API and testing guides with new features
+    status: pending
+  - id: 34c991f2-bc71-465b-be7e-492980bd97b8
+    content: Add examples for group orchestration, emitting, and seeking
+    status: pending
+---
+
 # Implement AttackGroup, Group Boundary Coordinator, EmitUntil, and Seek/Steer Helper (Test-First)
 
 ## Scope and principles
@@ -149,14 +178,3 @@ def seek_until(
 - API Guide: add sections with minimal, runnable snippets for each feature.
 - Examples: `examples/attack_group_demo.py`, `examples/emit_seek_demo.py`.
 - Debugging: `set_debug_options(level=2, include=["EmitUntil","AttackGroup"])`.
-
-### To-dos
-
-- [ ] Implement AttackGroup orchestrator with DI and arrangement utilities
-- [ ] Add GroupBoundaryCoordinator for SpriteList leading-edge boundary events
-- [ ] Create EmitUntil Action and emit_until helper sugar
-- [ ] Add seek_until helper using MoveUntil with velocity_provider
-- [ ] Export new APIs in actions/__init__.py
-- [ ] Add unit tests for all new components
-- [ ] Update API and testing guides with new features
-- [ ] Add examples for group orchestration, emitting, and seeking
