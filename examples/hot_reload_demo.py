@@ -18,7 +18,7 @@ from __future__ import annotations
 import arcade
 from pathlib import Path
 
-from actions import Action
+from actions import Action, center_window
 from actions.conditional import MoveUntil, infinite
 from actions.dev import enable_dev_mode
 
@@ -53,10 +53,16 @@ class HotReloadDemo(arcade.Window):
     """Demonstration window with hot-reload enabled."""
 
     def __init__(self):
-        super().__init__(800, 600, "Hot-Reload Demo - Edit waves/demo_wave.py")
+        # Create hidden window so we can center before showing.
+        super().__init__(800, 600, "Hot-Reload Demo - Edit waves/demo_wave.py", visible=False)
+        center_window(self)
+        self.set_visible(True)
+
         self.enemies = arcade.SpriteList()
         self.wave = None
         self.reload_manager = None
+        self.instructions_text: arcade.Text | None = None
+        self.count_text: arcade.Text | None = None
 
     def setup(self) -> None:
         """Set up the game."""
@@ -161,6 +167,22 @@ class DemoWave:
             self.wave = DemoWave()
             self.enemies = self.wave.create_enemies()
 
+        # Pre-create text objects to avoid per-frame draw_text calls
+        self.instructions_text = arcade.Text(
+            "Edit examples/waves/demo_wave.py to see hot-reload!",
+            10,
+            10,
+            arcade.color.WHITE,
+            14,
+        )
+        self.count_text = arcade.Text(
+            f"Enemies: {len(self.enemies)}",
+            10,
+            30,
+            arcade.color.YELLOW,
+            14,
+        )
+
     def on_update(self, delta_time: float) -> None:
         """Update game logic."""
         # Process reload requests from background thread
@@ -178,7 +200,7 @@ class DemoWave:
 
     def on_draw(self) -> None:
         """Draw everything."""
-        arcade.start_render()
+        self.clear()
 
         # Draw enemies
         self.enemies.draw()
@@ -188,20 +210,11 @@ class DemoWave:
             self.reload_manager.indicator.draw()
 
         # Draw instructions
-        arcade.draw_text(
-            "Edit examples/waves/demo_wave.py to see hot-reload!",
-            10,
-            10,
-            arcade.color.WHITE,
-            14,
-        )
-        arcade.draw_text(
-            f"Enemies: {len(self.enemies)}",
-            10,
-            30,
-            arcade.color.YELLOW,
-            14,
-        )
+        if self.instructions_text:
+            self.instructions_text.draw()
+        if self.count_text:
+            self.count_text.text = f"Enemies: {len(self.enemies)}"
+            self.count_text.draw()
 
     def on_key_press(self, key: int, modifiers: int) -> None:
         """Handle key presses."""
