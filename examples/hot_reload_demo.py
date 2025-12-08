@@ -118,7 +118,8 @@ class DemoWave:
             print(f"Reloading: {files}")
 
             # Clear old enemies
-            Action.stop_actions_for_tag("move_down")
+            for enemy in list(self.enemies):
+                Action.stop_actions_for_target(enemy, tag="move_down")
             self.enemies.clear()
 
             # Reimport and recreate wave

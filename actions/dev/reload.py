@@ -239,16 +239,28 @@ class ReloadManager:
             sprite_id = id(sprite)
             # Handle scale - Arcade sprites can have scale as float or tuple (scale_x, scale_y)
             scale = sprite.scale
-            if isinstance(scale, tuple) and len(scale) > 0:
-                scale_value = scale[0]  # Use x-scale (typically both are the same)
+            scale_x: float
+            scale_y: float
+            if isinstance(scale, tuple):
+                if len(scale) >= 2:
+                    scale_x = float(scale[0])
+                    scale_y = float(scale[1])
+                elif len(scale) == 1:
+                    scale_x = float(scale[0])
+                    scale_y = float(scale[0])
+                else:
+                    scale_x = 1.0
+                    scale_y = 1.0
             elif isinstance(scale, (int, float)):
-                scale_value = float(scale)
+                scale_x = float(scale)
+                scale_y = float(scale)
             else:
-                scale_value = 1.0  # Default fallback
+                scale_x = 1.0
+                scale_y = 1.0
             state["sprites"][sprite_id] = {
                 "position": (sprite.center_x, sprite.center_y),
                 "angle": sprite.angle,
-                "scale": scale_value,
+                "scale": (scale_x, scale_y),
             }
 
         # Preserve action state
@@ -324,9 +336,9 @@ class ReloadManager:
         """
         try:
             relative = file_path.relative_to(root_path)
-            # Remove .py extension and convert to module name
             parts = relative.with_suffix("").parts
-            # Handle __init__.py files
+            if not parts:
+                return None
             if parts[-1] == "__init__":
                 parts = parts[:-1]
             return ".".join(parts) if parts else None

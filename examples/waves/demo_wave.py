@@ -9,6 +9,7 @@ Try changing:
 
 import arcade
 
+
 class DemoWave:
     """Simple wave class that can be modified and reloaded."""
 

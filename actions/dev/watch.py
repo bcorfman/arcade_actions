@@ -195,7 +195,7 @@ class FileWatcher:
         self.patterns = patterns or ["*.py"]
         self.debounce_seconds = debounce_seconds
 
-        self._observer = Observer()
+        self._observer: Observer | None = None
         self._handler = _DebounceHandler(
             callback=callback,
             debounce_seconds=debounce_seconds,
@@ -207,6 +207,10 @@ class FileWatcher:
         """Start watching files."""
         if self._is_running:
             return
+
+        # Create a fresh observer per start because Observer inherits Thread
+        # and cannot be restarted once stopped.
+        self._observer = Observer()
 
         # Ignore events for files modified before watcher starts
         self._handler.set_cutoff_time(time.time())
@@ -229,8 +233,10 @@ class FileWatcher:
             return
 
         self._handler.stop()
-        self._observer.stop()
-        self._observer.join(timeout=2.0)
+        if self._observer is not None:
+            self._observer.stop()
+            self._observer.join(timeout=2.0)
+            self._observer = None
         self._is_running = False
 
     def is_running(self) -> bool:

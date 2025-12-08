@@ -1,10 +1,12 @@
-"""Tests for the ReloadManager that orchestrates hot-reload functionality."""
+"""Tests for the ReloadManager that orchestrates hot-reload functionality.
+
+Fast unit tests only - integration tests are in tests/integration/test_reload_manager_integration.py
+"""
 
 import importlib
 import sys
-import time
 from pathlib import Path
-from queue import Empty, Queue
+from queue import Empty
 from threading import Thread
 
 import arcade
@@ -18,7 +20,7 @@ from actions.dev.watch import FileWatcher
 
 
 class TestReloadManager:
-    """Test suite for ReloadManager."""
+    """Test suite for ReloadManager - fast unit tests only."""
 
     def setup_method(self):
         """Setup before each test."""
@@ -146,10 +148,11 @@ class TestReloadManager:
             pos = sprite_data["position"]
             if pos == (100, 200):
                 assert sprite_data["angle"] == 45
-                assert sprite_data["scale"] == 2.0
+                assert sprite_data["scale"] == (2.0, 2.0)
                 found_sprite1 = True
             elif pos == (300, 400):
                 assert sprite_data["angle"] == 90
+                assert sprite_data["scale"] == (1.0, 1.0)
                 found_sprite2 = True
 
         assert found_sprite1
@@ -388,30 +391,6 @@ class TestReloadManager:
         assert "custom" in state
         assert state["custom"] == custom_state
 
-    def test_auto_reload_disabled(self, tmp_path):
-        """Should not auto-reload when auto_reload is False."""
-        manager = ReloadManager(watch_paths=[tmp_path], auto_reload=False)
-        manager.start()
-
-        test_file = tmp_path / "test.py"
-        test_file.write_text("# test")
-
-        # Give watcher time to detect
-        time.sleep(0.3)
-        test_file.write_text("# modified")
-
-        # Wait for callback
-        time.sleep(0.5)
-
-        # Process reloads - should be empty since auto_reload is off
-        # (FileWatcher still detects, but manager doesn't queue)
-        manager.process_reloads()
-
-        # Verify no reload was queued (hard to test directly, but manager should be idle)
-        assert True  # If we get here without error, test passes
-
-        manager.stop()
-
     def test_sprite_provider_callback(self):
         """Should use sprite_provider callback to get sprites for preservation."""
         sprite1 = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
@@ -458,252 +437,14 @@ class TestReloadManager:
         # Should preserve empty sprite list on error
         assert True  # If we get here, exception was handled
 
-
-class TestReloadManagerIntegration:
-    """Integration tests for ReloadManager with FileWatcher."""
-
-    def teardown_method(self):
-        """Clean up after each test."""
-        Action.stop_all()
-
-    def test_filewatcher_integration(self, tmp_path):
-        """Should integrate with FileWatcher to detect changes."""
-        reloads = []
-
-        def on_reload(files: list[Path], state: dict) -> None:
-            reloads.append(files)
-
-        manager = ReloadManager(
-            watch_paths=[tmp_path],
-            on_reload=on_reload,
-            root_path=tmp_path,
-            auto_reload=True,
-        )
-        manager.start()
-
-        # Create and modify a file
-        test_file = tmp_path / "test.py"
-        test_file.write_text("# initial")
-
-        # Wait for watcher to initialize
-        time.sleep(0.3)
-
-        # Modify file
-        test_file.write_text("# modified")
-
-        # Wait for detection and debounce
-        time.sleep(0.8)
-
-        # Process reloads
-        manager.process_reloads()
-
-        # Should have detected and queued reload
-        # (May or may not have triggered callback depending on timing)
-        manager.stop()
-
-    def test_full_reload_workflow(self, tmp_path):
-        """Should perform complete reload workflow with state preservation."""
-        # Create a module
-        module_file = tmp_path / "game_module.py"
-        module_file.write_text("""
-class GameState:
-    def __init__(self):
-        self.value = 1
-""")
-
-        sys.path.insert(0, str(tmp_path))
-        try:
-            import game_module
-
-            game_state = game_module.GameState()
-            assert game_state.value == 1
-
-            reloaded_files = []
-
-            def on_reload(files: list[Path], state: dict) -> None:
-                reloaded_files.extend(files)
-
-            manager = ReloadManager(
-                watch_paths=[tmp_path],
-                on_reload=on_reload,
-                root_path=tmp_path,
-            )
-
-            # Modify module
-            module_file.write_text("""
-class GameState:
-    def __init__(self):
-        self.value = 2
-""")
-
-            # Trigger reload manually
-            manager._on_files_changed([module_file])
-            manager.process_reloads()
-
-            # Module should be reloaded
-            importlib.reload(game_module)
-            new_state = game_module.GameState()
-            assert new_state.value == 2
-
-        finally:
-            if "game_module" in sys.modules:
-                del sys.modules["game_module"]
-            if str(tmp_path) in sys.path:
-                sys.path.remove(str(tmp_path))
-
-
-class TestReloadIndicator:
-    """Test suite for ReloadIndicator visual feedback."""
-
-    def test_initial_state(self):
-        """Should start with alpha at 0."""
-        indicator = ReloadIndicator()
-        assert indicator._flash_alpha == 0.0
-
-    def test_trigger_flash(self):
-        """Should set alpha to 1.0 when triggered."""
-        indicator = ReloadIndicator()
-        indicator.trigger()
-        assert indicator._flash_alpha == 1.0
-
-    def test_update_decays_alpha(self):
-        """Should decay alpha over time."""
-        indicator = ReloadIndicator(flash_duration=0.2)
-        indicator.trigger()
-
-        # Initial state
-        assert indicator._flash_alpha == 1.0
-
-        # After 0.1 seconds (half duration)
-        indicator.update(0.1)
-        assert indicator._flash_alpha < 1.0
-        assert indicator._flash_alpha > 0.0
-
-        # After full duration
-        indicator.update(0.1)
-        assert indicator._flash_alpha == 0.0
-
-    def test_multiple_triggers(self):
-        """Should restart flash on multiple triggers."""
-        indicator = ReloadIndicator(flash_duration=0.2)
-        indicator.trigger()
-
-        # Decay a bit
-        indicator.update(0.1)
-        assert indicator._flash_alpha < 1.0
-
-        # Trigger again - should reset
-        indicator.trigger()
-        assert indicator._flash_alpha == 1.0
-
-    def test_custom_flash_duration(self):
-        """Should respect custom flash duration."""
-        indicator = ReloadIndicator(flash_duration=0.5)
-        indicator.trigger()
-
-        # After 0.25 seconds, should still be visible
-        indicator.update(0.25)
-        assert indicator._flash_alpha > 0.0
-
-        # After full 0.5 seconds
-        indicator.update(0.25)
-        assert indicator._flash_alpha == 0.0
-
-    def test_preserve_state_with_float_scale(self):
-        """Should handle float scale values."""
-        manager = ReloadManager()
-
-        sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
-        sprite.scale = 1.5  # Float scale
-
-        state = manager._preserve_state([sprite])
-        sprite_states = state["sprites"]
-        assert len(sprite_states) == 1
-        for sprite_data in sprite_states.values():
-            assert sprite_data["scale"] == 1.5
-
-    def test_preserve_state_with_int_scale(self):
-        """Should handle int scale values."""
-        manager = ReloadManager()
-
-        sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
-        sprite.scale = 2  # Int scale
-
-        state = manager._preserve_state([sprite])
-        sprite_states = state["sprites"]
-        assert len(sprite_states) == 1
-        for sprite_data in sprite_states.values():
-            assert sprite_data["scale"] == 2.0
-
-    def test_preserve_state_with_empty_tuple_scale(self):
-        """Should handle empty tuple scale values with fallback."""
-        manager = ReloadManager()
-
-        sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
-        # Arcade won't let us set invalid scale, but we can test empty tuple handling
-        # by accessing scale directly (it will be a valid tuple)
-        # Actually, we can't easily test invalid scale since Arcade validates it
-        # The fallback path (line 233) is defensive code that may not be reachable
-        # in practice, but it's good to have. Let's skip this test.
-        state = manager._preserve_state([sprite])
-        sprite_states = state["sprites"]
-        assert len(sprite_states) == 1
-        # Verify scale is preserved correctly
-        for sprite_data in sprite_states.values():
-            assert "scale" in sprite_data
-            assert isinstance(sprite_data["scale"], (int, float))
-
-    def test_state_provider_exception_handling(self):
-        """Should handle exceptions in state_provider gracefully."""
-
-        def failing_state_provider():
-            raise ValueError("State provider error")
-
-        manager = ReloadManager(state_provider=failing_state_provider)
-
-        sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
-        # Should not raise exception
-        state = manager._preserve_state([sprite])
-
-        # Should have empty custom state on error
-        assert "custom" in state
-        assert state["custom"] == {}
-
     def test_reload_module_with_exception(self, tmp_path):
         """Should handle reload exceptions gracefully."""
         manager = ReloadManager(root_path=tmp_path)
 
-        # Create a module file
-        module_file = tmp_path / "bad_module.py"
-        module_file.write_text("VALUE = 1")
-
-        sys.path.insert(0, str(tmp_path))
-        try:
-            import bad_module
-
-            # Corrupt the module to cause reload to fail
-            # We can't easily simulate a reload failure, but we can test
-            # that the exception handling path exists
-            # Let's try reloading a module that will fail on reload
-            # by creating a syntax error after import
-
-            # Actually, it's hard to force a reload failure without
-            # modifying sys.modules directly, which would be hacky.
-            # The exception handling is covered by the fact that reload
-            # can fail, and we catch it. Let's test with a module that
-            # doesn't exist in sys.modules (already covered) or test
-            # with invalid path (already covered).
-
-            # Test that reload returns False for non-existent module
-            nonexistent_file = tmp_path / "nonexistent.py"
-            result = manager._reload_module(nonexistent_file, tmp_path)
-            assert not result
-
-        finally:
-            if "bad_module" in sys.modules:
-                del sys.modules["bad_module"]
-            if str(tmp_path) in sys.path:
-                sys.path.remove(str(tmp_path))
+        # Test that reload returns False for non-existent module
+        nonexistent_file = tmp_path / "nonexistent.py"
+        result = manager._reload_module(nonexistent_file, tmp_path)
+        assert not result
 
     def test_force_reload_all_files(self, tmp_path):
         """Should force reload all Python files in watch paths."""
@@ -927,3 +668,134 @@ class TestReloadIndicator:
 
         finally:
             manager.force_reload = original_force_reload
+
+
+class TestReloadIndicator:
+    """Test suite for ReloadIndicator visual feedback."""
+
+    def test_initial_state(self):
+        """Should start with alpha at 0."""
+        indicator = ReloadIndicator()
+        assert indicator._flash_alpha == 0.0
+
+    def test_trigger_flash(self):
+        """Should set alpha to 1.0 when triggered."""
+        indicator = ReloadIndicator()
+        indicator.trigger()
+        assert indicator._flash_alpha == 1.0
+
+    def test_update_decays_alpha(self):
+        """Should decay alpha over time."""
+        indicator = ReloadIndicator(flash_duration=0.2)
+        indicator.trigger()
+
+        # Initial state
+        assert indicator._flash_alpha == 1.0
+
+        # After 0.1 seconds (half duration)
+        indicator.update(0.1)
+        assert indicator._flash_alpha < 1.0
+        assert indicator._flash_alpha > 0.0
+
+        # After full duration
+        indicator.update(0.1)
+        assert indicator._flash_alpha == 0.0
+
+    def test_multiple_triggers(self):
+        """Should restart flash on multiple triggers."""
+        indicator = ReloadIndicator(flash_duration=0.2)
+        indicator.trigger()
+
+        # Decay a bit
+        indicator.update(0.1)
+        assert indicator._flash_alpha < 1.0
+
+        # Trigger again - should reset
+        indicator.trigger()
+        assert indicator._flash_alpha == 1.0
+
+    def test_custom_flash_duration(self):
+        """Should respect custom flash duration."""
+        indicator = ReloadIndicator(flash_duration=0.5)
+        indicator.trigger()
+
+        # After 0.25 seconds, should still be visible
+        indicator.update(0.25)
+        assert indicator._flash_alpha > 0.0
+
+        # After full 0.5 seconds
+        indicator.update(0.25)
+        assert indicator._flash_alpha == 0.0
+
+    def test_preserve_state_with_float_scale(self):
+        """Should handle float scale values."""
+        manager = ReloadManager()
+
+        sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
+        sprite.scale = 1.5  # Float scale
+
+        state = manager._preserve_state([sprite])
+        sprite_states = state["sprites"]
+        assert len(sprite_states) == 1
+        for sprite_data in sprite_states.values():
+            assert sprite_data["scale"] == (1.5, 1.5)
+
+    def test_preserve_state_with_int_scale(self):
+        """Should handle int scale values."""
+        manager = ReloadManager()
+
+        sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
+        sprite.scale = 2  # Int scale
+
+        state = manager._preserve_state([sprite])
+        sprite_states = state["sprites"]
+        assert len(sprite_states) == 1
+        for sprite_data in sprite_states.values():
+            assert sprite_data["scale"] == (2.0, 2.0)
+
+    def test_preserve_state_with_non_uniform_scale_tuple(self):
+        """Should preserve both x and y scale components."""
+        manager = ReloadManager()
+
+        sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
+        sprite.scale = (2.0, 3.0)
+
+        state = manager._preserve_state([sprite])
+        sprite_states = state["sprites"]
+        assert len(sprite_states) == 1
+        for sprite_data in sprite_states.values():
+            assert sprite_data["scale"] == (2.0, 3.0)
+
+    def test_preserve_state_with_empty_tuple_scale(self):
+        """Should handle empty tuple scale values with fallback."""
+        manager = ReloadManager()
+
+        sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
+        # Arcade won't let us set invalid scale, but we can test empty tuple handling
+        # by accessing scale directly (it will be a valid tuple)
+        # Actually, we can't easily test invalid scale since Arcade validates it
+        # The fallback path (line 233) is defensive code that may not be reachable
+        # in practice, but it's good to have. Let's skip this test.
+        state = manager._preserve_state([sprite])
+        sprite_states = state["sprites"]
+        assert len(sprite_states) == 1
+        # Verify scale is preserved correctly
+        for sprite_data in sprite_states.values():
+            assert "scale" in sprite_data
+            assert isinstance(sprite_data["scale"], tuple)
+
+    def test_state_provider_exception_handling(self):
+        """Should handle exceptions in state_provider gracefully."""
+
+        def failing_state_provider():
+            raise ValueError("State provider error")
+
+        manager = ReloadManager(state_provider=failing_state_provider)
+
+        sprite = arcade.SpriteSolidColor(32, 32, arcade.color.WHITE)
+        # Should not raise exception
+        state = manager._preserve_state([sprite])
+
+        # Should have empty custom state on error
+        assert "custom" in state
+        assert state["custom"] == {}
