@@ -88,7 +88,11 @@ class TestReloadManager:
         # Queue from multiple threads
         threads = []
         for i in range(5):
-            thread = Thread(target=lambda: manager._on_files_changed([tmp_path / f"test{i}.py"]), daemon=True)
+            # Capture i by value so each thread reports the correct file
+            thread = Thread(
+                target=lambda i=i: manager._on_files_changed([tmp_path / f"test{i}.py"]),
+                daemon=True,
+            )
             threads.append(thread)
             thread.start()
 
@@ -98,15 +102,19 @@ class TestReloadManager:
 
         # Process all queued reloads
         processed_count = 0
+        queued_files = []
         while True:
             try:
                 files = manager._reload_queue.get_nowait()
                 processed_count += 1
+                queued_files.extend(files)
             except Empty:
                 break
 
         # Should have received all 5 reload requests
         assert processed_count == 5
+        expected_files = {tmp_path / f"test{i}.py" for i in range(5)}
+        assert set(queued_files) == expected_files
 
     def test_preserve_state_before_reload(self):
         """Should preserve sprite and action state before reload."""
