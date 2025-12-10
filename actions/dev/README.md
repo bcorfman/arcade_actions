@@ -248,15 +248,37 @@ manager.force_reload([Path("src/game/waves.py")])
 manager.force_reload()
 ```
 
-### State Preservation
+### State Preservation and Restoration
 
-ReloadManager automatically preserves:
+ReloadManager automatically preserves and restores game state across reloads:
 
 - **Sprite state**: Position, angle, scale (for sprites provided by `sprite_provider`)
+  - Baseline state is captured when manager is created
+  - After reload, sprites are automatically restored to baseline positions
+  - Prevents sprites from drifting during development iterations
 - **Action state**: Tags, elapsed time, pause status (for all active actions)
 - **Custom state**: Provided by `state_provider` callback
 
-State is captured before reload and passed to `on_reload` callback for reconstruction.
+#### Automatic Restoration
+
+By default, sprite positions/angles/scales are automatically restored after reload:
+
+```python
+manager = enable_dev_mode(
+    watch_paths=["src/game/"],
+    auto_restore=True,  # Default - automatically restore sprite state
+    sprite_provider=lambda: [player_sprite] + list(enemy_sprites)
+)
+```
+
+When `auto_restore=True`:
+1. Baseline state is captured when manager is created
+2. After reload, sprites are automatically restored to baseline positions
+3. `on_reload` callback runs after restoration (can override positions)
+
+When `auto_restore=False`:
+- State is captured and passed to `on_reload` callback only
+- No automatic restoration (manual control)
 
 **Note**: To enable sprite state preservation, provide a `sprite_provider` callback that returns a list of sprites. Without this, only action and custom state will be preserved.
 
@@ -291,11 +313,13 @@ manager.indicator.draw()  # Draw overlay
 
 ### Error Handling
 
-ReloadManager handles errors gracefully:
+ReloadManager handles errors gracefully with real fallback logic:
 
-- Failed module reloads are logged but don't crash
-- Exceptions in `state_provider` are caught and ignored
+- Failed module reloads are logged and skipped (returns `False`)
+- Exceptions in `state_provider` are logged with fallback to empty dict
+- Exceptions in `sprite_provider` are logged with fallback to empty list
 - Exceptions in `on_reload` callback are not caught (your responsibility)
+- All error handling provides genuine fallbacks, no silent error suppression
 
 ### Keyboard Shortcut for Manual Reload
 
@@ -361,6 +385,10 @@ When `preserve_state=True` (default):
 - **root_path** (`Path | str | None`): Root path for module resolution (default: inferred from watch_paths)
 - **auto_reload** (`bool`): Automatically reload on file change (default: `True`)
 - **preserve_state** (`bool`): Preserve game state across reloads (default: `True`)
+- **auto_restore** (`bool`): Automatically restore sprite state after reload (default: `True`)
+  - When `True`, sprite positions/angles/scales are automatically restored to baseline
+  - When `False`, state is only passed to `on_reload` callback
+  - Only used when `preserve_state=True`
 - **reload_key** (`str | None`): Keyboard key for manual reload (default: `"R"`)
 - **on_reload** (`Callable[[list[Path], dict], None] | None`): Callback after reload
 - **state_provider** (`Callable[[], dict] | None`): Callback to capture custom state

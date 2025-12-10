@@ -45,6 +45,7 @@ def enable_dev_mode(
     watch_paths: list[Path | str] | None = None,
     auto_reload: bool = True,
     preserve_state: bool = True,
+    auto_restore: bool = True,
     reload_key: str | None = "R",
     state_provider: Callable[[], dict] | None = None,
     sprite_provider: Callable[[], list] | None = None,
@@ -65,6 +66,10 @@ def enable_dev_mode(
         preserve_state: Preserve game state across reloads (default: True)
             When True, sprite positions, action state, and custom state are preserved
             When False, state preservation is skipped (faster but loses game state)
+        auto_restore: Automatically restore sprite state after reload (default: True)
+            When True, sprite positions/angles/scales are restored automatically
+            When False, state is only passed to on_reload callback
+            Only used when preserve_state=True
         reload_key: Keyboard key for manual reload (default: "R")
             Call manager.on_key_press(key, modifiers) in your window's on_key_press
             Use None to disable manual reload key
@@ -129,6 +134,7 @@ def enable_dev_mode(
         root_path=root_path,
         auto_reload=auto_reload,
         preserve_state=preserve_state,
+        auto_restore=auto_restore,
         state_provider=state_provider,
         sprite_provider=sprite_provider,
         on_reload=on_reload,
