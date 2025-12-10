@@ -19,34 +19,7 @@ import arcade
 from pathlib import Path
 
 from actions import Action, center_window
-from actions.conditional import MoveUntil, infinite
 from actions.dev import enable_dev_mode
-
-# Example wave class - modify this file to see hot-reload in action
-# You can change enemy count, colors, positions, etc. and see the changes instantly!
-
-
-class DemoWave:
-    """Simple wave class that can be modified and reloaded."""
-
-    def __init__(self):
-        self.enemy_count = 5
-        self.enemy_color = arcade.color.RED
-        self.spawn_y = 500
-
-    def create_enemies(self) -> arcade.SpriteList:
-        """Create enemies for this wave."""
-        enemies = arcade.SpriteList()
-        for i in range(self.enemy_count):
-            enemy = arcade.SpriteSolidColor(40, 40, self.enemy_color)
-            enemy.center_x = 100 + i * 100
-            enemy.center_y = self.spawn_y
-
-            # Make enemies move down
-            MoveUntil((0, -2), infinite()).apply(enemy, tag="move_down")
-            enemies.append(enemy)
-
-        return enemies
 
 
 class HotReloadDemo(arcade.Window):
@@ -101,7 +74,7 @@ class DemoWave:
 
         enemies = SpriteList()
         for i in range(self.enemy_count):
-            enemy = SpriteSolidColor(40, 40, self.enemy_color)
+            enemy = SpriteSolidColor(40, 40, color=self.enemy_color)
             enemy.center_x = 100 + i * 100
             enemy.center_y = self.spawn_y
 
@@ -163,10 +136,10 @@ class DemoWave:
 
             self.wave = demo_wave.DemoWave()
             self.enemies = self.wave.create_enemies()
-        except ImportError:
-            # Fallback to local class if import fails
-            self.wave = DemoWave()
-            self.enemies = self.wave.create_enemies()
+        except ImportError as e:
+            print(f"Error: Could not import wave module: {e}")
+            print("Make sure examples/waves/demo_wave.py exists and is valid.")
+            self.enemies = arcade.SpriteList()
 
         # Pre-create text objects to avoid per-frame draw_text calls
         self.instructions_text = arcade.Text(
@@ -193,6 +166,9 @@ class DemoWave:
 
         # Update actions
         Action.update_all(delta_time)
+
+        # Update sprites to apply velocities set by actions
+        self.enemies.update()
 
         # Remove enemies that moved off screen
         for enemy in list(self.enemies):
