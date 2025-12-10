@@ -1,10 +1,18 @@
-"""Tests for Hot-Reload Core exit criteria verification.
+"""Integration tests for Hot-Reload Core exit criteria verification.
 
-Verifies that all exit criteria from the plan are met:
+These tests verify that all exit criteria from the plan are met:
 1. Edit wave class, save → see change in <1s
 2. Modify sprite positioning code → updates without losing player position  
 3. No crashes across 50 consecutive reloads
 4. Works with existing visualizer (no conflicts)
+
+These are integration tests because they:
+- Perform real module reloads with file I/O
+- Test integration with visualizer system
+- Have timing dependencies
+- Test end-to-end behavior
+
+Run with: uv run pytest tests/integration/test_hot_reload_exit_criteria.py
 """
 
 import importlib
@@ -16,12 +24,11 @@ import arcade
 import pytest
 
 from actions import Action
-from actions.dev import enable_dev_mode
 from actions.dev.reload import ReloadManager
 
 
-class TestExitCriteria:
-    """Test suite verifying hot-reload exit criteria."""
+class TestHotReloadExitCriteria:
+    """Integration tests verifying hot-reload exit criteria."""
 
     def teardown_method(self):
         """Clean up after each test."""
@@ -169,17 +176,44 @@ VALUE = {i + 1}
             if str(tmp_path) in sys.path:
                 sys.path.remove(str(tmp_path))
 
-    def test_4_works_with_existing_visualizer_no_conflicts(self):
+    @pytest.mark.usefixtures("window")
+    def test_4_works_with_existing_visualizer_no_conflicts(self, window: arcade.Window | None):
         """Exit Criteria 4: Works with existing visualizer (no conflicts)."""
         # Check that visualizer and reload manager can coexist
         # Visualizer uses F3 (Shift+F3), reload manager uses R key
         # They should not conflict
 
+        import arcade
         from actions.visualizer import attach_visualizer, is_visualizer_attached, detach_visualizer
 
-        # Create a window (required for visualizer)
-        window = arcade.Window(800, 600, "Test", visible=False)
         try:
+            # Setup window (same pattern as visualizer integration tests)
+            if window is None or not hasattr(window, "show_view"):
+                class StubWindow:
+                    def __init__(self) -> None:
+                        self.handlers: dict[str, object] = {}
+                        self._view = None
+                        self.width = 800
+                        self.height = 600
+
+                    @property
+                    def current_view(self):
+                        return self._view
+
+                    def push_handlers(self, **handlers: object) -> None:
+                        self.handlers.update(handlers)
+
+                    def show_view(self, view) -> None:
+                        self._view = view
+                        setattr(view, "window", self)
+
+                    def set_visible(self, value: bool) -> None:
+                        self.visible = value
+
+                window = StubWindow()
+
+            arcade.set_window(window)
+
             # Attach visualizer
             visualizer_session = attach_visualizer()
             assert is_visualizer_attached()
@@ -201,11 +235,9 @@ VALUE = {i + 1}
             manager._perform_reload([])  # Empty reload should work
             assert is_visualizer_attached()  # Visualizer still attached
 
-            # Clean up
-            detach_visualizer()
-
         finally:
-            window.close()
+            # Clean up - ensure visualizer is always detached even if assertions fail
+            detach_visualizer()
 
     def test_4b_visualizer_and_reload_manager_key_shortcuts_dont_conflict(self):
         """Verify visualizer (F3) and reload manager (R) keyboard shortcuts don't conflict."""
