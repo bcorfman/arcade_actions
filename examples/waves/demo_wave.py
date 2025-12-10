@@ -14,9 +14,9 @@ class DemoWave:
     """Simple wave class that can be modified and reloaded."""
 
     def __init__(self):
-        self.enemy_count = 5
+        self.enemy_count = 6
         self.enemy_color = arcade.color.RED
-        self.spawn_y = 500
+        self.spawn_y = 550
 
     def create_enemies(self):
         """Create enemies for this wave."""
@@ -25,7 +25,7 @@ class DemoWave:
 
         enemies = SpriteList()
         for i in range(self.enemy_count):
-            enemy = SpriteSolidColor(40, 40, self.enemy_color)
+            enemy = SpriteSolidColor(40, 40, color=self.enemy_color)
             enemy.center_x = 100 + i * 100
             enemy.center_y = self.spawn_y
 

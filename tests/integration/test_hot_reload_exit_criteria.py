@@ -2,7 +2,7 @@
 
 These tests verify that all exit criteria from the plan are met:
 1. Edit wave class, save → see change in <1s
-2. Modify sprite positioning code → updates without losing player position  
+2. Modify sprite positioning code → updates without losing player position
 3. No crashes across 50 consecutive reloads
 4. Works with existing visualizer (no conflicts)
 
@@ -189,6 +189,7 @@ VALUE = {i + 1}
         try:
             # Setup window (same pattern as visualizer integration tests)
             if window is None or not hasattr(window, "show_view"):
+
                 class StubWindow:
                     def __init__(self) -> None:
                         self.handlers: dict[str, object] = {}
@@ -258,4 +259,3 @@ VALUE = {i + 1}
         # No conflict possible
 
         assert True  # If we get here, keys don't conflict
-
