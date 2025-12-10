@@ -9,7 +9,6 @@ import arcade
 import pytest
 
 from actions import Action
-from actions.conditional import MoveUntil, infinite
 from actions.dev.reload import ReloadManager
 
 
@@ -331,4 +330,3 @@ class TestErrorHandling:
 
         # Should complete successfully
         assert True
-
