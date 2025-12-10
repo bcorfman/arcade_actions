@@ -101,6 +101,7 @@ class ReloadManager:
         root_path: Path | str | None = None,
         auto_reload: bool = True,
         preserve_state: bool = True,
+        auto_restore: bool = True,
         state_provider: Callable[[], dict] | None = None,
         sprite_provider: Callable[[], list] | None = None,
         on_reload: Callable[[list[Path], dict], None] | None = None,
@@ -115,6 +116,9 @@ class ReloadManager:
             root_path: Root path for module name resolution (default: current directory)
             auto_reload: Automatically reload on file change (default: True)
             preserve_state: Preserve game state across reloads (default: True)
+            auto_restore: Automatically restore sprite state after reload (default: True)
+                When True, sprite positions/angles/scales are restored automatically
+                When False, state is only passed to on_reload callback
             state_provider: Optional callback to capture custom game state
             sprite_provider: Optional callback to provide sprites for state preservation
             on_reload: Optional callback called after reload with (files, state)
@@ -125,6 +129,7 @@ class ReloadManager:
         self.root_path = Path(root_path) if root_path else Path.cwd()
         self.auto_reload = auto_reload
         self.preserve_state = preserve_state
+        self.auto_restore = auto_restore
         self.state_provider = state_provider
         self.sprite_provider = sprite_provider
         self.on_reload = on_reload
@@ -135,6 +140,24 @@ class ReloadManager:
         self._file_watcher: FileWatcher | None = None
         self.indicator = ReloadIndicator()
         self.reload_key: str | None = None
+        self._baseline_state: dict = {}
+
+        # Capture baseline state immediately if sprite_provider is available
+        if self.preserve_state and self.auto_restore and self.sprite_provider:
+            self._capture_baseline_state()
+
+    def _capture_baseline_state(self) -> None:
+        """Capture baseline state for restoration after reloads."""
+        sprites_to_preserve = []
+        if self.sprite_provider:
+            try:
+                result = self.sprite_provider()
+                sprites_to_preserve = result if result is not None else []
+            except Exception as e:
+                print(f"Warning: sprite_provider failed during baseline capture: {e}")
+                sprites_to_preserve = []
+
+        self._baseline_state = self._preserve_state(sprites_to_preserve)
 
     def start(self) -> None:
         """Start watching files and enable hot-reload."""
@@ -193,15 +216,18 @@ class ReloadManager:
         Args:
             changed_files: List of file paths that changed
         """
-        # 1. Preserve state if enabled
+        # 1. Preserve current state if enabled (for passing to callback)
         saved_state = {}
         if self.preserve_state:
             sprites_to_preserve = []
             if self.sprite_provider:
                 try:
-                    sprites_to_preserve = self.sprite_provider()
-                except Exception:
-                    # Ignore errors in sprite provider
+                    result = self.sprite_provider()
+                    # Handle None or invalid return values gracefully
+                    sprites_to_preserve = result if result is not None else []
+                except Exception as e:
+                    # Real fallback: log error and use empty list
+                    print(f"Warning: sprite_provider failed: {e}")
                     sprites_to_preserve = []
             saved_state = self._preserve_state(sprites_to_preserve)
 
@@ -211,11 +237,16 @@ class ReloadManager:
             if self._reload_module(file_path, self.root_path):
                 reloaded.append(file_path)
 
-        # 3. Trigger reload callback (call even if no files reloaded to notify of attempt)
+        # 3. Restore sprite state automatically to baseline (if enabled)
+        if self.preserve_state:
+            self._restore_state(self._baseline_state)
+
+        # 4. Trigger reload callback (call even if no files reloaded to notify of attempt)
+        #    Callback runs after auto-restore, allowing it to override
         if self.on_reload:
             self.on_reload(reloaded, saved_state)
 
-        # 4. Visual feedback
+        # 5. Visual feedback
         self.indicator.trigger()
 
     def _preserve_state(self, sprite_list: list) -> dict:
@@ -275,12 +306,55 @@ class ReloadManager:
         # Preserve custom state
         if self.state_provider:
             try:
-                state["custom"] = self.state_provider()
-            except Exception:
-                # Ignore errors in state provider
-                pass
+                result = self.state_provider()
+                # Handle None or invalid return values gracefully
+                state["custom"] = result if result is not None else {}
+            except Exception as e:
+                # Real fallback: log error and use empty dict
+                print(f"Warning: state_provider failed: {e}")
+                state["custom"] = {}
 
         return state
+
+    def _restore_state(self, saved_state: dict) -> None:
+        """
+        Restore sprite state after reload.
+
+        Args:
+            saved_state: State dictionary captured before reload
+        """
+        if not self.auto_restore:
+            return
+
+        if not saved_state or "sprites" not in saved_state:
+            return
+
+        # Get current sprites to restore
+        sprites_to_restore = []
+        if self.sprite_provider:
+            try:
+                result = self.sprite_provider()
+                sprites_to_restore = result if result is not None else []
+            except Exception as e:
+                # Real fallback: log and skip restoration
+                print(f"Warning: sprite_provider failed during restoration: {e}")
+                return
+
+        # Restore sprite positions/angles/scales
+        # Map sprites by their ID (in memory position) to preserved state
+        for sprite in sprites_to_restore:
+            sprite_id = id(sprite)
+            if sprite_id in saved_state["sprites"]:
+                sprite_data = saved_state["sprites"][sprite_id]
+                # Restore position
+                position = sprite_data["position"]
+                sprite.center_x = position[0]
+                sprite.center_y = position[1]
+                # Restore angle
+                sprite.angle = sprite_data["angle"]
+                # Restore scale
+                scale = sprite_data["scale"]
+                sprite.scale = scale
 
     def _reload_module(self, file_path: Path, root_path: Path) -> bool:
         """
