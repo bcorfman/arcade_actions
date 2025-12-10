@@ -149,3 +149,10 @@ snapshots/
 demo.log
 action_log.txt
 *.code-workspace
+
+# Cursor IDE internal files
+.cursor/plans/
+*.plan.md
+
+# Internal development summaries
+*_IMPLEMENTATION_SUMMARY.md
