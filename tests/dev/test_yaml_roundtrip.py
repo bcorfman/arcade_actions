@@ -6,6 +6,7 @@ Tests that exported YAML can be loaded back and produces identical sprite config
 import arcade
 import tempfile
 import os
+import pytest
 
 from actions.dev.prototype_registry import DevContext, register_prototype, get_registry
 from actions.dev.templates import export_template, load_scene_template
@@ -15,6 +16,7 @@ from tests.conftest import ActionTestBase
 class TestYAMLRoundtrip(ActionTestBase):
     """Test suite for YAML export/import functionality."""
 
+    @pytest.mark.integration
     def test_export_basic_sprite(self, window):
         """Test exporting a single sprite to YAML."""
         scene_sprites = arcade.SpriteList()
@@ -49,6 +51,7 @@ class TestYAMLRoundtrip(ActionTestBase):
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
 
+    @pytest.mark.integration
     def test_import_basic_sprite(self, window):
         """Test importing a sprite from YAML."""
         scene_sprites = arcade.SpriteList()
@@ -83,6 +86,7 @@ class TestYAMLRoundtrip(ActionTestBase):
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
 
+    @pytest.mark.integration
     def test_roundtrip_with_actions(self, window):
         """Test export/import round-trip with action presets."""
         scene_sprites = arcade.SpriteList()
@@ -135,6 +139,7 @@ class TestYAMLRoundtrip(ActionTestBase):
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
 
+    @pytest.mark.integration
     def test_symbolic_bounds_export(self, window):
         """Test that symbolic bounds tokens are exported instead of raw numbers."""
         # This will be implemented with symbolic token mapping

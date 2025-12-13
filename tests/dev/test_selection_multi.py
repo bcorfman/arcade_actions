@@ -4,6 +4,7 @@ Tests click-to-select, shift-click, and marquee selection.
 """
 
 import arcade
+import pytest
 
 from actions.dev.selection import SelectionManager
 from tests.conftest import ActionTestBase
@@ -12,6 +13,7 @@ from tests.conftest import ActionTestBase
 class TestSelectionMulti(ActionTestBase):
     """Test suite for multi-selection functionality."""
 
+    @pytest.mark.integration
     def test_click_to_select_single(self, window):
         """Test clicking a sprite to select it."""
         scene_sprites = arcade.SpriteList()
@@ -35,6 +37,7 @@ class TestSelectionMulti(ActionTestBase):
         assert sprite1 in selected
         assert sprite2 not in selected
 
+    @pytest.mark.integration
     def test_shift_click_adds_to_selection(self, window):
         """Test shift-clicking to add sprites to selection."""
         scene_sprites = arcade.SpriteList()
@@ -74,6 +77,7 @@ class TestSelectionMulti(ActionTestBase):
         assert sprite2 in selected
         assert sprite3 in selected
 
+    @pytest.mark.integration
     def test_marquee_select_multiple(self, window):
         """Test drag marquee to select multiple sprites."""
         scene_sprites = arcade.SpriteList()
@@ -98,6 +102,7 @@ class TestSelectionMulti(ActionTestBase):
         # Should select sprites in the marquee rectangle
         assert len(selected) >= 2  # At least 2 sprites should be in the box
 
+    @pytest.mark.integration
     def test_marquee_select_clears_previous(self, window):
         """Test that marquee selection clears previous single selection."""
         scene_sprites = arcade.SpriteList()
@@ -126,6 +131,7 @@ class TestSelectionMulti(ActionTestBase):
         selected = manager.get_selected()
         assert sprite1 not in selected or len(selected) > 1
 
+    @pytest.mark.integration
     def test_selection_outline_drawing(self, window):
         """Test that selected sprites have outline indicators."""
         scene_sprites = arcade.SpriteList()

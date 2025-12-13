@@ -4,6 +4,7 @@ Tests preset registration, parameter editing, and bulk application to selected s
 """
 
 import arcade
+import pytest
 
 from actions.conditional import infinite
 from actions.dev.presets import ActionPresetRegistry, register_preset
@@ -50,6 +51,7 @@ class TestPresetAttach(ActionTestBase):
         assert hasattr(action, "target_velocity")
         assert action.target_velocity == (-3, 0)
 
+    @pytest.mark.integration
     def test_bulk_attach_preset_to_selected(self, window):
         """Test applying preset to multiple selected sprites."""
         scene_sprites = arcade.SpriteList()

@@ -29,7 +29,23 @@ SYMBOLIC = {
     "WALL_WIDTH": 50,  # Default - should be configurable
 }
 
+# Preferred tokens for ambiguous values, grouped by context
+# Used when multiple tokens map to the same value
+_SYMBOLIC_PREFERENCES = {
+    # X-axis tokens (left/right bounds)
+    "x": {
+        0: "SCREEN_LEFT",
+        800: "SCREEN_RIGHT",
+    },
+    # Y-axis tokens (bottom/top bounds)
+    "y": {
+        0: "SCREEN_BOTTOM",
+        600: "SCREEN_TOP",
+    },
+}
+
 # Reverse mapping for export (value -> token)
+# Only used for unambiguous values; ambiguous ones use preferences
 _SYMBOLIC_REVERSE: dict[float, str] = {v: k for k, v in SYMBOLIC.items()}
 
 
@@ -48,16 +64,25 @@ def _resolve_symbolic(value: Any) -> Any:
     return value
 
 
-def _symbolize_value(value: float) -> str | float:
+def _symbolize_value(value: float, axis: str | None = None) -> str | float:
     """
     Convert numeric value to symbolic token if it matches a known constant.
 
     Args:
         value: Numeric value to check
+        axis: Optional axis context ("x" or "y") for ambiguous values.
+              Used for bounds: x-axis for left/right, y-axis for bottom/top.
 
     Returns:
         Symbolic token string if match found, original value otherwise
     """
+    # If axis context is provided and value has a preference, use it
+    if axis is not None and axis in _SYMBOLIC_PREFERENCES:
+        preferences = _SYMBOLIC_PREFERENCES[axis]
+        if value in preferences:
+            return preferences[value]
+
+    # Otherwise, use reverse mapping (may be ambiguous but still valid)
     if value in _SYMBOLIC_REVERSE:
         return _SYMBOLIC_REVERSE[value]
     return value
@@ -124,8 +149,14 @@ def export_template(
                 params = action_config.get("params", {})
                 for key, value in params.items():
                     if key == "bounds" and isinstance(value, (tuple, list)) and len(value) == 4:
-                        # Try to symbolize bounds tuple
-                        symbolized_bounds = [_symbolize_value(v) for v in value]
+                        # Try to symbolize bounds tuple (left, bottom, right, top)
+                        # Use axis context to choose correct tokens for ambiguous values
+                        symbolized_bounds = [
+                            _symbolize_value(value[0], axis="x"),  # left -> x-axis
+                            _symbolize_value(value[1], axis="y"),  # bottom -> y-axis
+                            _symbolize_value(value[2], axis="x"),  # right -> x-axis
+                            _symbolize_value(value[3], axis="y"),  # top -> y-axis
+                        ]
                         action_def["params"]["bounds"] = symbolized_bounds
                     else:
                         action_def["params"][key] = value

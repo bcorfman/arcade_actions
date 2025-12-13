@@ -4,6 +4,7 @@ Tests draggable handles that edit bounds of MoveUntil actions.
 """
 
 import arcade
+import pytest
 
 from actions.conditional import MoveUntil, infinite
 from actions.dev.boundary_overlay import BoundaryGizmo
@@ -13,6 +14,7 @@ from tests.conftest import ActionTestBase
 class TestBoundaryGizmos(ActionTestBase):
     """Test suite for boundary gizmo functionality."""
 
+    @pytest.mark.integration
     def test_gizmo_detects_bounded_action(self, window):
         """Test that gizmo detects sprite with MoveUntil action that has bounds."""
         sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
@@ -32,6 +34,7 @@ class TestBoundaryGizmos(ActionTestBase):
         gizmo = BoundaryGizmo(sprite)
         assert gizmo.has_bounded_action()
 
+    @pytest.mark.integration
     def test_gizmo_creates_handles(self, window):
         """Test that gizmo creates four corner handles."""
         sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
@@ -50,6 +53,7 @@ class TestBoundaryGizmos(ActionTestBase):
         handles = gizmo.get_handles()
         assert len(handles) == 4  # Four corner handles
 
+    @pytest.mark.integration
     def test_gizmo_drag_updates_bounds(self, window):
         """Test dragging a handle updates the action's bounds."""
         sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
