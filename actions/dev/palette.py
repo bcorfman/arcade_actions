@@ -48,6 +48,10 @@ class PaletteSidebar:
         self.visible = visible
         self._dragging_prototype: str | None = None
         self._drag_ghost: arcade.Sprite | None = None
+        # Cache text objects to avoid creating them every frame
+        self._text_cache: list[arcade.Text] = []
+        self._cached_prototype_ids: tuple[str, ...] = ()
+        self._item_height = 50
 
     def handle_spawn(self, prototype_id: str, world_x: float, world_y: float) -> None:
         """
@@ -88,12 +92,11 @@ class PaletteSidebar:
 
         # Find which prototype was clicked (simplified - just check Y position)
         prototypes = list(self.registry.all().keys())
-        item_height = 50
         # Items are drawn top-to-bottom (item 0 at highest y)
-        # Item i is drawn at: self.y + (len(prototypes) - i) * item_height
-        # So relative_y = (y - self.y) // item_height maps to the item index as:
+        # Item i is drawn at: self.y + (len(prototypes) - i) * self._item_height
+        # So relative_y = (y - self.y) // self._item_height maps to the item index as:
         # clicked_index = len(prototypes) - relative_y
-        relative_y = (y - self.y) // item_height
+        relative_y = (y - self.y) // self._item_height
         clicked_index = len(prototypes) - relative_y
 
         if 0 <= clicked_index < len(prototypes):
@@ -142,20 +145,21 @@ class PaletteSidebar:
 
         return True
 
-    def draw(self) -> None:
-        """Draw the palette sidebar and drag ghost."""
-        if not self.visible:
+    def _rebuild_text_cache(self) -> None:
+        """Rebuild cached text objects when prototype list changes."""
+        prototypes = list(self.registry.all().keys())
+        current_ids = tuple(prototypes)
+
+        # Only rebuild if prototype list changed
+        if current_ids == self._cached_prototype_ids:
             return
 
-        # Draw sidebar background (simplified - using arcade.Text for MVP)
-        # In a full implementation, this would use arcade GUI or custom drawing
+        # Clear old cache
+        self._text_cache.clear()
 
-        # Draw prototype list
-        prototypes = list(self.registry.all().keys())
-        item_height = 50
+        # Create text objects for each prototype
         for i, prototype_id in enumerate(prototypes):
-            y_pos = self.y + (len(prototypes) - i) * item_height
-            # Use arcade.Text for MVP (no draw_text in render loop)
+            y_pos = self.y + (len(prototypes) - i) * self._item_height
             text = arcade.Text(
                 prototype_id,
                 self.x + 10,
@@ -163,6 +167,20 @@ class PaletteSidebar:
                 arcade.color.WHITE,
                 14,
             )
+            self._text_cache.append(text)
+
+        self._cached_prototype_ids = current_ids
+
+    def draw(self) -> None:
+        """Draw the palette sidebar and drag ghost."""
+        if not self.visible:
+            return
+
+        # Rebuild text cache if prototype list changed
+        self._rebuild_text_cache()
+
+        # Draw cached text objects (created once, reused each frame)
+        for text in self._text_cache:
             text.draw()
 
         # Draw drag ghost if active

@@ -178,6 +178,13 @@ class BoundaryGizmo:
             bottom = min(h.y for h in bottom_handles)
             top = max(h.y for h in top_handles)
 
+            # Validate bounds: ensure left <= right and bottom <= top
+            # If handles are dragged past each other, swap them to maintain valid bounds
+            if left > right:
+                left, right = right, left
+            if bottom > top:
+                bottom, top = top, bottom
+
             # Update action bounds
             self._bounded_action.set_bounds((left, bottom, right, top))
 
