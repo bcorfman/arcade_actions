@@ -35,6 +35,8 @@ dependencies = [
     "PySDL2>=0.9.16",
     # For hot-reload file watching
     "watchdog>=5.0.0",
+    # For YAML template export/import
+    "PyYAML>=6.0",
 ]
 
 [project.urls]
@@ -64,7 +66,8 @@ dev = [
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers=["unit: Unit tests.",
-         "system: System tests."]
+         "system: System tests.",
+         "integration: Integration tests that require window/OpenGL context."]
          
 
 [tool.ruff]

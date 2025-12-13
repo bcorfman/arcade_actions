@@ -270,6 +270,86 @@ Arrange functions contract:
 - **Complete Example** - See `examples/pymunk_demo_platformer.py` for state machine + physics + actions integration
 - **See the [API Usage Guide](docs/api_usage_guide.md#optional-physics-integration-arcade-3x--pymunk)** for detailed examples
 
+#### Development Visualizer (actions/dev/) - **NEW**
+ArcadeActions includes a comprehensive development visualizer for rapid prototyping and scene editing.
+
+**Sprite Prototype Registry:**
+- Register sprite "prefabs" with decorator-based factories
+- Drag-and-drop spawning from palette into scene
+- Automatic prototype ID tracking for serialization
+
+```python
+from actions.dev import register_prototype, DevContext
+
+@register_prototype("enemy_ship")
+def make_enemy_ship(ctx):
+    ship = arcade.Sprite("res/enemy.png", scale=0.5)
+    ship._prototype_id = "enemy_ship"
+    return ship
+```
+
+**Palette Sidebar & Selection:**
+- Visual palette showing all registered prototypes
+- Drag prototypes from palette to spawn at cursor position
+- Multi-selection: click-to-select, shift-click to add, click-drag marquee for box selection
+- Visual outline indicators for selected sprites
+
+**Preset Action Library:**
+- Register composable action presets with default parameters
+- Parameter editing sidebar for customizing presets
+- Bulk attach presets to multiple selected sprites at once
+- Actions stored as metadata in edit mode (not running) for safe editing
+
+```python
+from actions.dev import register_preset
+from actions.conditional import infinite
+
+@register_preset("scroll_left_cleanup", category="Movement", params={"speed": 4})
+def preset_scroll_left_cleanup(ctx, speed):
+    from actions.helpers import move_until
+    return move_until(
+        None,
+        velocity=(-speed, 0),
+        condition=infinite,
+        bounds=(OFFSCREEN_LEFT, 0, SCREEN_RIGHT, SCREEN_HEIGHT),
+        boundary_behavior="limit",
+    )
+```
+
+**Boundary Gizmos:**
+- Visual editor for `MoveUntil` action bounds
+- Draggable corner handles to adjust boundary rectangles in real-time
+- Semi-transparent overlay showing current bounds
+- Updates action bounds via `set_bounds()` method
+
+**YAML Template Export/Import:**
+- Export entire scenes to YAML with sprite positions and action configurations
+- Import scenes back into visualizer for round-trip editing
+- Symbolic bound expressions (e.g., `OFFSCREEN_LEFT`, `SCREEN_RIGHT`) for readability
+- Flat list schema: prototype, position, group, and action presets
+
+```python
+from actions.dev import export_template, load_scene_template, DevContext
+
+# Export scene
+export_template(scene_sprites, "wave1.yaml", prompt_user=False)
+
+# Import scene (clears and rebuilds)
+ctx = DevContext(scene_sprites=scene_sprites)
+load_scene_template("wave1.yaml", ctx)
+```
+
+**Edit Mode vs Runtime:**
+- **Edit Mode**: Sprites are static, actions stored as metadata (`_action_configs`), no `action.apply()` calls
+- Allows safe selection, positioning, and parameter editing without movement
+- Actions only instantiated when exporting to runtime or previewing
+- Round-trip workflow: export → modify → reimport → re-export
+
+**Integration:**
+All DevVisualizer components are standalone and composable. Use `PaletteSidebar` for spawning, `SelectionManager` for selection, `ActionPresetRegistry` for presets, `BoundaryGizmo` for bounds editing, and `templates` module for persistence.
+
+See `.cursor/rules/project.mdc` for detailed DevVisualizer architecture and usage patterns.
+
 ## 📋 Decision Matrix: When to Use What
 
 ### Basic Actions & Composition
@@ -288,6 +368,8 @@ Arrange functions contract:
 | Boundary detection | `move_until` with bounds | `move_until(sprite, bounds=b, boundary_behavior="bounce")` |
 | Smooth acceleration | `ease()` helper | `ease(sprite, action, frames=seconds_to_frames(2.0))` |
 | Property animation | `tween_until` helper | `tween_until(sprite, 0, 100, "center_x", ...)` |
+| Visual scene editing | DevVisualizer | Palette spawning, multi-selection, preset library, boundary gizmos |
+| Scene persistence | DevVisualizer YAML | Export/import scenes with round-trip editing support |
 
 ### State Machine Integration
 
@@ -317,6 +399,7 @@ Arrange functions contract:
 | Complex arcade | python-statemachine + ArcadeActions | See full game projects above |
 | Complex arcade with physics | python-statemachine + ArcadeActions + PyMunk | See `pymunk_demo_platformer.py` |
 | Cutscenes/tutorials | `sequence()` + `parallel()` | Complex multi-step choreography |
+| Rapid prototyping | DevVisualizer + ArcadeActions | Visual scene editing, YAML templates, preset library |
 
 ### View Architecture Pattern
 

@@ -22,6 +22,12 @@ The hot-reload and file watcher tests have been reorganized to separate **fast u
 tests/
 ├── test_file_watcher.py              # 8 fast unit tests
 ├── test_reload_manager.py            # 45 fast unit tests
+├── dev/                              # DevVisualizer tests (20 fast unit tests)
+│   ├── test_palette_spawn.py         # 4 tests - prototype registry and palette spawning
+│   ├── test_selection_multi.py       # 5 tests - multi-selection (click, shift-click, marquee)
+│   ├── test_preset_attach.py         # 4 tests - preset library and bulk attach
+│   ├── test_boundary_gizmos.py       # 3 tests - boundary gizmo editing
+│   └── test_yaml_roundtrip.py        # 4 tests - YAML export/import round-trip
 └── integration/
     ├── test_file_watcher_integration.py     # 9 slow integration tests
     └── test_reload_manager_integration.py   # 3 slow integration tests
@@ -125,5 +131,39 @@ This ensures:
 - Full hot-reload workflow
 
 Combined, these tests maintain **high coverage** while optimizing for **fast local development**.
+
+## DevVisualizer Tests (tests/dev/)
+
+The DevVisualizer feature bundle includes **20 fast unit tests** that validate all core functionality:
+
+**Test Organization:**
+- `test_palette_spawn.py` - Prototype registry registration and palette-based spawning
+- `test_selection_multi.py` - Multi-selection system (single click, shift-click, marquee)
+- `test_preset_attach.py` - Preset action library and bulk attachment
+- `test_boundary_gizmos.py` - Boundary gizmo detection and drag editing
+- `test_yaml_roundtrip.py` - YAML export/import with symbolic token resolution
+
+**Characteristics:**
+- All tests are **fast unit tests** (< 0.3 seconds total)
+- Test component behavior in isolation
+- Use standard fixtures (`test_sprite`, `test_sprite_list`)
+- Validate edit mode behavior (actions as metadata, not running)
+- Test round-trip serialization (export → import → verify)
+
+**Running DevVisualizer Tests:**
+```bash
+# Run all DevVisualizer tests
+uv run pytest tests/dev/
+
+# Run specific test suite
+uv run pytest tests/dev/test_palette_spawn.py
+uv run pytest tests/dev/test_yaml_roundtrip.py
+```
+
+These tests follow the same patterns as other ArcadeActions tests:
+- Use `ActionTestBase` for cleanup
+- Test deterministic behavior (no timing dependencies)
+- Validate component interfaces and data flow
+- Ensure proper dependency injection
 
 

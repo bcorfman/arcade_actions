@@ -163,6 +163,20 @@ class MoveUntil(_Action):
             action="MoveUntil",
         )
 
+    def set_bounds(self, bounds: tuple[float, float, float, float]) -> None:
+        """Update the boundary bounds for this action.
+
+        Args:
+            bounds: New bounds tuple (left, bottom, right, top)
+        """
+        if not isinstance(bounds, (tuple, list)) or len(bounds) != 4:
+            raise ValueError("bounds must be a tuple or list of length 4")
+        self.bounds = tuple(bounds)
+        _debug_log(
+            f"set_bounds: id={id(self)}, bounds={bounds}",
+            action="MoveUntil",
+        )
+
     def apply_effect(self) -> None:
         """Apply velocity to all sprites."""
 

@@ -999,6 +999,174 @@ def test_invalid_parameters(self, test_sprite):
 - `tests/test_ease_smoke.py` replaces the legacy easing battery with a minimal check
   that guarantees easing curves read `frames_completed / total_frames`.
 
+## Testing DevVisualizer Components
+
+DevVisualizer components follow the same testing patterns as core actions, with emphasis on edit mode behavior and data flow validation.
+
+### Testing Prototype Registry
+
+Test prototype registration and instantiation:
+
+```python
+from actions.dev.prototype_registry import SpritePrototypeRegistry, DevContext
+import arcade
+
+def test_prototype_registry():
+    registry = SpritePrototypeRegistry()
+    ctx = DevContext()
+    
+    @registry.register("test_sprite")
+    def make_test(ctx):
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
+        sprite._prototype_id = "test_sprite"
+        return sprite
+    
+    assert registry.has("test_sprite")
+    sprite = registry.create("test_sprite", ctx)
+    assert sprite._prototype_id == "test_sprite"
+```
+
+### Testing Selection Manager
+
+Test multi-selection behavior:
+
+```python
+from actions.dev.selection import SelectionManager
+import arcade
+
+def test_marquee_selection(window):
+    scene_sprites = arcade.SpriteList()
+    # Create sprites in a grid
+    for i in range(3):
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.WHITE)
+        sprite.center_x = 100 + i * 50
+        sprite.center_y = 100
+        scene_sprites.append(sprite)
+    
+    manager = SelectionManager(scene_sprites)
+    
+    # Drag marquee
+    manager.handle_mouse_press(75, 75, False)
+    manager.handle_mouse_drag(175, 175)
+    manager.handle_mouse_release(175, 175)
+    
+    selected = manager.get_selected()
+    assert len(selected) >= 2  # Should select multiple sprites
+```
+
+### Testing Preset Library
+
+Test preset registration and action creation:
+
+```python
+from actions.dev.presets import ActionPresetRegistry
+from actions.conditional import infinite
+
+def test_preset_creation():
+    registry = ActionPresetRegistry()
+    
+    @registry.register("test_preset", category="Movement", params={"speed": 3})
+    def make_preset(ctx, speed):
+        from actions.helpers import move_until
+        return move_until(None, velocity=(-speed, 0), condition=infinite)
+    
+    ctx = type("Context", (), {})()  # Mock context
+    action = registry.create("test_preset", ctx, speed=3)
+    
+    assert action.target_velocity == (-3, 0)
+```
+
+### Testing Boundary Gizmos
+
+Test gizmo detection and bounds editing:
+
+```python
+from actions.dev.boundary_overlay import BoundaryGizmo
+from actions.conditional import MoveUntil, infinite
+
+def test_gizmo_bounds_editing(window):
+    sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
+    
+    action = MoveUntil(
+        velocity=(5, 0),
+        condition=infinite,
+        bounds=(0, 0, 800, 600),
+        boundary_behavior="limit",
+    )
+    action.apply(sprite, tag="movement")
+    
+    gizmo = BoundaryGizmo(sprite)
+    assert gizmo.has_bounded_action()
+    
+    # Find top handle and drag it
+    handles = gizmo.get_handles()
+    top_handle = next(h for h in handles if "top" in h.handle_type)
+    
+    original_top = action.bounds[3]
+    gizmo.handle_drag(top_handle, 0, -20)
+    
+    assert action.bounds[3] == original_top - 20
+```
+
+### Testing YAML Round-Trip
+
+Test export/import maintains all data:
+
+```python
+from actions.dev import export_template, load_scene_template, DevContext
+import tempfile
+import os
+
+def test_yaml_roundtrip(window):
+    scene_sprites = arcade.SpriteList()
+    
+    # Register prototype
+    @register_prototype("test_sprite")
+    def make_test(ctx):
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.GREEN)
+        sprite._prototype_id = "test_sprite"
+        return sprite
+    
+    # Create sprite with action config
+    ctx = DevContext(scene_sprites=scene_sprites)
+    sprite = get_registry().create("test_sprite", ctx)
+    sprite.center_x = 500
+    sprite.center_y = 600
+    sprite._action_configs = [{"preset": "test_preset", "params": {"speed": 7}}]
+    scene_sprites.append(sprite)
+    
+    # Export
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        temp_path = f.name
+    
+    try:
+        export_template(scene_sprites, temp_path, prompt_user=False)
+        
+        # Clear and reimport
+        scene_sprites.clear()
+        load_scene_template(temp_path, ctx)
+        
+        # Verify round-trip
+        assert len(scene_sprites) == 1
+        loaded = scene_sprites[0]
+        assert loaded._prototype_id == "test_sprite"
+        assert loaded.center_x == 500
+        assert loaded.center_y == 600
+        assert len(loaded._action_configs) == 1
+        assert loaded._action_configs[0]["params"]["speed"] == 7
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+```
+
+### Key Testing Principles for DevVisualizer
+
+1. **Edit Mode Validation**: Always verify actions are stored as metadata (`_action_configs`), not running
+2. **Dependency Injection**: Test components with injected dependencies (registries, contexts)
+3. **Round-Trip Testing**: Export → import → verify for serialization components
+4. **Isolation**: Each component test should be independent and fast
+5. **No Action Execution**: DevVisualizer tests should never call `Action.update_all()` - actions are metadata only
+
 ## Writing New Tests
 
 1. **Drive behavior with frames.** Iteratively call `Action.update_all(1/60)` (or

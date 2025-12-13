@@ -31,13 +31,44 @@ from pathlib import Path
 
 from .reload import ReloadIndicator, ReloadManager
 from .watch import FileWatcher
+from .prototype_registry import (
+    DevContext,
+    SpritePrototypeRegistry,
+    register_prototype,
+    get_registry as get_prototype_registry,
+)
+from .presets import (
+    ActionPresetRegistry,
+    register_preset,
+    get_preset_registry,
+)
+from .palette import PaletteSidebar
+from .selection import SelectionManager
+from .boundary_overlay import BoundaryGizmo, BoundaryHandle
+from .templates import export_template, load_scene_template, SYMBOLIC
 
 __all__ = [
+    # Hot reload
     "FileWatcher",
     "ReloadManager",
     "ReloadIndicator",
     "enable_dev_mode",
     "auto_enable_from_env",
+    # DevVisualizer
+    "DevContext",
+    "SpritePrototypeRegistry",
+    "register_prototype",
+    "get_prototype_registry",
+    "ActionPresetRegistry",
+    "register_preset",
+    "get_preset_registry",
+    "PaletteSidebar",
+    "SelectionManager",
+    "BoundaryGizmo",
+    "BoundaryHandle",
+    "export_template",
+    "load_scene_template",
+    "SYMBOLIC",
 ]
 
 
