@@ -194,6 +194,15 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **Nested easing** - Combine multiple easing levels for complex animations
 - **Completion callbacks** - Execute code when easing transitions complete
 
+#### Development Visualizer (actions/dev/)
+- **SpritePrototypeRegistry** - Decorator-based registry for sprite "prefabs"
+- **PaletteSidebar** - Drag-and-drop interface for spawning prototypes
+- **SelectionManager** - Multi-selection system (click, shift-click, marquee)
+- **ActionPresetRegistry** - Decorator-based library of composable action presets
+- **BoundaryGizmo** - Visual editor for MoveUntil action bounds
+- **YAML Templates** - Export/import scenes with round-trip editing support
+- See [Pattern 12-16](#development-visualizer-actionsdev) for detailed usage
+
 ## Animation Approaches: Ease vs TweenUntil
 
 ArcadeActions provides two distinct but complementary approaches for creating smooth animations. Understanding when to use each is crucial for effective game development.
@@ -2253,3 +2262,300 @@ callback_until(
 # Avoid: Expensive per-frame operations
 # callback_until(target, expensive_operation, infinite)  # No interval!
 ```
+
+## Development Visualizer (actions/dev/)
+
+ArcadeActions includes a comprehensive development visualizer for rapid prototyping, scene editing, and visual action configuration. The DevVisualizer provides a complete workflow for designing game levels and wave patterns without writing code.
+
+### Pattern 12: Sprite Prototype Registration
+
+Register sprite "prefabs" that can be spawned visually in the development environment:
+
+```python
+from actions.dev import register_prototype, DevContext
+import arcade
+
+@register_prototype("enemy_ship")
+def make_enemy_ship(ctx: DevContext):
+    """Factory function that creates an enemy ship sprite."""
+    ship = arcade.Sprite(":resources:images/space_shooter/enemyShip1.png", scale=0.5)
+    ship._prototype_id = "enemy_ship"  # Required for serialization
+    return ship
+
+@register_prototype("power_up")
+def make_power_up(ctx: DevContext):
+    """Factory function that creates a power-up sprite."""
+    power = arcade.Sprite(":resources:images/items/star.png", scale=0.8)
+    power._prototype_id = "power_up"
+    return power
+```
+
+**Key Points:**
+- Factory functions receive a `DevContext` with scene references
+- Must set `_prototype_id` attribute for YAML serialization
+- Prototypes are registered globally and can be accessed via `get_registry()`
+
+### Pattern 13: Action Preset Library
+
+Create reusable action presets with default parameters that can be customized:
+
+```python
+from actions.dev import register_preset
+from actions.conditional import infinite
+from actions.helpers import move_until
+
+@register_preset("scroll_left_cleanup", category="Movement", params={"speed": 4})
+def preset_scroll_left_cleanup(ctx, speed):
+    """Preset for sprites that scroll left and cleanup when offscreen."""
+    return move_until(
+        None,  # Unbound action - not applied yet
+        velocity=(-speed, 0),
+        condition=infinite,
+        bounds=(-100, 0, 900, 600),  # Offscreen left, screen bounds
+        boundary_behavior="limit",
+        on_boundary_enter=lambda s, axis, side: ctx.on_cleanup(s) if side == "left" else None,
+    )
+
+@register_preset("orbit_pattern", category="Movement", params={"radius": 50, "angular_speed": 2})
+def preset_orbit(ctx, radius, angular_speed):
+    """Preset for orbiting movement pattern."""
+    from actions.pattern import create_orbit_pattern
+    return create_orbit_pattern(radius=radius, angular_velocity=angular_speed, condition=infinite)
+```
+
+**Key Points:**
+- Presets return **unbound actions** (not applied to targets)
+- Default parameters are provided in the decorator
+- Parameters can be overridden when creating actions from presets
+- Actions are stored as metadata in edit mode, not running
+
+### Pattern 14: Visual Scene Editing Workflow
+
+Use the DevVisualizer for complete visual scene design:
+
+```python
+from actions.dev import (
+    DevContext,
+    PaletteSidebar,
+    SelectionManager,
+    get_registry,
+    get_preset_registry,
+    export_template,
+    load_scene_template,
+)
+import arcade
+
+class DevView(arcade.View):
+    """Development view with visual editing tools."""
+    
+    def __init__(self):
+        super().__init__()
+        self.scene_sprites = arcade.SpriteList()
+        
+        # Create dev context
+        self.ctx = DevContext(scene_sprites=self.scene_sprites)
+        
+        # Initialize visualizer components
+        self.palette = PaletteSidebar(
+            registry=get_registry(),
+            ctx=self.ctx,
+            x=10,
+            y=10,
+            width=200,
+        )
+        
+        self.selection_manager = SelectionManager(self.scene_sprites)
+        
+    def on_mouse_press(self, x, y, button, modifiers):
+        """Handle mouse input for palette and selection."""
+        shift = modifiers & arcade.key.MOD_SHIFT
+        
+        # Check palette first
+        if self.palette.handle_mouse_press(x, y):
+            return
+        
+        # Then handle selection
+        self.selection_manager.handle_mouse_press(x, y, shift)
+        
+    def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        """Handle mouse drag for palette ghost and marquee."""
+        self.palette.handle_mouse_drag(x, y)
+        self.selection_manager.handle_mouse_drag(x, y)
+        
+    def on_mouse_release(self, x, y, button, modifiers):
+        """Handle mouse release for spawning and selection."""
+        # Convert screen coordinates to world coordinates
+        world_x, world_y = self.get_world_coords(x, y)
+        
+        if self.palette.handle_mouse_release(world_x, world_y):
+            return
+            
+        self.selection_manager.handle_mouse_release(world_x, world_y)
+        
+    def attach_preset_to_selected(self, preset_id: str, **params):
+        """Bulk attach preset to all selected sprites."""
+        selected = self.selection_manager.get_selected()
+        preset_registry = get_preset_registry()
+        
+        for sprite in selected:
+            # Store action config as metadata (edit mode)
+            if not hasattr(sprite, "_action_configs"):
+                sprite._action_configs = []
+            
+            sprite._action_configs.append({
+                "preset": preset_id,
+                "params": params,
+            })
+    
+    def export_scene(self, path: str):
+        """Export current scene to YAML."""
+        export_template(self.scene_sprites, path, prompt_user=False)
+        
+    def import_scene(self, path: str):
+        """Import scene from YAML (clears and rebuilds)."""
+        load_scene_template(path, self.ctx)
+        
+    def on_draw(self):
+        """Draw scene and visualizer overlays."""
+        self.clear()
+        self.scene_sprites.draw()
+        self.palette.draw()
+        self.selection_manager.draw()
+        
+        # Draw boundary gizmos for selected sprites with bounded actions
+        for sprite in self.selection_manager.get_selected():
+            from actions.dev import BoundaryGizmo
+            gizmo = BoundaryGizmo(sprite)
+            if gizmo.has_bounded_action():
+                gizmo.draw()
+```
+
+### Pattern 15: YAML Template Round-Trip Editing
+
+Export scenes to YAML, modify them, and reimport for iterative design:
+
+```python
+from actions.dev import export_template, load_scene_template, DevContext
+
+# Export scene
+scene_sprites = arcade.SpriteList()
+# ... populate scene with sprites and action configs ...
+export_template(scene_sprites, "wave1.yaml", prompt_user=False)
+
+# Later: Import and modify
+ctx = DevContext(scene_sprites=arcade.SpriteList())
+load_scene_template("wave1.yaml", ctx)
+
+# Modify sprites (positions, action configs)
+for sprite in ctx.scene_sprites:
+    sprite.center_x += 50  # Adjust position
+    # Modify action configs
+    if hasattr(sprite, "_action_configs"):
+        for config in sprite._action_configs:
+            if config["preset"] == "scroll_left_cleanup":
+                config["params"]["speed"] = 6  # Change speed
+
+# Re-export
+export_template(ctx.scene_sprites, "wave1.yaml", prompt_user=False)
+```
+
+**YAML Schema:**
+```yaml
+- prototype: "enemy_ship"
+  x: 200
+  y: 400
+  group: "wave_enemies"
+  actions:
+    - preset: "scroll_left_cleanup"
+      params:
+        speed: 4
+- prototype: "power_up"
+  x: 500
+  y: 300
+  group: ""
+  actions: []
+```
+
+**Symbolic Bound Expressions:**
+The YAML loader supports symbolic tokens for bounds:
+
+```python
+# In YAML:
+bounds: [OFFSCREEN_LEFT, 0, SCREEN_RIGHT, SCREEN_HEIGHT]
+
+# Resolved to actual values during import
+# OFFSCREEN_LEFT = -100, SCREEN_RIGHT = 800, etc.
+```
+
+### Pattern 16: Boundary Gizmo Editing
+
+Visually edit bounds of MoveUntil actions with draggable handles:
+
+```python
+from actions.dev import BoundaryGizmo
+from actions.conditional import MoveUntil, infinite
+
+# Create sprite with bounded action
+sprite = arcade.Sprite(":resources:images/items/star.png")
+action = MoveUntil(
+    velocity=(5, 0),
+    condition=infinite,
+    bounds=(0, 0, 800, 600),
+    boundary_behavior="limit",
+)
+action.apply(sprite, tag="movement")
+
+# Create gizmo for visual editing
+gizmo = BoundaryGizmo(sprite)
+
+# In mouse handler:
+def on_mouse_press(self, x, y, button, modifiers):
+    # Check if clicking on a handle
+    handle = gizmo.get_handle_at_point(x, y)
+    if handle:
+        self.dragging_handle = handle
+        self.drag_start = (x, y)
+
+def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+    if self.dragging_handle:
+        gizmo.handle_drag(self.dragging_handle, dx, dy)
+        # Bounds are updated in real-time via set_bounds()
+
+def on_mouse_release(self, x, y, button, modifiers):
+    self.dragging_handle = None
+```
+
+**Key Points:**
+- Gizmo automatically detects MoveUntil actions with bounds
+- Four corner handles allow independent edge adjustment
+- Bounds update in real-time via `action.set_bounds()`
+- Visual feedback with semi-transparent rectangle overlay
+
+### Edit Mode vs Runtime Mode
+
+**Critical Distinction:** DevVisualizer operates in **edit mode** where sprites are static and actions are stored as metadata:
+
+```python
+# Edit Mode (DevVisualizer)
+sprite._action_configs = [
+    {"preset": "scroll_left", "params": {"speed": 4}}
+]
+# Sprite is static - no movement
+
+# Runtime Mode (Game)
+action = preset_registry.create("scroll_left", ctx, speed=4)
+action.apply(sprite)  # Now sprite moves
+Action.update_all(delta_time)  # Actions execute
+```
+
+This separation allows safe editing without sprites moving during design.
+
+### Best Practices
+
+1. **Register prototypes early**: Set up all prototypes before creating the visualizer
+2. **Use meaningful preset names**: Clear names make the preset library easier to navigate
+3. **Organize presets by category**: Use categories like "Movement", "Effects", "Formations"
+4. **Store action configs as metadata**: Never call `action.apply()` during editing
+5. **Export frequently**: Save work often with YAML export
+6. **Use symbolic bounds**: Makes YAML files more readable and maintainable
+7. **Test round-trip**: Verify export → import → export maintains all data
