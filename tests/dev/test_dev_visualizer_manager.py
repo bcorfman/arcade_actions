@@ -258,6 +258,15 @@ class TestDevVisualizerManager(ActionTestBase):
     @pytest.mark.integration
     def test_draw_when_visible(self, window):
         """Test DevVisualizer draws when visible."""
+        # Skip if no OpenGL context (headless CI on Mac/Windows)
+        # Text objects require OpenGL context for font loading
+        if window is None:
+            pytest.skip("No window available")
+        try:
+            _ = window.ctx  # Try to access OpenGL context
+        except (RuntimeError, AttributeError):
+            pytest.skip("No OpenGL context available (headless mode)")
+
         scene_sprites = arcade.SpriteList()
         dev_viz = DevVisualizer(scene_sprites=scene_sprites)
         dev_viz.show()
@@ -272,6 +281,15 @@ class TestDevVisualizerManager(ActionTestBase):
     @pytest.mark.integration
     def test_visible_indicator_when_active(self, window):
         """Test that DevVisualizer shows a visible indicator when active."""
+        # Skip if no OpenGL context (headless CI on Mac/Windows)
+        # Text objects require OpenGL context for font loading
+        if window is None:
+            pytest.skip("No window available")
+        try:
+            _ = window.ctx  # Try to access OpenGL context
+        except (RuntimeError, AttributeError):
+            pytest.skip("No OpenGL context available (headless mode)")
+
         dev_viz = DevVisualizer()
         dev_viz.show()
 
@@ -662,8 +680,18 @@ class TestDevVisualizerEditMode(ActionTestBase):
         # Check velocity is set (sprite moves when sprite.update() is called)
         assert sprite.change_x == 5
 
+    @pytest.mark.integration
     def test_edit_mode_indicator(self, window):
         """Test that edit mode shows proper indicator."""
+        # Skip if no OpenGL context (headless CI on Mac/Windows)
+        # Text objects require OpenGL context for font loading
+        if window is None:
+            pytest.skip("No window available")
+        try:
+            _ = window.ctx  # Try to access OpenGL context
+        except (RuntimeError, AttributeError):
+            pytest.skip("No OpenGL context available (headless mode)")
+
         dev_viz = DevVisualizer()
         dev_viz.show()
 
