@@ -214,5 +214,5 @@ def auto_enable_from_env() -> ReloadManager | None:
     return None
 
 
-# Auto-enable DevVisualizer from environment variable
-auto_enable_dev_visualizer_from_env()
+# Note: DevVisualizer auto-enable is handled by actions/__init__.py
+# to avoid duplicate initialization when actions.dev is imported.

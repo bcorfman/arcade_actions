@@ -598,7 +598,16 @@ def auto_enable_dev_visualizer_from_env() -> DevVisualizer | None:
 
     Note: If window doesn't exist yet, DevVisualizer is created but not attached.
     It will attach automatically when window becomes available (if auto_attach=True).
+
+    This function is idempotent - if DevVisualizer is already enabled, returns the
+    existing instance instead of creating a new one.
     """
+    global _global_dev_visualizer
+
+    # If already enabled, return existing instance (idempotent)
+    if _global_dev_visualizer is not None:
+        return _global_dev_visualizer
+
     # Check multiple environment variable options
     env_vars = [
         "ARCADEACTIONS_DEVVIZ",  # Explicit DevVisualizer
