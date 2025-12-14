@@ -121,6 +121,25 @@ def _maybe_auto_attach_visualizer() -> None:
 
 _maybe_auto_attach_visualizer()
 
+
+def _maybe_auto_enable_dev_visualizer() -> None:
+    """Automatically enable DevVisualizer when requested via environment variable."""
+    env_vars = [
+        "ARCADEACTIONS_DEVVIZ",
+        "ARCADEACTIONS_DEV",
+        "ARCADEACTIONS_DEV_MODE",
+    ]
+
+    if not any(os.getenv(var) == "1" for var in env_vars):
+        return
+
+    from . import dev as dev_module
+
+    dev_module.auto_enable_dev_visualizer_from_env()
+
+
+_maybe_auto_enable_dev_visualizer()
+
 __all__ = [
     # Core classes
     "Action",

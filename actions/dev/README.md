@@ -400,10 +400,582 @@ When `preserve_state=True` (default):
 
 See [examples/hot_reload_demo.py](../../examples/hot_reload_demo.py) for a complete working example.
 
-## Coming Soon
+## DevVisualizer
 
-- **DevVisualizer**: Visual editor for sprite positioning and animation tuning
-- **SceneTemplates**: Save/load scene configurations
+A comprehensive visual editor for rapid prototyping, scene editing, and action configuration. DevVisualizer provides drag-and-drop sprite spawning, multi-selection, preset action libraries, boundary editing, and YAML-based scene persistence.
+
+**Key Features:**
+- **Automatic pause/resume**: Actions pause when DevVisualizer is visible (edit mode)
+- **Import existing sprites**: Edit sprites from running games
+- **Export changes**: Sync edited positions back to game
+- **F12 toggle**: Quick switch between edit mode and runtime mode
+- **Non-destructive**: Edits don't affect running game until exported
+
+### Workflows
+
+**Workflow 1: Editing Existing Game**
+```bash
+# Run game with DevVisualizer enabled
+ARCADEACTIONS_DEVVIZ=1 uv run python examples/invaders.py
+
+# In game:
+# 1. Press F12 to enter edit mode (game pauses automatically)
+# 2. Import sprites from game for editing (programmatically or via hotkey)
+# 3. Adjust positions, edit properties
+# 4. Export changes back to game
+# 5. Press F12 to resume game and see changes
+```
+
+**Workflow 2: Creating New Scenes from Scratch (Truly Zero Boilerplate)**
+```bash
+# Start with empty scene - ABSOLUTELY NO API calls needed!
+ARCADEACTIONS_DEVVIZ=1 uv run python examples/create_boss_level.py
+
+# In editor:
+# 1. DevVisualizer auto-enables (no enable_dev_visualizer() call needed!)
+# 2. Press F12 to toggle DevVisualizer if not visible
+# 3. Drag prototypes from palette to spawn sprites
+# 4. Click sprites to select them
+# 5. Press E to export scene to YAML
+# 6. Load YAML in your game code
+
+# Example: create_boss_level.py
+# - Just register prototypes with @register_prototype
+# - Create a simple View with on_draw() that calls self.clear()
+# - That's it! DevVisualizer automatically draws scene_sprites
+# - No get_dev_visualizer(), no scene_sprites.draw(), NOTHING!
+# - Completely transparent - perfect for beginners!
+```
+
+**Workflow 3: Iterative YAML Editing**
+```bash
+# Round-trip editing
+# 1. Export scene to YAML
+# 2. Edit YAML in text editor (adjust positions, change presets)
+# 3. Import YAML back into DevVisualizer
+# 4. Visual adjustments
+# 5. Re-export to YAML
+```
+
+### Quick Start
+
+**Environment Variable (Recommended):**
+```bash
+# Enable DevVisualizer automatically
+ARCADEACTIONS_DEVVIZ=1 uv run python game.py
+
+# Or use general dev mode (also enables DevVisualizer)
+ARCADEACTIONS_DEV=1 uv run python game.py
+
+# Alternative environment variable name
+ARCADEACTIONS_DEV_MODE=1 uv run python game.py
+```
+
+Once enabled, press **F12** to toggle DevVisualizer on/off (edit mode vs runtime mode).
+
+**Zero-Boilerplate Example (Recommended for New Scenes):**
+```python
+# create_boss_level.py - Truly zero boilerplate!
+import arcade
+from actions import center_window
+from actions.dev import register_prototype
+
+# Register prototypes - these appear in palette automatically
+# That's all you need! DevVisualizer handles everything else.
+@register_prototype("boss")
+def make_boss(ctx):
+    sprite = arcade.Sprite(":resources:images/enemies/slimeBlue.png", scale=2.0)
+    sprite._prototype_id = "boss"
+    return sprite
+
+class SceneEditorView(arcade.View):
+    def on_draw(self):
+        self.clear()
+        # That's it! DevVisualizer automatically draws scene sprites
+        # No API calls needed - completely transparent
+
+def main():
+    window = arcade.Window(1280, 720, "Boss Level Editor", visible=False)
+    center_window(window)
+    window.set_visible(True)
+    window.show_view(SceneEditorView())
+    arcade.run()
+
+if __name__ == "__main__":
+    main()
+
+# Run with: ARCADEACTIONS_DEVVIZ=1 uv run python create_boss_level.py
+# Press F12 to toggle, E to export, I to import
+# No get_dev_visualizer(), no scene_sprites.draw() - nothing!
+```
+
+**Programmatic (for integrating with existing games):**
+```python
+from actions.dev import enable_dev_visualizer
+
+# Enable DevVisualizer (auto-attaches to window)
+dev_viz = enable_dev_visualizer(
+    scene_sprites=my_scene_sprites,
+    auto_attach=True
+)
+
+# Press F12 to toggle visibility
+```
+
+### Features
+
+- **Sprite Prototype Registry**: Register sprite "prefabs" with decorator-based factories
+- **Palette Sidebar**: Drag-and-drop interface for spawning prototypes into scene
+- **Multi-Selection**: Click-to-select, shift-click, and marquee box selection
+- **Action Preset Library**: Composable action presets with parameter editing
+- **Boundary Gizmos**: Visual editor for MoveUntil action bounds with draggable handles
+- **YAML Templates**: Export/import scenes with round-trip editing support
+- **Symbolic Bound Expressions**: Human-readable tokens (OFFSCREEN_LEFT, SCREEN_RIGHT, etc.)
+- **Edit Mode**: Sprites are static during editing; actions stored as metadata, not running
+
+### Basic Usage
+
+**Simplest approach (environment variable):**
+```bash
+# Set environment variable and run game
+ARCADEACTIONS_DEVVIZ=1 uv run python game.py
+
+# In your game code, register prototypes:
+from actions.dev import register_prototype
+
+@register_prototype("enemy_ship")
+def make_enemy_ship(ctx):
+    sprite = arcade.Sprite(":resources:images/space_shooter/enemyShip1.png")
+    sprite._prototype_id = "enemy_ship"
+    return sprite
+
+# Press F12 in-game to toggle DevVisualizer
+# Drag prototypes from palette, select sprites, edit bounds, export YAML
+```
+
+**Programmatic setup:**
+```python
+import arcade
+from actions.dev import enable_dev_visualizer, register_prototype
+
+class GameView(arcade.View):
+    def __init__(self):
+        super().__init__()
+        self.scene_sprites = arcade.SpriteList()
+        
+        # Register prototypes
+        @register_prototype("enemy_ship")
+        def make_enemy(ctx):
+            sprite = arcade.Sprite(":resources:images/space_shooter/enemyShip1.png")
+            sprite._prototype_id = "enemy_ship"
+            return sprite
+        
+        # Enable DevVisualizer (auto-attaches to window)
+        self.dev_viz = enable_dev_visualizer(
+            scene_sprites=self.scene_sprites,
+            auto_attach=True
+        )
+        # Press F12 to toggle on/off
+    
+    def on_draw(self):
+        """Draw game and DevVisualizer overlays."""
+        self.clear()
+        self.scene_sprites.draw()
+        # DevVisualizer draws automatically when visible (F12)
+```
+
+### Sprite Prototype Registration
+
+Register sprite "prefabs" that can be spawned from the palette:
+
+```python
+from actions.dev import register_prototype, DevContext
+import arcade
+
+@register_prototype("enemy_ship")
+def make_enemy_ship(ctx: DevContext):
+    """Factory function that creates an enemy ship sprite."""
+    ship = arcade.Sprite(":resources:images/space_shooter/enemyShip1.png", scale=0.5)
+    ship._prototype_id = "enemy_ship"  # Required for serialization
+    return ship
+
+@register_prototype("power_up")
+def make_power_up(ctx: DevContext):
+    """Factory function that creates a power-up sprite."""
+    power = arcade.Sprite(":resources:images/items/star.png", scale=0.8)
+    power._prototype_id = "power_up"
+    return power
+```
+
+**Key Points:**
+- Factory functions receive a `DevContext` with scene references
+- Must set `_prototype_id` attribute for YAML serialization
+- Prototypes are registered globally and can be accessed via `get_registry()`
+
+### Action Preset Library
+
+Create reusable action presets with default parameters:
+
+```python
+from actions.dev import register_preset
+from actions.conditional import infinite
+
+@register_preset("scroll_left_cleanup", category="Movement", params={"speed": 4})
+def preset_scroll_left_cleanup(ctx, speed):
+    """Preset for sprites that scroll left and cleanup when offscreen."""
+    from actions.helpers import move_until
+    return move_until(
+        None,  # Unbound action - not applied yet
+        velocity=(-speed, 0),
+        condition=infinite,
+        bounds=(-100, 0, 900, 600),
+        boundary_behavior="limit",
+        on_boundary_enter=lambda s, axis, side: ctx.on_cleanup(s) if side == "left" else None,
+    )
+
+@register_preset("orbit_pattern", category="Movement", params={"radius": 50, "angular_speed": 2})
+def preset_orbit(ctx, radius, angular_speed):
+    """Preset for orbiting movement pattern."""
+    from actions.pattern import create_orbit_pattern
+    return create_orbit_pattern(radius=radius, angular_velocity=angular_speed, condition=infinite)
+```
+
+**Key Points:**
+- Presets return **unbound actions** (not applied to targets)
+- Default parameters are provided in the decorator
+- Parameters can be overridden when creating actions from presets
+- Actions are stored as metadata in edit mode, not running
+
+### Bulk Preset Attachment
+
+Apply presets to multiple selected sprites at once:
+
+```python
+from actions.dev import get_preset_registry
+
+def attach_preset_to_selected(self, preset_id: str, **params):
+    """Bulk attach preset to all selected sprites."""
+    selected = self.selection_manager.get_selected()
+    preset_registry = get_preset_registry()
+    
+    for sprite in selected:
+        # Store action config as metadata (edit mode)
+        if not hasattr(sprite, "_action_configs"):
+            sprite._action_configs = []
+        
+        sprite._action_configs.append({
+            "preset": preset_id,
+            "params": params,
+        })
+```
+
+### Boundary Gizmo Editing
+
+Visually edit bounds of MoveUntil actions with draggable handles:
+
+```python
+from actions.dev import BoundaryGizmo
+from actions.conditional import MoveUntil, infinite
+
+# Create sprite with bounded action
+sprite = arcade.Sprite(":resources:images/items/star.png")
+action = MoveUntil(
+    velocity=(5, 0),
+    condition=infinite,
+    bounds=(0, 0, 800, 600),
+    boundary_behavior="limit",
+)
+action.apply(sprite, tag="movement")
+
+# Create gizmo for visual editing
+gizmo = BoundaryGizmo(sprite)
+
+# In mouse handler:
+def on_mouse_press(self, x, y, button, modifiers):
+    # Check if clicking on a handle
+    handle = gizmo.get_handle_at_point(x, y)
+    if handle:
+        self.dragging_handle = handle
+        self.drag_start = (x, y)
+
+def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+    if self.dragging_handle:
+        gizmo.handle_drag(self.dragging_handle, dx, dy)
+        # Bounds are updated in real-time via set_bounds()
+
+def on_mouse_release(self, x, y, button, modifiers):
+    self.dragging_handle = None
+```
+
+**Key Points:**
+- Gizmo automatically detects MoveUntil actions with bounds
+- Four corner handles allow independent edge adjustment
+- Bounds update in real-time via `action.set_bounds()`
+- Visual feedback with semi-transparent rectangle overlay
+
+### YAML Template Export/Import
+
+Export scenes to YAML, modify them, and reimport for iterative design:
+
+```python
+from actions.dev import export_template, load_scene_template, DevContext
+
+# Export scene
+scene_sprites = arcade.SpriteList()
+# ... populate scene with sprites and action configs ...
+export_template(scene_sprites, "wave1.yaml", prompt_user=False)
+
+# Later: Import and modify
+ctx = DevContext(scene_sprites=arcade.SpriteList())
+load_scene_template("wave1.yaml", ctx)
+
+# Modify sprites (positions, action configs)
+for sprite in ctx.scene_sprites:
+    sprite.center_x += 50  # Adjust position
+    # Modify action configs
+    if hasattr(sprite, "_action_configs"):
+        for config in sprite._action_configs:
+            if config["preset"] == "scroll_left_cleanup":
+                config["params"]["speed"] = 6  # Change speed
+
+# Re-export
+export_template(ctx.scene_sprites, "wave1.yaml", prompt_user=False)
+```
+
+**YAML Schema:**
+```yaml
+- prototype: "enemy_ship"
+  x: 200
+  y: 400
+  group: "wave_enemies"
+  actions:
+    - preset: "scroll_left_cleanup"
+      params:
+        speed: 4
+- prototype: "power_up"
+  x: 500
+  y: 300
+  group: ""
+  actions: []
+```
+
+**Symbolic Bound Expressions:**
+The YAML loader supports symbolic tokens for bounds:
+
+```python
+# In YAML:
+bounds: [OFFSCREEN_LEFT, 0, SCREEN_RIGHT, SCREEN_HEIGHT]
+
+# Resolved to actual values during import
+# OFFSCREEN_LEFT = -100, SCREEN_RIGHT = 800, etc.
+```
+
+Available symbolic tokens:
+- `OFFSCREEN_LEFT`, `OFFSCREEN_RIGHT`
+- `SCREEN_LEFT`, `SCREEN_RIGHT`
+- `SCREEN_BOTTOM`, `SCREEN_TOP`
+- `SCREEN_WIDTH`, `SCREEN_HEIGHT`
+- `WALL_WIDTH`
+
+### Edit Mode vs Runtime Mode
+
+**Critical Distinction:** DevVisualizer operates in **edit mode** where sprites are static and actions are automatically paused:
+
+```python
+# Edit Mode (DevVisualizer visible)
+dev_viz.show()  # Automatically pauses all actions via Action.pause_all()
+# Sprites are static - no movement
+# Actions are paused but still exist
+
+# Runtime Mode (Game running)
+dev_viz.hide()  # Automatically resumes all actions via Action.resume_all()
+Action.update_all(delta_time)  # Actions execute normally
+
+# Toggle between modes with F12
+# Press F12 → pauses actions (edit mode)
+# Press F12 again → resumes actions (runtime mode)
+```
+
+**Key Features:**
+- **Automatic pause/resume**: Showing DevVisualizer pauses all actions; hiding resumes them
+- **Non-destructive**: Actions remain intact, just paused during editing
+- **Safe editing**: Edit sprite positions without interference from running actions
+- **Action metadata**: Store action configs as metadata for later instantiation
+
+**Working with Action Metadata:**
+```python
+# Store action config as metadata (won't execute in edit mode)
+sprite._action_configs = [
+    {"action_type": "MoveUntil", "velocity": (5, 0), "condition": "infinite"}
+]
+
+# Convert to runtime actions
+dev_viz.apply_metadata_actions(sprite)
+dev_viz.hide()  # Resume actions
+Action.update_all(delta_time)  # Sprite now moves
+```
+
+This separation allows safe editing without sprites moving during design.
+
+### Importing Sprites from Existing Games
+
+DevVisualizer can import sprites from running games for editing:
+
+```python
+# In your game code
+class GameView(arcade.View):
+    def __init__(self):
+        super().__init__()
+        self.enemies = arcade.SpriteList()
+        self.bullets = arcade.SpriteList()
+        # ... populate sprite lists ...
+        
+        # Create DevVisualizer
+        self.dev_viz = enable_dev_visualizer(auto_attach=True)
+        
+        # Import sprites from game for editing
+        # This creates copies that can be edited without affecting the running game
+        self.dev_viz.import_sprites(self.enemies, self.bullets)
+```
+
+**Import Features:**
+- **Creates copies**: Original sprites remain untouched during editing
+- **Preserves properties**: Texture, position, angle, scale, color, alpha all copied
+- **Tracks originals**: Stores reference to original sprite for syncing back changes
+- **Multiple lists**: Import from multiple sprite lists at once
+- **Clear or append**: Choose to replace scene or add to existing sprites
+
+**Export Changes Back:**
+```python
+# After editing in DevVisualizer
+dev_viz.export_sprites()  # Syncs positions/properties back to original sprites
+
+# Example workflow:
+# 1. Press F12 to enter edit mode (pauses game)
+# 2. Import sprites: dev_viz.import_sprites(game_sprites)
+# 3. Edit positions, adjust properties
+# 4. Export changes: dev_viz.export_sprites()
+# 5. Press F12 to exit edit mode (resumes game)
+```
+
+**Import Options:**
+```python
+# Clear scene before importing (default)
+dev_viz.import_sprites(enemies, bullets, clear=True)
+
+# Append to existing scene
+dev_viz.import_sprites(power_ups, clear=False)
+
+# Import single sprite list
+dev_viz.import_sprites(player_list)
+```
+
+### Multi-Selection
+
+DevVisualizer supports three selection modes:
+
+1. **Single Click**: Select one sprite (replaces previous selection)
+2. **Shift-Click**: Add/remove sprite from selection (toggle)
+3. **Click-Drag Marquee**: Box-select multiple sprites
+
+```python
+# Selection manager handles all three modes automatically
+manager = SelectionManager(scene_sprites)
+
+# Single click
+manager.handle_mouse_press(x, y, shift=False)
+
+# Shift-click
+manager.handle_mouse_press(x, y, shift=True)
+
+# Marquee (drag)
+manager.handle_mouse_press(start_x, start_y, shift=False)
+manager.handle_mouse_drag(current_x, current_y)
+manager.handle_mouse_release(end_x, end_y)
+
+# Get selected sprites
+selected = manager.get_selected()  # Returns list[arcade.Sprite]
+```
+
+### Environment Variables
+
+DevVisualizer supports multiple environment variable names for flexibility:
+
+1. **`ARCADEACTIONS_DEVVIZ=1`** (Recommended) - Explicit DevVisualizer enable
+2. **`ARCADEACTIONS_DEV=1`** - General dev mode (also enables hot-reload)
+3. **`ARCADEACTIONS_DEV_MODE=1`** - Alternative name
+
+**Priority:** If multiple are set, `ARCADEACTIONS_DEVVIZ` takes precedence, then `ARCADEACTIONS_DEV`, then `ARCADEACTIONS_DEV_MODE`.
+
+When enabled via environment variable, DevVisualizer automatically:
+- Creates a scene SpriteList
+- Attaches to the current window
+- Registers F12 keyboard handler
+- Starts hidden (press F12 to show)
+
+### Keyboard Shortcuts
+
+- **F12**: Toggle DevVisualizer on/off (when enabled)
+- **E**: Export scene to YAML (saves to scene.yaml or examples/boss_level.yaml)
+- **I**: Import scene from YAML (loads from scene.yaml, examples/boss_level.yaml, or scenes/new_scene.yaml)
+- **Mouse**: Click palette items, select sprites, drag gizmo handles
+- **Shift+Click**: Add/remove from selection
+- **Click+Drag**: Marquee box selection
+
+### Parameters
+
+**enable_dev_visualizer()**:
+- **scene_sprites** (`arcade.SpriteList | None`): SpriteList for editable scene (created if None)
+- **window** (`arcade.Window | None`): Arcade window (auto-detected if None)
+- **auto_attach** (`bool`): Automatically attach to window (default: `True`)
+
+**DevVisualizer Methods**:
+- **show()**: Show DevVisualizer and pause all actions (enter edit mode)
+- **hide()**: Hide DevVisualizer and resume all actions (exit edit mode)
+- **toggle()**: Toggle visibility and pause/resume state
+- **import_sprites(*sprite_lists, clear=True)**: Import sprites from game for editing
+- **export_sprites()**: Sync edited sprite properties back to originals
+- **apply_metadata_actions(sprite)**: Convert action metadata to runtime actions
+
+**PaletteSidebar**:
+- **registry** (`SpritePrototypeRegistry`): Registry with registered prototypes
+- **ctx** (`DevContext`): DevContext with scene_sprites reference
+- **x** (`int`): X position of sidebar (default: `10`)
+- **y** (`int`): Y position of sidebar (default: `10`)
+- **width** (`int`): Width of sidebar panel (default: `200`)
+- **visible** (`bool`): Initial visibility state (default: `True`)
+
+**SelectionManager**:
+- **scene_sprites** (`arcade.SpriteList`): SpriteList containing sprites that can be selected
+
+**BoundaryGizmo**:
+- **sprite** (`arcade.Sprite`): Sprite to check for bounded actions
+
+**export_template**:
+- **sprites** (`arcade.SpriteList`): SpriteList containing sprites to export
+- **path** (`str | Path`): File path to write YAML to
+- **prompt_user** (`bool`): If True, prompt before overwriting (default: `True`)
+
+**load_scene_template**:
+- **path** (`str | Path`): File path to read YAML from
+- **ctx** (`DevContext`): DevContext with scene_sprites and registry access
+- Returns: `arcade.SpriteList` with loaded sprites
+
+### Best Practices
+
+1. **Zero boilerplate for new scenes**: Just register prototypes and use `get_dev_visualizer()` - no `enable_dev_visualizer()` needed
+2. **Register prototypes early**: Set up all prototypes before creating the visualizer
+3. **Use meaningful preset names**: Clear names make the preset library easier to navigate
+4. **Organize presets by category**: Use categories like "Movement", "Effects", "Formations"
+5. **Store action configs as metadata**: Never call `action.apply()` during editing
+6. **Export frequently**: Press E to save work often with YAML export
+7. **Use symbolic bounds**: Makes YAML files more readable and maintainable
+8. **Test round-trip**: Verify export → import → export maintains all data
+9. **Cache text objects**: Palette sidebar caches text objects for performance (handled automatically)
+
+### Example
+
+See [Pattern 12-16 in API Usage Guide](../../docs/api_usage_guide.md#development-visualizer-actionsdev) for detailed usage patterns and complete examples.
 
 ## See Also
 

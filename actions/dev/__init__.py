@@ -46,6 +46,12 @@ from .palette import PaletteSidebar
 from .selection import SelectionManager
 from .boundary_overlay import BoundaryGizmo, BoundaryHandle
 from .templates import export_template, load_scene_template, SYMBOLIC
+from .visualizer import (
+    DevVisualizer,
+    enable_dev_visualizer,
+    get_dev_visualizer,
+    auto_enable_dev_visualizer_from_env,
+)
 
 __all__ = [
     # Hot reload
@@ -69,6 +75,11 @@ __all__ = [
     "export_template",
     "load_scene_template",
     "SYMBOLIC",
+    # DevVisualizer Manager
+    "DevVisualizer",
+    "enable_dev_visualizer",
+    "get_dev_visualizer",
+    "auto_enable_dev_visualizer_from_env",
 ]
 
 
@@ -201,3 +212,7 @@ def auto_enable_from_env() -> ReloadManager | None:
     if os.environ.get("ARCADEACTIONS_DEV") == "1":
         return enable_dev_mode()
     return None
+
+
+# Auto-enable DevVisualizer from environment variable
+auto_enable_dev_visualizer_from_env()
