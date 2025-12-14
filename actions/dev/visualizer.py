@@ -7,8 +7,10 @@ support and keyboard toggle (F12).
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
+from weakref import WeakKeyDictionary
 
 import arcade
 
@@ -24,6 +26,8 @@ from actions.dev.prototype_registry import DevContext, get_registry
 from actions.dev.selection import SelectionManager
 
 from actions import Action
+
+_MISSING_GIZMO_REFRESH_SECONDS = 0.25
 
 try:
     import arcade.window_commands as window_commands_module
@@ -144,7 +148,8 @@ class DevVisualizer:
         self.visible = False
         self.window = window
         self._dragging_gizmo_handle: tuple[BoundaryGizmo, object] | None = None
-        self._gizmos: dict[arcade.Sprite, BoundaryGizmo] = {}
+        self._gizmos: WeakKeyDictionary[arcade.Sprite, BoundaryGizmo | None] = WeakKeyDictionary()
+        self._gizmo_miss_refresh_at: WeakKeyDictionary[arcade.Sprite, float] = WeakKeyDictionary()
 
         # Create indicator text (shown when DevVisualizer is active)
         self._indicator_text = arcade.Text(
@@ -460,13 +465,31 @@ class DevVisualizer:
 
     def _get_gizmo(self, sprite: arcade.Sprite) -> BoundaryGizmo | None:
         """Get or create gizmo for sprite."""
-        if sprite not in self._gizmos:
-            gizmo = BoundaryGizmo(sprite)
-            if gizmo.has_bounded_action():
-                self._gizmos[sprite] = gizmo
-            else:
+        if sprite in self._gizmos:
+            cached_gizmo = self._gizmos[sprite]
+            if cached_gizmo is not None:
+                return cached_gizmo
+
+            now = time.monotonic()
+            refresh_at = self._gizmo_miss_refresh_at.get(sprite, 0.0)
+            if now < refresh_at:
                 return None
-        return self._gizmos.get(sprite)
+
+            # Cache expired; force a re-check below
+            del self._gizmos[sprite]
+            self._gizmo_miss_refresh_at.pop(sprite, None)
+
+        gizmo = BoundaryGizmo(sprite)
+        if gizmo.has_bounded_action():
+            self._gizmos[sprite] = gizmo
+            self._gizmo_miss_refresh_at.pop(sprite, None)
+            return gizmo
+
+        # Negative cache to avoid re-checking every frame, but allow periodic refresh
+        expires_at = time.monotonic() + _MISSING_GIZMO_REFRESH_SECONDS
+        self._gizmos[sprite] = None
+        self._gizmo_miss_refresh_at[sprite] = expires_at
+        return None
 
     def draw(self) -> None:
         """Draw DevVisualizer overlays (palette, selection, gizmos).
@@ -511,6 +534,9 @@ class DevVisualizer:
         """
         if clear:
             self.scene_sprites.clear()
+            self.selection_manager.clear_selection()
+            self._gizmos.clear()
+            self._gizmo_miss_refresh_at.clear()
 
         for sprite_list in sprite_lists:
             for original_sprite in sprite_list:
