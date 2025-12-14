@@ -260,6 +260,10 @@ class DevVisualizer:
         if not self._attached or self.window is None:
             return
 
+        # If visible, resume actions before detaching (consistent with hide())
+        if self.visible:
+            Action.resume_all()
+
         if self._original_on_draw:
             self.window.on_draw = self._original_on_draw
         if self._original_on_key_press:
@@ -562,6 +566,10 @@ def enable_dev_visualizer(
         DevVisualizer instance
     """
     global _global_dev_visualizer
+
+    # Detach existing DevVisualizer to prevent wrapper chain and zombie instances
+    if _global_dev_visualizer is not None:
+        _global_dev_visualizer.detach_from_window()
 
     _global_dev_visualizer = DevVisualizer(scene_sprites=scene_sprites, window=window)
 
