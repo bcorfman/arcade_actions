@@ -280,6 +280,18 @@ class Action(ABC, Generic[_T]):
             action.resume()
 
     @classmethod
+    def is_paused(cls) -> bool:
+        """Check if all active actions are paused.
+
+        Returns:
+            True if all active actions are paused, False otherwise.
+            Returns False if there are no active actions.
+        """
+        if not cls._active_actions:
+            return False
+        return all(action._paused for action in cls._active_actions)
+
+    @classmethod
     def step_all(cls, delta_time: float, *, physics_engine=None) -> None:
         """Advance all actions by a single step while keeping them paused."""
         cls._is_stepping = True
