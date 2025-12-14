@@ -237,14 +237,14 @@ class DevVisualizer:
                 self._original_on_mouse_press(x, y, button, modifiers)
 
         def wrapped_on_mouse_drag(x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
-            if self.visible:
-                self.handle_mouse_drag(x, y, dx, dy, buttons, modifiers)
+            if self.visible and self.handle_mouse_drag(x, y, dx, dy, buttons, modifiers):
+                return
             if self._original_on_mouse_drag:
                 self._original_on_mouse_drag(x, y, dx, dy, buttons, modifiers)
 
         def wrapped_on_mouse_release(x: int, y: int, button: int, modifiers: int):
-            if self.visible:
-                self.handle_mouse_release(x, y, button, modifiers)
+            if self.visible and self.handle_mouse_release(x, y, button, modifiers):
+                return
             if self._original_on_mouse_release:
                 self._original_on_mouse_release(x, y, button, modifiers)
 
@@ -372,7 +372,7 @@ class DevVisualizer:
         self.selection_manager.handle_mouse_press(x, y, shift)
         return False
 
-    def handle_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int) -> None:
+    def handle_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int) -> bool:
         """
         Handle mouse drag for DevVisualizer.
 
@@ -383,20 +383,31 @@ class DevVisualizer:
             dy: Y delta
             buttons: Mouse buttons
             modifiers: Modifier keys
+
+        Returns:
+            True if event was handled, False otherwise
         """
-        # Handle palette drag
-        self.palette.handle_mouse_drag(x, y)
+        handled = False
+
+        # Handle palette drag (returns None, check if actively dragging)
+        if self.palette._drag_ghost is not None:
+            self.palette.handle_mouse_drag(x, y)
+            handled = True
 
         # Handle gizmo drag
         if self._dragging_gizmo_handle:
             gizmo, handle = self._dragging_gizmo_handle
             gizmo.handle_drag(handle, dx, dy)
-            return
+            handled = True
 
-        # Handle selection marquee
-        self.selection_manager.handle_mouse_drag(x, y)
+        # Handle selection marquee (returns None, check if actively dragging)
+        if self.selection_manager._is_dragging_marquee:
+            self.selection_manager.handle_mouse_drag(x, y)
+            handled = True
 
-    def handle_mouse_release(self, x: int, y: int, button: int, modifiers: int) -> None:
+        return handled
+
+    def handle_mouse_release(self, x: int, y: int, button: int, modifiers: int) -> bool:
         """
         Handle mouse release for DevVisualizer.
 
@@ -405,20 +416,30 @@ class DevVisualizer:
             y: Mouse Y coordinate
             button: Mouse button
             modifiers: Modifier keys
+
+        Returns:
+            True if event was handled, False otherwise
         """
+        handled = False
+
         # Convert screen coordinates to world coordinates if needed
         world_x, world_y = x, y
 
-        # Handle palette release
+        # Handle palette release (returns bool)
         if self.palette.handle_mouse_release(world_x, world_y):
-            return
+            handled = True
 
         # Handle gizmo release
         if self._dragging_gizmo_handle:
             self._dragging_gizmo_handle = None
+            handled = True
 
-        # Handle selection release
-        self.selection_manager.handle_mouse_release(world_x, world_y)
+        # Handle selection release (returns None, check if actively dragging marquee)
+        if self.selection_manager._is_dragging_marquee:
+            self.selection_manager.handle_mouse_release(world_x, world_y)
+            handled = True
+
+        return handled
 
     def _get_gizmo(self, sprite: arcade.Sprite) -> BoundaryGizmo | None:
         """Get or create gizmo for sprite."""
