@@ -271,6 +271,13 @@ class DevVisualizer:
         self._attached = False
         if was_visible:
             # Mirror hide() semantics so paused actions resume on detach.
+            # Also reset drag states to prevent stale state when reattaching.
+            self._dragging_gizmo_handle = None
+            self.palette._drag_ghost = None
+            self.palette._dragging_prototype = None
+            self.selection_manager._is_dragging_marquee = False
+            self.selection_manager._marquee_start = None
+            self.selection_manager._marquee_end = None
             Action.resume_all()
 
         self.visible = False
@@ -290,8 +297,17 @@ class DevVisualizer:
     def hide(self) -> None:
         """Hide DevVisualizer and resume all actions (exit edit mode)."""
         self.visible = False
-        # Reset drag state to prevent stale drag when hidden during drag operation
+        # Reset all drag states to prevent stale drag when hidden during drag operation
+        # This ensures that if F12 is pressed during a drag, all drag states are cleaned up
+        # since the mouse release event will be skipped when visible=False
         self._dragging_gizmo_handle = None
+        # Reset palette drag state
+        self.palette._drag_ghost = None
+        self.palette._dragging_prototype = None
+        # Reset selection marquee drag state
+        self.selection_manager._is_dragging_marquee = False
+        self.selection_manager._marquee_start = None
+        self.selection_manager._marquee_end = None
         Action.resume_all()
 
     def handle_key_press(self, key: int, modifiers: int) -> bool:
@@ -369,7 +385,8 @@ class DevVisualizer:
                     return True
 
         # Then handle selection
-        self.selection_manager.handle_mouse_press(x, y, shift)
+        if self.selection_manager.handle_mouse_press(x, y, shift):
+            return True
         return False
 
     def handle_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int) -> bool:
