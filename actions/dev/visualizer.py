@@ -260,22 +260,19 @@ class DevVisualizer:
         if not self._attached or self.window is None:
             return
 
-        # If visible, resume actions before detaching (consistent with hide())
-        if self.visible:
-            Action.resume_all()
+        was_visible = self.visible
 
-        if self._original_on_draw:
-            self.window.on_draw = self._original_on_draw
-        if self._original_on_key_press:
-            self.window.on_key_press = self._original_on_key_press
-        if self._original_on_mouse_press:
-            self.window.on_mouse_press = self._original_on_mouse_press
-        if self._original_on_mouse_drag:
-            self.window.on_mouse_drag = self._original_on_mouse_drag
-        if self._original_on_mouse_release:
-            self.window.on_mouse_release = self._original_on_mouse_release
+        self.window.on_draw = self._original_on_draw
+        self.window.on_key_press = self._original_on_key_press
+        self.window.on_mouse_press = self._original_on_mouse_press
+        self.window.on_mouse_drag = self._original_on_mouse_drag
+        self.window.on_mouse_release = self._original_on_mouse_release
 
         self._attached = False
+        if was_visible:
+            # Mirror hide() semantics so paused actions resume on detach.
+            Action.resume_all()
+
         self.visible = False
 
     def toggle(self) -> None:
@@ -293,6 +290,8 @@ class DevVisualizer:
     def hide(self) -> None:
         """Hide DevVisualizer and resume all actions (exit edit mode)."""
         self.visible = False
+        # Reset drag state to prevent stale drag when hidden during drag operation
+        self._dragging_gizmo_handle = None
         Action.resume_all()
 
     def handle_key_press(self, key: int, modifiers: int) -> bool:
