@@ -208,19 +208,19 @@ class TestInspectorOverlay:
         overlay = InspectorOverlay(debug_store=debug_store)
         assert overlay.position == "upper_left"
         assert overlay.visible is True
-        
+
         overlay.cycle_position()
         assert overlay.position == "upper_right"
-        
+
         overlay.cycle_position()
         assert overlay.position == "lower_right"
-        
+
         overlay.cycle_position()
         assert overlay.position == "lower_left"
-        
+
         overlay.cycle_position()
         assert overlay.visible is False
-        
+
         overlay.cycle_position()
         assert overlay.visible is True
         assert overlay.position == "upper_left"
@@ -436,9 +436,8 @@ class TestInspectorOverlay:
         overlay.update()
         overlay.highlight_next()
         assert overlay.highlighted_target_id == 100
-        
+
         # Remove the action
         debug_store.record_event("removed", 1, "MoveUntil", 100, "Sprite")
         overlay.update()
         assert overlay.highlighted_target_id is None
-

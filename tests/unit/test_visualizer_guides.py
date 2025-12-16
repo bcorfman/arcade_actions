@@ -482,4 +482,3 @@ class TestGuideManager:
         assert manager.any_enabled() is False
         manager.velocity_guide.enabled = True
         assert manager.any_enabled() is True
-

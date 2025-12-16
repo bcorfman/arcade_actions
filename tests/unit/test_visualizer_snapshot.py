@@ -246,4 +246,3 @@ class TestSnapshotExporter:
         stats = data["stats"]
         # Stats structure may vary - just check it exists
         assert isinstance(stats, dict)
-

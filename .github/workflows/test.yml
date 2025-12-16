@@ -113,8 +113,8 @@ jobs:
         with:
           version: "latest"
 
-      - name: Set up Python 3.12
-        run: uv python install 3.12
+      - name: Set up Python 3.11
+        run: uv python install 3.11
 
       - name: Install dependencies with statemachine extra
         run: uv sync --extra statemachine --dev

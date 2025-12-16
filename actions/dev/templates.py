@@ -241,5 +241,3 @@ def load_scene_template(path: str | Path, ctx: DevContext) -> arcade.SpriteList:
         ctx.scene_sprites.append(sprite)
 
     return ctx.scene_sprites
-
-

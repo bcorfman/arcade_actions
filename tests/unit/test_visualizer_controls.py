@@ -195,6 +195,7 @@ class TestDebugControlManager:
 
     def test_update_refreshes_target_names(self, control_manager, monkeypatch):
         called = []
+
         def provider():
             called.append(True)
             return {100: "self.player"}
@@ -207,6 +208,7 @@ class TestDebugControlManager:
     def test_update_updates_overlay(self, control_manager):
         update_calls = []
         original_update = control_manager.overlay.update
+
         def track_update():
             update_calls.append(True)
             original_update()
@@ -219,6 +221,7 @@ class TestDebugControlManager:
         control_manager.condition_panel_visible = True
         update_calls = []
         original_update = control_manager.condition_debugger.update
+
         def track_update():
             update_calls.append(True)
             original_update()
@@ -231,6 +234,7 @@ class TestDebugControlManager:
         control_manager.condition_panel_visible = False
         clear_calls = []
         original_clear = control_manager.condition_debugger.clear
+
         def track_clear():
             clear_calls.append(True)
             original_clear()
@@ -242,6 +246,7 @@ class TestDebugControlManager:
     def test_update_updates_timeline(self, control_manager):
         update_calls = []
         original_update = control_manager.timeline.update
+
         def track_update():
             update_calls.append(True)
             original_update()
@@ -254,6 +259,7 @@ class TestDebugControlManager:
         control_manager.guides.velocity_guide.enabled = True
         update_calls = []
         original_update = control_manager.guides.update
+
         def track_update(*args, **kwargs):
             update_calls.append(True)
             original_update(*args, **kwargs)
@@ -269,6 +275,7 @@ class TestDebugControlManager:
         control_manager.guides.highlight_guide.enabled = False  # Disable highlight too
         update_calls = []
         original_update = control_manager.guides.update
+
         def track_update(*args, **kwargs):
             update_calls.append(True)
             original_update(*args, **kwargs)
@@ -324,4 +331,3 @@ class TestDebugControlManager:
         assert control_manager.is_paused is True
         control_manager._toggle_pause()
         assert control_manager.is_paused is False
-

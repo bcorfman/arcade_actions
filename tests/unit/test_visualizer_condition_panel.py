@@ -269,4 +269,3 @@ class TestConditionEntry:
         assert entry.tag == "test"
         assert entry.target_id == 100
         assert entry.target_type == "Sprite"
-

@@ -237,5 +237,3 @@ class BoundaryGizmo:
                 arcade.color.BLACK,
                 1,
             )
-
-

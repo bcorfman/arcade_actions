@@ -20,10 +20,12 @@ from actions.visualizer.attach import (
 def reset_session():
     """Reset visualizer session before each test."""
     from actions.visualizer.attach import _VISUALIZER_SESSION, detach_visualizer
+
     yield
     detach_visualizer()
     # Clear module-level state
     import actions.visualizer.attach as attach_module
+
     attach_module._VISUALIZER_SESSION = None
 
 
@@ -40,6 +42,7 @@ class TestCollectSpritePositions:
     def test_single_sprite(self):
         original_actions = list(Action._active_actions)
         try:
+
             class DummySprite:
                 def __init__(self, x, y):
                     self.center_x = x
@@ -59,6 +62,7 @@ class TestCollectSpritePositions:
     def test_sprite_list(self):
         original_actions = list(Action._active_actions)
         try:
+
             class DummySprite:
                 def __init__(self, x, y):
                     self.center_x = x
@@ -87,6 +91,7 @@ class TestCollectSpritePositions:
     def test_caching(self):
         original_actions = list(Action._active_actions)
         try:
+
             class DummySprite:
                 def __init__(self, x, y):
                     self.center_x = x
@@ -98,7 +103,7 @@ class TestCollectSpritePositions:
 
             sprite = DummySprite(10, 20)
             Action._active_actions.append(DummyAction(sprite))
-            
+
             # First call
             positions1 = _collect_sprite_positions()
             # Update position
@@ -113,6 +118,7 @@ class TestCollectSpritePositions:
     def test_action_without_target(self):
         original_actions = list(Action._active_actions)
         try:
+
             class DummyAction:
                 pass
 
@@ -133,6 +139,7 @@ class TestCollectSpriteSizesAndIds:
     def test_single_sprite(self):
         original_actions = list(Action._active_actions)
         try:
+
             class DummySprite:
                 def __init__(self, x, y):
                     self.center_x = x
@@ -156,6 +163,7 @@ class TestCollectSpriteSizesAndIds:
     def test_sprite_list(self):
         original_actions = list(Action._active_actions)
         try:
+
             class DummySprite:
                 def __init__(self, w, h):
                     self.width = w
@@ -272,6 +280,7 @@ class TestCollectTargetNamesFromView:
     def test_finds_targets_from_actions(self, monkeypatch):
         sprite = arcade.Sprite(":resources:images/items/star.png")
         from actions.conditional import MoveUntil
+
         action = MoveUntil(velocity=(1, 0), condition=lambda: False)
         action.apply(sprite)
 
@@ -421,12 +430,13 @@ class TestVisualizerSession:
 class TestSessionHelpers:
     def test_get_visualizer_session_not_attached(self):
         from actions.visualizer.attach import detach_visualizer
+
         detach_visualizer()
         session = get_visualizer_session()
         assert session is None
 
     def test_is_visualizer_attached_false(self):
         from actions.visualizer.attach import detach_visualizer
+
         detach_visualizer()
         assert is_visualizer_attached() is False
-

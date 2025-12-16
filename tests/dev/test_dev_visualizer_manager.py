@@ -730,5 +730,3 @@ class TestDevVisualizerEditMode(ActionTestBase):
             assert "actions" in data[0]
             assert len(data[0]["actions"]) == 1
             assert data[0]["actions"][0]["preset"] == "scroll_left"
-
-

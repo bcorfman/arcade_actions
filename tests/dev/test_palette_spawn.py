@@ -188,5 +188,3 @@ class TestPaletteSpawn(ActionTestBase):
         palette.visible = False
         result = palette.handle_mouse_press(50, 60)
         assert result is False
-
-

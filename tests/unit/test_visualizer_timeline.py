@@ -208,7 +208,7 @@ class TestTimelineStrip:
         )
         timeline.update()
         first_update_frame = timeline._last_update_frame
-        
+
         # Update frame but not enough to trigger update
         debug_store.update_frame(2, 0.032)
         timeline.update()
@@ -277,6 +277,7 @@ class TestTimelineStrip:
         # Make get_all_snapshots raise an exception
         original_get = debug_store.get_all_snapshots
         call_count = []
+
         def failing_get():
             call_count.append(True)
             if len(call_count) == 1:
@@ -324,7 +325,7 @@ class TestTimelineStrip:
         )
         timeline.update()
         assert len(timeline._entry_cache) == 1
-        
+
         # Mark action as stopped and remove snapshot
         debug_store.update_frame(10, 0.16)
         debug_store.record_event("stopped", 1, "MoveUntil", 100, "Sprite")
@@ -360,4 +361,3 @@ class TestTimelineEntry:
         assert entry.end_frame is None
         assert entry.end_time is None
         assert entry.is_active is True
-
