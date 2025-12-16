@@ -98,17 +98,6 @@ def test_sdl_primary_rect_success(monkeypatch):
     mock_sdl = MagicMock()
     mock_sdl.SDL_Init.return_value = 0  # Success
     mock_sdl.SDL_GetNumVideoDisplays.return_value = 1
-    mock_sdl.SDL_GetDisplayBounds.return_value = 0  # Success
-
-    # Create a mock rect
-    class MockRect(Structure):
-        _fields_ = [("x", c_int), ("y", c_int), ("w", c_int), ("h", c_int)]
-
-    mock_rect = MockRect()
-    mock_rect.x = 0
-    mock_rect.y = 0
-    mock_rect.w = 1920
-    mock_rect.h = 1080
 
     def mock_load_sdl2():
         return mock_sdl
@@ -116,11 +105,25 @@ def test_sdl_primary_rect_success(monkeypatch):
     def mock_byref(obj):
         return obj
 
+    def mock_get_display_bounds(display_index, rect_ptr):
+        # Populate the rect that was passed in
+        rect_ptr.x = 0
+        rect_ptr.y = 0
+        rect_ptr.w = 1920
+        rect_ptr.h = 1080
+        return 0  # Success
+
+    mock_sdl.SDL_GetDisplayBounds.side_effect = mock_get_display_bounds
+
     monkeypatch.setattr(display, "_load_sdl2", mock_load_sdl2)
     monkeypatch.setattr(display, "byref", mock_byref)
 
     result = display._sdl_primary_rect()
     assert result is not None
+    assert result.x == 0
+    assert result.y == 0
+    assert result.w == 1920
+    assert result.h == 1080
     assert mock_sdl.SDL_Init.called
     assert mock_sdl.SDL_Quit.called
 
