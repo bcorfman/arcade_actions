@@ -180,3 +180,5 @@ class SelectionManager:
                 height,
                 (*arcade.color.CYAN[:3], 64),  # Semi-transparent
             )
+
+

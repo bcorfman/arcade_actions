@@ -186,3 +186,5 @@ class PaletteSidebar:
         # Draw drag ghost if active
         if self._drag_ghost is not None:
             self._drag_ghost.draw()
+
+

@@ -471,3 +471,5 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
 
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 0
+
+

@@ -176,3 +176,5 @@ class TestYAMLRoundtrip(ActionTestBase):
         finally:
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
+
+

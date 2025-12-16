@@ -169,3 +169,5 @@ def get_preset_registry() -> ActionPresetRegistry:
         Global ActionPresetRegistry instance
     """
     return _global_preset_registry
+
+

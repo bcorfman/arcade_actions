@@ -147,3 +147,5 @@ class TestSelectionMulti(ActionTestBase):
         selected = manager.get_selected()
         assert len(selected) == 1
         # Drawing is tested visually, but we can verify selection state
+
+

@@ -699,3 +699,5 @@ def auto_enable_dev_visualizer_from_env() -> DevVisualizer | None:
             return enable_dev_visualizer(window=window, auto_attach=True)
 
     return None
+
+

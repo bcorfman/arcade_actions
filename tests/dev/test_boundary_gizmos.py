@@ -88,3 +88,5 @@ class TestBoundaryGizmos(ActionTestBase):
             # Bounds should be updated
             new_bounds = action.bounds
             assert new_bounds[3] == original_top - 20  # Top decreased by 20
+
+
