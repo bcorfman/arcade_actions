@@ -48,7 +48,8 @@ class PaletteWindow(arcade.Window):
                 # This mimics what HeadlessWindow.__init__() would do
                 self.width = width
                 self.height = height
-                self.visible = False
+                # Use _is_visible instead of visible (visible is a property, not a settable attribute)
+                self._is_visible = False
                 self.has_exit = False
                 self.location: tuple[int, int] = (0, 0)
                 self._title = title
@@ -251,7 +252,8 @@ class PaletteWindow(arcade.Window):
         # In headless mode, just update our tracked state
         if getattr(self, "_is_headless", False):
             self._is_visible = bool(visible)
-            self.visible = bool(visible)
+            # Don't try to set self.visible directly - it's a property
+            # In headless mode, we only track _is_visible
             return
 
         try:
