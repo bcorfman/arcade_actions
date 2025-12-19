@@ -99,7 +99,7 @@ class PaletteSidebar:
         # So relative_y = (y - self.y) // self._item_height maps to the item index as:
         # clicked_index = len(prototypes) - relative_y
         relative_y = int((y - self.y) // self._item_height)
-        clicked_index = len(prototypes) - 1 - relative_y
+        clicked_index = len(prototypes) - relative_y
 
         if 0 <= clicked_index < len(prototypes):
             self._dragging_prototype = prototypes[clicked_index]

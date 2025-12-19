@@ -122,6 +122,31 @@ def pytest_configure(config):
         pass
 
 
+def pytest_collection_modifyitems(config, items):
+    """Skip integration tests locally unless in CI or explicitly requested.
+
+    Integration tests (marked with @pytest.mark.integration) are skipped by default
+    when running locally to avoid popping up windows. They run automatically on
+    GitHub Actions (CI=true or GITHUB_ACTIONS=true).
+
+    To run integration tests locally, use: pytest -m integration
+    """
+    # Check if we're in CI
+    is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
+
+    # Check if user explicitly requested integration tests
+    # This happens when they use -m integration or -m "integration"
+    marker_expr = config.getoption("-m", default="")
+    explicitly_requested = marker_expr and "integration" in marker_expr
+
+    # If not in CI and not explicitly requested, skip integration tests
+    if not is_ci and not explicitly_requested:
+        skip_integration = pytest.mark.skip(reason="Integration tests skipped locally (use -m integration to run)")
+        for item in items:
+            if "integration" in item.keywords:
+                item.add_marker(skip_integration)
+
+
 class HeadlessWindow:
     """Minimal window substitute used on platforms without OpenGL support."""
 

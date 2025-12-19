@@ -179,6 +179,12 @@ class PaletteWindow(arcade.Window):
         # Rebuild text cache if prototype list changed
         self._rebuild_text_cache()
 
+        # Update cached text Y positions based on current window height
+        # (needed when window is resized, since cache only rebuilds on prototype list changes)
+        start_y = self.height - self.MARGIN - 60
+        for i, text in enumerate(self._text_cache):
+            text.y = start_y - i * self.ITEM_HEIGHT
+
         # Draw prototype items
         for text in self._text_cache:
             # Draw background for each item

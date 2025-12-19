@@ -291,11 +291,6 @@ class DevVisualizer:
 
         # Wrap on_key_press
         def wrapped_on_key_press(key: int, modifiers: int):
-            # Handle ESC to close window
-            if key == arcade.key.ESCAPE:
-                window.close()
-                return
-
             # Handle F12 toggle (main overlay)
             if key == arcade.key.F12:
                 self.toggle()
@@ -305,6 +300,19 @@ class DevVisualizer:
             if key == arcade.key.F11:
                 self.toggle_palette()
                 return
+
+            # Handle ESC to close window (only in edit mode)
+            # This matches the README: "ESC: Close application (in generated level files)"
+            # Only intercept ESC when DevVisualizer is visible (edit mode)
+            if key == arcade.key.ESCAPE:
+                if self.visible:
+                    window.close()
+                    return
+                # If not in edit mode, let original handler run first (preserves game functionality)
+                # This allows games to use ESC for pause menus, canceling actions, etc.
+                if self._original_on_key_press:
+                    self._original_on_key_press(key, modifiers)
+                    return
 
             # Let DevVisualizer handle keys if visible
             if self.visible and self.handle_key_press(key, modifiers):
@@ -406,12 +414,6 @@ class DevVisualizer:
         original_on_key_press = view._dev_viz_original_on_key_press
 
         def wrapped_view_on_key_press(key: int, modifiers: int):
-            # Handle ESC to close window
-            if key == arcade.key.ESCAPE:
-                if self.window is not None:
-                    self.window.close()
-                return
-
             # Handle F12 toggle (main overlay)
             if key == arcade.key.F12:
                 self.toggle()
@@ -421,6 +423,20 @@ class DevVisualizer:
             if key == arcade.key.F11:
                 self.toggle_palette()
                 return
+
+            # Handle ESC to close window (only in edit mode)
+            # This matches the README: "ESC: Close application (in generated level files)"
+            # Only intercept ESC when DevVisualizer is visible (edit mode)
+            if key == arcade.key.ESCAPE:
+                if self.visible:
+                    if self.window is not None:
+                        self.window.close()
+                    return
+                # If not in edit mode, let original handler run first (preserves game functionality)
+                # This allows games to use ESC for pause menus, canceling actions, etc.
+                if original_on_key_press:
+                    original_on_key_press(key, modifiers)
+                    return
 
             # Let DevVisualizer handle keys if visible
             if self.visible and self.handle_key_press(key, modifiers):

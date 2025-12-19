@@ -65,6 +65,7 @@ class TestDevVisualizerManager(ActionTestBase):
         assert dev_viz.scene_sprites is not None
         assert isinstance(dev_viz.scene_sprites, arcade.SpriteList)
 
+    @pytest.mark.integration
     def test_toggle_visibility(self, window):
         """Test toggling DevVisualizer visibility."""
         dev_viz = DevVisualizer()
@@ -75,6 +76,7 @@ class TestDevVisualizerManager(ActionTestBase):
         dev_viz.toggle()
         assert dev_viz.visible is False
 
+    @pytest.mark.integration
     def test_show_hide(self, window):
         """Test show/hide methods."""
         dev_viz = DevVisualizer()
@@ -380,6 +382,7 @@ class TestDevVisualizerManager(ActionTestBase):
 class TestDevVisualizerPauseResume(ActionTestBase):
     """Test suite for DevVisualizer pause/resume functionality."""
 
+    @pytest.mark.integration
     def test_actions_paused_when_visible(self, window):
         """Test that actions are paused when DevVisualizer becomes visible."""
         from actions import Action, move_until, infinite
@@ -397,6 +400,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
         # Actions should be paused
         assert Action.is_paused() is True
 
+    @pytest.mark.integration
     def test_actions_resumed_when_hidden(self, window):
         """Test that actions are resumed when DevVisualizer becomes hidden."""
         from actions import Action, move_until, infinite
@@ -415,6 +419,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
         dev_viz.hide()
         assert Action.is_paused() is False
 
+    @pytest.mark.integration
     def test_toggle_pauses_and_resumes(self, window):
         """Test that toggle() pauses/resumes actions."""
         from actions import Action, move_until, infinite
@@ -437,6 +442,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
         assert dev_viz.visible is False
         assert Action.is_paused() is False
 
+    @pytest.mark.integration
     def test_sprites_dont_move_when_paused(self, window):
         """Test that sprites don't move when actions are paused."""
         from actions import Action, move_until, infinite
@@ -457,6 +463,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
 
         assert sprite.center_x == initial_x
 
+    @pytest.mark.integration
     def test_sprites_move_when_resumed(self, window):
         """Test that sprites move again when actions are resumed."""
         from actions import Action, move_until, infinite
@@ -625,6 +632,7 @@ class TestDevVisualizerSpriteIntegration(ActionTestBase):
 class TestDevVisualizerEditMode(ActionTestBase):
     """Test suite for DevVisualizer edit mode."""
 
+    @pytest.mark.integration
     def test_actions_stored_as_metadata(self, window):
         """Test that actions are stored as metadata in edit mode."""
         from actions import move_until, infinite
