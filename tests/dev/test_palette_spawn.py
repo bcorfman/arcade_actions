@@ -138,30 +138,29 @@ class TestPaletteSpawn(ActionTestBase):
         item_height = 50
 
         # Calculate click positions based on actual implementation
-        # With 3 items, relative_y values and corresponding indices:
-        # - Click at y=160 → relative_y = (160-10)//50 = 3 → index = 3-1-3 = -1 (out of range)
-        # - Click at y=110 → relative_y = (110-10)//50 = 2 → index = 3-1-2 = 0 (top_item)
-        # - Click at y=60  → relative_y = (60-10)//50 = 1  → index = 3-1-1 = 1 (middle_item)
-        # - Click at y=10  → relative_y = (10-10)//50 = 0  → index = 3-1-0 = 2 (bottom_item)
+        # With 3 items, relative_y values and corresponding indices (using correct formula):
+        # - Click at y=160 → relative_y = (160-10)//50 = 3 → index = 3-3 = 0 (top_item)
+        # - Click at y=110 → relative_y = (110-10)//50 = 2 → index = 3-2 = 1 (middle_item)
+        # - Click at y=60  → relative_y = (60-10)//50 = 1  → index = 3-1 = 2 (bottom_item)
 
-        # Click on top item (at y=110 for index 0)
-        result = palette.handle_mouse_press(50, 110)
+        # Click on top item (at y=160 for index 0)
+        result = palette.handle_mouse_press(50, 160)
         assert result is True
         assert palette._dragging_prototype == "top_item"
 
         # Clean up for next test
         palette._dragging_prototype = None
 
-        # Click on middle item (at y=60 for index 1)
-        result = palette.handle_mouse_press(50, 60)
+        # Click on middle item (at y=110 for index 1)
+        result = palette.handle_mouse_press(50, 110)
         assert result is True
         assert palette._dragging_prototype == "middle_item"
 
         # Clean up for next test
         palette._dragging_prototype = None
 
-        # Click on bottom item (at y=10 for index 2)
-        result = palette.handle_mouse_press(50, 10)
+        # Click on bottom item (at y=60 for index 2)
+        result = palette.handle_mouse_press(50, 60)
         assert result is True
         assert palette._dragging_prototype == "bottom_item"
 
