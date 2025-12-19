@@ -12,6 +12,33 @@ if TYPE_CHECKING:
     from actions.conditional import MoveUntil
 
 
+def _draw_centered_rectangle_outline(
+    center_x: float,
+    center_y: float,
+    width: float,
+    height: float,
+    color: arcade.Color,
+    border_width: float = 1,
+) -> None:
+    """Arcade 3.3 helper to keep legacy center-based drawing logic."""
+    left = center_x - width / 2
+    bottom = center_y - height / 2
+    arcade.draw_lbwh_rectangle_outline(left, bottom, width, height, color, border_width)
+
+
+def _draw_centered_rectangle_filled(
+    center_x: float,
+    center_y: float,
+    width: float,
+    height: float,
+    color: arcade.Color,
+) -> None:
+    """Arcade 3.3 helper to keep legacy center-based drawing logic."""
+    left = center_x - width / 2
+    bottom = center_y - height / 2
+    arcade.draw_lbwh_rectangle_filled(left, bottom, width, height, color)
+
+
 class BoundaryHandle:
     """A draggable handle for editing boundary bounds."""
 
@@ -204,7 +231,7 @@ class BoundaryGizmo:
         center_y = bottom + height / 2
 
         # Draw semi-transparent rectangle
-        arcade.draw_rectangle_outline(
+        _draw_centered_rectangle_outline(
             center_x,
             center_y,
             width,
@@ -212,7 +239,7 @@ class BoundaryGizmo:
             arcade.color.CYAN,
             2,
         )
-        arcade.draw_rectangle_filled(
+        _draw_centered_rectangle_filled(
             center_x,
             center_y,
             width,
@@ -222,14 +249,14 @@ class BoundaryGizmo:
 
         # Draw handles
         for handle in self._handles:
-            arcade.draw_rectangle_filled(
+            _draw_centered_rectangle_filled(
                 handle.x,
                 handle.y,
                 handle.handle_size,
                 handle.handle_size,
                 arcade.color.YELLOW,
             )
-            arcade.draw_rectangle_outline(
+            _draw_centered_rectangle_outline(
                 handle.x,
                 handle.y,
                 handle.handle_size,

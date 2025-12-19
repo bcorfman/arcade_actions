@@ -45,6 +45,9 @@ Repository = "https://github.com/bcorfman/arcade_actions"
 Documentation = "https://deepwiki.com/bcorfman/arcade_actions"
 Issues = "https://github.com/bcorfman/arcade_actions/issues"
 
+[project.scripts]
+create-action-level = "actions.dev.create_level:main"
+
 [project.optional-dependencies]
 statemachine = [
     "python-statemachine>=2.5.0",

@@ -427,17 +427,34 @@ ARCADEACTIONS_DEVVIZ=1 uv run python examples/invaders.py
 ```
 
 **Workflow 2: Creating New Scenes from Scratch (Truly Zero Boilerplate)**
+
+**Option A: Use the Level Generator (Recommended for New Users)**
+```bash
+# Generate a new level file with all boilerplate code automatically
+uv run python -m actions.dev.create_level my_level.py
+
+# Or use interactive mode (prompts for filename)
+uv run python -m actions.dev.create_level
+
+# The generator will:
+# 1. Create the file with all necessary boilerplate
+# 2. Automatically run it with DevVisualizer enabled
+# 3. You can start editing immediately!
+```
+
+**Option B: Manual Creation (For Advanced Users)**
 ```bash
 # Start with empty scene - ABSOLUTELY NO API calls needed!
 ARCADEACTIONS_DEVVIZ=1 uv run python examples/create_boss_level.py
 
 # In editor:
 # 1. DevVisualizer auto-enables (no enable_dev_visualizer() call needed!)
-# 2. Press F12 to toggle DevVisualizer if not visible
-# 3. Drag prototypes from palette to spawn sprites
-# 4. Click sprites to select them
-# 5. Press E to export scene to YAML
-# 6. Load YAML in your game code
+# 2. Press F12 to toggle DevVisualizer main overlay (if not visible)
+# 3. Press F11 to open palette window
+# 4. Click prototypes in palette to spawn sprites
+# 5. Click sprites in main window to select them
+# 6. Press E to export scene to YAML
+# 7. Load YAML in your game code
 
 # Example: create_boss_level.py
 # - Just register prototypes with @register_prototype
@@ -473,7 +490,50 @@ ARCADEACTIONS_DEV_MODE=1 uv run python game.py
 
 Once enabled, press **F12** to toggle DevVisualizer on/off (edit mode vs runtime mode).
 
-**Zero-Boilerplate Example (Recommended for New Scenes):**
+### Level Generator Tool
+
+**New to DevVisualizer? Start here!** The level generator automatically creates all the boilerplate code you need:
+
+```bash
+# Shortest command (Makefile target) - Recommended!
+make create-level my_level.py
+
+# Or use interactive mode (prompts for filename)
+make create-level
+
+# Alternative: Console script (if package is installed)
+arccreate-level my_level.py
+
+# Full command (always works)
+uv run python -m actions.dev.create_level my_level.py
+```
+
+The generator will:
+1. Create a Python file with all necessary boilerplate code
+2. Include example prototype registration
+3. Set up the View class and main() function
+4. Automatically run the file with DevVisualizer enabled
+
+**Features:**
+- Automatically derives title from filename (e.g., `my_level.py` → "My Level")
+- Creates export name from filename (e.g., `my_level.py` → `my_level.yaml`)
+- Validates filename and handles edge cases
+- Prompts before overwriting existing files
+- Runs the generated file immediately with `ARCADEACTIONS_DEVVIZ=1`
+
+**Example:**
+```bash
+$ create-action-level boss_fight.py
+✓ Created level file: /path/to/boss_fight.py
+
+Running boss_fight.py with DevVisualizer enabled...
+```
+
+**Note:** The console script (`create-action-level`) provides a system-wide command that works from any directory.
+
+The generated file includes everything you need - just add your prototype registrations and start editing!
+
+**Zero-Boilerplate Example (Manual Creation - For Advanced Users):**
 ```python
 # create_boss_level.py - Truly zero boilerplate!
 import arcade
@@ -505,7 +565,8 @@ if __name__ == "__main__":
     main()
 
 # Run with: ARCADEACTIONS_DEVVIZ=1 uv run python create_boss_level.py
-# Press F12 to toggle, E to export, I to import
+# Press F12 to toggle main overlay, F11 to toggle palette
+# Press E to export, I to import
 # No get_dev_visualizer(), no scene_sprites.draw() - nothing!
 ```
 
@@ -525,7 +586,7 @@ dev_viz = enable_dev_visualizer(
 ### Features
 
 - **Sprite Prototype Registry**: Register sprite "prefabs" with decorator-based factories
-- **Palette Sidebar**: Drag-and-drop interface for spawning prototypes into scene
+- **Palette Window**: Separate window with click-to-spawn interface for prototypes (F11)
 - **Multi-Selection**: Click-to-select, shift-click, and marquee box selection
 - **Action Preset Library**: Composable action presets with parameter editing
 - **Boundary Gizmos**: Visual editor for MoveUntil action bounds with draggable handles
@@ -549,8 +610,8 @@ def make_enemy_ship(ctx):
     sprite._prototype_id = "enemy_ship"
     return sprite
 
-# Press F12 in-game to toggle DevVisualizer
-# Drag prototypes from palette, select sprites, edit bounds, export YAML
+# Press F12 to toggle main overlay, F11 to toggle palette
+# Click prototypes in palette to spawn, select sprites, edit bounds, export YAML
 ```
 
 **Programmatic setup:**
@@ -575,7 +636,7 @@ class GameView(arcade.View):
             scene_sprites=self.scene_sprites,
             auto_attach=True
         )
-        # Press F12 to toggle on/off
+        # Press F12 to toggle main overlay, F11 to toggle palette
     
     def on_draw(self):
         """Draw game and DevVisualizer overlays."""
@@ -585,6 +646,23 @@ class GameView(arcade.View):
 ```
 
 ### Sprite Prototype Registration
+
+### Palette Window
+
+The palette window is a separate window that displays registered sprite prototypes. Press **F11** to toggle it.
+
+**Features:**
+- Separate window (doesn't overlap main window)
+- Click-to-spawn: Click a prototype to spawn it at center of main window (640, 360)
+- Resizable and movable
+- Auto-shows when DevVisualizer is enabled via environment variable
+- Similar pattern to ACE timeline window (F4)
+
+**Spawning Sprites:**
+1. Press F11 to open palette window
+2. Click a prototype name in the palette
+3. Sprite spawns at center of main window
+4. Move sprite by selecting and repositioning (future: drag to desired position)
 
 Register sprite "prefabs" that can be spawned from the palette:
 
@@ -910,15 +988,17 @@ DevVisualizer supports multiple environment variable names for flexibility:
 When enabled via environment variable, DevVisualizer automatically:
 - Creates a scene SpriteList
 - Attaches to the current window
-- Registers F12 keyboard handler
-- Starts hidden (press F12 to show)
+- Registers F12 and F11 keyboard handlers
+- Shows main overlay and palette window automatically
 
 ### Keyboard Shortcuts
 
-- **F12**: Toggle DevVisualizer on/off (when enabled)
+- **F12**: Toggle DevVisualizer main overlay (selection, gizmos, indicator)
+- **F11**: Toggle palette window (separate window with sprite prototypes)
 - **E**: Export scene to YAML (saves to scene.yaml or examples/boss_level.yaml)
 - **I**: Import scene from YAML (loads from scene.yaml, examples/boss_level.yaml, or scenes/new_scene.yaml)
-- **Mouse**: Click palette items, select sprites, drag gizmo handles
+- **ESC**: Close application (in generated level files)
+- **Mouse**: Click prototypes in palette to spawn, click sprites to select, drag gizmo handles
 - **Shift+Click**: Add/remove from selection
 - **Click+Drag**: Marquee box selection
 
@@ -930,20 +1010,26 @@ When enabled via environment variable, DevVisualizer automatically:
 - **auto_attach** (`bool`): Automatically attach to window (default: `True`)
 
 **DevVisualizer Methods**:
-- **show()**: Show DevVisualizer and pause all actions (enter edit mode)
-- **hide()**: Hide DevVisualizer and resume all actions (exit edit mode)
-- **toggle()**: Toggle visibility and pause/resume state
+- **show()**: Show DevVisualizer main overlay and palette window, pause all actions (enter edit mode)
+- **hide()**: Hide DevVisualizer main overlay and palette window, resume all actions (exit edit mode)
+- **toggle()**: Toggle main overlay visibility and pause/resume state
+- **toggle_palette()**: Toggle palette window visibility (F11)
 - **import_sprites(*sprite_lists, clear=True)**: Import sprites from game for editing
 - **export_sprites()**: Sync edited sprite properties back to originals
 - **apply_metadata_actions(sprite)**: Convert action metadata to runtime actions
 
-**PaletteSidebar**:
+**PaletteWindow** (Separate window for sprite palette):
 - **registry** (`SpritePrototypeRegistry`): Registry with registered prototypes
 - **ctx** (`DevContext`): DevContext with scene_sprites reference
-- **x** (`int`): X position of sidebar (default: `10`)
-- **y** (`int`): Y position of sidebar (default: `10`)
-- **width** (`int`): Width of sidebar panel (default: `200`)
-- **visible** (`bool`): Initial visibility state (default: `True`)
+- **title** (`str`): Window title (default: `"Sprite Palette"`)
+- **width** (`int`): Window width (default: `250`)
+- **height** (`int`): Window height (default: `400`)
+- **on_close_callback** (`Callable`): Optional callback when window closes
+- **Methods**: `show_window()`, `hide_window()`, `toggle_window()`
+
+**PaletteSidebar** (Deprecated - use PaletteWindow instead):
+- Kept for backward compatibility
+- Use PaletteWindow for new code
 
 **SelectionManager**:
 - **scene_sprites** (`arcade.SpriteList`): SpriteList containing sprites that can be selected
@@ -965,13 +1051,14 @@ When enabled via environment variable, DevVisualizer automatically:
 
 1. **Zero boilerplate for new scenes**: Just register prototypes and use `get_dev_visualizer()` - no `enable_dev_visualizer()` needed
 2. **Register prototypes early**: Set up all prototypes before creating the visualizer
-3. **Use meaningful preset names**: Clear names make the preset library easier to navigate
-4. **Organize presets by category**: Use categories like "Movement", "Effects", "Formations"
-5. **Store action configs as metadata**: Never call `action.apply()` during editing
-6. **Export frequently**: Press E to save work often with YAML export
-7. **Use symbolic bounds**: Makes YAML files more readable and maintainable
-8. **Test round-trip**: Verify export → import → export maintains all data
-9. **Cache text objects**: Palette sidebar caches text objects for performance (handled automatically)
+3. **Use palette window**: Press F11 to open the separate palette window (cleaner than overlay)
+4. **Click to spawn**: Click prototypes in palette window to spawn sprites at center (640, 360)
+5. **Use meaningful preset names**: Clear names make the preset library easier to navigate
+6. **Organize presets by category**: Use categories like "Movement", "Effects", "Formations"
+7. **Store action configs as metadata**: Never call `action.apply()` during editing
+8. **Export frequently**: Press E to save work often with YAML export
+9. **Use symbolic bounds**: Makes YAML files more readable and maintainable
+10. **Test round-trip**: Verify export → import → export maintains all data
 
 ### Example
 

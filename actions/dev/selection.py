@@ -8,6 +8,33 @@ from __future__ import annotations
 import arcade
 
 
+def _draw_centered_rectangle_outline(
+    center_x: float,
+    center_y: float,
+    width: float,
+    height: float,
+    color: arcade.Color,
+    border_width: float = 1,
+) -> None:
+    """Arcade 3.3 helper to keep legacy center-based drawing sites."""
+    left = center_x - width / 2
+    bottom = center_y - height / 2
+    arcade.draw_lbwh_rectangle_outline(left, bottom, width, height, color, border_width)
+
+
+def _draw_centered_rectangle_filled(
+    center_x: float,
+    center_y: float,
+    width: float,
+    height: float,
+    color: arcade.Color,
+) -> None:
+    """Arcade 3.3 helper to keep legacy center-based drawing sites."""
+    left = center_x - width / 2
+    bottom = center_y - height / 2
+    arcade.draw_lbwh_rectangle_filled(left, bottom, width, height, color)
+
+
 class SelectionManager:
     """
     Manages sprite selection in DevVisualizer.
@@ -51,11 +78,8 @@ class SelectionManager:
             sprite = clicked_sprites[0]  # Get first sprite at point
 
             if shift:
-                # Shift-click: toggle selection
-                if sprite in self._selected:
-                    self._selected.remove(sprite)
-                else:
-                    self._selected.add(sprite)
+                # Shift-click: add to selection (don't remove if already selected)
+                self._selected.add(sprite)
             else:
                 # Regular click: replace selection
                 if sprite not in self._selected:
@@ -142,7 +166,7 @@ class SelectionManager:
         for sprite in self._selected:
             # Draw outline using arcade shapes (simplified for MVP)
             # In full implementation, would use shader or custom drawing
-            arcade.draw_rectangle_outline(
+            _draw_centered_rectangle_outline(
                 sprite.center_x,
                 sprite.center_y,
                 sprite.width + 4,
@@ -165,17 +189,19 @@ class SelectionManager:
             height = top - bottom
 
             # Draw translucent rectangle
-            arcade.draw_rectangle_outline(
-                left + width / 2,
-                bottom + height / 2,
+            center_x = left + width / 2
+            center_y = bottom + height / 2
+            _draw_centered_rectangle_outline(
+                center_x,
+                center_y,
                 width,
                 height,
                 arcade.color.CYAN,
                 2,
             )
-            arcade.draw_rectangle_filled(
-                left + width / 2,
-                bottom + height / 2,
+            _draw_centered_rectangle_filled(
+                center_x,
+                center_y,
                 width,
                 height,
                 (*arcade.color.CYAN[:3], 64),  # Semi-transparent
