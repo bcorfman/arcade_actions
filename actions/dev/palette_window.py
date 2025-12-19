@@ -114,8 +114,10 @@ class PaletteWindow(arcade.Window):
         """Initialize window attributes for headless mode (CI environments without OpenGL)."""
         # Initialize as headless window - set attributes manually without calling super().__init__()
         # This mimics what HeadlessWindow.__init__() would do
-        self.width = width
-        self.height = height
+        # Store headless size attributes without triggering Window property setters
+        self._headless_width = int(width)
+        self._headless_height = int(height)
+        self._headless_scale = 1.0
         # Use _is_visible instead of visible (visible is a property, not a settable attribute)
         self._is_visible = False
         self.has_exit = False
@@ -126,6 +128,22 @@ class PaletteWindow(arcade.Window):
         self._update_rate = 60
         # Mark as headless for any methods that need to check
         self._is_headless = True
+        # Ensure default title text placeholder
+        self._title_text = None  # type: ignore[assignment]
+
+    def get_size(self) -> tuple[int, int]:
+        """Return window size, handling headless mode safely."""
+        if getattr(self, "_is_headless", False):
+            return self._headless_width, self._headless_height
+        return super().get_size()
+
+    def set_size(self, width: int, height: int) -> None:
+        """Set window size, avoiding GL calls in headless mode."""
+        if getattr(self, "_is_headless", False):
+            self._headless_width = int(width)
+            self._headless_height = int(height)
+            return
+        super().set_size(width, height)
 
     def clear(self) -> None:
         """Clear the window. No-op in headless mode."""
