@@ -43,6 +43,7 @@ from .presets import (
     get_preset_registry,
 )
 from .palette import PaletteSidebar
+from .palette_window import PaletteWindow
 from .selection import SelectionManager
 from .boundary_overlay import BoundaryGizmo, BoundaryHandle
 from .templates import export_template, load_scene_template, SYMBOLIC
@@ -69,6 +70,7 @@ __all__ = [
     "register_preset",
     "get_preset_registry",
     "PaletteSidebar",
+    "PaletteWindow",
     "SelectionManager",
     "BoundaryGizmo",
     "BoundaryHandle",

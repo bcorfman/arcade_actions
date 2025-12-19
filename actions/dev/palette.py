@@ -92,12 +92,14 @@ class PaletteSidebar:
 
         # Find which prototype was clicked (simplified - just check Y position)
         prototypes = list(self.registry.all().keys())
+        if not prototypes:
+            return False
         # Items are drawn top-to-bottom (item 0 at highest y)
         # Item i is drawn at: self.y + (len(prototypes) - i) * self._item_height
         # So relative_y = (y - self.y) // self._item_height maps to the item index as:
         # clicked_index = len(prototypes) - relative_y
-        relative_y = (y - self.y) // self._item_height
-        clicked_index = len(prototypes) - relative_y
+        relative_y = int((y - self.y) // self._item_height)
+        clicked_index = len(prototypes) - 1 - relative_y
 
         if 0 <= clicked_index < len(prototypes):
             self._dragging_prototype = prototypes[clicked_index]
