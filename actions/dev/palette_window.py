@@ -10,6 +10,14 @@ import arcade
 from arcade import window_commands
 from typing import TYPE_CHECKING, Callable
 
+# Import OpenGL exceptions to catch headless CI errors
+try:
+    from pyglet.gl.lib import GLException, MissingFunctionException
+except ImportError:
+    # Fallback if pyglet isn't available (shouldn't happen in normal usage)
+    GLException = Exception
+    MissingFunctionException = Exception
+
 if TYPE_CHECKING:
     from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry
 
@@ -40,24 +48,25 @@ class PaletteWindow(arcade.Window):
         # This handles CI environments (Windows/macOS) where OpenGL drivers aren't available
         try:
             super().__init__(width=width, height=height, title=title, resizable=True, visible=False)
+        except (GLException, MissingFunctionException) as e:
+            # OpenGL-related errors in headless CI environment - initialize as headless window
+            self._init_headless_mode(width, height, title)
         except Exception as e:
-            # Check if this is an OpenGL-related error (headless CI environment)
+            # Check if this is an OpenGL-related error by examining the exception type or message
+            error_type_name = type(e).__name__
             error_msg = str(e).lower()
-            if "opengl" in error_msg or "glcreateshader" in error_msg or "missingfunction" in error_msg:
+            is_opengl_error = (
+                "GLException" in error_type_name
+                or "MissingFunction" in error_type_name
+                or "opengl" in error_msg
+                or "glcreateshader" in error_msg
+                or "wglgetextensions" in error_msg
+                or "invalid operation" in error_msg
+                or "not allowed in the current state" in error_msg
+            )
+            if is_opengl_error:
                 # Initialize as headless window - set attributes manually without calling super().__init__()
-                # This mimics what HeadlessWindow.__init__() would do
-                self.width = width
-                self.height = height
-                # Use _is_visible instead of visible (visible is a property, not a settable attribute)
-                self._is_visible = False
-                self.has_exit = False
-                self.location: tuple[int, int] = (0, 0)
-                self._title = title
-                self.handlers: dict[str, object] = {}
-                self._view = None
-                self._update_rate = 60
-                # Mark as headless for any methods that need to check
-                self._is_headless = True
+                self._init_headless_mode(width, height, title)
             else:
                 # Re-raise if it's not an OpenGL error
                 raise
@@ -74,7 +83,9 @@ class PaletteWindow(arcade.Window):
         self._main_window = main_window
 
         # Track visibility state explicitly to avoid stale property issues
-        self._is_visible = False
+        # (Only set if not already set by headless mode initialization)
+        if not hasattr(self, "_is_visible"):
+            self._is_visible = False
 
         # Drag state
         self._dragging_prototype: str | None = None
@@ -85,15 +96,36 @@ class PaletteWindow(arcade.Window):
         self._text_cache: list[arcade.Text] = []
         self._cached_prototype_ids: tuple[str, ...] = ()
 
-        # Create title text
-        self._title_text = arcade.Text(
-            "Drag to spawn:",
-            self.MARGIN,
-            height - self.MARGIN - 20,
-            arcade.color.WHITE,
-            14,
-            bold=True,
-        )
+        # Create title text (skip in headless mode to avoid OpenGL calls)
+        if not getattr(self, "_is_headless", False):
+            self._title_text = arcade.Text(
+                "Drag to spawn:",
+                self.MARGIN,
+                height - self.MARGIN - 20,
+                arcade.color.WHITE,
+                14,
+                bold=True,
+            )
+        else:
+            # Create a dummy text object for headless mode (won't be drawn)
+            self._title_text = None  # type: ignore[assignment]
+
+    def _init_headless_mode(self, width: int, height: int, title: str) -> None:
+        """Initialize window attributes for headless mode (CI environments without OpenGL)."""
+        # Initialize as headless window - set attributes manually without calling super().__init__()
+        # This mimics what HeadlessWindow.__init__() would do
+        self.width = width
+        self.height = height
+        # Use _is_visible instead of visible (visible is a property, not a settable attribute)
+        self._is_visible = False
+        self.has_exit = False
+        self.location: tuple[int, int] = (0, 0)
+        self._title = title
+        self.handlers: dict[str, object] = {}
+        self._view = None
+        self._update_rate = 60
+        # Mark as headless for any methods that need to check
+        self._is_headless = True
 
     def clear(self) -> None:
         """Clear the window. No-op in headless mode."""
@@ -117,7 +149,7 @@ class PaletteWindow(arcade.Window):
     def on_draw(self) -> None:
         """Draw the palette window."""
         # No-op in headless mode (CI environments without OpenGL)
-        if getattr(self, "_is_headless", False):
+        if getattr(self, "_is_headless", False) or self._title_text is None:
             return
 
         self.clear()
