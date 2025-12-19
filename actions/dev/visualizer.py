@@ -587,6 +587,33 @@ class DevVisualizer:
             main_window=self.window,
         )
 
+    def _get_window_location(self, window: Any) -> tuple[int, int] | None:
+        """Safely get window location, handling both real Arcade windows and HeadlessWindow.
+
+        Args:
+            window: Window object (real Arcade window or HeadlessWindow)
+
+        Returns:
+            Tuple of (x, y) coordinates, or None if location cannot be determined.
+        """
+        if window is None:
+            return None
+
+        # Real Arcade windows have get_location() method
+        if hasattr(window, "get_location"):
+            try:
+                return window.get_location()
+            except Exception:
+                pass
+
+        # HeadlessWindow and similar mocks use location attribute
+        if hasattr(window, "location"):
+            loc = window.location
+            if isinstance(loc, tuple) and len(loc) == 2:
+                return (int(loc[0]), int(loc[1]))
+
+        return None
+
     def _position_palette_window(self) -> bool:
         """Position palette window relative to main window.
 
@@ -606,8 +633,12 @@ class DevVisualizer:
         if anchor_window is None:
             return False
 
-        # Arcade get_location is top-left on SDL; align using that convention.
-        main_x, main_y = anchor_window.get_location()
+        # Get main window location (handles both real windows and HeadlessWindow)
+        main_location = self._get_window_location(anchor_window)
+        if main_location is None:
+            return False
+        main_x, main_y = main_location
+
         main_height = anchor_window.height
         main_width = anchor_window.width
         palette_width = self.palette_window.width
@@ -631,7 +662,10 @@ class DevVisualizer:
 
         # Verify alignment; if off, apply a one-time correction based on measured error
         try:
-            actual_x, actual_y = self.palette_window.get_location()
+            actual_location = self._get_window_location(self.palette_window)
+            if actual_location is None:
+                return False
+            actual_x, actual_y = actual_location
             # Using top-left coordinates: palette top = palette_y, main top = main_y
             top_diff = actual_y - main_y
             right_diff = (actual_x + palette_width) - main_x
@@ -645,7 +679,10 @@ class DevVisualizer:
             self.palette_window.set_location(corrected_x, corrected_y)
 
             # Re-verify after correction
-            actual_x2, actual_y2 = self.palette_window.get_location()
+            actual_location2 = self._get_window_location(self.palette_window)
+            if actual_location2 is None:
+                return False
+            actual_x2, actual_y2 = actual_location2
             top_diff2 = actual_y2 - main_y
             right_diff2 = (actual_x2 + palette_width) - main_x
             return abs(top_diff2) <= 2 and abs(right_diff2) <= 2
