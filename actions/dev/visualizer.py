@@ -557,6 +557,9 @@ class DevVisualizer:
             if self.visible:
                 self.hide()
             if self.palette_window:
+                # Set flag to prevent on_palette_close callback from closing main window again
+                # (which could cause recursion since we're already in the close handler)
+                self._is_detaching = True
                 try:
                     # Ensure palette window is closed when main window closes
                     if not self.palette_window.closed:
@@ -567,6 +570,8 @@ class DevVisualizer:
                         self.palette_window.set_visible(False)
                     except Exception:
                         pass
+                finally:
+                    self._is_detaching = False
                 self.palette_window = None
             if self._original_on_close:
                 self._original_on_close()
@@ -877,6 +882,11 @@ class DevVisualizer:
         # We have a trustworthy location – create / position palette now
         if self.palette_window is None:
             self._create_palette_window()
+        # Verify palette window was created successfully before accessing it
+        if self.palette_window is None:
+            print("[DevVisualizer] Failed to create palette window, deferring show")
+            self._palette_show_pending = False
+            return
         self.update_main_window_position()
         self._position_palette_window(force=True)
         self.palette_window.show_window()
@@ -1045,8 +1055,6 @@ class DevVisualizer:
         deco_dx = self._window_decoration_dx or 0
         deco_dy = self._window_decoration_dy or 0
         palette_width = self.palette_window.width
-        palette_right_border = deco_dx if deco_dx > 0 else 0
-        total_x_offset = deco_dx + palette_right_border + self._EXTRA_FRAME_PAD
 
         # Position palette window using the same offset system:
         # Right edge of palette aligns with left edge of main window (accounting for borders + shadow)
