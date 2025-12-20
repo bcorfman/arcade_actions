@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import time
 from collections.abc import Callable
+import types
 from typing import TYPE_CHECKING, Any
 from weakref import WeakKeyDictionary
 
@@ -27,8 +28,80 @@ from actions.dev.prototype_registry import DevContext, get_registry
 from actions.dev.selection import SelectionManager
 
 from actions import Action
+from actions.display import move_to_primary_monitor
 
 _MISSING_GIZMO_REFRESH_SECONDS = 0.25
+
+
+def _get_primary_monitor_rect() -> tuple[int, int, int, int] | None:
+    """Get the primary monitor rect (x, y, width, height) using the same approach as move_to_primary_monitor.
+
+    Returns:
+        Tuple of (x, y, width, height) for primary monitor, or None if unavailable.
+    """
+    # Try SDL2 first (same as move_to_primary_monitor)
+    from ctypes import CDLL, POINTER, Structure, byref, c_int, c_uint32
+    from ctypes.util import find_library
+
+    class _SDL_Rect(Structure):
+        _fields_ = [("x", c_int), ("y", c_int), ("w", c_int), ("h", c_int)]
+
+    def _load_sdl2() -> CDLL | None:
+        candidates: list[str] = []
+        found = find_library("SDL2")
+        if found:
+            candidates.append(found)
+
+        import sys
+
+        if sys.platform.startswith("win"):
+            candidates += ["SDL2.dll"]
+        elif sys.platform == "darwin":
+            candidates += ["libSDL2.dylib", "SDL2"]
+        else:  # Linux / *nix
+            candidates += ["libSDL2-2.0.so.0", "libSDL2.so", "SDL2"]
+
+        for name in candidates:
+            try:
+                return CDLL(name)
+            except OSError:
+                continue
+        return None
+
+    sdl = _load_sdl2()
+    if sdl is not None:
+        SDL_INIT_VIDEO = 0x00000020
+        sdl.SDL_Init.argtypes = [c_uint32]
+        sdl.SDL_Init.restype = c_int  # type: ignore[var-annotated]
+        sdl.SDL_Quit.argtypes = []
+        sdl.SDL_GetNumVideoDisplays.argtypes = []
+        sdl.SDL_GetNumVideoDisplays.restype = c_int  # type: ignore[var-annotated]
+        sdl.SDL_GetDisplayBounds.argtypes = [c_int, POINTER(_SDL_Rect)]
+        sdl.SDL_GetDisplayBounds.restype = c_int  # type: ignore[var-annotated]
+
+        if sdl.SDL_Init(SDL_INIT_VIDEO) == 0:
+            try:
+                num_displays = sdl.SDL_GetNumVideoDisplays()
+                if num_displays > 0:
+                    rect = _SDL_Rect()
+                    if sdl.SDL_GetDisplayBounds(0, byref(rect)) == 0:
+                        return (rect.x, rect.y, rect.w, rect.h)
+            finally:
+                sdl.SDL_Quit()
+
+    # Fall back to screeninfo (same as move_to_primary_monitor)
+    try:
+        from screeninfo import get_monitors
+
+        monitors = get_monitors()
+        if monitors:
+            primary = monitors[0]
+            return (primary.x, primary.y, primary.width, primary.height)
+    except Exception:
+        pass
+
+    return None
+
 
 try:
     import arcade.window_commands as window_commands_module
@@ -122,6 +195,18 @@ class DevVisualizer:
             scene_sprites: SpriteList for editable scene (created if None)
             window: Arcade window (auto-detected if None)
         """
+        # Flag to ensure we only schedule one palette-show poll
+        self._palette_show_pending: bool = False
+        # Decoration deltas measured once (border width, title+border height)
+        self._window_decoration_dx: int | None = None
+        self._window_decoration_dy: int | None = None
+        # Palette window decoration deltas (measured when palette is positioned)
+        self._palette_decoration_dx: int | None = None
+        self._palette_decoration_dy: int | None = None
+        # Extra padding to account for window shadows not captured by decoration measurement
+        # This is in addition to the measured borders (main left + palette right)
+        self._EXTRA_FRAME_PAD: int = 8
+
         if scene_sprites is None:
             scene_sprites = arcade.SpriteList()
 
@@ -141,12 +226,11 @@ class DevVisualizer:
         self._dragging_sprites: list[tuple[arcade.Sprite, float, float]] | None = None  # (sprite, offset_x, offset_y)
         self._gizmos: WeakKeyDictionary[arcade.Sprite, BoundaryGizmo | None] = WeakKeyDictionary()
         self._gizmo_miss_refresh_at: WeakKeyDictionary[arcade.Sprite, float] = WeakKeyDictionary()
-        self._palette_reposition_attempts: int = 0
-        self._palette_needs_positioning: bool = False
+        self._tracked_window_positions: dict[int, tuple[int, int]] = {}  # window_id -> (x, y)
 
         # Create indicator text (shown when DevVisualizer is active)
         self._indicator_text = arcade.Text(
-            "DEV EDIT MODE [F12] | Palette [F11]",
+            "Palette [F11] | DEV EDIT MODE [F12]",
             10,
             10,
             arcade.color.YELLOW,
@@ -156,6 +240,7 @@ class DevVisualizer:
 
         # Track if we've attached to window
         self._attached = False
+        self._is_detaching: bool = False  # Flag to prevent on_palette_close from closing main window during detachment
         self._original_on_draw: Callable[..., None] | None = None
         self._original_on_key_press: Callable[..., None] | None = None
         self._original_on_mouse_press: Callable[..., None] | None = None
@@ -164,6 +249,119 @@ class DevVisualizer:
         self._original_on_close: Callable[..., None] | None = None
         self._original_view_on_draw: Callable[..., None] | None = None
         self._original_show_view: Callable[..., None] | None = None
+        self._original_set_location: Callable[..., None] | None = None
+
+    def _track_window_position(self, window: arcade.Window, x: int, y: int) -> None:
+        """Track the position we set for a window."""
+        self._tracked_window_positions[id(window)] = (x, y)
+
+    def _get_tracked_window_position(self, window: arcade.Window) -> tuple[int, int] | None:
+        """Get the tracked position for a window."""
+        return self._tracked_window_positions.get(id(window))
+
+    def track_window_position(self, window: arcade.Window) -> bool:
+        """Track the current position of a window.
+
+        This should be called after positioning a window to enable relative positioning
+        of other windows. For example, call this after move_to_primary_monitor().
+
+        Args:
+            window: The window to track the position of
+
+        Returns:
+            True if a valid position was recorded, False otherwise.
+        """
+        try:
+            # Prefer the OS-reported position when available so we account for window manager adjustments
+            location = None
+            if hasattr(window, "get_location"):
+                try:
+                    loc = window.get_location()
+                    if loc and loc != (0, 0):
+                        location = loc
+                except Exception:
+                    location = None
+            if location is None:
+                location = getattr(window, "_arcadeactions_last_set_location", None)
+            # Ignore (0, 0) which is a common Wayland placeholder
+            if location and location != (0, 0):
+                self._track_window_position(window, location[0], location[1])
+                return True
+        except Exception as e:
+            print(f"[DevVisualizer] Failed to track window position: {e}")
+        return False
+
+    def update_main_window_position(self) -> bool:
+        """Update the tracked position of the main window.
+
+        Call this after repositioning the main window to ensure palette positioning
+        uses the correct relative location. For example:
+
+        >>> dev_viz = get_dev_visualizer()
+        >>> center_window(window)  # or move_to_primary_monitor(window)
+        >>> dev_viz.update_main_window_position()
+        """
+        # Get the current window (in case it was recreated)
+        window = self.window
+        if window is None:
+            try:
+                window = arcade.get_window()
+            except RuntimeError:
+                pass
+
+        if window:
+            tracked = self.track_window_position(window)
+            # Measure decoration deltas once
+            if tracked and self._window_decoration_dx is None:
+                try:
+                    deco_x, deco_y = window.get_location()
+                    if (deco_x, deco_y) != (0, 0):
+                        # Try stored location first (from center_window/move_to_primary_monitor)
+                        stored = getattr(window, "_arcadeactions_last_set_location", None)
+                        if stored:
+                            calc_dx = deco_x - stored[0]
+                            calc_dy = deco_y - stored[1]
+                            if calc_dx or calc_dy:
+                                self._window_decoration_dx = calc_dx
+                                self._window_decoration_dy = calc_dy
+                            else:
+                                print("[DevVisualizer] Decoration deltas zero on first check – will retry next frame")
+                        # Fallback: use window._x/_y (pyglet client area) vs get_location() (decorated)
+                        else:
+                            # Try arcade window first
+                            client_x = getattr(window, "_x", None)
+                            client_y = getattr(window, "_y", None)
+                            # If not found, try underlying pyglet window
+                            if client_x is None and hasattr(window, "_window"):
+                                pyglet_win = getattr(window, "_window", None)
+                                if pyglet_win is not None:
+                                    client_x = getattr(pyglet_win, "_x", None)
+                                    client_y = getattr(pyglet_win, "_y", None)
+                            if client_x is not None and client_y is not None:
+                                calc_dx = deco_x - client_x
+                                calc_dy = deco_y - client_y
+                                if calc_dx or calc_dy:
+                                    self._window_decoration_dx = calc_dx
+                                    self._window_decoration_dy = calc_dy
+                                else:
+                                    print(
+                                        "[DevVisualizer] Decoration deltas zero on first check – will retry next frame"
+                                    )
+                            else:
+                                print(f"[DevVisualizer] Could not find client area coordinates, leaving deltas as None")
+                                # Don't set to 0 - leave as None so we can try again later
+                except Exception as e:
+                    import traceback
+
+                    traceback.print_exc()
+            # Update self.window in case it changed
+            if self.window != window:
+                self.window = window
+            # Reposition palette immediately whenever we capture a non-(0,0) position
+            if tracked and self.palette_window is not None and not self._palette_show_pending:
+                self._position_palette_window(force=True)
+            return tracked
+        return False
 
     def attach_to_window(self, window: arcade.Window | None = None) -> bool:
         """
@@ -188,6 +386,9 @@ class DevVisualizer:
             return False
 
         self.window = window
+
+        # Try to track the main window position for relative positioning
+        self.track_window_position(window)
 
         # Wrap event handlers
         self._original_on_draw = window.on_draw
@@ -239,18 +440,6 @@ class DevVisualizer:
 
                 # Draw DevVisualizer overlays only when visible
                 if self.visible:
-                    # Reposition palette window if needed (allow a few post-show retries)
-                    if (
-                        self._palette_needs_positioning
-                        and self._palette_reposition_attempts < 5
-                        and self.palette_window
-                        and self.palette_window.visible
-                    ):
-                        aligned = self._position_palette_window()
-                        self._palette_reposition_attempts += 1
-                        if aligned:
-                            self._palette_needs_positioning = False
-
                     # Double-check context is valid before drawing DevVisualizer overlays
                     # This prevents GL errors when palette window has focus
                     try:
@@ -306,7 +495,23 @@ class DevVisualizer:
             # Only intercept ESC when DevVisualizer is visible (edit mode)
             if key == arcade.key.ESCAPE:
                 if self.visible:
-                    window.close()
+                    # Close palette window, which will trigger on_palette_close callback
+                    # that closes the main window (no need for explicit window.close())
+                    if self.palette_window:
+                        try:
+                            if not self.palette_window.closed:
+                                self.palette_window.close()
+                        except Exception:
+                            pass
+                        self.palette_window = None
+                    else:
+                        # If palette window doesn't exist, close main window directly
+                        if window is not None:
+                            try:
+                                if not window.closed:
+                                    window.close()
+                            except Exception:
+                                pass
                     return
                 # If not in edit mode, let original handler run first (preserves game functionality)
                 # This allows games to use ESC for pause menus, canceling actions, etc.
@@ -352,7 +557,21 @@ class DevVisualizer:
             if self.visible:
                 self.hide()
             if self.palette_window:
-                self.palette_window.close()
+                # Set flag to prevent on_palette_close callback from closing main window again
+                # (which could cause recursion since we're already in the close handler)
+                self._is_detaching = True
+                try:
+                    # Ensure palette window is closed when main window closes
+                    if not self.palette_window.closed:
+                        self.palette_window.close()
+                except Exception:
+                    # If close() fails, try to hide it at least
+                    try:
+                        self.palette_window.set_visible(False)
+                    except Exception:
+                        pass
+                finally:
+                    self._is_detaching = False
                 self.palette_window = None
             if self._original_on_close:
                 self._original_on_close()
@@ -361,6 +580,19 @@ class DevVisualizer:
 
         # Wrap show_view to intercept when views are set and wrap their on_draw
         self._original_show_view = getattr(window, "show_view", None)
+        self._original_set_location = getattr(window, "set_location", None)
+
+        if self._original_set_location is not None:
+            original_set_location = self._original_set_location
+
+            def wrapped_set_location(this: arcade.Window, x: int, y: int, *args: Any, **kwargs: Any) -> None:
+                original_set_location(x, y, *args, **kwargs)
+                try:
+                    self._track_window_position(window, int(x), int(y))
+                except Exception as hook_error:
+                    print(f"[DevVisualizer] set_location hook failed: {hook_error}")
+
+            window.set_location = types.MethodType(wrapped_set_location, window)
 
         def wrapped_show_view(view: arcade.View) -> None:
             # Call original show_view first
@@ -429,8 +661,23 @@ class DevVisualizer:
             # Only intercept ESC when DevVisualizer is visible (edit mode)
             if key == arcade.key.ESCAPE:
                 if self.visible:
-                    if self.window is not None:
-                        self.window.close()
+                    # Close palette window, which will trigger on_palette_close callback
+                    # that closes the main window (no need for explicit window.close())
+                    if self.palette_window:
+                        try:
+                            if not self.palette_window.closed:
+                                self.palette_window.close()
+                        except Exception:
+                            pass
+                        self.palette_window = None
+                    else:
+                        # If palette window doesn't exist, close main window directly
+                        if self.window is not None:
+                            try:
+                                if not self.window.closed:
+                                    self.window.close()
+                            except Exception:
+                                pass
                     return
                 # If not in edit mode, let original handler run first (preserves game functionality)
                 # This allows games to use ESC for pause menus, canceling actions, etc.
@@ -488,6 +735,8 @@ class DevVisualizer:
         self.window.on_mouse_drag = self._original_on_mouse_drag
         self.window.on_mouse_release = self._original_on_mouse_release
         self.window.on_close = self._original_on_close
+        if self._original_set_location is not None:
+            self.window.set_location = self._original_set_location  # type: ignore[assignment]
         if self._original_on_close:
             self.window.on_close = self._original_on_close
 
@@ -532,11 +781,17 @@ class DevVisualizer:
         self.visible = False
 
         # Close palette window if it exists
+        # Set flag to prevent on_palette_close callback from closing main window
         if self.palette_window:
-            self.palette_window.close()
+            self._is_detaching = True
+            try:
+                self.palette_window.close()
+            finally:
+                self._is_detaching = False
             self.palette_window = None
 
         self._original_on_close = None
+        self._original_set_location = None
 
     def toggle(self) -> None:
         """Toggle DevVisualizer visibility and pause/resume actions."""
@@ -545,26 +800,111 @@ class DevVisualizer:
         else:
             self.show()
 
+    def _poll_show_palette(self, _dt: float = 0.0) -> None:
+        """Wait until main window has a real location, then position & show palette."""
+        # Check if DevVisualizer is still visible before proceeding
+        # This prevents the palette from being shown if hide() was called after show()
+        if not self.visible:
+            self._palette_show_pending = False
+            return
+        if self.window is None:
+            try:
+                self.window = arcade.get_window()
+            except RuntimeError:
+                pass
+        if self.window is None:
+            arcade.schedule_once(self._poll_show_palette, 0.05)
+            return
+        loc_ok = False
+        try:
+            x, y = self.window.get_location()
+            loc_ok = (x, y) != (0, 0) and x > -32000 and y > -32000
+        except Exception:
+            pass
+        if not loc_ok:
+            arcade.schedule_once(self._poll_show_palette, 0.05)
+            return
+
+        # Fallback: measure decoration deltas if not already measured
+        # (e.g., if window was created visible=True and helpers weren't used)
+        if self._window_decoration_dx is None:
+            try:
+                deco_x, deco_y = self.window.get_location()
+                # Try stored location first (from center_window/move_to_primary_monitor)
+                stored = getattr(self.window, "_arcadeactions_last_set_location", None)
+                if stored:
+                    calc_dx = deco_x - stored[0]
+                    calc_dy = deco_y - stored[1]
+                    if calc_dx or calc_dy:
+                        self._window_decoration_dx = calc_dx
+                        self._window_decoration_dy = calc_dy
+                    else:
+                        print(
+                            "[DevVisualizer] _poll_show_palette: Decoration deltas zero on first check – will retry next frame"
+                        )
+                # Fallback: use window._x/_y (pyglet client area) vs get_location() (decorated)
+                else:
+                    # Try arcade window first
+                    client_x = getattr(self.window, "_x", None)
+                    client_y = getattr(self.window, "_y", None)
+                    # If not found, try underlying pyglet window
+                    if client_x is None and hasattr(self.window, "_window"):
+                        pyglet_win = getattr(self.window, "_window", None)
+                        if pyglet_win is not None:
+                            client_x = getattr(pyglet_win, "_x", None)
+                            client_y = getattr(pyglet_win, "_y", None)
+                    if client_x is not None and client_y is not None:
+                        calc_dx = deco_x - client_x
+                        calc_dy = deco_y - client_y
+                        if calc_dx or calc_dy:
+                            self._window_decoration_dx = calc_dx
+                            self._window_decoration_dy = calc_dy
+                        else:
+                            print(
+                                "[DevVisualizer] _poll_show_palette: Decoration deltas zero on first check – will retry next frame"
+                            )
+                    else:
+                        print(
+                            f"[DevVisualizer] _poll_show_palette: Could not find client area coordinates, leaving deltas as None"
+                        )
+                        # Don't set to 0 - leave as None so we can try again later
+            except Exception as e:
+                print(f"[DevVisualizer] _poll_show_palette: Exception measuring decorations: {e}")
+                import traceback
+
+                traceback.print_exc()
+
+        # Double-check visibility before showing palette (may have changed during polling)
+        if not self.visible:
+            self._palette_show_pending = False
+            return
+
+        # We have a trustworthy location – create / position palette now
+        if self.palette_window is None:
+            self._create_palette_window()
+        # Verify palette window was created successfully before accessing it
+        if self.palette_window is None:
+            print("[DevVisualizer] Failed to create palette window, deferring show")
+            self._palette_show_pending = False
+            return
+        self.update_main_window_position()
+        self._position_palette_window(force=True)
+        self.palette_window.show_window()
+        self._palette_show_pending = False
+
     def show(self) -> None:
         """Show DevVisualizer and pause all actions (enter edit mode)."""
         self.visible = True
-        # Create and show palette window if not already created
-        if self.palette_window is None:
-            self._create_palette_window()
-        if self.palette_window:
-            self._palette_reposition_attempts = 0
-            self._palette_needs_positioning = True
-            # Position before show (may not verify until visible)
-            self._position_palette_window()
-            # Now show the window
-            if not self.palette_window.visible:
-                self.palette_window.show_window()
-            # Keep flag true to allow a few post-show retries
+        if not self._palette_show_pending:
+            self._palette_show_pending = True
+            arcade.schedule_once(self._poll_show_palette, 0.0)
         Action.pause_all()
 
     def hide(self) -> None:
         """Hide DevVisualizer and resume all actions (exit edit mode)."""
         self.visible = False
+        # Cancel any pending palette show operation
+        self._palette_show_pending = False
         # Hide palette window
         if self.palette_window:
             self.palette_window.hide_window()
@@ -583,6 +923,15 @@ class DevVisualizer:
         """Create the palette window."""
 
         def on_palette_close():
+            # Close main window when palette window is closed (unless we're detaching)
+            # During detachment, we don't want to close the main window since it's
+            # being reattached or the visualizer is being replaced
+            if not self._is_detaching and self.window:
+                try:
+                    if not self.window.closed:
+                        self.window.close()
+                except Exception:
+                    pass
             self.palette_window = None
 
         # Pass main window reference so palette can forward keystrokes to it
@@ -604,7 +953,7 @@ class DevVisualizer:
         )
 
     def _get_window_location(self, window: Any) -> tuple[int, int] | None:
-        """Safely get window location, handling both real Arcade windows and HeadlessWindow.
+        """Safely get window location, using tracked positions when available.
 
         Args:
             window: Window object (real Arcade window or HeadlessWindow)
@@ -615,14 +964,27 @@ class DevVisualizer:
         if window is None:
             return None
 
-        # Real Arcade windows have get_location() method
+        # Prefer the OS-reported position when it looks valid
         if hasattr(window, "get_location"):
             try:
-                return window.get_location()
+                location = window.get_location()
+                # Wayland returns (0,0) until mapped. Some WMs return huge negative off-screen coords while hidden.
+                if location and location != (0, 0) and location[0] > -32000 and location[1] > -32000:
+                    return (int(location[0]), int(location[1]))
             except Exception:
                 pass
 
-        # HeadlessWindow and similar mocks use location attribute
+        # Next try tracked position (set after explicit set_location())
+        tracked_pos = self._get_tracked_window_position(window)
+        if tracked_pos and tracked_pos != (0, 0):
+            return tracked_pos
+
+        # Then try last explicit location stored on window
+        stored = getattr(window, "_arcadeactions_last_set_location", None)
+        if stored and stored != (0, 0):
+            return stored
+
+        # Fall back to location attribute for HeadlessWindow and similar mocks
         if hasattr(window, "location"):
             loc = window.location
             if isinstance(loc, tuple) and len(loc) == 2:
@@ -630,79 +992,90 @@ class DevVisualizer:
 
         return None
 
-    def _position_palette_window(self) -> bool:
-        """Position palette window relative to main window.
+    def _position_palette_window(self, *, force: bool = False) -> bool:
+        """Position palette window relative to main window using the same offset calculation as move_to_primary_monitor.
 
         Returns:
-            True if aligned (top/right within tolerance), False otherwise.
+            True if positioning succeeded, False otherwise.
         """
         if self.palette_window is None:
+            print(f"[DevVisualizer] No palette window, returning False")
             return False
 
+        # Only position when window is NOT visible (like toggle_event_window does)
+        if self.palette_window.visible and not force:
+            print(f"[DevVisualizer] Palette window is visible, not repositioning")
+            return False
+
+        # Always get the current window (in case it was recreated)
         anchor_window = self.window
-        if anchor_window is None:
-            try:
-                anchor_window = arcade.get_window()
-            except RuntimeError:
-                return False
+        try:
+            current_window = arcade.get_window()
+            if current_window is not None and self.window != current_window:
+                # Adopt the new window only if it already has a valid compositor location
+                test_loc = self._get_tracked_window_position(current_window)
+                if test_loc is None and hasattr(current_window, "get_location"):
+                    try:
+                        test_loc = current_window.get_location()
+                    except Exception:
+                        test_loc = None
+                if test_loc and test_loc != (0, 0) and test_loc[0] > -32000 and test_loc[1] > -32000:
+                    self.window = current_window
+                    anchor_window = current_window
+                else:
+                    pass
+        except RuntimeError:
+            pass
 
         if anchor_window is None:
+            print(f"[DevVisualizer] Anchor window is None")
             return False
 
-        # Get main window location (handles both real windows and HeadlessWindow)
+        # Get primary monitor rect using the same approach as move_to_primary_monitor
+        primary_rect = _get_primary_monitor_rect()
+        if primary_rect is None:
+            return False
+        primary_x, primary_y, primary_w, primary_h = primary_rect
+
+        # Try to get main window location from tracked/stored data first
         main_location = self._get_window_location(anchor_window)
         if main_location is None:
-            return False
+            # As a last resort, use a conservative default position
+            # Position main window at 25% from left/top of monitor (avoids corners and centers)
+            main_x = primary_x + primary_w // 4
+            main_y = primary_y + primary_h // 4
+            main_location = (main_x, main_y)
+
         main_x, main_y = main_location
 
-        main_height = anchor_window.height
-        main_width = anchor_window.width
+        # Calculate the offset of the main window from the primary monitor origin
+        main_offset_x = main_x - primary_x
+        main_offset_y = main_y - primary_y
+
+        deco_dx = self._window_decoration_dx or 0
+        deco_dy = self._window_decoration_dy or 0
         palette_width = self.palette_window.width
-        palette_height = self.palette_window.height
 
-        # Right edge of palette aligns with left edge of main window
-        palette_x = int(main_x - palette_width)
+        # Position palette window using the same offset system:
+        # Right edge of palette aligns with left edge of main window (accounting for borders + shadow)
+        # Top edge of palette aligns with top edge of main window (accounting for title bar)
+        # Account for: main window left border + palette window right border + shadow padding
+        # (Both windows have similar decoration sizes from the same WM)
+        palette_right_border = deco_dx if deco_dx > 0 else 0  # Assume palette right border ≈ main left border
+        palette_x = int(
+            primary_x + main_offset_x - palette_width - deco_dx - palette_right_border - self._EXTRA_FRAME_PAD
+        )
+        palette_y = int(main_y - deco_dy)
 
-        # Top edges align: top of palette equals top of main (top-left coordinates)
-        palette_y = int(main_y)
-
-        # Position window BEFORE making it visible (like timeline window does)
+        # Position window BEFORE making it visible (like toggle_event_window does)
         try:
             self.palette_window.set_location(palette_x, palette_y)
-        except Exception:
-            return False
-
-        # If not visible yet, we can't verify; allow post-show retries
-        if not self.palette_window.visible:
-            return False
-
-        # Verify alignment; if off, apply a one-time correction based on measured error
-        try:
-            actual_location = self._get_window_location(self.palette_window)
-            if actual_location is None:
-                return False
-            actual_x, actual_y = actual_location
-            # Using top-left coordinates: palette top = palette_y, main top = main_y
-            top_diff = actual_y - main_y
-            right_diff = (actual_x + palette_width) - main_x
-
-            if abs(top_diff) <= 2 and abs(right_diff) <= 2:
-                return True
-
-            # One correction attempt: target - error = 2*target - actual
-            corrected_x = 2 * palette_x - actual_x
-            corrected_y = 2 * palette_y - actual_y
-            self.palette_window.set_location(corrected_x, corrected_y)
-
-            # Re-verify after correction
-            actual_location2 = self._get_window_location(self.palette_window)
-            if actual_location2 is None:
-                return False
-            actual_x2, actual_y2 = actual_location2
-            top_diff2 = actual_y2 - main_y
-            right_diff2 = (actual_x2 + palette_width) - main_x
-            return abs(top_diff2) <= 2 and abs(right_diff2) <= 2
-        except Exception:
+            # Palette positioned while hidden; compositor will honor these coords once mapped.
+            # Track the final palette position
+            self._track_window_position(self.palette_window, palette_x, palette_y)
+            return True
+        except Exception as e:
+            print(f"[DevVisualizer] Failed to position palette window: {e}")
             return False
 
     def toggle_palette(self) -> None:
@@ -712,13 +1085,16 @@ class DevVisualizer:
         if self.palette_window:
             # Get current visibility state
             was_visible = self.palette_window.visible
+            # Position window BEFORE making it visible (like toggle_event_window does)
+            if not was_visible:
+                tracked = self.update_main_window_position()
+                if tracked:
+                    self._position_palette_window()
+                else:
+                    print("[DevVisualizer] Deferring palette positioning until window location is known (toggle)")
             # Toggle visibility
             self.palette_window.toggle_window()
-            # Position after making visible (set_location only works on visible windows)
             if not was_visible and self.palette_window.visible:
-                self._palette_reposition_attempts = 0
-                self._palette_needs_positioning = True
-                self._position_palette_window()
                 self.palette_window.request_main_window_focus()
 
     def handle_key_press(self, key: int, modifiers: int) -> bool:
