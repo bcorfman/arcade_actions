@@ -504,6 +504,14 @@ class DevVisualizer:
                         except Exception:
                             pass
                         self.palette_window = None
+                    else:
+                        # If palette window doesn't exist, close main window directly
+                        if window is not None:
+                            try:
+                                if not window.closed:
+                                    window.close()
+                            except Exception:
+                                pass
                     return
                 # If not in edit mode, let original handler run first (preserves game functionality)
                 # This allows games to use ESC for pause menus, canceling actions, etc.
@@ -657,6 +665,14 @@ class DevVisualizer:
                         except Exception:
                             pass
                         self.palette_window = None
+                    else:
+                        # If palette window doesn't exist, close main window directly
+                        if self.window is not None:
+                            try:
+                                if not self.window.closed:
+                                    self.window.close()
+                            except Exception:
+                                pass
                     return
                 # If not in edit mode, let original handler run first (preserves game functionality)
                 # This allows games to use ESC for pause menus, canceling actions, etc.
