@@ -240,6 +240,7 @@ class DevVisualizer:
 
         # Track if we've attached to window
         self._attached = False
+        self._is_detaching: bool = False  # Flag to prevent on_palette_close from closing main window during detachment
         self._original_on_draw: Callable[..., None] | None = None
         self._original_on_key_press: Callable[..., None] | None = None
         self._original_on_mouse_press: Callable[..., None] | None = None
@@ -494,7 +495,8 @@ class DevVisualizer:
             # Only intercept ESC when DevVisualizer is visible (edit mode)
             if key == arcade.key.ESCAPE:
                 if self.visible:
-                    # Explicitly close palette window before closing main window
+                    # Close palette window, which will trigger on_palette_close callback
+                    # that closes the main window (no need for explicit window.close())
                     if self.palette_window:
                         try:
                             if not self.palette_window.closed:
@@ -502,7 +504,6 @@ class DevVisualizer:
                         except Exception:
                             pass
                         self.palette_window = None
-                    window.close()
                     return
                 # If not in edit mode, let original handler run first (preserves game functionality)
                 # This allows games to use ESC for pause menus, canceling actions, etc.
@@ -647,7 +648,8 @@ class DevVisualizer:
             # Only intercept ESC when DevVisualizer is visible (edit mode)
             if key == arcade.key.ESCAPE:
                 if self.visible:
-                    # Explicitly close palette window before closing main window
+                    # Close palette window, which will trigger on_palette_close callback
+                    # that closes the main window (no need for explicit window.close())
                     if self.palette_window:
                         try:
                             if not self.palette_window.closed:
@@ -655,8 +657,6 @@ class DevVisualizer:
                         except Exception:
                             pass
                         self.palette_window = None
-                    if self.window is not None:
-                        self.window.close()
                     return
                 # If not in edit mode, let original handler run first (preserves game functionality)
                 # This allows games to use ESC for pause menus, canceling actions, etc.
@@ -760,8 +760,13 @@ class DevVisualizer:
         self.visible = False
 
         # Close palette window if it exists
+        # Set flag to prevent on_palette_close callback from closing main window
         if self.palette_window:
-            self.palette_window.close()
+            self._is_detaching = True
+            try:
+                self.palette_window.close()
+            finally:
+                self._is_detaching = False
             self.palette_window = None
 
         self._original_on_close = None
@@ -776,6 +781,11 @@ class DevVisualizer:
 
     def _poll_show_palette(self, _dt: float = 0.0) -> None:
         """Wait until main window has a real location, then position & show palette."""
+        # Check if DevVisualizer is still visible before proceeding
+        # This prevents the palette from being shown if hide() was called after show()
+        if not self.visible:
+            self._palette_show_pending = False
+            return
         if self.window is None:
             try:
                 self.window = arcade.get_window()
@@ -843,6 +853,11 @@ class DevVisualizer:
 
                 traceback.print_exc()
 
+        # Double-check visibility before showing palette (may have changed during polling)
+        if not self.visible:
+            self._palette_show_pending = False
+            return
+
         # We have a trustworthy location – create / position palette now
         if self.palette_window is None:
             self._create_palette_window()
@@ -862,6 +877,8 @@ class DevVisualizer:
     def hide(self) -> None:
         """Hide DevVisualizer and resume all actions (exit edit mode)."""
         self.visible = False
+        # Cancel any pending palette show operation
+        self._palette_show_pending = False
         # Hide palette window
         if self.palette_window:
             self.palette_window.hide_window()
@@ -880,8 +897,10 @@ class DevVisualizer:
         """Create the palette window."""
 
         def on_palette_close():
-            # Close main window when palette window is closed
-            if self.window:
+            # Close main window when palette window is closed (unless we're detaching)
+            # During detachment, we don't want to close the main window since it's
+            # being reattached or the visualizer is being replaced
+            if not self._is_detaching and self.window:
                 try:
                     if not self.window.closed:
                         self.window.close()
