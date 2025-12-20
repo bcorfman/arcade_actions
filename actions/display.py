@@ -40,6 +40,21 @@ class _WindowProto(Protocol):
         ...
 
 
+def _remember_window_location(window: _WindowProto, x: int, y: int) -> None:
+    """Store the last position we explicitly set on *window*.
+
+    This gives tooling (like DevVisualizer) an accurate source of truth on
+    platforms where ``window.get_location()`` is unreliable (e.g. Wayland).
+    The position is stored directly on the window instance to avoid adding
+    import-time dependencies.
+    """
+
+    try:
+        setattr(window, "_arcadeactions_last_set_location", (int(x), int(y)))
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # SDL2 helper
 # ---------------------------------------------------------------------------
@@ -110,6 +125,7 @@ def _center_with_sdl(window: _WindowProto) -> bool:
     center_x = rect.x + (rect.w - window.width) // 2
     center_y = rect.y + (rect.h - window.height) // 2
     window.set_location(center_x, center_y)
+    _remember_window_location(window, center_x, center_y)
     return True
 
 
@@ -131,6 +147,7 @@ def _center_with_screeninfo(window: _WindowProto) -> bool:  # pragma: no cover
     center_x = primary.x + (primary.width - window.width) // 2
     center_y = primary.y + (primary.height - window.height) // 2
     window.set_location(center_x, center_y)
+    _remember_window_location(window, center_x, center_y)
     return True
 
 
@@ -149,6 +166,7 @@ def _move_to_primary_with_sdl(window: _WindowProto, offset_x: int, offset_y: int
     pos_y = max(rect.y, min(pos_y, max_y))
 
     window.set_location(pos_x, pos_y)
+    _remember_window_location(window, pos_x, pos_y)
     return True
 
 
@@ -173,6 +191,7 @@ def _move_to_primary_with_screeninfo(window: _WindowProto, offset_x: int, offset
     pos_y = max(primary.y, min(pos_y, max_y))
 
     window.set_location(pos_x, pos_y)
+    _remember_window_location(window, pos_x, pos_y)
     return True
 
 
@@ -187,8 +206,21 @@ def center_window(window: arcade.Window, /) -> bool:  # type: ignore[name-define
     The function tries SDL2 first (most reliable) and then screeninfo.  It
     returns ``True`` if any strategy succeeded, otherwise ``False``.
     """
+    result = _center_with_sdl(window) or _center_with_screeninfo(window)
 
-    return _center_with_sdl(window) or _center_with_screeninfo(window)
+    # If positioning succeeded, notify DevVisualizer if it exists
+    if result:
+        try:
+            from actions.dev.visualizer import get_dev_visualizer
+
+            dev_viz = get_dev_visualizer()
+            if dev_viz is not None:
+                dev_viz.update_main_window_position()
+        except Exception:
+            # DevVisualizer might not be available, ignore errors
+            pass
+
+    return result
 
 
 def move_to_primary_monitor(window: arcade.Window, /, *, offset_x: int = 40, offset_y: int = 40) -> bool:  # type: ignore[name-defined]
@@ -198,7 +230,20 @@ def move_to_primary_monitor(window: arcade.Window, /, *, offset_x: int = 40, off
     debugger window doesn't overlap the game window by default.  Returns
     ``True`` if a placement strategy succeeded, otherwise ``False``.
     """
-
-    return _move_to_primary_with_sdl(window, offset_x, offset_y) or _move_to_primary_with_screeninfo(
+    result = _move_to_primary_with_sdl(window, offset_x, offset_y) or _move_to_primary_with_screeninfo(
         window, offset_x, offset_y
     )
+
+    # If positioning succeeded, notify DevVisualizer if it exists
+    if result:
+        try:
+            from actions.dev.visualizer import get_dev_visualizer
+
+            dev_viz = get_dev_visualizer()
+            if dev_viz is not None:
+                dev_viz.update_main_window_position()
+        except Exception:
+            # DevVisualizer might not be available, ignore errors
+            pass
+
+    return result

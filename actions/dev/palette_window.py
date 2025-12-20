@@ -160,9 +160,13 @@ class PaletteWindow(arcade.Window):
         # No-op in headless mode
         if getattr(self, "_is_headless", False):
             return
-        left = center_x - width / 2
-        bottom = center_y - height / 2
-        arcade.draw_lbwh_rectangle_filled(left, bottom, width, height, color)
+        try:
+            left = center_x - width / 2
+            bottom = center_y - height / 2
+            arcade.draw_lbwh_rectangle_filled(left, bottom, width, height, color)
+        except RuntimeError:
+            # Main window may have been closed; palette window will close soon
+            pass
 
     def on_draw(self) -> None:
         """Draw the palette window."""
@@ -237,6 +241,8 @@ class PaletteWindow(arcade.Window):
         """Handle window close event."""
         if self._on_close_callback:
             self._on_close_callback()
+        # Call parent's on_close to actually close the window
+        super().on_close()
 
     def _rebuild_text_cache(self) -> None:
         """Rebuild cached text objects when prototype list changes."""
