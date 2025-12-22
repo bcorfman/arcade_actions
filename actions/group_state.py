@@ -277,7 +277,8 @@ class BreakawayManager:
         # This ensures each sprite gets its own path/behavior
         for sprite in breakaway_list:
             # Create action for this single sprite so it gets its own path
-            single_sprite_list = arcade.SpriteList([sprite])
+            single_sprite_list = arcade.SpriteList()
+            single_sprite_list.append(sprite)
             sprite_action = self._strategy.create_breakaway_actions(
                 single_sprite_list,
                 self.parent_group,

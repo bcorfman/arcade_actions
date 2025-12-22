@@ -1829,9 +1829,14 @@ class TweenUntil(_Action):
         def update_sprite(sprite):
             sprite_id = id(sprite)
             # Get the evaluated start value for this sprite (or use the fixed start_value)
-            sprite_start = self._evaluated_start_values.get(
-                sprite_id, self.start_value if not callable(self.start_value) else 0.0
-            )
+            if sprite_id in self._evaluated_start_values:
+                sprite_start = self._evaluated_start_values[sprite_id]
+            elif callable(self.start_value):
+                # Evaluate callable if not cached (e.g., sprite added after action started)
+                sprite_start = self.start_value(sprite)
+                self._evaluated_start_values[sprite_id] = sprite_start
+            else:
+                sprite_start = self.start_value
             # Calculate current value for this sprite
             value = sprite_start + (self.end_value - sprite_start) * eased_t
             setattr(sprite, self.property_name, value)
@@ -1863,9 +1868,14 @@ class TweenUntil(_Action):
             def reset_sprite(sprite):
                 sprite_id = id(sprite)
                 # Get the evaluated start value for this sprite (or use the fixed start_value)
-                sprite_start = self._evaluated_start_values.get(
-                    sprite_id, self.start_value if not callable(self.start_value) else 0.0
-                )
+                if sprite_id in self._evaluated_start_values:
+                    sprite_start = self._evaluated_start_values[sprite_id]
+                elif callable(self.start_value):
+                    # Evaluate callable if not cached (e.g., sprite added after action started)
+                    sprite_start = self.start_value(sprite)
+                    self._evaluated_start_values[sprite_id] = sprite_start
+                else:
+                    sprite_start = self.start_value
                 setattr(sprite, self.property_name, sprite_start)
 
             self.for_each_sprite(reset_sprite)
