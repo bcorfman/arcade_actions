@@ -72,14 +72,8 @@ class DeterministicBreakawayStrategy(BreakawayStrategy):
         Each sprite dives along the path, then tweens back to its home slot.
         """
         from actions.conditional import FollowPathUntil, TweenUntil
-        from actions.composite import sequence
+        from actions.composite import sequence, parallel
         from actions.frame_timing import after_frames, seconds_to_frames
-
-        if dive_path is None:
-            # Default straight dive
-            if len(sprites) > 0:
-                start_y = sprites[0].center_y
-                dive_path = [(sprites[0].center_x, start_y), (sprites[0].center_x, start_y - 200)]
 
         # Create per-sprite actions
         actions = []
@@ -88,37 +82,45 @@ class DeterministicBreakawayStrategy(BreakawayStrategy):
             if home_slot is None:
                 continue
 
+            # Create dive path - use provided path or create per-sprite default path
+            if dive_path is None:
+                # Default straight dive from this sprite's position
+                sprite_start_y = sprite.center_y
+                sprite_dive_path = [(sprite.center_x, sprite_start_y), (sprite.center_x, sprite_start_y - 200)]
+            else:
+                # Use provided path (shared path - may cause stacking if absolute coordinates)
+                sprite_dive_path = dive_path.copy()
+
             # Dive action
             dive_action = FollowPathUntil(
-                dive_path.copy(),
+                sprite_dive_path,
                 dive_velocity,
                 after_frames(seconds_to_frames(2.0)),  # Default 2 second dive
             )
 
             # Return action - tween back to home slot
+            # Use lambda to capture sprite position when tween starts (after dive completes)
             return_action = TweenUntil(
-                sprite.center_x,
+                lambda s: s.center_x,
                 home_slot[0],
                 "center_x",
                 after_frames(seconds_to_frames(1.0)),
             )
             return_action_y = TweenUntil(
-                sprite.center_y,
+                lambda s: s.center_y,
                 home_slot[1],
                 "center_y",
                 after_frames(seconds_to_frames(1.0)),
             )
 
-            # Sequence: dive then return
-            sprite_sequence = sequence(dive_action, return_action, return_action_y)
+            # Sequence: dive then return (X and Y in parallel for diagonal movement)
+            sprite_sequence = sequence(dive_action, parallel(return_action, return_action_y))
             actions.append(sprite_sequence)
 
         # Return parallel of all sprite sequences
         if len(actions) == 1:
             return actions[0]
         elif len(actions) > 1:
-            from actions.composite import parallel
-
             return parallel(*actions)
         else:
             # No valid sprites - return a no-op delay
@@ -265,20 +267,26 @@ class BreakawayManager:
         breakaway_group = AttackGroup(breakaway_list, group_id=f"{self.parent_group.group_id}_breakaway")
         self.breakaway_groups.append(breakaway_group)
 
-        # Create and apply breakaway actions
+        # Create and apply breakaway actions per-sprite
         # Extract strategy-specific params, excluding ones we pass explicitly
         strategy_kwargs = {k: v for k, v in self._strategy_config.items() if k not in ("dive_path", "dive_velocity")}
         dive_path = self._strategy_config.get("dive_path")
         dive_velocity = self._strategy_config.get("dive_velocity", 150.0)
-        breakaway_action = self._strategy.create_breakaway_actions(
-            breakaway_list,
-            self.parent_group,
-            dive_path=dive_path,
-            dive_velocity=dive_velocity,
-            **strategy_kwargs,
-        )
 
-        breakaway_group.script(breakaway_action, tag="breakaway")
+        # Apply breakaway actions individually to each sprite (not as a combined action)
+        # This ensures each sprite gets its own path/behavior
+        for sprite in breakaway_list:
+            # Create action for this single sprite so it gets its own path
+            single_sprite_list = arcade.SpriteList([sprite])
+            sprite_action = self._strategy.create_breakaway_actions(
+                single_sprite_list,
+                self.parent_group,
+                dive_path=dive_path,
+                dive_velocity=dive_velocity,
+                **strategy_kwargs,
+            )
+            # Apply directly to the sprite (not the list) so each sprite gets its own action instance
+            sprite_action.apply(sprite, tag="breakaway")
 
         # Update stage
         self.stage = GroupStage.BREAKAWAY

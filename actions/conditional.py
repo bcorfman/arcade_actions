@@ -1690,7 +1690,8 @@ class TweenUntil(_Action):
     - Actions that should continue after the easing completes
 
     Args:
-        start_value: Starting value for the property being tweened
+        start_value: Starting value for the property being tweened. Can be a float or a callable
+            that takes a sprite and returns a float (evaluated when tween starts).
         end_value: Ending value for the property being tweened
         property_name: Name of the sprite property to tween ('center_x', 'center_y', 'angle', 'scale', 'alpha')
         condition: Function that returns truthy value when tweening should stop
@@ -1718,7 +1719,7 @@ class TweenUntil(_Action):
 
     def __init__(
         self,
-        start_value: float,
+        start_value: float | Callable[[Any], float],
         end_value: float,
         property_name: str,
         condition: Callable[[], Any],
@@ -1733,6 +1734,7 @@ class TweenUntil(_Action):
         self._frame_duration = None
         self._frames_elapsed = 0
         self._completed_naturally = False  # Track if action completed vs was stopped
+        self._evaluated_start_values: dict[int, float] = {}  # sprite_id -> evaluated start value
 
     def update(self, delta_time: float) -> None:
         """
@@ -1791,7 +1793,14 @@ class TweenUntil(_Action):
         # Define a helper to set the initial value.
         def set_initial_value(sprite):
             """Set the initial value of the property on a single sprite."""
-            setattr(sprite, self.property_name, self.start_value)
+            # If start_value is callable, evaluate it for this sprite
+            if callable(self.start_value):
+                evaluated_start = self.start_value(sprite)
+                self._evaluated_start_values[id(sprite)] = evaluated_start
+                setattr(sprite, self.property_name, evaluated_start)
+            else:
+                self._evaluated_start_values[id(sprite)] = self.start_value
+                setattr(sprite, self.property_name, self.start_value)
 
         if self._frame_duration == 0:
             # If duration is zero, immediately set to the end value.
@@ -1816,11 +1825,18 @@ class TweenUntil(_Action):
         t = min(self._frames_elapsed / self._frame_duration, 1.0)
         eased_t = self.ease_function(t)
 
-        # Calculate current value
-        value = self.start_value + (self.end_value - self.start_value) * eased_t
+        # Apply the value to all target sprites (using per-sprite start values if callable)
+        def update_sprite(sprite):
+            sprite_id = id(sprite)
+            # Get the evaluated start value for this sprite (or use the fixed start_value)
+            sprite_start = self._evaluated_start_values.get(
+                sprite_id, self.start_value if not callable(self.start_value) else 0.0
+            )
+            # Calculate current value for this sprite
+            value = sprite_start + (self.end_value - sprite_start) * eased_t
+            setattr(sprite, self.property_name, value)
 
-        # Apply the value to all target sprites
-        self.for_each_sprite(lambda sprite: setattr(sprite, self.property_name, value))
+        self.for_each_sprite(update_sprite)
 
         # Check for completion
         if t >= 1.0:
@@ -1844,7 +1860,15 @@ class TweenUntil(_Action):
 
         if not self._completed_naturally and not reached_natural_end:
             # Action was stopped before completion - reset to start value
-            self.for_each_sprite(lambda sprite: setattr(sprite, self.property_name, self.start_value))
+            def reset_sprite(sprite):
+                sprite_id = id(sprite)
+                # Get the evaluated start value for this sprite (or use the fixed start_value)
+                sprite_start = self._evaluated_start_values.get(
+                    sprite_id, self.start_value if not callable(self.start_value) else 0.0
+                )
+                setattr(sprite, self.property_name, sprite_start)
+
+            self.for_each_sprite(reset_sprite)
         # If action completed naturally or reached full duration, leave property at end value
 
     def reset(self) -> None:

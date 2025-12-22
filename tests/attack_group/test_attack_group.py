@@ -130,8 +130,9 @@ class TestAttackGroup(ActionTestBase):
         assert script.tag == "group_script"
 
     def test_attack_group_update(self):
-        """Test AttackGroup.update() delegates to Action.update_all()."""
+        """Test AttackGroup.update() updates breakaway manager, not actions."""
         from actions.group import AttackGroup
+        from actions.base import Action
 
         sprites = arcade.SpriteList()
         for _ in range(2):
@@ -146,7 +147,9 @@ class TestAttackGroup(ActionTestBase):
 
         initial_x = sprites[0].center_x
 
-        # Update via group
+        # Update actions (should be called once per frame at top level)
+        Action.update_all(1.0 / 60.0)
+        # Update group (updates breakaway manager, not actions)
         group.update(1.0 / 60.0)
         # Apply velocity to position (Arcade's sprite.update())
         for sprite in sprites:

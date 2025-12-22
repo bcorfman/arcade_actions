@@ -132,17 +132,16 @@ class AttackGroup:
         action.apply(self.sprites, tag=tag)
 
     def update(self, delta_time: float) -> None:
-        """Update all active actions for this group.
+        """Update breakaway manager for this group.
 
-        This delegates to Action.update_all() which handles all active actions globally.
-        Also updates breakaway manager if present.
+        Note: This does NOT call Action.update_all() - that should be called once
+        per frame at the top level of your game loop. This method only updates
+        the breakaway manager state.
 
         Args:
             delta_time: Time elapsed since last update (in seconds)
         """
         from actions.base import Action
-
-        Action.update_all(delta_time)
 
         # Update breakaway manager if present
         if self._breakaway_manager:
@@ -204,7 +203,7 @@ class AttackGroup:
             group.entry_path(path, velocity=150, spacing_frames=5)
         """
         from actions.conditional import FollowPathUntil, TweenUntil, infinite
-        from actions.composite import sequence
+        from actions.composite import sequence, parallel
         from actions.frame_timing import after_frames, seconds_to_frames
 
         if not self.sprites:
@@ -221,19 +220,20 @@ class AttackGroup:
                 velocity,
                 infinite,
             )
+            # Use lambda to capture sprite position when tween starts (after path completes)
             leader_return_x = TweenUntil(
-                leader.center_x,
+                lambda sprite: sprite.center_x,
                 leader_home[0],
                 "center_x",
                 after_frames(seconds_to_frames(0.5)),
             )
             leader_return_y = TweenUntil(
-                leader.center_y,
+                lambda sprite: sprite.center_y,
                 leader_home[1],
                 "center_y",
                 after_frames(seconds_to_frames(0.5)),
             )
-            leader_sequence = sequence(leader_path_action, leader_return_x, leader_return_y)
+            leader_sequence = sequence(leader_path_action, parallel(leader_return_x, leader_return_y))
             leader_sequence.apply(leader, tag=tag or "entry_leader")
 
         # Follower sprites: DelayUntil + FollowPathUntil + TweenUntil
@@ -252,14 +252,15 @@ class AttackGroup:
                 infinite,
             )
 
+            # Use lambda to capture sprite position when tween starts (after path completes)
             follower_return_x = TweenUntil(
-                follower.center_x,
+                lambda sprite: sprite.center_x,
                 follower_home[0],
                 "center_x",
                 after_frames(seconds_to_frames(0.5)),
             )
             follower_return_y = TweenUntil(
-                follower.center_y,
+                lambda sprite: sprite.center_y,
                 follower_home[1],
                 "center_y",
                 after_frames(seconds_to_frames(0.5)),
@@ -271,7 +272,6 @@ class AttackGroup:
             follower_sequence = sequence(
                 DelayUntil(delay_action),
                 follower_path_action,
-                follower_return_x,
-                follower_return_y,
+                parallel(follower_return_x, follower_return_y),
             )
             follower_sequence.apply(follower, tag=tag or f"entry_follower_{i}")
