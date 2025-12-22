@@ -1886,6 +1886,7 @@ class TweenUntil(_Action):
         self._frames_elapsed = 0
         self._frame_duration = None
         self._completed_naturally = False
+        self._evaluated_start_values.clear()
 
     def clone(self) -> "TweenUntil":
         return TweenUntil(

@@ -786,14 +786,17 @@ def get_slot_coordinates(
         else:
             raise IndexError(f"Index {index} out of bounds for count {count}")
 
+        # Calculate actual sprites in this row (may be less than theoretical max for incomplete rows)
+        sprites_to_place = min(sprites_in_row, count - sprite_index)
+
         # Calculate Y position for this row
         y_pos = apex_y + row * row_spacing if invert else apex_y - row * row_spacing
 
-        # Calculate starting X position to center the row
-        if sprites_in_row == 1:
+        # Calculate starting X position to center the row (using actual sprites, not theoretical)
+        if sprites_to_place == 1:
             start_x = apex_x
         else:
-            total_width = (sprites_in_row - 1) * lateral_spacing
+            total_width = (sprites_to_place - 1) * lateral_spacing
             start_x = apex_x - total_width / 2
 
         x = start_x + col * lateral_spacing

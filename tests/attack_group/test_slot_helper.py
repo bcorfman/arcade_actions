@@ -2,7 +2,7 @@
 
 import pytest
 import arcade
-from actions.formation import arrange_line, arrange_grid, get_slot_coordinates
+from actions.formation import arrange_line, arrange_grid, arrange_triangle, get_slot_coordinates
 from tests.conftest import ActionTestBase
 
 
@@ -70,3 +70,56 @@ class TestSlotHelper(ActionTestBase):
             )
             assert sprite.center_x == expected_slot[0]
             assert sprite.center_y == expected_slot[1]
+
+    def test_get_slot_coordinates_triangle_matches_actual_placement(self):
+        """Test that slot coordinates match actual sprite placement for triangle."""
+        sprites = arcade.SpriteList()
+        for _ in range(6):
+            sprite = arcade.Sprite(":resources:images/items/star.png")
+            sprites.append(sprite)
+
+        # Place in triangle (perfect triangular number: 1+2+3 = 6)
+        arrange_triangle(sprites, apex_x=400, apex_y=500, row_spacing=50, lateral_spacing=60)
+
+        # Verify slot coordinates match actual positions
+        for i, sprite in enumerate(sprites):
+            expected_slot = get_slot_coordinates(
+                arrange_triangle, i, count=6, apex_x=400, apex_y=500, row_spacing=50, lateral_spacing=60
+            )
+            assert sprite.center_x == expected_slot[0]
+            assert sprite.center_y == expected_slot[1]
+
+    def test_get_slot_coordinates_triangle_incomplete_row(self):
+        """Test triangle with incomplete last row (non-triangular count)."""
+        # count=4: row 0 (1 sprite), row 1 (2 sprites), row 2 (1 sprite - incomplete)
+        sprites = arcade.SpriteList()
+        for _ in range(4):
+            sprite = arcade.Sprite(":resources:images/items/star.png")
+            sprites.append(sprite)
+
+        apex_x = 400
+        apex_y = 500
+        lateral_spacing = 60
+
+        # Place in triangle
+        arrange_triangle(sprites, apex_x=apex_x, apex_y=apex_y, row_spacing=50, lateral_spacing=lateral_spacing)
+
+        # Verify slot coordinates match actual positions
+        for i, sprite in enumerate(sprites):
+            expected_slot = get_slot_coordinates(
+                arrange_triangle,
+                i,
+                count=4,
+                apex_x=apex_x,
+                apex_y=apex_y,
+                row_spacing=50,
+                lateral_spacing=lateral_spacing,
+            )
+            assert sprite.center_x == expected_slot[0], f"Index {i}: expected {expected_slot[0]}, got {sprite.center_x}"
+            assert sprite.center_y == expected_slot[1], f"Index {i}: expected {expected_slot[1]}, got {sprite.center_y}"
+
+        # Specifically test index 3 (incomplete last row with 1 sprite)
+        # Should be centered at apex_x, not offset by lateral_spacing
+        assert sprites[3].center_x == apex_x, (
+            f"Last sprite should be centered at apex_x ({apex_x}), got {sprites[3].center_x}"
+        )
