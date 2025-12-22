@@ -165,9 +165,32 @@ def export_template(
 
         scene_data.append(sprite_def)
 
-    # Write YAML
+    # Check if we have AttackGroups to export
+    attack_groups_data = []
+    group_ids_seen = set()
+
+    # Collect AttackGroup metadata from sprites
+    for sprite in sprites:
+        group_id = getattr(sprite, "_group", "")
+        if group_id and group_id not in group_ids_seen:
+            # Check if this group has AttackGroup metadata
+            attack_group_data = getattr(sprite, "_attack_group_config", None)
+            if attack_group_data:
+                attack_groups_data.append(attack_group_data)
+                group_ids_seen.add(group_id)
+
+    # Write YAML - use new format if we have attack_groups, otherwise old format
     with open(path, "w") as f:
-        yaml.dump(scene_data, f, default_flow_style=False, sort_keys=False)
+        if attack_groups_data:
+            # New format: dict with sprites and attack_groups
+            output_data = {
+                "sprites": scene_data,
+                "attack_groups": attack_groups_data,
+            }
+            yaml.dump(output_data, f, default_flow_style=False, sort_keys=False)
+        else:
+            # Old format: just list of sprites (backwards compatible)
+            yaml.dump(scene_data, f, default_flow_style=False, sort_keys=False)
 
 
 def load_scene_template(path: str | Path, ctx: DevContext) -> arcade.SpriteList:
@@ -199,10 +222,23 @@ def load_scene_template(path: str | Path, ctx: DevContext) -> arcade.SpriteList:
 
     # Load YAML
     with open(path, "r") as f:
-        scene_data = yaml.safe_load(f)
+        yaml_data = yaml.safe_load(f)
 
-    if not isinstance(scene_data, list):
-        raise ValueError("YAML must contain a list of sprite definitions")
+    # Handle both old format (list) and new format (dict with sprites/attack_groups)
+    if isinstance(yaml_data, dict):
+        scene_data = yaml_data.get("sprites", [])
+        attack_groups_data = yaml_data.get("attack_groups", [])
+    elif isinstance(yaml_data, list):
+        scene_data = yaml_data
+        attack_groups_data = []
+    else:
+        raise ValueError("YAML must contain a list of sprite definitions or dict with 'sprites' key")
+
+    # Store attack_groups data in context for later reconstruction
+    if attack_groups_data:
+        if not hasattr(ctx, "attack_groups_data"):
+            ctx.attack_groups_data = []
+        ctx.attack_groups_data = attack_groups_data
 
     # Create sprites from definitions
     for sprite_def in scene_data:
@@ -240,4 +276,71 @@ def load_scene_template(path: str | Path, ctx: DevContext) -> arcade.SpriteList:
 
         ctx.scene_sprites.append(sprite)
 
+    # Reconstruct AttackGroups if attack_groups data exists
+    if attack_groups_data:
+        _reconstruct_attack_groups(ctx, attack_groups_data)
+
     return ctx.scene_sprites
+
+
+def _reconstruct_attack_groups(ctx: DevContext, attack_groups_data: list[dict[str, Any]]) -> None:
+    """Reconstruct AttackGroup instances from YAML data.
+
+    Args:
+        ctx: DevContext with scene_sprites
+        attack_groups_data: List of attack group definitions from YAML
+    """
+    from actions.group import AttackGroup
+    from actions.formation import (
+        arrange_line,
+        arrange_grid,
+        arrange_circle,
+        arrange_v_formation,
+        arrange_triangle,
+    )
+
+    if not ctx.scene_sprites:
+        return
+
+    # Group sprites by their group tag
+    sprites_by_group: dict[str, list] = {}
+    for sprite in ctx.scene_sprites:
+        group_id = getattr(sprite, "_group", "")
+        if group_id:
+            if group_id not in sprites_by_group:
+                sprites_by_group[group_id] = []
+            sprites_by_group[group_id].append(sprite)
+
+    # Create AttackGroups from definitions
+    for group_def in attack_groups_data:
+        group_id = group_def.get("id")
+        if not group_id or group_id not in sprites_by_group:
+            continue
+
+        import arcade
+
+        group_sprites = arcade.SpriteList()
+        for sprite in sprites_by_group[group_id]:
+            group_sprites.append(sprite)
+
+        attack_group = AttackGroup(group_sprites, group_id=group_id)
+
+        # Apply formation if specified
+        formation_type = group_def.get("formation")
+        formation_params = group_def.get("formation_params", {})
+        if formation_type:
+            formation_map = {
+                "line": arrange_line,
+                "grid": arrange_grid,
+                "circle": arrange_circle,
+                "v_formation": arrange_v_formation,
+                "triangle": arrange_triangle,
+            }
+            formation_fn = formation_map.get(formation_type)
+            if formation_fn:
+                attack_group.place(formation_fn, **formation_params)
+
+        # Store AttackGroup reference (could be stored in ctx if needed)
+        # For now, just ensure sprites have the reference
+        for sprite in group_sprites:
+            sprite._attack_group = attack_group
