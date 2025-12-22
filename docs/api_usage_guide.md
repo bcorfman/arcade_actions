@@ -549,6 +549,44 @@ follow_path_until(
 )
 ```
 
+### Pattern 6.1: Entry Path Presets for AttackGroup
+For creating precise entry paths with tight circular loops for enemy formations:
+
+```python
+from actions.presets.entry_paths import loop_the_loop_exact
+from actions.group import AttackGroup
+
+# Create exact circular loop entry path
+# Path: off-screen start → approach → tight loop → exit → formation position
+entry_path = loop_the_loop_exact(
+    start_x=600,           # Off-screen starting position
+    start_y=-100,
+    end_x=200,             # Formation position
+    end_y=350,
+    loop_center_x=400,     # Loop center coordinates
+    loop_center_y=200,
+    loop_radius=150,       # Radius of the circular loop
+)
+
+group = AttackGroup(sprites, group_id="wave1")
+group.place(arrange_grid, rows=3, cols=5, start_x=200, start_y=400)
+group.entry_path(entry_path, velocity=2.5, spacing_frames=50)
+```
+
+**Key Features:**
+- **Mathematically exact circles**: Uses cubic Bezier approximation with maximum radial error of ~0.06% of radius
+- **Tight loops**: No visible flattening or distortion
+- **Constant speed**: Maintains uniform velocity throughout the entire path including the loop
+- **Works with leader/follower**: Automatically handles staggered entry timing
+
+**Available Presets:**
+- `loop_the_loop_exact()` - Precise circular loop with full control over loop position
+- `loop_the_loop()` - Simplified loop (backward compatible, less precise)
+- `corkscrew_entry()` - Spiral entry pattern
+- `zigzag_entry()` - Zigzag entry pattern
+- `straight_entry()` - Simple straight-line entry
+- `swoop_entry()` - Curved swooping entry
+
 ### Pattern 7: Texture Cycling for Animation
 For animating sprites by cycling through textures at specified frame rates:
 

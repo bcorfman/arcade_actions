@@ -8,6 +8,7 @@ arrange existing sprites or create new ones using a sprite factory.
 
 import math
 from collections.abc import Callable
+from typing import Any
 
 import arcade
 
@@ -629,6 +630,178 @@ def arrange_triangle(
         row += 1
 
     return sprites
+
+
+def get_slot_coordinates(
+    formation_fn: Callable[..., arcade.SpriteList],
+    index: int,
+    **kwargs: Any,
+) -> tuple[float, float]:
+    """Get the coordinates for a sprite at a given index in a formation.
+
+    This helper computes the slot coordinates without actually placing sprites,
+    which is useful for breakaway return logic and other formation calculations.
+
+    Args:
+        formation_fn: Formation function from this module (e.g., arrange_line, arrange_grid)
+        index: Zero-based index of the sprite in the formation
+        **kwargs: Parameters passed to formation_fn (must match the function's signature)
+
+    Returns:
+        (x, y) coordinates for the sprite at the given index
+
+    Raises:
+        ValueError: If formation function is not supported or parameters are invalid
+        IndexError: If index is out of bounds for the formation
+
+    Example:
+        # Get slot 2 in a line formation
+        x, y = get_slot_coordinates(arrange_line, 2, start_x=100, start_y=200, spacing=50, count=5)
+        # Returns (200, 200)
+
+        # Get slot 3 in a grid formation
+        x, y = get_slot_coordinates(arrange_grid, 3, rows=2, cols=3, start_x=100, start_y=300, spacing_x=50, spacing_y=40)
+        # Returns (100, 340)
+    """
+    fn_name = formation_fn.__name__
+
+    if fn_name == "arrange_line":
+        count = kwargs.get("count")
+        if count is None:
+            raise ValueError("arrange_line requires 'count' parameter")
+        if index < 0 or index >= count:
+            raise IndexError(f"Index {index} out of bounds for count {count}")
+
+        start_x = kwargs.get("start_x", 0)
+        start_y = kwargs.get("start_y", 0)
+        spacing = kwargs.get("spacing", 50.0)
+
+        x = start_x + index * spacing
+        y = start_y
+        return (x, y)
+
+    elif fn_name == "arrange_grid":
+        rows = kwargs.get("rows", 5)
+        cols = kwargs.get("cols", 10)
+        total_count = rows * cols
+
+        if index < 0 or index >= total_count:
+            raise IndexError(f"Index {index} out of bounds for grid {rows}x{cols} (total {total_count})")
+
+        start_x = kwargs.get("start_x", 100)
+        start_y = kwargs.get("start_y", 500)
+        spacing_x = kwargs.get("spacing_x", 60.0)
+        spacing_y = kwargs.get("spacing_y", 50.0)
+
+        row = index // cols
+        col = index % cols
+        x = start_x + col * spacing_x
+        y = start_y + row * spacing_y
+        return (x, y)
+
+    elif fn_name == "arrange_circle":
+        count = kwargs.get("count")
+        if count is None:
+            raise ValueError("arrange_circle requires 'count' parameter")
+        if index < 0 or index >= count:
+            raise IndexError(f"Index {index} out of bounds for count {count}")
+
+        center_x = kwargs.get("center_x", 400)
+        center_y = kwargs.get("center_y", 300)
+        radius = kwargs.get("radius", 100.0)
+
+        angle_step = 2 * math.pi / count
+        # Start at π/2 (top) and go clockwise (negative angle)
+        angle = math.pi / 2 - index * angle_step
+        x = center_x + math.cos(angle) * radius
+        y = center_y + math.sin(angle) * radius
+        return (x, y)
+
+    elif fn_name == "arrange_v_formation":
+        count = kwargs.get("count")
+        if count is None:
+            raise ValueError("arrange_v_formation requires 'count' parameter")
+        if index < 0 or index >= count:
+            raise IndexError(f"Index {index} out of bounds for count {count}")
+
+        apex_x = kwargs.get("apex_x", 400)
+        apex_y = kwargs.get("apex_y", 500)
+        spacing = kwargs.get("spacing", 50.0)
+        direction = kwargs.get("direction", "up")
+
+        if index == 0:
+            # Apex sprite
+            return (apex_x, apex_y)
+
+        # V formation logic
+        v_angle = 45.0
+        angle_rad = math.radians(v_angle)
+        side = 1 if index % 2 == 1 else -1
+        distance = (index + 1) // 2 * spacing
+
+        base_offset_x = side * math.cos(angle_rad) * distance
+        base_offset_y = math.sin(angle_rad) * distance
+
+        if direction == "up":
+            offset_x = base_offset_x
+            offset_y = base_offset_y
+        elif direction == "down":
+            offset_x = base_offset_x
+            offset_y = -base_offset_y
+        elif direction == "left":
+            offset_x = -base_offset_y
+            offset_y = base_offset_x
+        else:  # direction == "right"
+            offset_x = base_offset_y
+            offset_y = base_offset_x
+
+        x = apex_x + offset_x
+        y = apex_y + offset_y
+        return (x, y)
+
+    elif fn_name == "arrange_triangle":
+        count = kwargs.get("count")
+        if count is None:
+            raise ValueError("arrange_triangle requires 'count' parameter")
+        if index < 0 or index >= count:
+            raise IndexError(f"Index {index} out of bounds for count {count}")
+
+        apex_x = kwargs.get("apex_x", 400)
+        apex_y = kwargs.get("apex_y", 500)
+        row_spacing = kwargs.get("row_spacing", 50.0)
+        lateral_spacing = kwargs.get("lateral_spacing", 60.0)
+        invert = kwargs.get("invert", False)
+
+        # Find which row this index belongs to
+        sprite_index = 0
+        row = 0
+        while sprite_index < count:
+            sprites_in_row = row + 1
+            if sprite_index + sprites_in_row > index:
+                # This sprite is in this row
+                col = index - sprite_index
+                break
+            sprite_index += sprites_in_row
+            row += 1
+        else:
+            raise IndexError(f"Index {index} out of bounds for count {count}")
+
+        # Calculate Y position for this row
+        y_pos = apex_y + row * row_spacing if invert else apex_y - row * row_spacing
+
+        # Calculate starting X position to center the row
+        if sprites_in_row == 1:
+            start_x = apex_x
+        else:
+            total_width = (sprites_in_row - 1) * lateral_spacing
+            start_x = apex_x - total_width / 2
+
+        x = start_x + col * lateral_spacing
+        y = y_pos
+        return (x, y)
+
+    else:
+        raise ValueError(f"Unsupported formation function: {fn_name}")
 
 
 def arrange_hexagonal_grid(
