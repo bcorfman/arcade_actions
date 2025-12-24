@@ -1446,6 +1446,52 @@ class DevVisualizer:
                 original.alpha = sprite.alpha
                 original.color = sprite.color
 
+    # ------------------------
+    # Preset / edit-mode helpers
+    # ------------------------
+    def attach_preset_to_selected(self, preset_id: str, params: dict | None = None, tag: str | None = None) -> None:
+        """Attach a preset to all currently selected sprites as metadata (_action_configs).
+
+        This is the programmatic API used by the editor UI to attach presets in edit mode.
+        """
+        if params is None:
+            params = {}
+
+        selected = self.selection_manager.get_selected()
+        for sprite in selected:
+            if not hasattr(sprite, "_action_configs"):
+                sprite._action_configs = []
+            entry = {"preset": preset_id, "params": params.copy()}
+            if tag is not None:
+                entry["tag"] = tag
+            sprite._action_configs.append(entry)
+
+    def update_action_config(self, sprite: arcade.Sprite, config_index: int, **updates) -> None:
+        """Update a single action config dict on a sprite (edit mode).
+
+        Args:
+            sprite: Target sprite
+            config_index: Index of config in sprite._action_configs
+            **updates: Key/values to set on the config dict
+        """
+        if not hasattr(sprite, "_action_configs"):
+            raise ValueError("Sprite has no _action_configs")
+        configs = sprite._action_configs
+        if config_index < 0 or config_index >= len(configs):
+            raise IndexError("config_index out of range")
+        cfg = configs[config_index]
+        cfg.update(updates)
+
+    def update_selected_action_config(self, config_index: int, **updates) -> None:
+        """Update the action config at the given index for all selected sprites."""
+        selected = self.selection_manager.get_selected()
+        for sprite in selected:
+            try:
+                self.update_action_config(sprite, config_index, **updates)
+            except Exception:
+                # Ignore failures per-sprite (e.g., missing index)
+                pass
+
     def _resolve_condition(self, cond):
         """Resolve a condition specification to a callable.
 
