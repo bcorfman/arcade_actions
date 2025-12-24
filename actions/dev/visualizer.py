@@ -1446,7 +1446,67 @@ class DevVisualizer:
                 original.alpha = sprite.alpha
                 original.color = sprite.color
 
-    def apply_metadata_actions(self, sprite: arcade.Sprite) -> None:
+    def _resolve_condition(self, cond):
+        """Resolve a condition specification to a callable.
+
+        Supports:
+          - callables (returned unchanged)
+          - string identifiers: "infinite", "after_frames:N", "after_seconds:N", "within_frames:S:E"
+        """
+        from actions.frame_timing import after_frames, seconds_to_frames, within_frames, infinite
+
+        if cond is None:
+            return infinite()
+        if callable(cond):
+            return cond
+        if isinstance(cond, str):
+            cond = cond.strip()
+            if cond == "infinite":
+                return infinite()
+            if cond.startswith("after_frames:"):
+                try:
+                    n = int(cond.split(":", 1)[1])
+                    return after_frames(n)
+                except Exception:
+                    return infinite
+            if cond.startswith("after_seconds:") or cond.startswith("seconds:"):
+                try:
+                    parts = cond.split(":", 1)
+                    secs = float(parts[1])
+                    frames = seconds_to_frames(secs)
+                    return after_frames(frames)
+                except Exception:
+                    return infinite
+            if cond.startswith("within_frames:"):
+                try:
+                    _, rest = cond.split(":", 1)
+                    start_s, end_s = rest.split(":")
+                    start = int(start_s)
+                    end = int(end_s)
+                    return within_frames(start, end)
+                except Exception:
+                    return infinite
+        # Fallback: return infinite
+        return infinite
+
+    def _resolve_callback(self, value, resolver=None):
+        """Resolve callback value to a callable using optional resolver.
+
+        Accepts a callable, or a string which will be passed to resolver.
+        If resolver is None and value is a string, returns None (skip).
+        """
+        if value is None:
+            return None
+        if callable(value):
+            return value
+        if isinstance(value, str) and resolver is not None:
+            try:
+                return resolver(value)
+            except Exception:
+                return None
+        return None
+
+    def apply_metadata_actions(self, sprite: arcade.Sprite, resolver: Callable[[str], Any] | None = None) -> None:
         """Convert action metadata on sprite to actual running actions.
 
         Takes action configs stored as metadata (_action_configs) and applies
@@ -1454,23 +1514,317 @@ class DevVisualizer:
 
         Args:
             sprite: Sprite with _action_configs metadata to apply
+            resolver: Optional callable taking a string and returning a callable (for callbacks)
         """
         if not hasattr(sprite, "_action_configs"):
             return
 
-        from actions import move_until, infinite
+        from actions import move_until, infinite, follow_path_until
+        from actions.dev import get_preset_registry
 
         for config in sprite._action_configs:
+            # Prioritize presets if present
+            preset_id = config.get("preset")
+            if preset_id:
+                params = config.get("params", {}) or {}
+                try:
+                    preset_action = get_preset_registry().create(preset_id, self.ctx, **params)
+                    # Apply overrides from config (condition, callbacks, fields)
+                    # Resolve condition and callbacks
+                    cond = self._resolve_condition(config.get("condition", None))
+                    if cond is not None:
+                        try:
+                            preset_action.condition = cond
+                        except Exception:
+                            pass
+
+                    on_stop_cb = self._resolve_callback(config.get("on_stop", None), resolver)
+                    if on_stop_cb is not None:
+                        try:
+                            preset_action.on_stop = on_stop_cb
+                        except Exception:
+                            pass
+
+                    # Tag
+                    tag = config.get("tag", None)
+                    if tag is not None:
+                        try:
+                            preset_action.tag = tag
+                        except Exception:
+                            pass
+
+                    # Velocity override (for MoveUntil-like actions)
+                    velocity = config.get("velocity", None)
+                    if velocity is not None and hasattr(preset_action, "target_velocity"):
+                        try:
+                            preset_action.target_velocity = velocity
+                            preset_action.current_velocity = velocity
+                        except Exception:
+                            pass
+
+                    # Bounds / boundary_behavior overrides
+                    bounds = config.get("bounds", None)
+                    if bounds is not None and hasattr(preset_action, "bounds"):
+                        try:
+                            preset_action.bounds = bounds
+                        except Exception:
+                            pass
+                    boundary_behavior = config.get("boundary_behavior", None)
+                    if boundary_behavior is not None and hasattr(preset_action, "boundary_behavior"):
+                        try:
+                            preset_action.boundary_behavior = boundary_behavior
+                        except Exception:
+                            pass
+
+                    # velocity_provider and boundary callbacks
+                    velocity_provider = config.get("velocity_provider", None)
+                    if velocity_provider is not None and hasattr(preset_action, "velocity_provider"):
+                        try:
+                            preset_action.velocity_provider = velocity_provider
+                        except Exception:
+                            pass
+
+                    on_boundary_enter = self._resolve_callback(config.get("on_boundary_enter", None), resolver)
+                    if on_boundary_enter is not None and hasattr(preset_action, "on_boundary_enter"):
+                        try:
+                            preset_action.on_boundary_enter = on_boundary_enter
+                        except Exception:
+                            pass
+
+                    on_boundary_exit = self._resolve_callback(config.get("on_boundary_exit", None), resolver)
+                    if on_boundary_exit is not None and hasattr(preset_action, "on_boundary_exit"):
+                        try:
+                            preset_action.on_boundary_exit = on_boundary_exit
+                        except Exception:
+                            pass
+
+                    # Finally apply
+                    preset_action.apply(sprite)
+                except Exception:
+                    # Skip invalid presets silently for now
+                    continue
+                continue
+
             action_type = config.get("action_type")
+
+            # Resolve condition
+            condition_spec = config.get("condition", "infinite")
+            condition_callable = self._resolve_condition(condition_spec)
 
             if action_type == "MoveUntil":
                 velocity = config.get("velocity", (0, 0))
-                condition_name = config.get("condition", "infinite")
+                bounds = config.get("bounds", None)
+                boundary_behavior = config.get("boundary_behavior", None)
+                tag = config.get("tag", None)
+                velocity_provider = config.get("velocity_provider", None)
+                on_boundary_enter = self._resolve_callback(config.get("on_boundary_enter", None), resolver)
+                on_boundary_exit = self._resolve_callback(config.get("on_boundary_exit", None), resolver)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
 
-                # For now, only support infinite condition
-                # Can be extended to support other conditions
-                if condition_name == "infinite":
-                    move_until(sprite, velocity=velocity, condition=infinite)
+                move_until(
+                    sprite,
+                    velocity=velocity,
+                    condition=condition_callable,
+                    bounds=bounds,
+                    boundary_behavior=boundary_behavior,
+                    tag=tag,
+                    velocity_provider=velocity_provider,
+                    on_boundary_enter=on_boundary_enter,
+                    on_boundary_exit=on_boundary_exit,
+                    on_stop=on_stop,
+                )
+
+            elif action_type == "FollowPathUntil":
+                control_points = config.get("control_points")
+                velocity = config.get("velocity")
+                rotate_with_path = config.get("rotate_with_path", False)
+                rotation_offset = config.get("rotation_offset", 0.0)
+                use_physics = config.get("use_physics", False)
+                steering_gain = config.get("steering_gain", 5.0)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+
+                if control_points and velocity is not None:
+                    follow_path_until(
+                        sprite,
+                        control_points=control_points,
+                        velocity=velocity,
+                        condition=condition_callable,
+                        on_stop=on_stop,
+                        rotate_with_path=rotate_with_path,
+                        rotation_offset=rotation_offset,
+                        use_physics=use_physics,
+                        steering_gain=steering_gain,
+                    )
+
+            elif action_type == "CycleTexturesUntil":
+                textures = config.get("textures")
+                frames_per_texture = config.get("frames_per_texture", 1)
+                direction = config.get("direction", 1)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                if textures:
+                    try:
+                        from actions import cycle_textures_until
+
+                        cycle_textures_until(
+                            sprite,
+                            textures=textures,
+                            frames_per_texture=frames_per_texture,
+                            direction=direction,
+                            condition=condition_callable,
+                            on_stop=on_stop,
+                        )
+                    except Exception:
+                        pass
+
+            elif action_type == "FadeUntil":
+                fade_velocity = config.get("fade_velocity")
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                if fade_velocity is not None:
+                    try:
+                        from actions import fade_until
+
+                        # fade_until helper expects 'velocity' argument name
+                        fade_until(sprite, velocity=fade_velocity, condition=condition_callable, on_stop=on_stop)
+                    except Exception:
+                        pass
+
+            elif action_type == "BlinkUntil":
+                frames_until_change = config.get("frames_until_change", 1)
+                on_blink_enter = self._resolve_callback(config.get("on_blink_enter", None), resolver)
+                on_blink_exit = self._resolve_callback(config.get("on_blink_exit", None), resolver)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                try:
+                    from actions import blink_until
+
+                    blink_until(
+                        sprite,
+                        frames_until_change=frames_until_change,
+                        condition=condition_callable,
+                        on_stop=on_stop,
+                        on_blink_enter=on_blink_enter,
+                        on_blink_exit=on_blink_exit,
+                    )
+                except Exception:
+                    pass
+
+            elif action_type == "RotateUntil":
+                angular_velocity = config.get("angular_velocity")
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                if angular_velocity is not None:
+                    try:
+                        from actions import rotate_until
+
+                        rotate_until(
+                            sprite, angular_velocity=angular_velocity, condition=condition_callable, on_stop=on_stop
+                        )
+                    except Exception:
+                        pass
+
+            elif action_type == "TweenUntil":
+                start_value = config.get("start_value")
+                end_value = config.get("end_value")
+                property_name = config.get("property_name")
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                ease_function = config.get("ease_function", None)
+                if start_value is not None and end_value is not None and property_name:
+                    try:
+                        from actions import tween_until
+
+                        tween_until(
+                            sprite,
+                            start_value=start_value,
+                            end_value=end_value,
+                            property_name=property_name,
+                            condition=condition_callable,
+                            on_stop=on_stop,
+                            ease_function=ease_function,
+                        )
+                    except Exception:
+                        pass
+
+            elif action_type == "EmitParticlesUntil":
+                emitter_factory = config.get("emitter_factory")
+                anchor = config.get("anchor", "center")
+                follow_rotation = config.get("follow_rotation", False)
+                destroy_on_stop = config.get("destroy_on_stop", True)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                if emitter_factory is not None:
+                    try:
+                        from actions import emit_particles_until
+
+                        emit_particles_until(
+                            sprite,
+                            emitter_factory=emitter_factory,
+                            condition=condition_callable,
+                            on_stop=on_stop,
+                            anchor=anchor,
+                            follow_rotation=follow_rotation,
+                            destroy_on_stop=destroy_on_stop,
+                        )
+                    except Exception:
+                        pass
+
+            elif action_type == "GlowUntil":
+                shadertoy_factory = config.get("shadertoy_factory")
+                uniforms_provider = config.get("uniforms_provider", None)
+                get_camera_bottom_left = config.get("get_camera_bottom_left", None)
+                auto_resize = config.get("auto_resize", True)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                if shadertoy_factory is not None:
+                    try:
+                        from actions import glow_until
+
+                        glow_until(
+                            sprite,
+                            shadertoy_factory=shadertoy_factory,
+                            condition=condition_callable,
+                            on_stop=on_stop,
+                            uniforms_provider=uniforms_provider,
+                            get_camera_bottom_left=get_camera_bottom_left,
+                            auto_resize=auto_resize,
+                        )
+                    except Exception:
+                        pass
+
+            elif action_type == "ScaleUntil":
+                velocity = config.get("velocity")
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                if velocity is not None:
+                    try:
+                        from actions import scale_until
+
+                        scale_until(sprite, velocity=velocity, condition=condition_callable, on_stop=on_stop)
+                    except Exception:
+                        pass
+
+            elif action_type == "CallbackUntil":
+                callback = self._resolve_callback(config.get("callback", None), resolver) or config.get("callback")
+                seconds_between_calls = config.get("seconds_between_calls", None)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                if callback is not None:
+                    try:
+                        from actions import callback_until
+
+                        callback_until(
+                            sprite,
+                            callback=callback,
+                            condition=condition_callable,
+                            seconds_between_calls=seconds_between_calls,
+                            on_stop=on_stop,
+                        )
+                    except Exception:
+                        pass
+
+            elif action_type == "DelayUntil":
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                try:
+                    from actions import delay_until
+
+                    delay_until(sprite, condition=condition_callable, on_stop=on_stop)
+                except Exception:
+                    pass
+
+            # Future action types can be added here
 
 
 # Global DevVisualizer instance

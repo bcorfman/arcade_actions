@@ -301,6 +301,10 @@ class MoveUntil(_Action):
                     self.on_stop()
                 return
 
+        # Default to using current_velocity for dx/dy so update_effect works even when
+        # no velocity_provider is present (prevents referencing undefined locals).
+        dx, dy = self.current_velocity
+
         # Re-apply velocity from provider if available
         if self.velocity_provider:
             try:

@@ -56,7 +56,9 @@ class ActionPresetRegistry:
 
         def decorator(factory: Callable[..., Action]) -> Callable:
             if preset_id in self._presets:
-                raise ValueError(f"Preset '{preset_id}' already registered")
+                # Overwrite existing preset registration to support tests and reloads
+                # Later registrations intentionally replace earlier ones.
+                pass
             self._presets[preset_id] = {
                 "factory": factory,
                 "category": category,

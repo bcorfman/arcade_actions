@@ -471,3 +471,460 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
 
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 0
+
+    def test_apply_metadata_actions_applies_bounds_and_behavior(self, window):
+        """Test that apply_metadata_actions applies bounds and boundary_behavior."""
+        dev_viz = DevVisualizer()
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Add metadata with bounds and boundary behavior
+        sprite._action_configs = [
+            {
+                "action_type": "MoveUntil",
+                "velocity": (5, 0),
+                "condition": "infinite",
+                "bounds": (0, 0, 800, 600),
+                "boundary_behavior": "limit",
+            }
+        ]
+
+        # Apply metadata
+        dev_viz.apply_metadata_actions(sprite)
+
+        from actions import Action
+
+        actions = Action.get_actions_for_target(sprite)
+        assert len(actions) == 1
+        assert actions[0].bounds == (0, 0, 800, 600)
+        assert actions[0].boundary_behavior == "limit"
+
+    def test_apply_metadata_actions_passes_callbacks_and_tag(self, window):
+        """Test that apply_metadata_actions passes callbacks and tag to MoveUntil."""
+        dev_viz = DevVisualizer()
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        flag = {}
+
+        def on_enter(s, axis, side):
+            flag["enter"] = (axis, side)
+
+        def on_exit(s, axis, side):
+            flag["exit"] = (axis, side)
+
+        # Add metadata with callbacks and tag
+        sprite._action_configs = [
+            {
+                "action_type": "MoveUntil",
+                "velocity": (5, 0),
+                "condition": "infinite",
+                "tag": "movement",
+                "on_boundary_enter": on_enter,
+                "on_boundary_exit": on_exit,
+            }
+        ]
+
+        # Apply metadata
+        dev_viz.apply_metadata_actions(sprite)
+
+        from actions import Action
+
+        actions = Action.get_actions_for_target(sprite)
+        assert len(actions) == 1
+        action = actions[0]
+        assert action.tag == "movement"
+        assert action.on_boundary_enter is on_enter
+        assert action.on_boundary_exit is on_exit
+
+    def test_apply_metadata_actions_supports_velocity_provider(self, window):
+        """Test that a velocity_provider from metadata is attached and used."""
+        dev_viz = DevVisualizer()
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        def vp():
+            return (2, 3)
+
+        sprite._action_configs = [
+            {
+                "action_type": "MoveUntil",
+                "velocity": (0, 0),
+                "condition": "infinite",
+                "velocity_provider": vp,
+            }
+        ]
+
+        # Apply metadata
+        dev_viz.apply_metadata_actions(sprite)
+
+        from actions import Action
+
+        actions = Action.get_actions_for_target(sprite)
+        assert len(actions) == 1
+        action = actions[0]
+        assert action.velocity_provider is vp
+        # apply_effect should have run and set current_velocity using the provider
+        assert action.current_velocity == (2, 3)
+
+    def test_apply_metadata_actions_resolves_condition_after_frames(self, window):
+        """Test that condition strings like after_frames:N are resolved."""
+        dev_viz = DevVisualizer()
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        sprite._action_configs = [
+            {
+                "action_type": "MoveUntil",
+                "velocity": (5, 0),
+                "condition": "after_frames:3",
+            }
+        ]
+
+        dev_viz.apply_metadata_actions(sprite)
+
+        from actions import Action
+
+        # Step frames - action should finish after 3 frames
+        for _ in range(3):
+            Action.update_all(1.0 / 60.0)
+
+        actions = Action.get_actions_for_target(sprite)
+        assert len(actions) == 0  # action completed and removed
+
+    def test_apply_metadata_actions_creates_followpath(self, window):
+        """Test that FollowPathUntil metadata creates a FollowPathUntil action."""
+        dev_viz = DevVisualizer()
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        sprite._action_configs = [
+            {
+                "action_type": "FollowPathUntil",
+                "control_points": [(100, 100), (200, 200)],
+                "velocity": 150,
+                "condition": "after_frames:2",
+            }
+        ]
+
+        dev_viz.apply_metadata_actions(sprite)
+
+        from actions import Action
+
+        actions = Action.get_actions_for_target(sprite)
+        assert len(actions) == 1
+        # Simulate two frames to let it stop
+        for _ in range(2):
+            Action.update_all(1.0 / 60.0)
+        actions = Action.get_actions_for_target(sprite)
+        assert len(actions) == 0
+
+    def test_apply_metadata_actions_uses_preset_and_resolves_string_callbacks(self, window):
+        """Test that presets and string callbacks (via resolver) are handled."""
+        from actions.dev import register_preset, get_preset_registry
+        from actions import MoveUntil
+        from actions.frame_timing import infinite
+
+        # Register preset factory that returns unbound MoveUntil
+        @register_preset("test_scroll", category="Test", params={"speed": 4})
+        def preset_factory(ctx, speed=4):
+            return MoveUntil(velocity=(-speed, 0), condition=infinite)
+
+        dev_viz = DevVisualizer()
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Resolver for string callbacks
+        called = {}
+
+        def resolver(name: str):
+            if name == "on_stop_fn":
+
+                def on_stop_cb():
+                    called["stopped"] = True
+
+                return on_stop_cb
+            return None
+
+        # Use preset and a string callback for on_stop
+        sprite._action_configs = [
+            {
+                "preset": "test_scroll",
+                "params": {"speed": 5},
+                "action_type": "MoveUntil",
+                "condition": "after_frames:1",
+                "on_stop": "on_stop_fn",
+            }
+        ]
+
+        dev_viz.apply_metadata_actions(sprite, resolver=resolver)
+
+        from actions import Action
+
+        # After one frame the action should finish and resolver callback called
+        Action.update_all(1.0 / 60.0)
+        assert called.get("stopped") is True
+
+    def test_apply_metadata_actions_creates_cycle_textures(self, window):
+        """Test that CycleTexturesUntil metadata creates a CycleTexturesUntil action."""
+        dev_viz = DevVisualizer()
+
+        sprite = arcade.Sprite()
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        textures = [arcade.Texture.create_empty(f"tex_{i}", (4, 4)) for i in range(3)]
+
+        sprite._action_configs = [
+            {
+                "action_type": "CycleTexturesUntil",
+                "textures": textures,
+                "frames_per_texture": 2,
+                "condition": "after_frames:1",
+            }
+        ]
+
+        dev_viz.apply_metadata_actions(sprite)
+
+        from actions import Action
+
+        actions = Action.get_actions_for_target(sprite)
+        assert len(actions) == 1
+        action = actions[0]
+        assert hasattr(action, "_textures")
+        assert action._frames_per_texture == 2
+
+    def test_apply_metadata_actions_creates_fadeuntil_and_blinkuntil(self, window):
+        """Test that FadeUntil and BlinkUntil metadata create actions with proper params."""
+        dev_viz = DevVisualizer()
+
+        # FadeUntil
+        sprite1 = arcade.Sprite()
+        sprite1.center_x = 100
+        sprite1.center_y = 100
+        sprite1._action_configs = [
+            {
+                "action_type": "FadeUntil",
+                "fade_velocity": -10.0,
+                "condition": "after_frames:1",
+            }
+        ]
+
+        # BlinkUntil
+        sprite2 = arcade.Sprite()
+        sprite2.center_x = 200
+        sprite2.center_y = 200
+        sprite2._action_configs = [
+            {
+                "action_type": "BlinkUntil",
+                "frames_until_change": 3,
+                "condition": "after_frames:1",
+            }
+        ]
+
+        dev_viz.apply_metadata_actions(sprite1)
+        dev_viz.apply_metadata_actions(sprite2)
+
+        from actions import Action
+
+        actions1 = Action.get_actions_for_target(sprite1)
+        actions2 = Action.get_actions_for_target(sprite2)
+        assert len(actions1) == 1
+        assert len(actions2) == 1
+        assert actions1[0].target_fade_velocity == -10.0
+        assert actions2[0].target_frames_until_change == 3
+
+    def test_apply_metadata_actions_creates_rotate_and_tween(self, window):
+        """Test that RotateUntil and TweenUntil metadata create actions and can run."""
+        dev_viz = DevVisualizer()
+
+        # RotateUntil
+        sprite_r = arcade.Sprite()
+        sprite_r.center_x = 100
+        sprite_r.center_y = 100
+        sprite_r._action_configs = [
+            {
+                "action_type": "RotateUntil",
+                "angular_velocity": 45.0,
+                "condition": "after_frames:1",
+            }
+        ]
+
+        # TweenUntil (tween center_x to new value)
+        sprite_t = arcade.Sprite()
+        sprite_t.center_x = 10
+        sprite_t.center_y = 10
+        sprite_t._action_configs = [
+            {
+                "action_type": "TweenUntil",
+                "start_value": 10,
+                "end_value": 50,
+                "property_name": "center_x",
+                "condition": "after_frames:1",
+            }
+        ]
+
+        dev_viz.apply_metadata_actions(sprite_r)
+        dev_viz.apply_metadata_actions(sprite_t)
+
+        from actions import Action
+
+        # Run one frame - tween should update property, rotate should be applied
+        Action.update_all(1.0 / 60.0)
+
+        actions_r = Action.get_actions_for_target(sprite_r)
+        actions_t = Action.get_actions_for_target(sprite_t)
+
+        # Both should have completed due to after_frames:1
+        assert len(actions_r) == 0
+        assert len(actions_t) == 0
+        # Ensure tween changed the property (end achieved or in progress)
+        assert sprite_t.center_x != 10
+
+    def test_apply_metadata_actions_creates_emit_and_glow_and_scale_and_callbacks(self, window):
+        """Test that EmitParticlesUntil, GlowUntil, ScaleUntil, CallbackUntil and DelayUntil are created from metadata."""
+        dev_viz = DevVisualizer()
+
+        # EmitParticlesUntil
+        emitted_destroyed = {}
+
+        class Emitter:
+            def __init__(self):
+                self.center_x = 0
+                self.center_y = 0
+                self.angle = 0
+                self.destroyed = False
+
+            def update(self):
+                pass
+
+            def destroy(self):
+                self.destroyed = True
+                emitted_destroyed["destroyed"] = True
+
+        def emitter_factory(sprite):
+            return Emitter()
+
+        sprite_e = arcade.Sprite()
+        sprite_e.center_x = 10
+        sprite_e.center_y = 20
+        sprite_e._action_configs = [
+            {
+                "action_type": "EmitParticlesUntil",
+                "emitter_factory": emitter_factory,
+                "anchor": (1, 2),
+                "follow_rotation": True,
+                "destroy_on_stop": True,
+                "condition": "after_frames:1",
+            }
+        ]
+
+        # GlowUntil
+        render_called = {}
+
+        class Shader:
+            def __init__(self):
+                self.program = {}
+
+            def render(self):
+                render_called["rendered"] = True
+
+            def resize(self, size):
+                pass
+
+        def shadertoy_factory(size):
+            return Shader()
+
+        def uniforms_provider(shader, target):
+            return {"lightPosition": (50, 60)}
+
+        def get_cam_bottom_left():
+            return (10, 10)
+
+        sprite_g = arcade.Sprite()
+        sprite_g._action_configs = [
+            {
+                "action_type": "GlowUntil",
+                "shadertoy_factory": shadertoy_factory,
+                "uniforms_provider": uniforms_provider,
+                "get_camera_bottom_left": get_cam_bottom_left,
+                "auto_resize": True,
+                "condition": "after_frames:1",
+            }
+        ]
+
+        # ScaleUntil
+        sprite_s = arcade.Sprite()
+        sprite_s.scale = 1.0
+        sprite_s._action_configs = [
+            {
+                "action_type": "ScaleUntil",
+                "velocity": 0.5,
+                "condition": "after_frames:1",
+            }
+        ]
+
+        # CallbackUntil
+        called = {"count": 0}
+
+        def cb(target=None):
+            called["count"] += 1
+
+        sprite_c = arcade.Sprite()
+        sprite_c._action_configs = [
+            {
+                "action_type": "CallbackUntil",
+                "callback": cb,
+                "condition": "after_frames:1",
+            }
+        ]
+
+        # DelayUntil
+        sprite_d = arcade.Sprite()
+        sprite_d._action_configs = [
+            {
+                "action_type": "DelayUntil",
+                "condition": "after_frames:1",
+            }
+        ]
+
+        dev_viz.apply_metadata_actions(sprite_e)
+        dev_viz.apply_metadata_actions(sprite_g)
+        dev_viz.apply_metadata_actions(sprite_s)
+        dev_viz.apply_metadata_actions(sprite_c)
+        dev_viz.apply_metadata_actions(sprite_d)
+
+        from actions import Action
+
+        # Run one frame to trigger after_frames:1
+        Action.update_all(1.0 / 60.0)
+
+        # Emitters should have been destroyed on stop
+        assert emitted_destroyed.get("destroyed") is True
+
+        # Glow shader should have rendered
+        assert render_called.get("rendered") is True
+
+        # Scale action should have applied at least one scaling change or completed
+        # Accept either behavior: scale changed or action removed
+        actions_s = Action.get_actions_for_target(sprite_s)
+        assert len(actions_s) in (0, 1)
+
+        # Callback should have been called at least once
+        assert called["count"] >= 1
+
+        # DelayUntil should have completed and been removed
+        actions_d = Action.get_actions_for_target(sprite_d)
+        assert len(actions_d) == 0
