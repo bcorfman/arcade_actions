@@ -88,3 +88,58 @@ class TestBoundaryGizmos(ActionTestBase):
             # Bounds should be updated
             new_bounds = action.bounds
             assert new_bounds[3] == original_top - 20  # Top decreased by 20
+
+    def test_gizmo_detects_bounded_config(self):
+        """Gizmo should detect MoveUntil configs stored in metadata (edit mode)."""
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        # Store edit-mode MoveUntil config
+        sprite._action_configs = [
+            {
+                "action_type": "MoveUntil",
+                "velocity": (3, 0),
+                "bounds": (50, 50, 200, 200),
+                "boundary_behavior": "limit",
+            }
+        ]
+
+        gizmo = BoundaryGizmo(sprite)
+        assert gizmo.has_bounded_action()
+        handles = gizmo.get_handles()
+        assert len(handles) == 4
+
+    def test_gizmo_drag_updates_metadata_bounds(self):
+        """Dragging gizmo handles should update bounds stored in metadata when no runtime action exists."""
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
+        sprite.center_x = 100
+        sprite.center_y = 100
+
+        sprite._action_configs = [
+            {
+                "action_type": "MoveUntil",
+                "velocity": (3, 0),
+                "bounds": (50, 50, 200, 200),
+                "boundary_behavior": "limit",
+            }
+        ]
+
+        gizmo = BoundaryGizmo(sprite)
+
+        # Find top handle and drag it up 30 pixels
+        handles = gizmo.get_handles()
+        top_handle = None
+        for handle in handles:
+            if "top" in handle.handle_type:
+                top_handle = handle
+                break
+
+        assert top_handle is not None
+        original_top = sprite._action_configs[0]["bounds"][3]
+
+        gizmo.handle_drag(top_handle, 0, 30)
+
+        # Metadata bounds should be updated
+        new_top = sprite._action_configs[0]["bounds"][3]
+        assert new_top == original_top + 30

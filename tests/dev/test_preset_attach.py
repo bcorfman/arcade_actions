@@ -9,6 +9,7 @@ import pytest
 from actions.conditional import infinite
 from actions.dev.presets import ActionPresetRegistry, register_preset
 from actions.dev.selection import SelectionManager
+from actions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 
@@ -112,3 +113,54 @@ class TestPresetAttach(ActionTestBase):
         # Create with edited params
         action2 = registry.create("editable", ctx, speed=4, direction=-1)
         assert action2.target_velocity == (-4, 0)
+
+    def test_dev_viz_attach_preset_to_selected(self):
+        """DevVisualizer should provide API to attach presets to selected sprites as metadata."""
+        scene_sprites = arcade.SpriteList()
+        sprites = []
+        for i in range(2):
+            sprite = arcade.SpriteSolidColor(width=16, height=16, color=arcade.color.BLUE)
+            sprite.center_x = 10 + i * 20
+            sprite.center_y = 10
+            scene_sprites.append(sprite)
+            sprites.append(sprite)
+
+        selection_manager = SelectionManager(scene_sprites)
+        for s in sprites:
+            selection_manager._selected.add(s)
+
+        dev_viz = DevVisualizer()
+        dev_viz.selection_manager = selection_manager
+
+        dev_viz.attach_preset_to_selected("bulk_test", params={"speed": 5}, tag="movement")
+
+        for s in sprites:
+            assert hasattr(s, "_action_configs")
+            assert len(s._action_configs) == 1
+            cfg = s._action_configs[0]
+            assert cfg["preset"] == "bulk_test"
+            assert cfg["params"]["speed"] == 5
+            assert cfg["tag"] == "movement"
+
+    def test_update_action_config_api(self):
+        """DevVisualizer API should allow updating action config params for sprites."""
+        sprite = arcade.SpriteSolidColor(width=16, height=16, color=arcade.color.BLUE)
+        sprite.center_x = 50
+        sprite.center_y = 50
+        sprite._action_configs = [{"action_type": "MoveUntil", "velocity": (2, 0), "bounds": (0, 0, 100, 100)}]
+
+        dev_viz = DevVisualizer()
+
+        # Update the first config velocity
+        dev_viz.update_action_config(sprite, 0, velocity=(10, 0))
+        assert sprite._action_configs[0]["velocity"] == (10, 0)
+
+        # Update selected sprites' config
+        scene = arcade.SpriteList()
+        scene.append(sprite)
+        selection_manager = SelectionManager(scene)
+        selection_manager._selected.add(sprite)
+        dev_viz.selection_manager = selection_manager
+
+        dev_viz.update_selected_action_config(0, boundary_behavior="limit")
+        assert sprite._action_configs[0]["boundary_behavior"] == "limit"

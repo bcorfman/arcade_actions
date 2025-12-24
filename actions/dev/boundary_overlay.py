@@ -101,12 +101,42 @@ class BoundaryGizmo:
 
         MoveUntil = self._get_move_until_class()
 
-        # Check all actions on this sprite
+        # Check all actions on this sprite for a runtime bounded MoveUntil
+        self._bounded_action = None
+        self._metadata_config = None
+        self._handles.clear()
+
         for action in Action.get_actions_for_target(self.sprite):
             if isinstance(action, MoveUntil):
                 if hasattr(action, "bounds") and action.bounds is not None:
                     self._bounded_action = action
                     break
+
+        # If no runtime action found, fall back to edit-mode metadata configs
+        if self._bounded_action is None and hasattr(self.sprite, "_action_configs"):
+            for config in getattr(self.sprite, "_action_configs", []):
+                # Look for explicit MoveUntil metadata (edit mode)
+                if config.get("action_type") == "MoveUntil":
+                    bounds = config.get("bounds")
+                    if bounds is not None:
+                        self._metadata_config = config
+                        break
+
+            if self._metadata_config is None:
+                return
+
+            # Use bounds from metadata config to create handles
+            bounds = self._metadata_config.get("bounds")
+            left, bottom, right, top = bounds
+
+            # Create four corner handles from metadata bounds
+            self._handles = [
+                BoundaryHandle(left, bottom, "bottom_left"),
+                BoundaryHandle(right, bottom, "bottom_right"),
+                BoundaryHandle(left, top, "top_left"),
+                BoundaryHandle(right, top, "top_right"),
+            ]
+            return
 
         if self._bounded_action is None:
             return
@@ -130,12 +160,12 @@ class BoundaryGizmo:
 
     def has_bounded_action(self) -> bool:
         """
-        Check if sprite has a MoveUntil action with bounds.
+        Check if sprite has a MoveUntil action with bounds (runtime or metadata).
 
         Returns:
-            True if bounded action exists
+            True if bounded action exists (runtime) or metadata config exists (edit mode)
         """
-        return self._bounded_action is not None
+        return self._bounded_action is not None or getattr(self, "_metadata_config", None) is not None
 
     def get_handles(self) -> list[BoundaryHandle]:
         """
@@ -171,7 +201,8 @@ class BoundaryGizmo:
             dx: X delta
             dy: Y delta
         """
-        if self._bounded_action is None:
+        # Allow metadata-based editing when no runtime action exists
+        if self._bounded_action is None and getattr(self, "_metadata_config", None) is None:
             return
 
         # Update handle position
@@ -212,15 +243,26 @@ class BoundaryGizmo:
             if bottom > top:
                 bottom, top = top, bottom
 
-            # Update action bounds
-            self._bounded_action.set_bounds((left, bottom, right, top))
+            # Update runtime action bounds if present, otherwise update metadata
+            if self._bounded_action is not None:
+                self._bounded_action.set_bounds((left, bottom, right, top))
+            elif getattr(self, "_metadata_config", None) is not None:
+                # Store updated bounds back into the metadata config (edit mode)
+                try:
+                    self._metadata_config["bounds"] = (left, bottom, right, top)
+                except Exception:
+                    # Silently ignore if metadata is not writable
+                    pass
 
     def draw(self) -> None:
         """Draw the boundary gizmo (rectangle and handles)."""
-        if self._bounded_action is None:
-            return
+        # Support drawing from metadata config (edit mode) when no runtime action
+        bounds = None
+        if getattr(self, "_metadata_config", None) is not None:
+            bounds = self._metadata_config.get("bounds")
+        elif self._bounded_action is not None:
+            bounds = self._bounded_action.bounds
 
-        bounds = self._bounded_action.bounds
         if bounds is None:
             return
 
