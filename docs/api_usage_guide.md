@@ -2597,3 +2597,40 @@ This separation allows safe editing without sprites moving during design.
 5. **Export frequently**: Save work often with YAML export
 6. **Use symbolic bounds**: Makes YAML files more readable and maintainable
 7. **Test round-trip**: Verify export → import → export maintains all data
+
+Arcade 3.x API Guidelines:
+* Text rendering: Use arcade.Text objects that are created once (e.g. in __init__) and drawn with .draw()
+* Avoid arcade.draw_text in the render loop - it incurs a high per-frame CPU cost and triggers performance warnings
+
+CRITICAL API Rule - Velocity Semantics:
+* ALL velocity values use Arcade's native "pixels per frame at 60 FPS" semantics, NOT "pixels per second"
+* MoveUntil((5, 0), condition) means 5 pixels per frame, not 5 pixels per second
+* RotateUntil(3, condition) means 3 degrees per frame, not 3 degrees per second  
+* This maintains perfect consistency with Arcade's sprite.change_x/change_y/change_angle system
+* NEVER convert velocities by dividing/multiplying by frame rates - use raw values directly
+* When in doubt about velocity values, refer to Arcade's native sprite velocity documentation
+
+CRITICAL: infinite() function rule:
+* NEVER suggest changing the infinite() function implementation in actions/conditional.py
+* The current implementation (return False) is intentional and correct for the project's usage patterns
+* Do not recommend changing it to return lambda: False or any other callable
+* This function works correctly with the existing codebase and should not be modified
+
+For interface design:
+* ZERO TOLERANCE for runtime type/attribute checking (hasattr, getattr, isinstance, EAFP-with-pass)
+* Design interfaces so checking isn't needed - unclear interfaces are the real problem
+* Use consistent base interfaces with default values
+* Define clear protocols guaranteeing expected methods/attributes
+* Apply composition patterns eliminating optional attributes
+* Create unified interfaces for similar objects
+
+For error handling:
+* Use EAFP only for genuine decision points with real fallback logic
+* NEVER use EAFP for error silencing
+* FORBIDDEN: `except AttributeError: pass` - this is a code smell
+* ACCEPTABLE: `except AttributeError: return default_value` with genuine fallback
+
+For sprite group management:
+* Use arcade.SpriteList for basic sprite collections
+* Use AttackGroup for high-level game management with lifecycle, formations, and complex behaviors
+* Actions are applied directly to sprites or sprite lists using action.apply(target, tag="name")

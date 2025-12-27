@@ -3,6 +3,12 @@
 This guide describes how to exercise the frame-driven ArcadeActions test suite.
 """
 
+Testing patterns to follow:
+* Individual actions: Use arcade.Sprite fixtures, test with action.apply() and Action.update_all()
+* Group actions: Use arcade.SpriteList fixtures, verify actions applied to all sprites in list
+* AttackGroup tests: Test formations, lifecycle management, and breakaway behaviors
+* Boundary actions: Test edge detection, callback coordination, and movement reversal
+
 # Testing Guide
 
 ## Philosophy
