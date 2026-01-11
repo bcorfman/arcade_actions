@@ -186,48 +186,15 @@ class TestDevVisualizerManager(ActionTestBase):
             else:
                 os.environ["ARCADEACTIONS_DEV"] = original_dev
 
-    def test_auto_enable_from_env_dev_mode(self, window):
-        """Test auto-enable with ARCADEACTIONS_DEV_MODE=1."""
-        # Save original values
-        original_devviz = os.environ.get("ARCADEACTIONS_DEVVIZ")
-        original_dev = os.environ.get("ARCADEACTIONS_DEV")
-        original_dev_mode = os.environ.get("ARCADEACTIONS_DEV_MODE")
-
-        try:
-            # Clear other vars, set DEV_MODE
-            os.environ.pop("ARCADEACTIONS_DEVVIZ", None)
-            os.environ.pop("ARCADEACTIONS_DEV", None)
-            os.environ["ARCADEACTIONS_DEV_MODE"] = "1"
-
-            dev_viz = auto_enable_dev_visualizer_from_env()
-
-            assert dev_viz is not None
-            assert isinstance(dev_viz, DevVisualizer)
-        finally:
-            if original_devviz is None:
-                os.environ.pop("ARCADEACTIONS_DEVVIZ", None)
-            else:
-                os.environ["ARCADEACTIONS_DEVVIZ"] = original_devviz
-            if original_dev is None:
-                os.environ.pop("ARCADEACTIONS_DEV", None)
-            else:
-                os.environ["ARCADEACTIONS_DEV"] = original_dev
-            if original_dev_mode is None:
-                os.environ.pop("ARCADEACTIONS_DEV_MODE", None)
-            else:
-                os.environ["ARCADEACTIONS_DEV_MODE"] = original_dev_mode
-
     def test_auto_enable_returns_none_when_not_set(self, window):
         """Test auto-enable returns None when no env vars set."""
         # Save and clear all env vars
         original_devviz = os.environ.get("ARCADEACTIONS_DEVVIZ")
         original_dev = os.environ.get("ARCADEACTIONS_DEV")
-        original_dev_mode = os.environ.get("ARCADEACTIONS_DEV_MODE")
 
         try:
             os.environ.pop("ARCADEACTIONS_DEVVIZ", None)
             os.environ.pop("ARCADEACTIONS_DEV", None)
-            os.environ.pop("ARCADEACTIONS_DEV_MODE", None)
 
             dev_viz = auto_enable_dev_visualizer_from_env()
 
@@ -237,8 +204,6 @@ class TestDevVisualizerManager(ActionTestBase):
                 os.environ["ARCADEACTIONS_DEVVIZ"] = original_devviz
             if original_dev:
                 os.environ["ARCADEACTIONS_DEV"] = original_dev
-            if original_dev_mode:
-                os.environ["ARCADEACTIONS_DEV_MODE"] = original_dev_mode
 
     @pytest.mark.integration
     def test_mouse_handling_when_visible(self, window):

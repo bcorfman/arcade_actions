@@ -219,6 +219,11 @@ class DevVisualizer:
 
         self.selection_manager = SelectionManager(scene_sprites)
 
+        # Panels
+        from actions.dev.override_panel import OverridesPanel
+
+        self.overrides_panel = OverridesPanel(self)
+
         # State
         self.visible = False
         self.window = window
@@ -700,6 +705,29 @@ class DevVisualizer:
         original_on_mouse_drag = view._dev_viz_original_on_mouse_drag
         original_on_mouse_release = view._dev_viz_original_on_mouse_release
 
+        # Wrap view's on_text so we can handle text input for inline editing
+        original_on_text = getattr(view, "on_text", None)
+
+        def wrapped_view_on_text(text: str):
+            # If overrides panel is open and editing, feed chars (do not require overlay visible)
+            if (
+                hasattr(self, "overrides_panel")
+                and self.overrides_panel
+                and self.overrides_panel.is_open()
+                and self.overrides_panel.editing
+            ):
+                try:
+                    # Some frameworks send strings longer than 1; iterate
+                    for ch in text:
+                        self.overrides_panel.handle_input_char(ch)
+                except Exception:
+                    pass
+                return
+            if original_on_text:
+                original_on_text(text)
+
+        view.on_text = wrapped_view_on_text  # type: ignore[assignment]
+
         def wrapped_view_on_mouse_press(x: int, y: int, button: int, modifiers: int):
             if self.visible and self.handle_mouse_press(x, y, button, modifiers):
                 return
@@ -1114,6 +1142,93 @@ class DevVisualizer:
             self.toggle_palette()
             return True
 
+        # F8: Toggle overrides panel for selected sprite
+        if key == arcade.key.F8:
+            selected = self.selection_manager.get_selected()
+            sprite_to_open = None
+            if not selected:
+                # If nothing selected, try to find any sprite with an arrange marker
+                for sp in self.scene_sprites:
+                    markers = getattr(sp, "_source_markers", None) or []
+                    if any(m.get("type") == "arrange" for m in markers):
+                        sprite_to_open = sp
+                        break
+                if sprite_to_open is None:
+                    return False
+            else:
+                sprite_to_open = selected[0]
+
+            self.toggle_overrides_panel_for_sprite(sprite_to_open)
+            return True
+
+        # When the overrides panel is open, provide basic navigation/edits
+        if self.overrides_panel and self.overrides_panel.is_open():
+            # Ctrl+Z: Undo last change in overrides panel
+            if key == arcade.key.Z and (modifiers & arcade.key.MOD_CTRL):
+                try:
+                    self.overrides_panel.handle_key("CTRL+Z")
+                except Exception:
+                    pass
+                return True
+
+            # If currently editing, handle Enter/Escape here
+            if key == arcade.key.ENTER:
+                if self.overrides_panel.editing:
+                    self.overrides_panel.commit_edit()
+                else:
+                    self.overrides_panel.start_edit()
+                return True
+            if key == arcade.key.ESCAPE:
+                if self.overrides_panel.editing:
+                    self.overrides_panel.cancel_edit()
+                    return True
+
+            # X/Y shortcuts to start editing respective field
+            if key == arcade.key.X:
+                self.overrides_panel.start_edit("x")
+                return True
+            if key == arcade.key.Y:
+                self.overrides_panel.start_edit("y")
+                return True
+
+            # TAB switches editing field when editing
+            if key == arcade.key.TAB:
+                if self.overrides_panel.editing:
+                    # Toggle field
+                    self.overrides_panel._editing_field = "y" if self.overrides_panel._editing_field == "x" else "x"
+                    return True
+
+            # BACKSPACE handling during edit (map to backspace char)
+            if key == arcade.key.BACKSPACE and self.overrides_panel.editing:
+                self.overrides_panel.handle_input_char("\b")
+                return True
+
+                self.overrides_panel.select_prev()
+                return True
+            if key == arcade.key.DOWN:
+                self.overrides_panel.select_next()
+                return True
+            # Left/Right to adjust x coordinate
+            if key == arcade.key.LEFT:
+                self.overrides_panel.increment_selected(-1, 0)
+                return True
+            if key == arcade.key.RIGHT:
+                self.overrides_panel.increment_selected(1, 0)
+                return True
+            # PageUp/PageDown to adjust y coordinate
+            if key == arcade.key.PAGEUP:
+                self.overrides_panel.increment_selected(0, 1)
+                return True
+            if key == arcade.key.PAGEDOWN:
+                self.overrides_panel.increment_selected(0, -1)
+                return True
+            # Delete to remove selected override
+            if key == arcade.key.DELETE:
+                sel = self.overrides_panel.get_selected()
+                if sel:
+                    self.overrides_panel.remove_override(sel.get("row"), sel.get("col"))
+                return True
+
         # E key: Export scene to YAML
         if key == arcade.key.E:
             from actions.dev.templates import export_template
@@ -1205,6 +1320,17 @@ class DevVisualizer:
         clicked_sprites = arcade.get_sprites_at_point((x, y), self.scene_sprites)
         if clicked_sprites:
             clicked_sprite = clicked_sprites[0]
+
+            # If the sprite has source markers and no modifiers, open editor at marker
+            try:
+                markers = getattr(clicked_sprite, "_source_markers", None)
+                if markers and modifiers == 0:
+                    # Open the first marker location in editor
+                    self.open_sprite_source(clicked_sprite, markers[0])
+                    return True
+            except Exception:
+                pass
+
             if clicked_sprite in selected:
                 # Start dragging selected sprites
                 # Calculate offset from click point to each sprite's center
@@ -1323,11 +1449,11 @@ class DevVisualizer:
         return None
 
     def draw(self) -> None:
-        """Draw DevVisualizer overlays (selection, gizmos).
+        """Draw DevVisualizer overlays (selection, gizmos, source markers).
 
         Note: scene_sprites are drawn automatically in wrapped_on_draw(),
-        so this method only draws the editor UI overlays.
-        Palette is now in a separate window (toggle with F11).
+        so this method only draws the editor UI overlays. Palette is now in a
+        separate window (toggle with F11).
         """
         if not self.visible:
             return
@@ -1380,6 +1506,45 @@ class DevVisualizer:
                 except Exception:
                     # Skip gizmo if drawing fails
                     pass
+
+            # Draw source markers for any sprites that have been tagged from code
+            try:
+                for sprite in self.scene_sprites:
+                    markers = getattr(sprite, "_source_markers", None)
+                    if not markers:
+                        continue
+                    # Draw marker for each source mapping attached to sprite
+                    for m in markers:
+                        # Compute screen position above sprite
+                        sx = sprite.center_x
+                        sy = sprite.center_y + (getattr(sprite, "height", 16) / 2) + 8
+                        lineno = m.get("lineno")
+                        status = m.get("status", "yellow")
+                        text = f"L{lineno}"
+                        # Choose color by status
+                        if status == "green":
+                            bg = arcade.color.GREEN
+                            fg = arcade.color.BLACK
+                        elif status == "red":
+                            bg = arcade.color.RED
+                            fg = arcade.color.WHITE
+                        else:
+                            bg = arcade.color.YELLOW
+                            fg = arcade.color.BLACK
+
+                        # Draw small rounded rect background
+                        arcade.draw_rectangle_filled(sx, sy, 36, 18, bg)
+                        arcade.draw_text(text, sx - 16, sy - 6, fg, 12)
+            except Exception:
+                # Don't fail drawing if markers cause an error
+                pass
+
+            # Draw overrides panel (if open)
+            try:
+                if hasattr(self, "overrides_panel") and self.overrides_panel:
+                    self.overrides_panel.draw()
+            except Exception:
+                pass
         except Exception as e:
             # Catch any GL errors during drawing
             import sys
@@ -1445,6 +1610,103 @@ class DevVisualizer:
                 original.scale = sprite.scale
                 original.alpha = sprite.alpha
                 original.color = sprite.color
+
+                # If sprite has source markers and a position id, attempt to update source files
+                try:
+                    pid = getattr(sprite, "_position_id", None)
+                    markers = getattr(sprite, "_source_markers", None)
+                    if pid and markers:
+                        from actions.dev import sync
+
+                        for m in markers:
+                            file = m.get("file")
+                            # handle direct attribute assignment markers
+                            attr = m.get("attr")
+                            if file and attr:
+                                # Determine new value based on attribute
+                                if attr == "left":
+                                    val = getattr(sprite, "left", None)
+                                    if val is None:
+                                        val = sprite.center_x
+                                    new_value_src = str(int(round(val)))
+                                elif attr == "top":
+                                    val = getattr(sprite, "top", None)
+                                    if val is None:
+                                        val = sprite.center_y
+                                    new_value_src = str(int(round(val)))
+                                elif attr == "center_x":
+                                    new_value_src = str(int(round(sprite.center_x)))
+                                else:
+                                    continue
+
+                                try:
+                                    sync.update_position_assignment(file, pid, attr, new_value_src)
+                                except Exception:
+                                    # Don't let sync failures break export process
+                                    pass
+
+                            # handle arrange call markers (update start_x/start_y to match moved sprite)
+                            if m.get("type") == "arrange":
+                                lineno = m.get("lineno")
+                                kwargs = m.get("kwargs", {}) or {}
+                                # Prefer 'left'/'top' if available, else center
+                                new_start_x = int(round(getattr(sprite, "left", sprite.center_x)))
+                                new_start_y = int(round(getattr(sprite, "top", sprite.center_y)))
+
+                                # Update start_x and start_y on the arrange call
+                                try:
+                                    sync.update_arrange_call(file, lineno, "start_x", str(new_start_x))
+                                except Exception:
+                                    pass
+                                try:
+                                    sync.update_arrange_call(file, lineno, "start_y", str(new_start_y))
+                                except Exception:
+                                    pass
+
+                                # Also attempt to compute the grid cell (row, col) for this sprite and add a per-cell override
+                                try:
+                                    rows = int(float(kwargs.get("rows", "0"))) if kwargs.get("rows") else None
+                                    cols = int(float(kwargs.get("cols", "0"))) if kwargs.get("cols") else None
+                                    spacing_x = (
+                                        float(kwargs.get("spacing_x", kwargs.get("spacing", "0")).strip("()"))
+                                        if kwargs.get("spacing_x") or kwargs.get("spacing")
+                                        else None
+                                    )
+                                    spacing_y = (
+                                        float(kwargs.get("spacing_y", kwargs.get("spacing", "0")).strip("()"))
+                                        if kwargs.get("spacing_y") or kwargs.get("spacing")
+                                        else None
+                                    )
+                                    start_x = float(kwargs.get("start_x")) if kwargs.get("start_x") else None
+                                    start_y = float(kwargs.get("start_y")) if kwargs.get("start_y") else None
+
+                                    if (
+                                        rows
+                                        and cols
+                                        and spacing_x
+                                        and spacing_y
+                                        and start_x is not None
+                                        and start_y is not None
+                                    ):
+                                        # Compute closest col / row
+                                        col = int(round((sprite.center_x - start_x) / spacing_x))
+                                        row = int(round((sprite.center_y - start_y) / spacing_y))
+                                        col = max(0, min(cols - 1, col))
+                                        row = max(0, min(rows - 1, row))
+
+                                        # Coordinates to store
+                                        cell_x = int(round(sprite.center_x))
+                                        cell_y = int(round(sprite.center_y))
+
+                                        try:
+                                            sync.update_arrange_cell(file, lineno, row, col, cell_x, cell_y)
+                                        except Exception:
+                                            pass
+                                except Exception:
+                                    pass
+                except Exception:
+                    # Keep export resilient to any unexpected errors
+                    pass
 
     # ------------------------
     # Preset / edit-mode helpers
@@ -1552,6 +1814,27 @@ class DevVisualizer:
                 return None
         return None
 
+    def open_sprite_source(self, sprite: arcade.Sprite, marker: dict) -> None:
+        """Open the editor at the sprite's source marker (VSCode URI scheme).
+
+        This attempts to open VSCode using the file/line URI if available. Falls back
+        to printing the location if the URI can't be opened.
+        """
+        import webbrowser
+        import os
+
+        file = marker.get("file")
+        lineno = marker.get("lineno")
+        if not file:
+            return
+        # Construct vscode URI: vscode://file/<absolute_path>:<line>
+        path = os.path.abspath(file)
+        uri = f"vscode://file/{path}:{lineno}"
+        try:
+            webbrowser.open(uri)
+        except Exception:
+            print(f"Open file at {file}:{lineno}")
+
     def apply_metadata_actions(self, sprite: arcade.Sprite, resolver: Callable[[str], Any] | None = None) -> None:
         """Convert action metadata on sprite to actual running actions.
 
@@ -1565,7 +1848,21 @@ class DevVisualizer:
         if not hasattr(sprite, "_action_configs"):
             return
 
-        from actions import move_until, infinite, follow_path_until
+        from actions import (
+            move_until,
+            infinite,
+            follow_path_until,
+            fade_until,
+            blink_until,
+            rotate_until,
+            tween_until,
+            scale_until,
+            callback_until,
+            delay_until,
+            cycle_textures_until,
+            emit_particles_until,
+            glow_until,
+        )
         from actions.dev import get_preset_registry
 
         for config in sprite._action_configs:
@@ -1706,42 +2003,39 @@ class DevVisualizer:
                 textures = config.get("textures")
                 frames_per_texture = config.get("frames_per_texture", 1)
                 direction = config.get("direction", 1)
+                tag = config.get("tag", None)
                 on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
                 if textures:
-                    try:
-                        from actions import cycle_textures_until
-
-                        cycle_textures_until(
-                            sprite,
-                            textures=textures,
-                            frames_per_texture=frames_per_texture,
-                            direction=direction,
-                            condition=condition_callable,
-                            on_stop=on_stop,
-                        )
-                    except Exception:
-                        pass
+                    cycle_textures_until(
+                        sprite,
+                        textures=textures,
+                        frames_per_texture=frames_per_texture,
+                        direction=direction,
+                        condition=condition_callable,
+                        on_stop=on_stop,
+                        tag=tag,
+                    )
 
             elif action_type == "FadeUntil":
                 fade_velocity = config.get("fade_velocity")
+                tag = config.get("tag", None)
                 on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
                 if fade_velocity is not None:
-                    try:
-                        from actions import fade_until
-
-                        # fade_until helper expects 'velocity' argument name
-                        fade_until(sprite, velocity=fade_velocity, condition=condition_callable, on_stop=on_stop)
-                    except Exception:
-                        pass
+                    fade_until(
+                        sprite,
+                        velocity=fade_velocity,
+                        condition=condition_callable,
+                        on_stop=on_stop,
+                        tag=tag,
+                    )
 
             elif action_type == "BlinkUntil":
-                frames_until_change = config.get("frames_until_change", 1)
+                frames_until_change = config.get("frames_until_change")
+                tag = config.get("tag", None)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
                 on_blink_enter = self._resolve_callback(config.get("on_blink_enter", None), resolver)
                 on_blink_exit = self._resolve_callback(config.get("on_blink_exit", None), resolver)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
-                try:
-                    from actions import blink_until
-
+                if frames_until_change is not None:
                     blink_until(
                         sprite,
                         frames_until_change=frames_until_change,
@@ -1749,126 +2043,217 @@ class DevVisualizer:
                         on_stop=on_stop,
                         on_blink_enter=on_blink_enter,
                         on_blink_exit=on_blink_exit,
+                        tag=tag,
                     )
-                except Exception:
-                    pass
 
             elif action_type == "RotateUntil":
                 angular_velocity = config.get("angular_velocity")
+                tag = config.get("tag", None)
                 on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
                 if angular_velocity is not None:
-                    try:
-                        from actions import rotate_until
-
-                        rotate_until(
-                            sprite, angular_velocity=angular_velocity, condition=condition_callable, on_stop=on_stop
-                        )
-                    except Exception:
-                        pass
+                    rotate_until(
+                        sprite,
+                        angular_velocity=angular_velocity,
+                        condition=condition_callable,
+                        on_stop=on_stop,
+                        tag=tag,
+                    )
 
             elif action_type == "TweenUntil":
                 start_value = config.get("start_value")
                 end_value = config.get("end_value")
                 property_name = config.get("property_name")
+                tag = config.get("tag", None)
                 on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
-                ease_function = config.get("ease_function", None)
                 if start_value is not None and end_value is not None and property_name:
-                    try:
-                        from actions import tween_until
+                    tween_until(
+                        sprite,
+                        start_value=start_value,
+                        end_value=end_value,
+                        property_name=property_name,
+                        condition=condition_callable,
+                        on_stop=on_stop,
+                        tag=tag,
+                    )
 
-                        tween_until(
-                            sprite,
-                            start_value=start_value,
-                            end_value=end_value,
-                            property_name=property_name,
-                            condition=condition_callable,
-                            on_stop=on_stop,
-                            ease_function=ease_function,
-                        )
-                    except Exception:
-                        pass
+            elif action_type == "ScaleUntil":
+                velocity = config.get("velocity")
+                tag = config.get("tag", None)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                if velocity is not None:
+                    scale_until(
+                        sprite,
+                        velocity=velocity,
+                        condition=condition_callable,
+                        on_stop=on_stop,
+                        tag=tag,
+                    )
+
+            elif action_type == "CallbackUntil":
+                callback = config.get("callback")
+                seconds_between_calls = config.get("seconds_between_calls", None)
+                tag = config.get("tag", None)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                if callback is not None:
+                    callback_until(
+                        sprite,
+                        callback=callback,
+                        condition=condition_callable,
+                        seconds_between_calls=seconds_between_calls,
+                        on_stop=on_stop,
+                        tag=tag,
+                    )
+
+            elif action_type == "DelayUntil":
+                tag = config.get("tag", None)
+                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                delay_until(
+                    sprite,
+                    condition=condition_callable,
+                    on_stop=on_stop,
+                    tag=tag,
+                )
 
             elif action_type == "EmitParticlesUntil":
                 emitter_factory = config.get("emitter_factory")
                 anchor = config.get("anchor", "center")
                 follow_rotation = config.get("follow_rotation", False)
+                start_paused = config.get("start_paused", False)
                 destroy_on_stop = config.get("destroy_on_stop", True)
+                tag = config.get("tag", None)
                 on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
                 if emitter_factory is not None:
-                    try:
-                        from actions import emit_particles_until
-
-                        emit_particles_until(
-                            sprite,
-                            emitter_factory=emitter_factory,
-                            condition=condition_callable,
-                            on_stop=on_stop,
-                            anchor=anchor,
-                            follow_rotation=follow_rotation,
-                            destroy_on_stop=destroy_on_stop,
-                        )
-                    except Exception:
-                        pass
+                    emit_particles_until(
+                        sprite,
+                        emitter_factory=emitter_factory,
+                        condition=condition_callable,
+                        anchor=anchor,
+                        follow_rotation=follow_rotation,
+                        start_paused=start_paused,
+                        destroy_on_stop=destroy_on_stop,
+                        on_stop=on_stop,
+                        tag=tag,
+                    )
 
             elif action_type == "GlowUntil":
                 shadertoy_factory = config.get("shadertoy_factory")
                 uniforms_provider = config.get("uniforms_provider", None)
                 get_camera_bottom_left = config.get("get_camera_bottom_left", None)
                 auto_resize = config.get("auto_resize", True)
+                tag = config.get("tag", None)
                 on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
                 if shadertoy_factory is not None:
-                    try:
-                        from actions import glow_until
+                    glow_until(
+                        sprite,
+                        shadertoy_factory=shadertoy_factory,
+                        condition=condition_callable,
+                        uniforms_provider=uniforms_provider,
+                        get_camera_bottom_left=get_camera_bottom_left,
+                        auto_resize=auto_resize,
+                        on_stop=on_stop,
+                        tag=tag,
+                    )
 
-                        glow_until(
-                            sprite,
-                            shadertoy_factory=shadertoy_factory,
-                            condition=condition_callable,
-                            on_stop=on_stop,
-                            uniforms_provider=uniforms_provider,
-                            get_camera_bottom_left=get_camera_bottom_left,
-                            auto_resize=auto_resize,
-                        )
-                    except Exception:
-                        pass
+    def on_reload(self, changed_files: list, saved_state: dict | None = None) -> None:
+        """Handle a reload event by parsing changed files and updating source markers on tagged sprites.
 
-            elif action_type == "ScaleUntil":
-                velocity = config.get("velocity")
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
-                if velocity is not None:
-                    try:
-                        from actions import scale_until
+        Args:
+            changed_files: list of pathlib.Path objects for changed files
+            saved_state: preserved state passed from reload manager (ignored here)
+        """
+        try:
+            from actions.dev import code_parser
+            from actions.dev.position_tag import get_sprites_for
+        except Exception:
+            return
 
-                        scale_until(sprite, velocity=velocity, condition=condition_callable, on_stop=on_stop)
-                    except Exception:
-                        pass
+        # Parse all changed files and collect assignments
+        parsed_assign_by_token: dict[str, list] = {}
+        parsed_arrange_by_token: dict[str, list] = {}
+        for file_path in changed_files:
+            try:
+                assignments, arrange_calls = code_parser.parse_file(str(file_path))
+            except Exception:
+                continue
 
-            elif action_type == "CallbackUntil":
-                callback = self._resolve_callback(config.get("callback", None), resolver) or config.get("callback")
-                seconds_between_calls = config.get("seconds_between_calls", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
-                if callback is not None:
-                    try:
-                        from actions import callback_until
+            for a in assignments:
+                # Extract tokens from target expression (simple identifier tokenization)
+                import re
 
-                        callback_until(
-                            sprite,
-                            callback=callback,
-                            condition=condition_callable,
-                            seconds_between_calls=seconds_between_calls,
-                            on_stop=on_stop,
-                        )
-                    except Exception:
-                        pass
+                tokens = re.findall(r"\b\w+\b", a.target_expr)
+                for t in tokens:
+                    parsed_assign_by_token.setdefault(t, []).append(a)
 
-            elif action_type == "DelayUntil":
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
-                try:
-                    from actions import delay_until
+            # Also collect arrange calls and map by tokens
+            for c in arrange_calls:
+                for t in c.tokens:
+                    parsed_arrange_by_token.setdefault(t, []).append(c)
 
-                    delay_until(sprite, condition=condition_callable, on_stop=on_stop)
-                except Exception:
-                    pass
+        # For every tagged position id, update markers on runtime sprites
+        # If token found in parsed_by_token -> mark yellow (changed), else if previous markers pointed
+        # to one of the changed files but no longer present -> mark red
+        # For assignment tokens
+        for token, sprites in list(parsed_assign_by_token.items()):
+            for sprite in get_sprites_for(token):
+                markers = []
+                for a in parsed_assign_by_token.get(token, []):
+                    markers.append({"file": a.file, "lineno": a.lineno, "attr": a.attr, "status": "yellow"})
+                sprite._source_markers = markers
+
+        # For arrange call tokens, add an 'arrange' type marker
+        for token, calls in list(parsed_arrange_by_token.items()):
+            for sprite in get_sprites_for(token):
+                markers = getattr(sprite, "_source_markers", []) or []
+                for c in parsed_arrange_by_token.get(token, []):
+                    markers.append(
+                        {"file": c.file, "lineno": c.lineno, "type": "arrange", "kwargs": c.kwargs, "status": "yellow"}
+                    )
+                sprite._source_markers = markers
+
+    def get_override_inspector_for_sprite(self, sprite: object):
+        """Return an ArrangeOverrideInspector for the first arrange marker on `sprite`.
+
+        Returns None if sprite has no arrange markers.
+        """
+        try:
+            from actions.dev.override_inspector import ArrangeOverrideInspector
+        except Exception:
+            return None
+
+        existing = getattr(sprite, "_source_markers", None) or []
+        for m in existing:
+            if m.get("type") == "arrange":
+                return ArrangeOverrideInspector(m.get("file"), m.get("lineno"))
+        return None
+
+    def open_overrides_panel_for_sprite(self, sprite: object) -> bool:
+        """Open the overrides panel for the given sprite (returns True if opened)."""
+        return self.overrides_panel.open(sprite)
+
+    def toggle_overrides_panel_for_sprite(self, sprite: object | None = None) -> bool:
+        """Toggle the overrides panel. If sprite provided, open for that sprite."""
+        return self.overrides_panel.toggle(sprite)
+
+        # Mark sprites previously pointing to these files but not in parsed results as 'red'
+        # Iterate all registered sprites and check existing markers
+        # We can't easily enumerate registry contents, so check all sprites we currently know about
+        # by collecting all sprites from parsed_by_token then find others via position_tag registry introspection
+        # Instead, we will iterate scene_sprites and any sprite with markers pointing to a changed file but
+        # missing from current parsed_by_token results will be marked red
+        changed_files_set = {str(p) for p in changed_files}
+        for sprite in list(self.scene_sprites):
+            existing = getattr(sprite, "_source_markers", None)
+            if not existing:
+                continue
+            # If any existing marker points to a changed file but that file has no current matches -> red
+            updated = []
+            for m in existing:
+                if str(m.get("file")) in changed_files_set and not (parsed_assign_by_token or parsed_arrange_by_token):
+                    updated.append({**m, "status": "red"})
+                else:
+                    # Keep prior marker if unchanged
+                    updated.append(m)
+            sprite._source_markers = updated
 
             # Future action types can be added here
 
@@ -1927,7 +2312,6 @@ def auto_enable_dev_visualizer_from_env() -> DevVisualizer | None:
     Checks for environment variables (in order of preference):
     - ARCADEACTIONS_DEVVIZ=1 (explicit DevVisualizer)
     - ARCADEACTIONS_DEV=1 (general dev mode - includes DevVisualizer)
-    - ARCADEACTIONS_DEV_MODE=1 (alternative name)
 
     Returns:
         DevVisualizer instance if enabled, None otherwise
@@ -1949,7 +2333,6 @@ def auto_enable_dev_visualizer_from_env() -> DevVisualizer | None:
     env_vars = [
         "ARCADEACTIONS_DEVVIZ",  # Explicit DevVisualizer
         "ARCADEACTIONS_DEV",  # General dev mode
-        "ARCADEACTIONS_DEV_MODE",  # Alternative name
     ]
 
     for env_var in env_vars:

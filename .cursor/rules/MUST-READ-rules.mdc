@@ -1,8 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
 Refer to these rules before proceeding with code generation.
 
 When working with the ArcadeActions project:
@@ -51,10 +46,6 @@ CRITICAL: Velocity system consistency:
 * MoveUntil ALWAYS uses sprite.change_x and sprite.change_y (Arcade's built-in velocity system)
 * NEVER use sprite.velocity - that's not how MoveUntil works
 * Be consistent - don't switch back and forth between approaches
-
-CRITICAL: Condition function usage:
-* ALWAYS use `infinite` instead of `lambda: False` for infinite/never-ending conditions
-* This is the standard pattern in the codebase
 
 For interface design:
 * ZERO TOLERANCE for runtime type/attribute checking (hasattr, getattr, isinstance, EAFP-with-pass)
@@ -111,7 +102,6 @@ Testing patterns to follow:
 * See docs/testing_index.md for complete testing patterns, fixtures, and mock usage guidelines
 
 CRITICAL: Python execution rule:
-* ALWAYS use `uv run python` instead of `python` for running Python scripts and tests
 * This project uses uv for dependency management and virtual environment handling
 * NEVER use `python` directly - it will fail because the virtual environment isn't activated
 * Use `uv run python` for all Python execution commands in this project

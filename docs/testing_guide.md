@@ -1165,6 +1165,101 @@ def test_yaml_roundtrip(window):
             os.unlink(temp_path)
 ```
 
+### Testing Code Sync and Position Tagging
+
+Test code sync functionality for updating source files:
+
+```python
+from actions.dev import sync
+from actions.dev.position_tag import tag_sprite, get_sprites_for
+from pathlib import Path
+import tempfile
+
+def test_position_tagging():
+    sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
+    tag_sprite(sprite, "test_sprite")
+    
+    # Verify sprite is in registry
+    sprites = get_sprites_for("test_sprite")
+    assert sprite in sprites
+    
+    # Verify sprite has _position_id attribute
+    assert hasattr(sprite, "_position_id")
+    assert sprite._position_id == "test_sprite"
+
+def test_sync_position_assignment():
+    # Create temporary source file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+        f.write("sprite.left = 100\n")
+        temp_path = Path(f.name)
+    
+    try:
+        # Update assignment
+        result = sync.update_position_assignment(
+            temp_path, "sprite", "left", "200"
+        )
+        
+        assert result.changed
+        assert result.backup is not None
+        
+        # Verify source updated
+        updated = temp_path.read_text()
+        assert "sprite.left = 200" in updated
+    finally:
+        temp_path.unlink(missing_ok=True)
+        if result.backup:
+            result.backup.unlink(missing_ok=True)
+
+def test_sync_arrange_call():
+    # Create temporary source file with arrange_grid call
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+        f.write("arrange_grid(rows=3, cols=5, start_x=100, start_y=200)\n")
+        temp_path = Path(f.name)
+    
+    try:
+        # Update start_x parameter
+        result = sync.update_arrange_call(temp_path, 1, "start_x", "150")
+        
+        assert result.changed
+        updated = temp_path.read_text()
+        assert "start_x=150" in updated
+    finally:
+        temp_path.unlink(missing_ok=True)
+        if result.backup:
+            result.backup.unlink(missing_ok=True)
+```
+
+### Testing Code Parser
+
+Test code parsing for position assignments and arrange calls:
+
+```python
+from actions.dev.code_parser import parse_source, PositionAssignment, ArrangeCall
+
+def test_code_parser():
+    source = """
+sprite.left = 100
+sprite.center_x = 200
+arrange_grid(rows=3, cols=5, start_x=100, start_y=200)
+"""
+    
+    assignments, arrange_calls = parse_source(source, "test.py")
+    
+    # Verify position assignments
+    assert len(assignments) == 2
+    assert assignments[0].attr == "left"
+    assert assignments[0].value_src == "100"
+    assert assignments[1].attr == "center_x"
+    assert assignments[1].value_src == "200"
+    
+    # Verify arrange calls
+    assert len(arrange_calls) == 1
+    assert arrange_calls[0].kwargs["rows"] == "3"
+    assert arrange_calls[0].kwargs["cols"] == "5"
+    assert arrange_calls[0].kwargs["start_x"] == "100"
+    assert arrange_calls[0].kwargs["start_y"] == "200"
+```
+
 ### Key Testing Principles for DevVisualizer
 
 1. **Edit Mode Validation**: Always verify actions are stored as metadata (`_action_configs`), not running
@@ -1172,6 +1267,8 @@ def test_yaml_roundtrip(window):
 3. **Round-Trip Testing**: Export → import → verify for serialization components
 4. **Isolation**: Each component test should be independent and fast
 5. **No Action Execution**: DevVisualizer tests should never call `Action.update_all()` - actions are metadata only
+6. **Code Sync Testing**: Use temporary files for code sync tests, clean up backups
+7. **Position Tagging**: Verify registry consistency and attribute presence
 
 ## Writing New Tests
 

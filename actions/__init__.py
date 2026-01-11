@@ -127,7 +127,6 @@ def _maybe_auto_enable_dev_visualizer() -> None:
     env_vars = [
         "ARCADEACTIONS_DEVVIZ",
         "ARCADEACTIONS_DEV",
-        "ARCADEACTIONS_DEV_MODE",
     ]
 
     if not any(os.getenv(var) == "1" for var in env_vars):

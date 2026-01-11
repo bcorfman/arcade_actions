@@ -339,6 +339,33 @@ ctx = DevContext(scene_sprites=scene_sprites)
 load_scene_template("wave1.yaml", ctx)
 ```
 
+**Code Sync (Reverse Sync):**
+- Automatic source code updates from visual edits
+- Updates position assignments (e.g., `sprite.left = X`, `sprite.center_x = Y`)
+- Updates `arrange_grid()` call parameters and per-cell overrides
+- Preserves formatting and comments using libcst
+- Creates backup files before changes
+
+```python
+from actions.dev.position_tag import positioned
+
+@positioned("forcefield")
+def make_forcefield():
+    sprite = arcade.Sprite(":resources:images/tiles/grassCenter.png")
+    sprite.left = 100
+    sprite.top = 200
+    return sprite
+
+# After visual editing, export_sprites() automatically updates source code
+dev_viz.export_sprites()  # Updates source file with new positions
+```
+
+**Arrange Grid Overrides Panel:**
+- Edit per-cell position overrides in `arrange_grid()` calls (Press **F8**)
+- Fine-tune individual sprite positions within grid formations
+- Keyboard shortcuts for navigation and editing
+- Undo support for override edits
+
 **Edit Mode vs Runtime:**
 - **Edit Mode**: Sprites are static, actions stored as metadata (`_action_configs`), no `action.apply()` calls
 - Allows safe selection, positioning, and parameter editing without movement
@@ -346,7 +373,7 @@ load_scene_template("wave1.yaml", ctx)
 - Round-trip workflow: export → modify → reimport → re-export
 
 **Integration:**
-All DevVisualizer components are standalone and composable. Use `PaletteSidebar` for spawning, `SelectionManager` for selection, `ActionPresetRegistry` for presets, `BoundaryGizmo` for bounds editing, and `templates` module for persistence.
+All DevVisualizer components are standalone and composable. Use `PaletteSidebar` for spawning, `SelectionManager` for selection, `ActionPresetRegistry` for presets, `BoundaryGizmo` for bounds editing, `OverridesPanel` for grid overrides, and `templates` module for persistence.
 
 See `.cursor/rules/project.mdc` for detailed DevVisualizer architecture and usage patterns.
 
@@ -370,6 +397,8 @@ See `.cursor/rules/project.mdc` for detailed DevVisualizer architecture and usag
 | Property animation | `tween_until` helper | `tween_until(sprite, 0, 100, "center_x", ...)` |
 | Visual scene editing | DevVisualizer | Palette spawning, multi-selection, preset library, boundary gizmos |
 | Scene persistence | DevVisualizer YAML | Export/import scenes with round-trip editing support |
+| Code sync | DevVisualizer + position tags | Automatic source code updates from visual edits |
+| Grid overrides | DevVisualizer Overrides Panel | Per-cell position editing for arrange_grid formations (F8) |
 
 ### State Machine Integration
 

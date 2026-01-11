@@ -460,3 +460,21 @@ def _restore_global_window() -> None:
     except Exception:
         # Ignore cleanup failures so individual tests can still succeed
         pass
+
+
+@pytest.fixture
+def enable_action_safety(monkeypatch):
+    """Enable action safety features (conflict detection) for tests.
+
+    This fixture enables ACTIONS_WARN_CONFLICTS environment variable
+    so that conflict detection warnings are active during tests. Tests that
+    need conflict detection should explicitly request this fixture.
+
+    Example:
+        def test_something(enable_action_safety):
+            # Conflict detection warnings are now enabled
+            ...
+    """
+    monkeypatch.setenv("ACTIONS_WARN_CONFLICTS", "1")
+    yield
+    # Cleanup handled by monkeypatch
