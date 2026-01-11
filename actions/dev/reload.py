@@ -246,6 +246,21 @@ class ReloadManager:
         if self.on_reload:
             self.on_reload(reloaded, saved_state)
 
+        # Also notify DevVisualizer (if present) so it can mark changed lines
+        try:
+            # Import lazily to avoid circular imports
+            from actions.dev.visualizer import get_dev_visualizer
+
+            dev_viz = get_dev_visualizer()
+            if dev_viz is not None:
+                try:
+                    dev_viz.on_reload(reloaded, saved_state)
+                except Exception:
+                    pass
+        except Exception:
+            # If visualizer import fails (e.g., headless), ignore
+            pass
+
         # 5. Visual feedback
         self.indicator.trigger()
 

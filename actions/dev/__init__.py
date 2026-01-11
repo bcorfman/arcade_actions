@@ -47,6 +47,7 @@ from .palette_window import PaletteWindow
 from .selection import SelectionManager
 from .boundary_overlay import BoundaryGizmo, BoundaryHandle
 from .templates import export_template, load_scene_template, SYMBOLIC
+from . import code_parser
 from .visualizer import (
     DevVisualizer,
     enable_dev_visualizer,
@@ -77,6 +78,7 @@ __all__ = [
     "export_template",
     "load_scene_template",
     "SYMBOLIC",
+    "code_parser",
     # DevVisualizer Manager
     "DevVisualizer",
     "enable_dev_visualizer",

@@ -201,7 +201,10 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **ActionPresetRegistry** - Decorator-based library of composable action presets
 - **BoundaryGizmo** - Visual editor for MoveUntil action bounds
 - **YAML Templates** - Export/import scenes with round-trip editing support
-- See [Pattern 12-16](#development-visualizer-actionsdev) for detailed usage
+- **Code Sync** - Automatic source code updates from visual edits
+- **Position Tagging** - Stable IDs for code↔visual mapping
+- **Arrange Grid Overrides** - Per-cell position editing for grid formations
+- See [Pattern 12-19](#development-visualizer-actionsdev) for detailed usage
 
 ## Animation Approaches: Ease vs TweenUntil
 
@@ -2568,6 +2571,98 @@ def on_mouse_release(self, x, y, button, modifiers):
 - Four corner handles allow independent edge adjustment
 - Bounds update in real-time via `action.set_bounds()`
 - Visual feedback with semi-transparent rectangle overlay
+
+### Pattern 17: Code Sync (Reverse Sync)
+
+DevVisualizer can automatically update your source code files when you export sprite changes. This enables a bidirectional workflow: edit visually, update source code automatically.
+
+**Position Tagging:**
+To enable code sync, tag your sprites with stable position IDs using the `@positioned()` decorator or `tag_sprite()` function:
+
+```python
+from actions.dev.position_tag import positioned, tag_sprite
+
+# Option 1: Decorator on factory function (recommended)
+@positioned("forcefield")
+def make_forcefield():
+    sprite = arcade.Sprite(":resources:images/tiles/grassCenter.png")
+    sprite.left = 100
+    sprite.top = 200
+    return sprite
+
+# Option 2: Tag at runtime
+forcefield = arcade.Sprite(":resources:images/tiles/grassCenter.png")
+forcefield.left = 100
+forcefield.top = 200
+tag_sprite(forcefield, "forcefield")
+```
+
+**Automatic Source Updates:**
+When you call `dev_viz.export_sprites()`, DevVisualizer automatically:
+- Finds source code locations for position assignments (e.g., `sprite.left = X`, `sprite.center_x = Y`)
+- Updates source files with new values using libcst (preserves formatting and comments)
+- Creates backup files (`.bak`) before making changes
+- Updates `arrange_grid()` call parameters when grid sprites are moved
+
+```python
+from actions.dev import enable_dev_visualizer
+from actions.dev.position_tag import positioned
+
+@positioned("player")
+def make_player():
+    sprite = arcade.Sprite(":resources:images/player.png")
+    sprite.center_x = 400
+    sprite.center_y = 300
+    return sprite
+
+# In your game code
+player = make_player()
+dev_viz = enable_dev_visualizer(auto_attach=True)
+dev_viz.import_sprites(player_list)
+
+# Edit sprite position visually in DevVisualizer
+# Then export - source code is automatically updated
+dev_viz.export_sprites()
+# Source file now has: player.center_x = 450  # (updated value)
+```
+
+**Code Parser:**
+The code parser finds position assignments and `arrange_grid()` calls in your source:
+
+```python
+from actions.dev.code_parser import parse_file, PositionAssignment, ArrangeCall
+
+# Parse a source file
+assignments, arrange_calls = parse_file("game.py")
+
+# Position assignments (sprite.left, sprite.top, sprite.center_x)
+for assign in assignments:
+    print(f"{assign.target_expr}.{assign.attr} = {assign.value_src} at line {assign.lineno}")
+
+# Arrange grid calls
+for call in arrange_calls:
+    print(f"arrange_grid at line {call.lineno} with kwargs: {call.kwargs}")
+```
+
+### Pattern 18: Arrange Grid Overrides Panel
+
+DevVisualizer provides a panel for editing per-cell position overrides in `arrange_grid()` calls. This allows fine-tuning individual sprite positions within a grid formation.
+
+**Opening the Overrides Panel:**
+1. Select a sprite that was created from an `arrange_grid()` call
+2. Press **F8** to open the overrides panel
+3. The panel shows all existing overrides for that grid call
+
+**Overrides Panel Keyboard Shortcuts:**
+- **Ctrl+Z**: Undo last change
+- **Enter**: Commit current edit or start editing selected override
+- **Escape**: Cancel current edit
+- **X**: Start editing X coordinate
+- **Y**: Start editing Y coordinate
+- **Tab**: Switch between X and Y fields while editing
+- **Up/Down arrows**: Navigate through overrides list
+- **Left/Right/Up/Down**: Adjust selected override coordinates by ±1 (when not editing)
+- **Delete**: Remove selected override
 
 ### Edit Mode vs Runtime Mode
 

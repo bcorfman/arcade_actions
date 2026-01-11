@@ -483,9 +483,6 @@ ARCADEACTIONS_DEVVIZ=1 uv run python game.py
 
 # Or use general dev mode (also enables DevVisualizer)
 ARCADEACTIONS_DEV=1 uv run python game.py
-
-# Alternative environment variable name
-ARCADEACTIONS_DEV_MODE=1 uv run python game.py
 ```
 
 Once enabled, press **F12** to toggle DevVisualizer on/off (edit mode vs runtime mode).
@@ -936,6 +933,32 @@ dev_viz.export_sprites()  # Syncs positions/properties back to original sprites
 # 5. Press F12 to exit edit mode (resumes game)
 ```
 
+**Code Sync (Reverse Sync):**
+DevVisualizer can automatically update your source code files when you export sprite changes. This requires sprites to be tagged with position IDs:
+
+```python
+from actions.dev.position_tag import positioned
+
+@positioned("forcefield")
+def make_forcefield():
+    sprite = arcade.Sprite(":resources:images/tiles/grassCenter.png")
+    sprite.left = 100
+    sprite.top = 200
+    return sprite
+
+# When you export_sprites(), DevVisualizer will:
+# - Find the source code location for sprite.left/center_x assignments
+# - Update the source file with new values
+# - Preserve formatting and comments using libcst
+```
+
+The code sync system:
+- Updates position assignments (e.g., `sprite.left = X`, `sprite.center_x = Y`)
+- Updates `arrange_grid()` call parameters (`start_x`, `start_y`)
+- Creates per-cell overrides in `arrange_grid()` calls when individual sprites are moved
+- Creates backup files (`.bak`) before making changes
+- Preserves code formatting and comments
+
 **Import Options:**
 ```python
 # Clear scene before importing (default)
@@ -981,9 +1004,8 @@ DevVisualizer supports multiple environment variable names for flexibility:
 
 1. **`ARCADEACTIONS_DEVVIZ=1`** (Recommended) - Explicit DevVisualizer enable
 2. **`ARCADEACTIONS_DEV=1`** - General dev mode (also enables hot-reload)
-3. **`ARCADEACTIONS_DEV_MODE=1`** - Alternative name
 
-**Priority:** If multiple are set, `ARCADEACTIONS_DEVVIZ` takes precedence, then `ARCADEACTIONS_DEV`, then `ARCADEACTIONS_DEV_MODE`.
+**Priority:** If multiple are set, `ARCADEACTIONS_DEVVIZ` takes precedence, then `ARCADEACTIONS_DEV`.
 
 When enabled via environment variable, DevVisualizer automatically:
 - Creates a scene SpriteList
@@ -995,12 +1017,25 @@ When enabled via environment variable, DevVisualizer automatically:
 
 - **F12**: Toggle DevVisualizer main overlay (selection, gizmos, indicator)
 - **F11**: Toggle palette window (separate window with sprite prototypes)
+- **F8**: Toggle overrides panel for selected sprite (arrange_grid per-cell overrides)
 - **E**: Export scene to YAML (saves to scene.yaml or examples/boss_level.yaml)
 - **I**: Import scene from YAML (loads from scene.yaml, examples/boss_level.yaml, or scenes/new_scene.yaml)
 - **ESC**: Close application (in generated level files)
 - **Mouse**: Click prototypes in palette to spawn, click sprites to select, drag gizmo handles
 - **Shift+Click**: Add/remove from selection
 - **Click+Drag**: Marquee box selection
+
+**Overrides Panel Keyboard Shortcuts** (when panel is open):
+- **Ctrl+Z**: Undo last change
+- **Enter**: Commit current edit or start editing selected override
+- **Escape**: Cancel current edit
+- **X**: Start editing X coordinate
+- **Y**: Start editing Y coordinate
+- **Tab**: Switch between X and Y fields while editing
+- **Backspace**: Delete character while editing
+- **Up/Down arrows**: Navigate through overrides list
+- **Left/Right/Up/Down**: Adjust selected override coordinates by ±1 (when not editing)
+- **Delete**: Remove selected override
 
 ### Parameters
 
@@ -1037,6 +1072,18 @@ When enabled via environment variable, DevVisualizer automatically:
 **BoundaryGizmo**:
 - **sprite** (`arcade.Sprite`): Sprite to check for bounded actions
 
+**position_tag module**:
+- **tag_sprite(sprite, position_id)**: Tag a sprite with a stable position ID
+- **positioned(position_id)**: Decorator for factory functions to auto-tag sprites
+- **get_sprites_for(position_id)**: Get all sprites with a given position ID
+- **remove_sprite_from_registry(sprite)**: Remove sprite from position registry
+
+**code_parser module**:
+- **parse_file(path)**: Parse file and return position assignments and arrange calls
+- **parse_source(source, filename)**: Parse source string and return assignments and calls
+- **PositionAssignment**: Dataclass with file, lineno, target_expr, attr, value_src
+- **ArrangeCall**: Dataclass with file, lineno, call_src, kwargs, tokens
+
 **export_template**:
 - **sprites** (`arcade.SpriteList`): SpriteList containing sprites to export
 - **path** (`str | Path`): File path to write YAML to
@@ -1046,6 +1093,50 @@ When enabled via environment variable, DevVisualizer automatically:
 - **path** (`str | Path`): File path to read YAML from
 - **ctx** (`DevContext`): DevContext with scene_sprites and registry access
 - Returns: `arcade.SpriteList` with loaded sprites
+
+### Arrange Grid Overrides Panel
+
+DevVisualizer provides a panel for editing per-cell position overrides in `arrange_grid()` calls. This allows you to fine-tune individual sprite positions within a grid formation.
+
+**Opening the Overrides Panel:**
+1. Select a sprite that was created from an `arrange_grid()` call
+2. Press **F8** to open the overrides panel
+3. The panel shows all existing overrides for that grid call
+
+**Using Position Tags:**
+To enable code sync and override editing, tag your sprites with stable position IDs:
+
+```python
+from actions.dev.position_tag import positioned, tag_sprite
+
+# Option 1: Decorator on factory function
+@positioned("enemy_formation")
+def make_enemy():
+    sprite = arcade.Sprite(":resources:images/enemies/slimeBlue.png")
+    return sprite
+
+# Option 2: Tag at runtime
+enemy = arcade.Sprite(":resources:images/enemies/slimeBlue.png")
+tag_sprite(enemy, "enemy_formation")
+```
+
+**Code Parser:**
+The code parser finds position assignments and `arrange_grid()` calls in your source:
+
+```python
+from actions.dev.code_parser import parse_file, PositionAssignment, ArrangeCall
+
+# Parse a source file
+assignments, arrange_calls = parse_file("game.py")
+
+# Position assignments (sprite.left, sprite.top, sprite.center_x)
+for assign in assignments:
+    print(f"{assign.target_expr}.{assign.attr} = {assign.value_src} at line {assign.lineno}")
+
+# Arrange grid calls
+for call in arrange_calls:
+    print(f"arrange_grid at line {call.lineno} with {call.kwargs}")
+```
 
 ### Best Practices
 
@@ -1059,6 +1150,8 @@ When enabled via environment variable, DevVisualizer automatically:
 8. **Export frequently**: Press E to save work often with YAML export
 9. **Use symbolic bounds**: Makes YAML files more readable and maintainable
 10. **Test round-trip**: Verify export → import → export maintains all data
+11. **Tag sprites for code sync**: Use `@positioned()` decorator or `tag_sprite()` to enable automatic source code updates
+12. **Use overrides panel for fine-tuning**: Press F8 on selected sprites from arrange_grid calls to edit per-cell positions
 
 ### Example
 

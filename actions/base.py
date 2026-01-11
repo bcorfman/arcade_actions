@@ -65,6 +65,10 @@ class Action(ABC, Generic[_T]):
           enforce the desired order of operations, e.g., `a + (b | c)`.
     """
 
+    # Class-level conflict declaration - subclasses should override
+    # Declares which sprite properties this action mutates (e.g., "position", "velocity", "texture", "alpha", "angle")
+    _conflicts_with: tuple[str, ...] = ()
+
     num_active_actions = 0
     debug_level: int = 0
     debug_include_classes: set[str] | None = None
@@ -128,17 +132,31 @@ class Action(ABC, Generic[_T]):
         # this will be parallel(other, self)
         return other.__or__(self)
 
-    def apply(self, target: arcade.Sprite | arcade.SpriteList, tag: str | None = None) -> Action:
+    def apply(self, target: arcade.Sprite | arcade.SpriteList, tag: str | None = None, replace: bool = False) -> Action:
         """
         Apply this action to a sprite or sprite list.
 
         This will add the action to the global action manager, which will then
         update it every frame.
+
+        Args:
+            target: The sprite or sprite list to apply the action to.
+            tag: Optional tag for the action. If provided and replace=True,
+                 existing actions with the same tag on the same target will be stopped.
+            replace: If True and tag is provided, stop existing actions with the same
+                     tag on the same target before applying this action.
         """
         self.target = target
         if tag is not None:
             self.tag = tag
         self._instrumented = True
+
+        # Tag-based replacement: stop existing actions with same tag before applying
+        if replace and tag is not None:
+            Action.stop_actions_for_target(target, tag=tag)
+
+        # Conflict detection: check for overlapping actions that mutate same properties
+        _check_action_conflicts(self, target)
 
         # Instrumentation: record creation
         if self._instrumentation_active():
@@ -789,6 +807,90 @@ class Action(ABC, Generic[_T]):
             store.update_frame(frame_number, timestamp)
         except AttributeError:
             return
+
+
+def _check_action_conflicts(new_action: Action, target: arcade.Sprite | arcade.SpriteList) -> None:
+    """Check for conflicts between the new action and existing actions on the target.
+
+    If ACTIONS_WARN_CONFLICTS environment variable is set, warns when actions
+    that mutate the same sprite properties are detected on the same target.
+
+    Args:
+        new_action: The action being applied
+        target: The target sprite or sprite list
+    """
+    import os
+    import warnings
+
+    # Only check conflicts if env var is set
+    if not os.getenv("ACTIONS_WARN_CONFLICTS"):
+        return
+
+    # Get conflicts declared by the new action
+    new_conflicts = getattr(new_action.__class__, "_conflicts_with", ())
+    if not new_conflicts:
+        return  # No conflicts declared, nothing to check
+
+    # Convert to set for efficient intersection
+    new_conflict_set = set(new_conflicts)
+
+    # Check existing actions on the same target
+    existing_actions = Action.get_actions_for_target(target)
+    conflicting_actions = []
+
+    for existing_action in existing_actions:
+        if existing_action is new_action:
+            continue  # Skip self
+
+        existing_conflicts = getattr(existing_action.__class__, "_conflicts_with", ())
+        existing_conflict_set = set(existing_conflicts)
+
+        # Check if there's any overlap in conflict sets
+        if new_conflict_set & existing_conflict_set:
+            conflicting_actions.append(existing_action)
+
+    # Also check per-sprite actions if target is a SpriteList
+    if hasattr(target, "__iter__") and not isinstance(target, (str, bytes)):
+        try:
+            for sprite in target:
+                sprite_actions = Action.get_actions_for_target(sprite)
+                for sprite_action in sprite_actions:
+                    sprite_conflicts = getattr(sprite_action.__class__, "_conflicts_with", ())
+                    sprite_conflict_set = set(sprite_conflicts)
+                    if new_conflict_set & sprite_conflict_set:
+                        conflicting_actions.append(sprite_action)
+        except TypeError:
+            # Not iterable, skip
+            pass
+    # Also check SpriteList actions if target is a sprite (reverse direction)
+    # Check if the sprite belongs to any SpriteList that has conflicting actions
+    elif hasattr(target, "sprite_lists"):
+        try:
+            # sprite.sprite_lists is a list of SpriteList objects
+            for sprite_list in target.sprite_lists:
+                list_actions = Action.get_actions_for_target(sprite_list)
+                for list_action in list_actions:
+                    list_conflicts = getattr(list_action.__class__, "_conflicts_with", ())
+                    list_conflict_set = set(list_conflicts)
+                    if new_conflict_set & list_conflict_set:
+                        conflicting_actions.append(list_action)
+        except (AttributeError, TypeError):
+            # No sprite_lists attribute or not iterable, skip
+            pass
+
+    # Warn about conflicts
+    if conflicting_actions:
+        conflict_names = ", ".join(set(new_conflicts))
+        existing_class_names = ", ".join(set(type(a).__name__ for a in conflicting_actions))
+        new_class_name = type(new_action).__name__
+
+        warnings.warn(
+            f"Detected overlapping action conflicts ({conflict_names}): "
+            f"{new_class_name}(tag={new_action.tag!r}) conflicts with {existing_class_names} "
+            f"on the same target. Consider using replace=True or stopping existing actions first.",
+            RuntimeWarning,
+            stacklevel=3,
+        )
 
 
 class CompositeAction(Action):

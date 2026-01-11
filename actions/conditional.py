@@ -59,6 +59,8 @@ class MoveUntil(_Action):
         on_boundary_exit: Optional callback(sprite, axis, side) called when sprite exits a boundary
     """
 
+    _conflicts_with = ("position", "velocity")
+
     def __init__(
         self,
         velocity: tuple[float, float],
@@ -1344,6 +1346,8 @@ class RotateUntil(_Action):
         on_stop: Optional callback called when condition is satisfied
     """
 
+    _conflicts_with = ("angle",)
+
     def __init__(
         self,
         angular_velocity: float,
@@ -1462,6 +1466,8 @@ class FadeUntil(_Action):
         condition: Function that returns truthy value when fading should stop
         on_stop: Optional callback called when condition is satisfied
     """
+
+    _conflicts_with = ("alpha",)
 
     def __init__(
         self,
@@ -2346,6 +2352,8 @@ class CycleTexturesUntil(_Action):
         condition: Function that returns truthy value when cycling should stop
         on_stop: Optional callback called when condition is satisfied
     """
+
+    _conflicts_with = ("texture",)
 
     def __init__(
         self,
