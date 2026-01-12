@@ -64,6 +64,7 @@ dev = [
     "build>=1.2.2.post1",
     "ruff>=0.12.0",
     "uv>=0.7.16",
+    "radon>=6.0.0",
 ]
 
 [tool.pytest.ini_options]
