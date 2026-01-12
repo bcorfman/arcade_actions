@@ -10,7 +10,7 @@ import os
 import time
 from collections.abc import Callable
 import types
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from weakref import WeakKeyDictionary
 
 import arcade
@@ -26,11 +26,47 @@ from actions.dev.palette import PaletteSidebar
 from actions.dev.palette_window import PaletteWindow
 from actions.dev.prototype_registry import DevContext, get_registry
 from actions.dev.selection import SelectionManager
+from actions.dev.visualizer_helpers import resolve_condition, resolve_callback
+from actions.dev.window_position_tracker import WindowPositionTracker
 
 from actions import Action
 from actions.display import move_to_primary_monitor
 
 _MISSING_GIZMO_REFRESH_SECONDS = 0.25
+
+
+# Protocol definitions for type safety
+@runtime_checkable
+class SpriteWithActionConfigs(Protocol):
+    """Protocol for sprites with action configuration metadata."""
+    _action_configs: list[dict[str, Any]]
+
+
+@runtime_checkable
+class SpriteWithSourceMarkers(Protocol):
+    """Protocol for sprites with source code markers."""
+    _source_markers: list[dict[str, Any]]
+
+
+@runtime_checkable
+class SpriteWithOriginal(Protocol):
+    """Protocol for sprites that reference an original sprite for sync."""
+    _original_sprite: arcade.Sprite
+
+
+@runtime_checkable
+class SpriteWithPositionId(Protocol):
+    """Protocol for sprites with position ID for source code sync."""
+    _position_id: str | None
+
+
+@runtime_checkable
+class WindowWithContext(Protocol):
+    """Protocol for windows with OpenGL context."""
+    _context: Any | None
+    height: int
+    
+    def get_location(self) -> tuple[int, int] | None: ...
 
 
 def _get_primary_monitor_rect() -> tuple[int, int, int, int] | None:
@@ -231,7 +267,7 @@ class DevVisualizer:
         self._dragging_sprites: list[tuple[arcade.Sprite, float, float]] | None = None  # (sprite, offset_x, offset_y)
         self._gizmos: WeakKeyDictionary[arcade.Sprite, BoundaryGizmo | None] = WeakKeyDictionary()
         self._gizmo_miss_refresh_at: WeakKeyDictionary[arcade.Sprite, float] = WeakKeyDictionary()
-        self._tracked_window_positions: dict[int, tuple[int, int]] = {}  # window_id -> (x, y)
+        self._position_tracker = WindowPositionTracker()
 
         # Create indicator text (shown when DevVisualizer is active)
         self._indicator_text = arcade.Text(
@@ -256,14 +292,6 @@ class DevVisualizer:
         self._original_show_view: Callable[..., None] | None = None
         self._original_set_location: Callable[..., None] | None = None
 
-    def _track_window_position(self, window: arcade.Window, x: int, y: int) -> None:
-        """Track the position we set for a window."""
-        self._tracked_window_positions[id(window)] = (x, y)
-
-    def _get_tracked_window_position(self, window: arcade.Window) -> tuple[int, int] | None:
-        """Get the tracked position for a window."""
-        return self._tracked_window_positions.get(id(window))
-
     def track_window_position(self, window: arcade.Window) -> bool:
         """Track the current position of a window.
 
@@ -276,25 +304,11 @@ class DevVisualizer:
         Returns:
             True if a valid position was recorded, False otherwise.
         """
-        try:
-            # Prefer the OS-reported position when available so we account for window manager adjustments
-            location = None
-            if hasattr(window, "get_location"):
-                try:
-                    loc = window.get_location()
-                    if loc and loc != (0, 0):
-                        location = loc
-                except Exception:
-                    location = None
-            if location is None:
-                location = getattr(window, "_arcadeactions_last_set_location", None)
-            # Ignore (0, 0) which is a common Wayland placeholder
-            if location and location != (0, 0):
-                self._track_window_position(window, location[0], location[1])
-                return True
-        except Exception as e:
-            print(f"[DevVisualizer] Failed to track window position: {e}")
-        return False
+        return self._position_tracker.track_window_position(window)
+
+    def _get_tracked_window_position(self, window: arcade.Window) -> tuple[int, int] | None:
+        """Get the tracked position for a window."""
+        return self._position_tracker.get_tracked_position(window)
 
     def update_main_window_position(self) -> bool:
         """Update the tracked position of the main window.
@@ -412,7 +426,7 @@ class DevVisualizer:
             restore_window = None
             try:
                 # Check if window has an active OpenGL context
-                if not hasattr(window, "_context") or window._context is None:
+                if not isinstance(window, WindowWithContext) or window._context is None:
                     return
 
                 if window_commands_module is not None:
@@ -431,7 +445,7 @@ class DevVisualizer:
                             return
 
                 # Verify context is still valid after switch
-                if not hasattr(window, "_context") or window._context is None:
+                if not isinstance(window, WindowWithContext) or window._context is None:
                     return
 
                 # Call original on_draw first (game's draw code, including clear())
@@ -449,7 +463,7 @@ class DevVisualizer:
                     # This prevents GL errors when palette window has focus
                     try:
                         # Ensure context is still valid before drawing
-                        if hasattr(window, "_context") and window._context is not None:
+                        if isinstance(window, WindowWithContext) and window._context is not None:
                             # Verify we're still on the correct window
                             if window_commands_module is not None:
                                 try:
@@ -593,7 +607,7 @@ class DevVisualizer:
             def wrapped_set_location(this: arcade.Window, x: int, y: int, *args: Any, **kwargs: Any) -> None:
                 original_set_location(x, y, *args, **kwargs)
                 try:
-                    self._track_window_position(window, int(x), int(y))
+                    self._position_tracker.track_known_position(window, int(x), int(y))
                 except Exception as hook_error:
                     print(f"[DevVisualizer] set_location hook failed: {hook_error}")
 
@@ -1100,7 +1114,7 @@ class DevVisualizer:
             self.palette_window.set_location(palette_x, palette_y)
             # Palette positioned while hidden; compositor will honor these coords once mapped.
             # Track the final palette position
-            self._track_window_position(self.palette_window, palette_x, palette_y)
+            self._position_tracker.track_known_position(self.palette_window, palette_x, palette_y)
             return True
         except Exception as e:
             print(f"[DevVisualizer] Failed to position palette window: {e}")
@@ -1149,10 +1163,11 @@ class DevVisualizer:
             if not selected:
                 # If nothing selected, try to find any sprite with an arrange marker
                 for sp in self.scene_sprites:
-                    markers = getattr(sp, "_source_markers", None) or []
-                    if any(m.get("type") == "arrange" for m in markers):
-                        sprite_to_open = sp
-                        break
+                    if isinstance(sp, SpriteWithSourceMarkers):
+                        markers = sp._source_markers
+                        if any(m.get("type") == "arrange" for m in markers):
+                            sprite_to_open = sp
+                            break
                 if sprite_to_open is None:
                     return False
             else:
@@ -1323,11 +1338,12 @@ class DevVisualizer:
 
             # If the sprite has source markers and no modifiers, open editor at marker
             try:
-                markers = getattr(clicked_sprite, "_source_markers", None)
-                if markers and modifiers == 0:
-                    # Open the first marker location in editor
-                    self.open_sprite_source(clicked_sprite, markers[0])
-                    return True
+                if isinstance(clicked_sprite, SpriteWithSourceMarkers):
+                    markers = clicked_sprite._source_markers
+                    if markers and modifiers == 0:
+                        # Open the first marker location in editor
+                        self.open_sprite_source(clicked_sprite, markers[0])
+                        return True
             except Exception:
                 pass
 
@@ -1463,7 +1479,7 @@ class DevVisualizer:
             return
 
         # Check if OpenGL context is valid
-        if not hasattr(self.window, "_context") or self.window._context is None:
+        if not isinstance(self.window, WindowWithContext) or self.window._context is None:
             return
 
         try:
@@ -1510,7 +1526,9 @@ class DevVisualizer:
             # Draw source markers for any sprites that have been tagged from code
             try:
                 for sprite in self.scene_sprites:
-                    markers = getattr(sprite, "_source_markers", None)
+                    if not isinstance(sprite, SpriteWithSourceMarkers):
+                        continue
+                    markers = sprite._source_markers
                     if not markers:
                         continue
                     # Draw marker for each source mapping attached to sprite
@@ -1534,7 +1552,9 @@ class DevVisualizer:
 
                         # Draw small rounded rect background
                         arcade.draw_rectangle_filled(sx, sy, 36, 18, bg)
-                        arcade.draw_text(text, sx - 16, sy - 6, fg, 12)
+                        # Use Text object instead of draw_text for better performance
+                        text_obj = arcade.Text(text, sx - 16, sy - 6, fg, 12)
+                        text_obj.draw()
             except Exception:
                 # Don't fail drawing if markers cause an error
                 pass
@@ -1599,8 +1619,9 @@ class DevVisualizer:
         back to their original sprites (if they have _original_sprite reference).
         """
         for sprite in self.scene_sprites:
+            # Use hasattr for runtime check (protocols are for type hints)
             if hasattr(sprite, "_original_sprite"):
-                original = sprite._original_sprite
+                original = sprite._original_sprite  # type: ignore[attr-defined]
 
                 # Sync properties back to original
                 original.center_x = sprite.center_x
@@ -1613,37 +1634,38 @@ class DevVisualizer:
 
                 # If sprite has source markers and a position id, attempt to update source files
                 try:
+                    # Use hasattr for runtime checks (protocols are for type hints)
                     pid = getattr(sprite, "_position_id", None)
                     markers = getattr(sprite, "_source_markers", None)
                     if pid and markers:
-                        from actions.dev import sync
+                            from actions.dev import sync
 
-                        for m in markers:
-                            file = m.get("file")
-                            # handle direct attribute assignment markers
-                            attr = m.get("attr")
-                            if file and attr:
-                                # Determine new value based on attribute
-                                if attr == "left":
-                                    val = getattr(sprite, "left", None)
-                                    if val is None:
-                                        val = sprite.center_x
-                                    new_value_src = str(int(round(val)))
-                                elif attr == "top":
-                                    val = getattr(sprite, "top", None)
-                                    if val is None:
-                                        val = sprite.center_y
-                                    new_value_src = str(int(round(val)))
-                                elif attr == "center_x":
-                                    new_value_src = str(int(round(sprite.center_x)))
-                                else:
-                                    continue
+                            for m in markers:
+                                file = m.get("file")
+                                # handle direct attribute assignment markers
+                                attr = m.get("attr")
+                                if file and attr:
+                                    # Determine new value based on attribute
+                                    if attr == "left":
+                                        val = getattr(sprite, "left", None)
+                                        if val is None:
+                                            val = sprite.center_x
+                                        new_value_src = str(int(round(val)))
+                                    elif attr == "top":
+                                        val = getattr(sprite, "top", None)
+                                        if val is None:
+                                            val = sprite.center_y
+                                        new_value_src = str(int(round(val)))
+                                    elif attr == "center_x":
+                                        new_value_src = str(int(round(sprite.center_x)))
+                                    else:
+                                        continue
 
-                                try:
-                                    sync.update_position_assignment(file, pid, attr, new_value_src)
-                                except Exception:
-                                    # Don't let sync failures break export process
-                                    pass
+                                    try:
+                                        sync.update_position_assignment(file, pid, attr, new_value_src)
+                                    except Exception:
+                                        # Don't let sync failures break export process
+                                        pass
 
                             # handle arrange call markers (update start_x/start_y to match moved sprite)
                             if m.get("type") == "arrange":
@@ -1721,22 +1743,23 @@ class DevVisualizer:
 
         selected = self.selection_manager.get_selected()
         for sprite in selected:
-            if not hasattr(sprite, "_action_configs"):
-                sprite._action_configs = []
+            # Initialize _action_configs if missing (protocol requires attribute to exist)
+            if not isinstance(sprite, SpriteWithActionConfigs):
+                sprite._action_configs = []  # type: ignore[attr-defined]
             entry = {"preset": preset_id, "params": params.copy()}
             if tag is not None:
                 entry["tag"] = tag
-            sprite._action_configs.append(entry)
+            sprite._action_configs.append(entry)  # type: ignore[attr-defined]
 
-    def update_action_config(self, sprite: arcade.Sprite, config_index: int, **updates) -> None:
+    def update_action_config(self, sprite: arcade.Sprite | SpriteWithActionConfigs, config_index: int, **updates) -> None:
         """Update a single action config dict on a sprite (edit mode).
 
         Args:
-            sprite: Target sprite
+            sprite: Target sprite (must have _action_configs attribute)
             config_index: Index of config in sprite._action_configs
             **updates: Key/values to set on the config dict
         """
-        if not hasattr(sprite, "_action_configs"):
+        if not isinstance(sprite, SpriteWithActionConfigs):
             raise ValueError("Sprite has no _action_configs")
         configs = sprite._action_configs
         if config_index < 0 or config_index >= len(configs):
@@ -1753,66 +1776,6 @@ class DevVisualizer:
             except Exception:
                 # Ignore failures per-sprite (e.g., missing index)
                 pass
-
-    def _resolve_condition(self, cond):
-        """Resolve a condition specification to a callable.
-
-        Supports:
-          - callables (returned unchanged)
-          - string identifiers: "infinite", "after_frames:N", "after_seconds:N", "within_frames:S:E"
-        """
-        from actions.frame_timing import after_frames, seconds_to_frames, within_frames, infinite
-
-        if cond is None:
-            return infinite()
-        if callable(cond):
-            return cond
-        if isinstance(cond, str):
-            cond = cond.strip()
-            if cond == "infinite":
-                return infinite()
-            if cond.startswith("after_frames:"):
-                try:
-                    n = int(cond.split(":", 1)[1])
-                    return after_frames(n)
-                except Exception:
-                    return infinite
-            if cond.startswith("after_seconds:") or cond.startswith("seconds:"):
-                try:
-                    parts = cond.split(":", 1)
-                    secs = float(parts[1])
-                    frames = seconds_to_frames(secs)
-                    return after_frames(frames)
-                except Exception:
-                    return infinite
-            if cond.startswith("within_frames:"):
-                try:
-                    _, rest = cond.split(":", 1)
-                    start_s, end_s = rest.split(":")
-                    start = int(start_s)
-                    end = int(end_s)
-                    return within_frames(start, end)
-                except Exception:
-                    return infinite
-        # Fallback: return infinite
-        return infinite
-
-    def _resolve_callback(self, value, resolver=None):
-        """Resolve callback value to a callable using optional resolver.
-
-        Accepts a callable, or a string which will be passed to resolver.
-        If resolver is None and value is a string, returns None (skip).
-        """
-        if value is None:
-            return None
-        if callable(value):
-            return value
-        if isinstance(value, str) and resolver is not None:
-            try:
-                return resolver(value)
-            except Exception:
-                return None
-        return None
 
     def open_sprite_source(self, sprite: arcade.Sprite, marker: dict) -> None:
         """Open the editor at the sprite's source marker (VSCode URI scheme).
@@ -1842,10 +1805,10 @@ class DevVisualizer:
         them as actual Action instances. This converts from edit mode to runtime mode.
 
         Args:
-            sprite: Sprite with _action_configs metadata to apply
+            sprite: Sprite with _action_configs metadata to apply (early return if missing)
             resolver: Optional callable taking a string and returning a callable (for callbacks)
         """
-        if not hasattr(sprite, "_action_configs"):
+        if not isinstance(sprite, SpriteWithActionConfigs):
             return
 
         from actions import (
@@ -1874,14 +1837,14 @@ class DevVisualizer:
                     preset_action = get_preset_registry().create(preset_id, self.ctx, **params)
                     # Apply overrides from config (condition, callbacks, fields)
                     # Resolve condition and callbacks
-                    cond = self._resolve_condition(config.get("condition", None))
+                    cond = resolve_condition(config.get("condition", None))
                     if cond is not None:
                         try:
                             preset_action.condition = cond
                         except Exception:
                             pass
 
-                    on_stop_cb = self._resolve_callback(config.get("on_stop", None), resolver)
+                    on_stop_cb = resolve_callback(config.get("on_stop", None), resolver)
                     if on_stop_cb is not None:
                         try:
                             preset_action.on_stop = on_stop_cb
@@ -1927,14 +1890,14 @@ class DevVisualizer:
                         except Exception:
                             pass
 
-                    on_boundary_enter = self._resolve_callback(config.get("on_boundary_enter", None), resolver)
+                    on_boundary_enter = resolve_callback(config.get("on_boundary_enter", None), resolver)
                     if on_boundary_enter is not None and hasattr(preset_action, "on_boundary_enter"):
                         try:
                             preset_action.on_boundary_enter = on_boundary_enter
                         except Exception:
                             pass
 
-                    on_boundary_exit = self._resolve_callback(config.get("on_boundary_exit", None), resolver)
+                    on_boundary_exit = resolve_callback(config.get("on_boundary_exit", None), resolver)
                     if on_boundary_exit is not None and hasattr(preset_action, "on_boundary_exit"):
                         try:
                             preset_action.on_boundary_exit = on_boundary_exit
@@ -1952,7 +1915,7 @@ class DevVisualizer:
 
             # Resolve condition
             condition_spec = config.get("condition", "infinite")
-            condition_callable = self._resolve_condition(condition_spec)
+            condition_callable = resolve_condition(condition_spec)
 
             if action_type == "MoveUntil":
                 velocity = config.get("velocity", (0, 0))
@@ -1960,9 +1923,9 @@ class DevVisualizer:
                 boundary_behavior = config.get("boundary_behavior", None)
                 tag = config.get("tag", None)
                 velocity_provider = config.get("velocity_provider", None)
-                on_boundary_enter = self._resolve_callback(config.get("on_boundary_enter", None), resolver)
-                on_boundary_exit = self._resolve_callback(config.get("on_boundary_exit", None), resolver)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_boundary_enter = resolve_callback(config.get("on_boundary_enter", None), resolver)
+                on_boundary_exit = resolve_callback(config.get("on_boundary_exit", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
 
                 move_until(
                     sprite,
@@ -1984,7 +1947,7 @@ class DevVisualizer:
                 rotation_offset = config.get("rotation_offset", 0.0)
                 use_physics = config.get("use_physics", False)
                 steering_gain = config.get("steering_gain", 5.0)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
 
                 if control_points and velocity is not None:
                     follow_path_until(
@@ -2004,7 +1967,7 @@ class DevVisualizer:
                 frames_per_texture = config.get("frames_per_texture", 1)
                 direction = config.get("direction", 1)
                 tag = config.get("tag", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
                 if textures:
                     cycle_textures_until(
                         sprite,
@@ -2019,7 +1982,7 @@ class DevVisualizer:
             elif action_type == "FadeUntil":
                 fade_velocity = config.get("fade_velocity")
                 tag = config.get("tag", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
                 if fade_velocity is not None:
                     fade_until(
                         sprite,
@@ -2032,9 +1995,9 @@ class DevVisualizer:
             elif action_type == "BlinkUntil":
                 frames_until_change = config.get("frames_until_change")
                 tag = config.get("tag", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
-                on_blink_enter = self._resolve_callback(config.get("on_blink_enter", None), resolver)
-                on_blink_exit = self._resolve_callback(config.get("on_blink_exit", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
+                on_blink_enter = resolve_callback(config.get("on_blink_enter", None), resolver)
+                on_blink_exit = resolve_callback(config.get("on_blink_exit", None), resolver)
                 if frames_until_change is not None:
                     blink_until(
                         sprite,
@@ -2049,7 +2012,7 @@ class DevVisualizer:
             elif action_type == "RotateUntil":
                 angular_velocity = config.get("angular_velocity")
                 tag = config.get("tag", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
                 if angular_velocity is not None:
                     rotate_until(
                         sprite,
@@ -2064,7 +2027,7 @@ class DevVisualizer:
                 end_value = config.get("end_value")
                 property_name = config.get("property_name")
                 tag = config.get("tag", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
                 if start_value is not None and end_value is not None and property_name:
                     tween_until(
                         sprite,
@@ -2079,7 +2042,7 @@ class DevVisualizer:
             elif action_type == "ScaleUntil":
                 velocity = config.get("velocity")
                 tag = config.get("tag", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
                 if velocity is not None:
                     scale_until(
                         sprite,
@@ -2093,7 +2056,7 @@ class DevVisualizer:
                 callback = config.get("callback")
                 seconds_between_calls = config.get("seconds_between_calls", None)
                 tag = config.get("tag", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
                 if callback is not None:
                     callback_until(
                         sprite,
@@ -2106,7 +2069,7 @@ class DevVisualizer:
 
             elif action_type == "DelayUntil":
                 tag = config.get("tag", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
                 delay_until(
                     sprite,
                     condition=condition_callable,
@@ -2121,7 +2084,7 @@ class DevVisualizer:
                 start_paused = config.get("start_paused", False)
                 destroy_on_stop = config.get("destroy_on_stop", True)
                 tag = config.get("tag", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
                 if emitter_factory is not None:
                     emit_particles_until(
                         sprite,
@@ -2141,7 +2104,7 @@ class DevVisualizer:
                 get_camera_bottom_left = config.get("get_camera_bottom_left", None)
                 auto_resize = config.get("auto_resize", True)
                 tag = config.get("tag", None)
-                on_stop = self._resolve_callback(config.get("on_stop", None), resolver)
+                on_stop = resolve_callback(config.get("on_stop", None), resolver)
                 if shadertoy_factory is not None:
                     glow_until(
                         sprite,
@@ -2203,12 +2166,15 @@ class DevVisualizer:
         # For arrange call tokens, add an 'arrange' type marker
         for token, calls in list(parsed_arrange_by_token.items()):
             for sprite in get_sprites_for(token):
-                markers = getattr(sprite, "_source_markers", []) or []
+                # Initialize _source_markers if missing, then append
+                if not isinstance(sprite, SpriteWithSourceMarkers):
+                    sprite._source_markers = []  # type: ignore[attr-defined]
+                markers = sprite._source_markers  # type: ignore[attr-defined]
                 for c in parsed_arrange_by_token.get(token, []):
                     markers.append(
                         {"file": c.file, "lineno": c.lineno, "type": "arrange", "kwargs": c.kwargs, "status": "yellow"}
                     )
-                sprite._source_markers = markers
+                sprite._source_markers = markers  # type: ignore[attr-defined]
 
     def get_override_inspector_for_sprite(self, sprite: object):
         """Return an ArrangeOverrideInspector for the first arrange marker on `sprite`.
@@ -2220,7 +2186,9 @@ class DevVisualizer:
         except Exception:
             return None
 
-        existing = getattr(sprite, "_source_markers", None) or []
+        if not isinstance(sprite, SpriteWithSourceMarkers):
+            return None
+        existing = sprite._source_markers
         for m in existing:
             if m.get("type") == "arrange":
                 return ArrangeOverrideInspector(m.get("file"), m.get("lineno"))
@@ -2242,7 +2210,9 @@ class DevVisualizer:
         # missing from current parsed_by_token results will be marked red
         changed_files_set = {str(p) for p in changed_files}
         for sprite in list(self.scene_sprites):
-            existing = getattr(sprite, "_source_markers", None)
+            if not isinstance(sprite, SpriteWithSourceMarkers):
+                continue
+            existing = sprite._source_markers
             if not existing:
                 continue
             # If any existing marker points to a changed file but that file has no current matches -> red
