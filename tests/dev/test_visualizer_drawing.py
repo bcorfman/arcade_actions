@@ -13,6 +13,27 @@ from actions.dev.visualizer import DevVisualizer, WindowWithContext, SpriteWithS
 from tests.conftest import ActionTestBase
 
 
+@pytest.fixture(autouse=True)
+def mock_arcade_text(mocker):
+    """Mock arcade.Text to avoid OpenGL requirements in headless CI environments.
+    
+    This fixture patches arcade.Text in the visualizer module before DevVisualizer
+    is created, preventing OpenGL context errors when Text objects are created
+    in __init__ methods.
+    """
+    def create_mock_text(*args, **kwargs):
+        """Create a new mock Text instance for each call."""
+        mock_text = mocker.MagicMock()
+        # Set default properties that tests might access
+        mock_text.y = kwargs.get('y', args[2] if len(args) > 2 else 10)
+        mock_text.text = kwargs.get('text', args[0] if len(args) > 0 else "")
+        mock_text.draw = mocker.MagicMock()
+        return mock_text
+    
+    # Patch Text in the visualizer module where it's used
+    mocker.patch('actions.dev.visualizer.arcade.Text', side_effect=create_mock_text)
+
+
 @pytest.fixture
 def window_with_context(window, mocker) -> arcade.Window:
     """Create a window conforming to WindowWithContext protocol."""

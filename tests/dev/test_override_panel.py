@@ -10,6 +10,8 @@ from actions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 
+
+
 @pytest.fixture
 def override_panel(dev_visualizer):
     """Create an OverridesPanel instance."""
@@ -498,12 +500,7 @@ class TestOverridePanelEditing:
 
 
 class TestOverridePanelDrawing:
-    """Test OverridesPanel drawing functionality.
-
-    Note: Drawing tests are skipped because the code uses arcade.draw_rectangle_filled
-    which doesn't exist in Arcade 3.x API. The code should use draw_rect_filled or
-    draw_lbwh_rectangle_filled instead.
-    """
+    """Test OverridesPanel drawing functionality."""
 
     @pytest.fixture
     def mock_inspector(self, mocker):
@@ -523,9 +520,12 @@ class TestOverridePanelDrawing:
         win.height = 600
         return win
 
-    @pytest.mark.skip(reason="Code uses arcade.draw_rectangle_filled which doesn't exist in Arcade 3.x")
-    def test_draw_not_visible(self, window, mock_inspector, mock_window):
+    def test_draw_not_visible(self, window, mock_inspector, mock_window, mocker):
         """Test draw does nothing when not visible."""
+        mock_draw_rect = mocker.patch('arcade.draw_rect_filled', create=True)
+        mock_draw_text = mocker.patch('arcade.draw_text', create=True)
+        mock_color = mocker.patch('arcade.color_from_hex_string', return_value=(34, 40, 42), create=True)
+        
         dev_viz = DevVisualizer()
         dev_viz.window = mock_window
         panel = dev_viz.overrides_panel
@@ -534,10 +534,16 @@ class TestOverridePanelDrawing:
 
         # Should return early without drawing
         panel.draw()
+        
+        mock_draw_rect.assert_not_called()
+        mock_draw_text.assert_not_called()
 
-    @pytest.mark.skip(reason="Code uses arcade.draw_rectangle_filled which doesn't exist in Arcade 3.x")
-    def test_draw_no_inspector(self, window, mock_window):
+    def test_draw_no_inspector(self, window, mock_window, mocker):
         """Test draw does nothing when no inspector."""
+        mock_draw_rect = mocker.patch('arcade.draw_rect_filled', create=True)
+        mock_draw_text = mocker.patch('arcade.draw_text', create=True)
+        mock_color = mocker.patch('arcade.color_from_hex_string', return_value=(34, 40, 42), create=True)
+        
         dev_viz = DevVisualizer()
         dev_viz.window = mock_window
         panel = dev_viz.overrides_panel
@@ -546,21 +552,9 @@ class TestOverridePanelDrawing:
 
         # Should return early without drawing
         panel.draw()
-
-    @pytest.mark.skip(reason="Code uses arcade.draw_rectangle_filled which doesn't exist in Arcade 3.x")
-    def test_draw_with_overrides(self, window, mock_inspector, mock_window):
-        """Test draw draws panel with overrides."""
-        pass
-
-    @pytest.mark.skip(reason="Code uses arcade.draw_rectangle_filled which doesn't exist in Arcade 3.x")
-    def test_draw_selection_highlighting(self, window, mock_inspector, mock_window):
-        """Test draw highlights selected item."""
-        pass
-
-    @pytest.mark.skip(reason="Code uses arcade.draw_rectangle_filled which doesn't exist in Arcade 3.x")
-    def test_draw_editing_state(self, window, mock_inspector, mock_window):
-        """Test draw shows editing state."""
-        pass
+        
+        mock_draw_rect.assert_not_called()
+        mock_draw_text.assert_not_called()
 
 
 class TestOverridePanelKeyboard:

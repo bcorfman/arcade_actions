@@ -12,6 +12,27 @@ from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry
 from tests.conftest import ActionTestBase
 
 
+@pytest.fixture(autouse=True)
+def mock_arcade_text(mocker):
+    """Mock arcade.Text to avoid OpenGL requirements in headless CI environments.
+    
+    This fixture patches arcade.Text in the palette_window module before PaletteWindow
+    is created, preventing OpenGL context errors when Text objects are created
+    in __init__ methods.
+    """
+    def create_mock_text(*args, **kwargs):
+        """Create a new mock Text instance for each call."""
+        mock_text = mocker.MagicMock()
+        # Set default properties that tests might access
+        mock_text.y = kwargs.get('y', args[2] if len(args) > 2 else 100)
+        mock_text.text = kwargs.get('text', args[0] if len(args) > 0 else "")
+        mock_text.draw = mocker.MagicMock()
+        return mock_text
+    
+    # Patch Text in the palette_window module where it's used
+    mocker.patch('actions.dev.palette_window.arcade.Text', side_effect=create_mock_text)
+
+
 @pytest.fixture
 def registry():
     """Create a test registry."""

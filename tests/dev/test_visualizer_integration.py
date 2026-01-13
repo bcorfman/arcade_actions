@@ -13,6 +13,27 @@ import arcade
 from actions.dev.visualizer import DevVisualizer
 
 
+@pytest.fixture(autouse=True)
+def mock_arcade_text(mocker):
+    """Mock arcade.Text to avoid OpenGL requirements in headless CI environments.
+    
+    This fixture patches arcade.Text in the visualizer module before DevVisualizer
+    is created, preventing OpenGL context errors when Text objects are created
+    in __init__ methods.
+    """
+    def create_mock_text(*args, **kwargs):
+        """Create a new mock Text instance for each call."""
+        mock_text = mocker.MagicMock()
+        # Set default properties that tests might access
+        mock_text.y = kwargs.get('y', args[2] if len(args) > 2 else 10)
+        mock_text.text = kwargs.get('text', args[0] if len(args) > 0 else "")
+        mock_text.draw = mocker.MagicMock()
+        return mock_text
+    
+    # Patch Text in the visualizer module where it's used
+    mocker.patch('actions.dev.visualizer.arcade.Text', side_effect=create_mock_text)
+
+
 @pytest.mark.integration
 class TestDevVisualizerIntegration:
     """Integration tests for DevVisualizer GUI integration."""
@@ -57,12 +78,6 @@ class TestDevVisualizerIntegration:
         if window is None:
             pytest.skip("No window available")
 
-        # Skip if no OpenGL context (headless CI on Mac/Windows)
-        try:
-            _ = window.ctx  # Try to access OpenGL context
-        except (RuntimeError, AttributeError):
-            pytest.skip("No OpenGL context available (headless mode)")
-
         dev_viz = DevVisualizer()
         dev_viz.attach_to_window(window)
         dev_viz.show()
@@ -79,11 +94,6 @@ class TestDevVisualizerIntegration:
         """Integration test: Verify draw() works with selected sprites."""
         if window is None:
             pytest.skip("No window available")
-
-        try:
-            _ = window.ctx
-        except (RuntimeError, AttributeError):
-            pytest.skip("No OpenGL context available (headless mode)")
 
         dev_viz = DevVisualizer()
         sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
