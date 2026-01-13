@@ -575,11 +575,11 @@ wheels = [
 
 [[package]]
 name = "pyglet"
-version = "2.1.11"
+version = "2.1.12"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e3/6b/84c397a74cd33eb377168c682e9e3d6b90c1c10c661e11ea5b397ac8497c/pyglet-2.1.11.tar.gz", hash = "sha256:8285d0af7d0ab443232a81df4d941e0d5c48c18a23ec770b3e5c59a222f5d56e", size = 6594448, upload-time = "2025-11-07T04:29:52.092Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/6c/4bf476a1522d8293565f801ef305f2932148950b552df866a771c884ddaf/pyglet-2.1.12.tar.gz", hash = "sha256:bd7a750b2a5beaf0d2dd4bf4052d96e711ecd00ad29dada889b1f8374285b5f6", size = 6594600, upload-time = "2026-01-07T11:45:23.453Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/a2/2b09fbff0eedbe44fbf164b321439a38f7c5568d8b754aa197ee45886431/pyglet-2.1.11-py3-none-any.whl", hash = "sha256:fa0f4fdf366cfc5040aeb462416910b0db2fa374b7d620b7a432178ca3fa8af1", size = 1032213, upload-time = "2025-11-07T04:29:46.06Z" },
+    { url = "https://files.pythonhosted.org/packages/73/eb/872c18852bc1b9f39e7a14e992ebdc0bb6535227b2828a2bb737f6aa81b3/pyglet-2.1.12-py3-none-any.whl", hash = "sha256:875052fcfe1fbdd32272b0f57c4b3da908e727da7c98cf29485f10672607d327", size = 1032686, upload-time = "2026-01-07T11:45:18.585Z" },
 ]
 
 [[package]]
