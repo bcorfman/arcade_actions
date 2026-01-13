@@ -19,6 +19,27 @@ from tests.conftest import ActionTestBase
 
 
 @pytest.fixture(autouse=True)
+def mock_arcade_text(mocker):
+    """Mock arcade.Text to avoid OpenGL requirements in headless CI environments.
+    
+    This fixture patches arcade.Text in the visualizer module before DevVisualizer
+    is created, preventing OpenGL context errors when Text objects are created
+    in __init__ methods.
+    """
+    def create_mock_text(*args, **kwargs):
+        """Create a new mock Text instance for each call."""
+        mock_text = mocker.MagicMock()
+        # Set default properties that tests might access
+        mock_text.y = kwargs.get('y', args[2] if len(args) > 2 else 10)
+        mock_text.text = kwargs.get('text', args[0] if len(args) > 0 else "")
+        mock_text.draw = mocker.MagicMock()
+        return mock_text
+    
+    # Patch Text in the visualizer module where it's used
+    mocker.patch('actions.dev.visualizer.arcade.Text', side_effect=create_mock_text)
+
+
+@pytest.fixture(autouse=True)
 def cleanup_global_dev_visualizer():
     """Clean up global DevVisualizer instance between tests."""
     import actions.dev.visualizer as viz_module
@@ -226,14 +247,8 @@ class TestDevVisualizerManager(ActionTestBase):
     @pytest.mark.integration
     def test_draw_when_visible(self, window):
         """Test DevVisualizer draws when visible."""
-        # Skip if no OpenGL context (headless CI on Mac/Windows)
-        # Text objects require OpenGL context for font loading
         if window is None:
             pytest.skip("No window available")
-        try:
-            _ = window.ctx  # Try to access OpenGL context
-        except (RuntimeError, AttributeError):
-            pytest.skip("No OpenGL context available (headless mode)")
 
         scene_sprites = arcade.SpriteList()
         dev_viz = DevVisualizer(scene_sprites=scene_sprites)
@@ -249,14 +264,8 @@ class TestDevVisualizerManager(ActionTestBase):
     @pytest.mark.integration
     def test_visible_indicator_when_active(self, window):
         """Test that DevVisualizer shows a visible indicator when active."""
-        # Skip if no OpenGL context (headless CI on Mac/Windows)
-        # Text objects require OpenGL context for font loading
         if window is None:
             pytest.skip("No window available")
-        try:
-            _ = window.ctx  # Try to access OpenGL context
-        except (RuntimeError, AttributeError):
-            pytest.skip("No OpenGL context available (headless mode)")
 
         dev_viz = DevVisualizer()
         dev_viz.show()
@@ -657,14 +666,8 @@ class TestDevVisualizerEditMode(ActionTestBase):
     @pytest.mark.integration
     def test_edit_mode_indicator(self, window):
         """Test that edit mode shows proper indicator."""
-        # Skip if no OpenGL context (headless CI on Mac/Windows)
-        # Text objects require OpenGL context for font loading
         if window is None:
             pytest.skip("No window available")
-        try:
-            _ = window.ctx  # Try to access OpenGL context
-        except (RuntimeError, AttributeError):
-            pytest.skip("No OpenGL context available (headless mode)")
 
         dev_viz = DevVisualizer()
         dev_viz.show()

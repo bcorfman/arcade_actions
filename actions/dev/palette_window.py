@@ -256,8 +256,15 @@ class PaletteWindow(arcade.Window):
         # Clear old cache
         self._text_cache.clear()
 
+        # Get window height safely (handles headless mode)
+        try:
+            _, height = self.get_size()
+        except (TypeError, AttributeError, RuntimeError):
+            # Fallback if window dimensions aren't available (e.g., on Windows with uninitialized window)
+            height = getattr(self, "_headless_height", 400)
+
         # Create text objects for each prototype
-        start_y = self.height - self.MARGIN - 60
+        start_y = height - self.MARGIN - 60
         for i, prototype_id in enumerate(prototypes):
             y_pos = start_y - i * self.ITEM_HEIGHT
             text = arcade.Text(

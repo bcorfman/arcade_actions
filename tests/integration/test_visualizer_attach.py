@@ -281,6 +281,60 @@ def test_enable_visualizer_hotkey_attaches(monkeypatch, stub_attach_kwargs):
     assert is_visualizer_attached()
 
 
+def test_enable_dev_visualizer_function(monkeypatch):
+    """Test enable_dev_visualizer function."""
+    from actions.dev.visualizer import enable_dev_visualizer, get_dev_visualizer
+
+    # Clean up any existing instance
+    monkeypatch.setattr("actions.dev.visualizer._global_dev_visualizer", None)
+
+    scene_sprites = arcade.SpriteList()
+    dev_viz = enable_dev_visualizer(scene_sprites=scene_sprites, auto_attach=False)
+
+    assert dev_viz is not None
+    assert dev_viz.scene_sprites == scene_sprites
+    assert get_dev_visualizer() is dev_viz
+
+
+def test_get_dev_visualizer_function(monkeypatch):
+    """Test get_dev_visualizer function."""
+    from actions.dev.visualizer import enable_dev_visualizer, get_dev_visualizer
+
+    # Clean up any existing instance
+    monkeypatch.setattr("actions.dev.visualizer._global_dev_visualizer", None)
+
+    # Initially None
+    assert get_dev_visualizer() is None
+
+    # Enable it
+    dev_viz = enable_dev_visualizer(auto_attach=False)
+    assert get_dev_visualizer() is dev_viz
+
+    # Should return same instance
+    assert get_dev_visualizer() is dev_viz
+
+
+def test_auto_enable_dev_visualizer_from_env(monkeypatch):
+    """Test auto_enable_dev_visualizer_from_env function."""
+    from actions.dev.visualizer import auto_enable_dev_visualizer_from_env, get_dev_visualizer
+
+    # Clean up any existing instance
+    monkeypatch.setattr("actions.dev.visualizer._global_dev_visualizer", None)
+
+    # Without env var, should return None
+    monkeypatch.delenv("ARCADEACTIONS_DEVVIZ", raising=False)
+    monkeypatch.delenv("ARCADEACTIONS_DEV", raising=False)
+    result = auto_enable_dev_visualizer_from_env()
+    assert result is None
+    assert get_dev_visualizer() is None
+
+    # With env var set, should enable
+    monkeypatch.setenv("ARCADEACTIONS_DEVVIZ", "1")
+    result = auto_enable_dev_visualizer_from_env()
+    assert result is not None
+    assert get_dev_visualizer() is result
+
+
 def test_detach_without_session_returns_false():
     from actions.visualizer.attach import detach_visualizer
 

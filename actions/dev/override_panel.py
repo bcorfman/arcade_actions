@@ -141,7 +141,7 @@ class OverridesPanel:
         y = h - panel_h / 2 - 40
         import arcade
 
-        arcade.draw_rectangle_filled(x, y, panel_w, panel_h, arcade.color_from_hex_string("#22282a"))
+        arcade.draw_rect_filled(arcade.rect.XYWH(x, y, panel_w, panel_h), arcade.color_from_hex_string("#22282a"))
         title = "Overrides"
         arcade.draw_text(title, x - panel_w / 2 + 8, y + panel_h / 2 - 20, arcade.color.WHITE, 14)
 
