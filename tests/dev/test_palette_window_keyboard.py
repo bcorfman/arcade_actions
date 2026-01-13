@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import sys
 from unittest.mock import MagicMock
 
 import arcade
@@ -10,6 +12,13 @@ import pytest
 from actions.dev.palette_window import PaletteWindow
 from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry
 from tests.conftest import ActionTestBase
+
+# Skip tests that require DISPLAY on Windows/macOS CI
+_skip_if_no_display = pytest.mark.skipif(
+    (os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true")
+    and not sys.platform.startswith("linux"),
+    reason="Tests require DISPLAY which is only available on Linux CI",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -137,6 +146,7 @@ class TestKeyboardForwarding:
         mock_dispatch.assert_called()
 
 
+@_skip_if_no_display
 class TestFocusManagement:
     """Test focus restoration methods."""
 

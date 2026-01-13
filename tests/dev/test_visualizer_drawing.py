@@ -6,11 +6,21 @@ behavior using WindowWithContext and SpriteWithSourceMarkers protocols.
 
 from __future__ import annotations
 
+import os
+import sys
+
 import pytest
 import arcade
 
 from actions.dev.visualizer import DevVisualizer, WindowWithContext, SpriteWithSourceMarkers
 from tests.conftest import ActionTestBase
+
+# Skip tests that require DISPLAY on Windows/macOS CI
+_skip_if_no_display = pytest.mark.skipif(
+    (os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true")
+    and not sys.platform.startswith("linux"),
+    reason="Tests require DISPLAY which is only available on Linux CI",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -121,6 +131,7 @@ class TestDrawEarlyReturns(ActionTestBase):
         mock_text_draw.assert_not_called()
 
 
+@_skip_if_no_display
 class TestDrawIndicatorText(ActionTestBase):
     """Test suite for indicator text drawing."""
 
@@ -183,6 +194,7 @@ class TestDrawIndicatorText(ActionTestBase):
         assert dev_viz._indicator_text.y is not None
 
 
+@_skip_if_no_display
 class TestDrawSelectionManager(ActionTestBase):
     """Test suite for selection manager drawing."""
 
@@ -272,6 +284,7 @@ class TestDrawSelectionManager(ActionTestBase):
         # (The code prints to stderr for non-context-switch errors)
 
 
+@_skip_if_no_display
 class TestDrawGizmos(ActionTestBase):
     """Test suite for gizmo drawing."""
 
@@ -360,6 +373,7 @@ class TestDrawGizmos(ActionTestBase):
         mock_gizmo2.draw.assert_called_once()
 
 
+@_skip_if_no_display
 class TestDrawSourceMarkers(ActionTestBase):
     """Test suite for source marker drawing."""
 
@@ -579,6 +593,7 @@ class TestDrawSourceMarkers(ActionTestBase):
         assert mock_text_instance.draw.call_count >= 2
 
 
+@_skip_if_no_display
 class TestDrawOverridesPanel(ActionTestBase):
     """Test suite for overrides panel drawing."""
 
@@ -654,6 +669,7 @@ class TestDrawOverridesPanel(ActionTestBase):
         dev_viz.draw()
 
 
+@_skip_if_no_display
 class TestDrawErrorHandling(ActionTestBase):
     """Test suite for overall error handling in draw method."""
 
