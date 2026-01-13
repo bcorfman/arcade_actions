@@ -91,7 +91,8 @@ class TestDevVisualizerIntegration:
 
         dev_viz.attach_to_window(window)
         dev_viz.show()
-        dev_viz.selection_manager.select_sprite(sprite)
+        # Select sprite by adding it to the selection set
+        dev_viz.selection_manager._selected.add(sprite)
 
         # Should not crash when drawing with selection
         dev_viz.draw()

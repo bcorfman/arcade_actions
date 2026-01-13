@@ -1,8 +1,8 @@
 """Tests for DevVisualizer apply_metadata_actions method.
 
 Tests the apply_metadata_actions method which converts action metadata
-(_action_configs) to actual running actions. This tests current behavior
-including hasattr/getattr patterns.
+(_action_configs) to actual running actions. This tests protocol-based behavior
+using SpriteWithActionConfigs protocol.
 """
 
 from __future__ import annotations
@@ -10,24 +10,31 @@ from __future__ import annotations
 import pytest
 import arcade
 
-from actions.dev.visualizer import DevVisualizer
+from actions.dev.visualizer import DevVisualizer, SpriteWithActionConfigs
 from tests.conftest import ActionTestBase
+
+
+@pytest.fixture
+def sprite_with_action_configs(test_sprite) -> arcade.Sprite:
+    """Create a sprite conforming to SpriteWithActionConfigs protocol."""
+    test_sprite._action_configs = []  # Protocol requires attribute to exist
+    return test_sprite
 
 
 class TestApplyMetadataActionsEarlyReturn(ActionTestBase):
     """Test suite for early return behavior in apply_metadata_actions."""
 
     def test_apply_metadata_early_return_if_no_configs(self, window, test_sprite, mocker):
-        """Test that apply_metadata_actions returns early if sprite has no _action_configs."""
-        # Document current behavior: hasattr check causes early return
+        """Test that apply_metadata_actions returns early if sprite doesn't conform to SpriteWithActionConfigs protocol."""
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
         
+        # Sprite doesn't conform to protocol (no _action_configs attribute)
         assert not hasattr(test_sprite, '_action_configs')
         
         mock_registry = mocker.patch('actions.dev.get_preset_registry')
         
-        # Should return early without calling registry
+        # Should return early without calling registry (protocol check fails)
         dev_viz.apply_metadata_actions(test_sprite)
         mock_registry.assert_not_called()
 

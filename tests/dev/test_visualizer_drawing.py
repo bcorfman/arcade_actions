@@ -1,7 +1,7 @@
 """Tests for DevVisualizer draw method.
 
-Tests the draw method which renders editor UI overlays. This tests current
-behavior including hasattr/getattr patterns.
+Tests the draw method which renders editor UI overlays. This tests protocol-based
+behavior using WindowWithContext and SpriteWithSourceMarkers protocols.
 """
 
 from __future__ import annotations
@@ -9,8 +9,22 @@ from __future__ import annotations
 import pytest
 import arcade
 
-from actions.dev.visualizer import DevVisualizer
+from actions.dev.visualizer import DevVisualizer, WindowWithContext, SpriteWithSourceMarkers
 from tests.conftest import ActionTestBase
+
+
+@pytest.fixture
+def window_with_context(window, mocker) -> arcade.Window:
+    """Create a window conforming to WindowWithContext protocol."""
+    window._context = mocker.MagicMock()  # Protocol requires _context attribute
+    return window
+
+
+@pytest.fixture
+def sprite_with_source_markers(test_sprite) -> arcade.Sprite:
+    """Create a sprite conforming to SpriteWithSourceMarkers protocol."""
+    test_sprite._source_markers = []  # Protocol requires attribute to exist
+    return test_sprite
 
 
 class TestDrawEarlyReturns(ActionTestBase):
@@ -45,13 +59,12 @@ class TestDrawEarlyReturns(ActionTestBase):
         mock_selection_draw.assert_not_called()
         mock_text_draw.assert_not_called()
 
-    def test_draw_returns_early_if_no_context_attribute(self, window, test_sprite_list, mocker):
-        """Test that draw returns early if window has no _context attribute."""
-        # Document current behavior: hasattr check causes early return
+    def test_draw_returns_early_if_window_doesnt_conform_to_protocol(self, window, test_sprite_list, mocker):
+        """Test that draw returns early if window doesn't conform to WindowWithContext protocol."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         
-        # Create a simple object without _context (not MagicMock which auto-creates attributes)
+        # Create a simple object without _context (doesn't conform to WindowWithContext protocol)
         class WindowWithoutContext:
             def __init__(self):
                 self.height = 600
@@ -59,6 +72,7 @@ class TestDrawEarlyReturns(ActionTestBase):
         window_mock = WindowWithoutContext()
         dev_viz.window = window_mock
         
+        # Window doesn't conform to protocol (no _context attribute)
         assert not hasattr(window_mock, '_context')
         
         mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, 'draw')
@@ -66,7 +80,7 @@ class TestDrawEarlyReturns(ActionTestBase):
         
         dev_viz.draw()
         
-        # Should return early without drawing
+        # Should return early without drawing (protocol check fails)
         mock_selection_draw.assert_not_called()
         mock_text_draw.assert_not_called()
 
@@ -360,13 +374,12 @@ class TestDrawSourceMarkers(ActionTestBase):
         assert any("L42" in str(call) for call in text_calls)
 
     def test_draw_source_markers_skips_sprites_without_markers(self, window, test_sprite_list, mocker):
-        """Test that sprites without _source_markers are skipped."""
-        # Document current behavior: getattr returns None if missing
+        """Test that sprites that don't conform to SpriteWithSourceMarkers protocol are skipped."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
         
-        # Don't set _source_markers on any sprite
+        # Don't set _source_markers on any sprite (doesn't conform to protocol)
         assert not hasattr(test_sprite_list[0], '_source_markers')
         
         mocker.patch.object(dev_viz._indicator_text, 'draw')

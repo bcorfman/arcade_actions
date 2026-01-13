@@ -1,0 +1,687 @@
+"""Comprehensive tests for OverridesPanel to improve coverage."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+import arcade
+import pytest
+
+from actions.dev.override_panel import OverridesPanel
+from actions.dev.visualizer import DevVisualizer
+from tests.conftest import ActionTestBase
+
+
+class MockInspector:
+    """Mock ArrangeOverrideInspector for testing."""
+
+    def __init__(self, overrides=None):
+        self.overrides = overrides or []
+        self.undo_calls = []
+
+    def list_overrides(self):
+        return self.overrides.copy()
+
+    def set_override(self, row, col, x, y):
+        # Update or add override
+        for i, o in enumerate(self.overrides):
+            if o.get("row") == row and o.get("col") == col:
+                self.overrides[i] = {"row": row, "col": col, "x": x, "y": y}
+                return
+        self.overrides.append({"row": row, "col": col, "x": x, "y": y})
+
+    def remove_override(self, row, col):
+        self.overrides = [o for o in self.overrides if not (o.get("row") == row and o.get("col") == col)]
+
+    def undo(self):
+        self.undo_calls.append(True)
+        return len(self.undo_calls) % 2 == 1  # Alternate True/False for testing
+
+
+@pytest.fixture
+def mock_dev_visualizer():
+    """Create a mock DevVisualizer for testing."""
+    mock_dev = MagicMock(spec=DevVisualizer)
+    mock_dev.window = MagicMock()
+    mock_dev.window.width = 800
+    mock_dev.window.height = 600
+    return mock_dev
+
+
+@pytest.fixture
+def override_panel(mock_dev_visualizer):
+    """Create an OverridesPanel instance for testing."""
+    return OverridesPanel(mock_dev_visualizer)
+
+
+class TestSelectionNavigation:
+    """Test selection navigation methods."""
+
+    def test_select_next_with_overrides(self, override_panel, mock_dev_visualizer):
+        """Test select_next advances selection."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}, {"row": 0, "col": 1, "x": 200, "y": 200}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = 0
+        override_panel.select_next()
+
+        assert override_panel._selected_index == 1
+
+    def test_select_next_at_end(self, override_panel, mock_dev_visualizer):
+        """Test select_next doesn't go past end."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = 0
+        override_panel.select_next()
+
+        assert override_panel._selected_index == 0
+
+    def test_select_next_empty_list(self, override_panel, mock_dev_visualizer):
+        """Test select_next with empty overrides list."""
+        inspector = MockInspector([])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = 0
+        override_panel.select_next()
+
+        assert override_panel._selected_index is None
+
+    def test_select_next_none_selection(self, override_panel, mock_dev_visualizer):
+        """Test select_next initializes selection if None."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = None
+        override_panel.select_next()
+
+        assert override_panel._selected_index == 0
+
+    def test_select_prev_with_overrides(self, override_panel, mock_dev_visualizer):
+        """Test select_prev moves selection backward."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}, {"row": 0, "col": 1, "x": 200, "y": 200}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = 1
+        override_panel.select_prev()
+
+        assert override_panel._selected_index == 0
+
+    def test_select_prev_at_start(self, override_panel, mock_dev_visualizer):
+        """Test select_prev doesn't go before start."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = 0
+        override_panel.select_prev()
+
+        assert override_panel._selected_index == 0
+
+    def test_select_prev_empty_list(self, override_panel, mock_dev_visualizer):
+        """Test select_prev with empty overrides list."""
+        inspector = MockInspector([])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = 0
+        override_panel.select_prev()
+
+        assert override_panel._selected_index is None
+
+    def test_select_prev_none_selection(self, override_panel, mock_dev_visualizer):
+        """Test select_prev initializes selection if None."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = None
+        override_panel.select_prev()
+
+        assert override_panel._selected_index == 0
+
+    def test_get_selected_with_valid_index(self, override_panel, mock_dev_visualizer):
+        """Test get_selected returns correct override."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}, {"row": 0, "col": 1, "x": 200, "y": 200}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = 1
+        selected = override_panel.get_selected()
+
+        assert selected is not None
+        assert selected["row"] == 0
+        assert selected["col"] == 1
+
+    def test_get_selected_with_invalid_index(self, override_panel, mock_dev_visualizer):
+        """Test get_selected returns None for invalid index."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = 999
+        selected = override_panel.get_selected()
+
+        assert selected is None
+
+    def test_get_selected_empty_list(self, override_panel, mock_dev_visualizer):
+        """Test get_selected returns None with empty list."""
+        inspector = MockInspector([])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = 0
+        selected = override_panel.get_selected()
+
+        assert selected is None
+
+    def test_get_selected_none_index(self, override_panel, mock_dev_visualizer):
+        """Test get_selected returns None when index is None."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel._selected_index = None
+        selected = override_panel.get_selected()
+
+        assert selected is None
+
+    def test_increment_selected_x(self, override_panel, mock_dev_visualizer):
+        """Test increment_selected increases x value."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+
+        override_panel.increment_selected(10, 0)
+
+        overrides = inspector.list_overrides()
+        assert overrides[0]["x"] == 110
+        assert overrides[0]["y"] == 100
+
+    def test_increment_selected_y(self, override_panel, mock_dev_visualizer):
+        """Test increment_selected increases y value."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+
+        override_panel.increment_selected(0, 20)
+
+        overrides = inspector.list_overrides()
+        assert overrides[0]["x"] == 100
+        assert overrides[0]["y"] == 120
+
+    def test_increment_selected_both(self, override_panel, mock_dev_visualizer):
+        """Test increment_selected increases both x and y."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+
+        override_panel.increment_selected(15, 25)
+
+        overrides = inspector.list_overrides()
+        assert overrides[0]["x"] == 115
+        assert overrides[0]["y"] == 125
+
+    def test_increment_selected_no_selection(self, override_panel, mock_dev_visualizer):
+        """Test increment_selected does nothing when no selection."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = None
+
+        override_panel.increment_selected(10, 10)
+
+        # Should not crash, and values should be unchanged
+        overrides = inspector.list_overrides()
+        assert overrides[0]["x"] == 100
+        assert overrides[0]["y"] == 100
+
+    def test_increment_selected_negative(self, override_panel, mock_dev_visualizer):
+        """Test increment_selected with negative values."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+
+        override_panel.increment_selected(-10, -20)
+
+        overrides = inspector.list_overrides()
+        assert overrides[0]["x"] == 90
+        assert overrides[0]["y"] == 80
+
+
+class TestEditing:
+    """Test editing functionality."""
+
+    def test_start_edit_with_field_validation(self, override_panel, mock_dev_visualizer):
+        """Test start_edit validates field parameter."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+
+        # Valid field
+        override_panel.start_edit("x")
+        assert override_panel.editing
+        assert override_panel._editing_field == "x"
+
+        override_panel.start_edit("y")
+        assert override_panel._editing_field == "y"
+
+        # Invalid field should raise
+        with pytest.raises(ValueError, match="field must be 'x' or 'y'"):
+            override_panel.start_edit("invalid")
+
+    def test_start_edit_auto_selects_first_if_none(self, override_panel, mock_dev_visualizer):
+        """Test start_edit selects first item if selection is None."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = None
+
+        override_panel.start_edit("x")
+
+        assert override_panel._selected_index == 0
+        assert override_panel.editing
+
+    def test_start_edit_no_selection_if_empty(self, override_panel, mock_dev_visualizer):
+        """Test start_edit does nothing if overrides list is empty."""
+        inspector = MockInspector([])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = None
+
+        override_panel.start_edit("x")
+
+        assert override_panel._selected_index is None
+        assert not override_panel.editing
+
+    def test_start_edit_initializes_buffer_empty(self, override_panel, mock_dev_visualizer):
+        """Test start_edit initializes input buffer as empty."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+
+        override_panel.start_edit("x")
+
+        assert override_panel._input_buffer == ""
+        assert override_panel.editing
+
+    def test_handle_input_char_digits(self, override_panel, mock_dev_visualizer):
+        """Test handle_input_char accepts digits."""
+        override_panel.editing = True
+        override_panel._input_buffer = ""
+
+        override_panel.handle_input_char("1")
+        override_panel.handle_input_char("2")
+        override_panel.handle_input_char("3")
+
+        assert override_panel._input_buffer == "123"
+
+    def test_handle_input_char_comma_minus(self, override_panel, mock_dev_visualizer):
+        """Test handle_input_char accepts comma and minus."""
+        override_panel.editing = True
+        override_panel._input_buffer = ""
+
+        override_panel.handle_input_char("-")
+        override_panel.handle_input_char("1")
+        override_panel.handle_input_char("2")
+        override_panel.handle_input_char(",")
+        override_panel.handle_input_char("3")
+        override_panel.handle_input_char("4")
+
+        assert override_panel._input_buffer == "-12,34"
+
+    def test_handle_input_char_backspace(self, override_panel, mock_dev_visualizer):
+        """Test handle_input_char handles backspace."""
+        override_panel.editing = True
+        override_panel._input_buffer = "123"
+
+        override_panel.handle_input_char("\b")
+        override_panel.handle_input_char("\b")
+
+        assert override_panel._input_buffer == "1"
+
+    def test_handle_input_char_not_editing(self, override_panel, mock_dev_visualizer):
+        """Test handle_input_char does nothing when not editing."""
+        override_panel.editing = False
+        override_panel._input_buffer = ""
+
+        override_panel.handle_input_char("1")
+        override_panel.handle_input_char("2")
+
+        assert override_panel._input_buffer == ""
+
+    def test_handle_input_char_filters_invalid(self, override_panel, mock_dev_visualizer):
+        """Test handle_input_char filters invalid characters."""
+        override_panel.editing = True
+        override_panel._input_buffer = ""
+
+        override_panel.handle_input_char("a")  # Invalid
+        override_panel.handle_input_char("1")  # Valid
+        override_panel.handle_input_char("!")  # Invalid
+        override_panel.handle_input_char("2")  # Valid
+
+        assert override_panel._input_buffer == "12"
+
+    def test_commit_edit_single_value_x(self, override_panel, mock_dev_visualizer):
+        """Test commit_edit with single value (x only)."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+        override_panel._editing_field = "x"
+        override_panel.editing = True
+        override_panel._input_buffer = "250"
+
+        override_panel.commit_edit()
+
+        overrides = inspector.list_overrides()
+        assert overrides[0]["x"] == 250
+        assert overrides[0]["y"] == 100  # y unchanged
+        assert not override_panel.editing
+
+    def test_commit_edit_two_values_xy(self, override_panel, mock_dev_visualizer):
+        """Test commit_edit with two values (x,y)."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+        override_panel._editing_field = "x"
+        override_panel.editing = True
+        override_panel._input_buffer = "300,400"
+
+        override_panel.commit_edit()
+
+        overrides = inspector.list_overrides()
+        assert overrides[0]["x"] == 300
+        assert overrides[0]["y"] == 400
+        assert not override_panel.editing
+
+    def test_commit_edit_empty_buffer(self, override_panel, mock_dev_visualizer):
+        """Test commit_edit with empty buffer (uses existing y when single value)."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+        override_panel._editing_field = "x"
+        override_panel.editing = True
+        override_panel._input_buffer = ""
+
+        override_panel.commit_edit()
+
+        # Empty buffer should parse as 0, but since field is "x" and single value,
+        # it should use existing y value (100)
+        overrides = inspector.list_overrides()
+        assert overrides[0]["x"] == 0
+        assert overrides[0]["y"] == 100  # Existing y preserved
+        assert not override_panel.editing
+
+    def test_commit_edit_partial_comma(self, override_panel, mock_dev_visualizer):
+        """Test commit_edit with comma but only one value."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+        override_panel._editing_field = "x"
+        override_panel.editing = True
+        override_panel._input_buffer = "250,"
+
+        override_panel.commit_edit()
+
+        overrides = inspector.list_overrides()
+        assert overrides[0]["x"] == 250
+        assert overrides[0]["y"] == 0  # y becomes 0 when empty after comma
+
+    def test_commit_edit_parse_error(self, override_panel, mock_dev_visualizer):
+        """Test commit_edit handles parse errors gracefully."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+        override_panel._editing_field = "x"
+        override_panel.editing = True
+        override_panel._input_buffer = "not_a_number"
+
+        # Should not crash, editing should be cancelled
+        override_panel.commit_edit()
+
+        assert not override_panel.editing
+        assert override_panel._input_buffer == ""
+
+    def test_commit_edit_not_editing(self, override_panel, mock_dev_visualizer):
+        """Test commit_edit does nothing when not editing."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 0
+        override_panel.editing = False
+        override_panel._input_buffer = "999"
+
+        override_panel.commit_edit()
+
+        # Values should be unchanged
+        overrides = inspector.list_overrides()
+        assert overrides[0]["x"] == 100
+
+    def test_cancel_edit(self, override_panel, mock_dev_visualizer):
+        """Test cancel_edit clears editing state."""
+        override_panel.editing = True
+        override_panel._input_buffer = "12345"
+
+        override_panel.cancel_edit()
+
+        assert not override_panel.editing
+        assert override_panel._input_buffer == ""
+
+
+class TestDrawing:
+    """Test drawing functionality."""
+
+    def test_draw_not_visible(self, override_panel, mock_dev_visualizer, mocker):
+        """Test draw does nothing when not visible."""
+        # Patch at module level where it's used
+        mock_draw_rect = mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
+
+        override_panel.visible = False
+        override_panel.draw()
+
+        mock_draw_rect.assert_not_called()
+        mock_draw_text.assert_not_called()
+
+    def test_draw_no_inspector(self, override_panel, mock_dev_visualizer, mocker):
+        """Test draw does nothing when no inspector."""
+        mock_draw_rect = mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
+
+        override_panel.visible = True
+        override_panel.inspector = None
+        override_panel.draw()
+
+        mock_draw_rect.assert_not_called()
+        mock_draw_text.assert_not_called()
+
+    def test_draw_no_window(self, override_panel, mock_dev_visualizer, mocker):
+        """Test draw does nothing when no window."""
+        mock_draw_rect = mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
+
+        override_panel.visible = True
+        override_panel.inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.dev_visualizer.window = None
+        override_panel.draw()
+
+        mock_draw_rect.assert_not_called()
+        mock_draw_text.assert_not_called()
+
+    def test_draw_with_overrides(self, override_panel, mock_dev_visualizer, mocker):
+        """Test draw renders overrides."""
+        mock_draw_rect = mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
+        mock_color_from_hex = mocker.patch("actions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel.visible = True
+
+        override_panel.draw()
+
+        # Should draw background and text
+        assert mock_draw_rect.called
+        assert mock_draw_text.called
+
+    def test_draw_selection_highlighting(self, override_panel, mock_dev_visualizer, mocker):
+        """Test draw highlights selected item."""
+        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
+        mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("actions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}, {"row": 0, "col": 1, "x": 200, "y": 200}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel.visible = True
+        override_panel._selected_index = 1
+
+        override_panel.draw()
+
+        # Check that text was drawn (with color for selection)
+        assert mock_draw_text.called
+
+    def test_draw_editing_state(self, override_panel, mock_dev_visualizer, mocker):
+        """Test draw displays editing state."""
+        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
+        mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("actions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel.visible = True
+        override_panel._selected_index = 0
+        override_panel.editing = True
+        override_panel._input_buffer = "250"
+        override_panel._editing_field = "x"
+
+        override_panel.draw()
+
+        # Should draw input buffer
+        assert mock_draw_text.called
+        # Check that edit buffer text was drawn
+        call_args_list = mock_draw_text.call_args_list
+        edit_calls = [c for c in call_args_list if "Edit:" in str(c)]
+        assert len(edit_calls) > 0
+
+    def test_draw_input_buffer_display(self, override_panel, mock_dev_visualizer, mocker):
+        """Test draw displays input buffer when editing."""
+        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
+        mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("actions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel.visible = True
+        override_panel._selected_index = 0
+        override_panel.editing = True
+        override_panel._input_buffer = "123,456"
+
+        override_panel.draw()
+
+        # Check that edit buffer was drawn
+        call_args_list = mock_draw_text.call_args_list
+        buffer_text = "".join(str(c) for c in call_args_list)
+        assert "123,456" in buffer_text or "Edit:" in buffer_text
+
+
+class TestKeyboard:
+    """Test keyboard handling."""
+
+    def test_handle_key_ctrl_z_with_undo(self, override_panel, mock_dev_visualizer):
+        """Test handle_key Ctrl+Z calls undo."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}, {"row": 0, "col": 1, "x": 200, "y": 200}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 1
+
+        override_panel.handle_key("CTRL+Z")
+
+        assert len(inspector.undo_calls) == 1
+
+    def test_handle_key_ctrl_z_no_inspector(self, override_panel, mock_dev_visualizer):
+        """Test handle_key Ctrl+Z does nothing without inspector."""
+        override_panel.inspector = None
+
+        # Should not crash
+        override_panel.handle_key("CTRL+Z")
+
+    def test_handle_key_ctrl_z_selection_adjustment(self, override_panel, mock_dev_visualizer):
+        """Test handle_key Ctrl+Z adjusts selection after undo."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}, {"row": 0, "col": 1, "x": 200, "y": 200}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+        override_panel._selected_index = 1
+
+        # Mock undo to return True (changed data)
+        original_undo = inspector.undo
+
+        def mock_undo():
+            result = original_undo()
+            # Simulate override removal
+            inspector.overrides.pop()
+            return result
+
+        inspector.undo = mock_undo
+
+        override_panel.handle_key("CTRL+Z")
+
+        # Selection should be adjusted to valid range
+        assert override_panel._selected_index is not None
+        assert override_panel._selected_index < len(inspector.list_overrides())
+
+    def test_handle_key_other_key(self, override_panel, mock_dev_visualizer):
+        """Test handle_key does nothing for non-Ctrl+Z keys."""
+        inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
+        override_panel.open(MagicMock())
+        override_panel.inspector = inspector
+
+        override_panel.handle_key("SPACE")
+        override_panel.handle_key("ENTER")
+
+        assert len(inspector.undo_calls) == 0
+
+
+class TestErrorHandling:
+    """Test error handling in delegate methods."""
+
+    def test_set_override_not_open(self, override_panel, mock_dev_visualizer):
+        """Test set_override raises RuntimeError when not open."""
+        override_panel.inspector = None
+
+        with pytest.raises(RuntimeError, match="OverridesPanel is not open"):
+            override_panel.set_override(0, 0, 100, 200)
+
+    def test_remove_override_not_open(self, override_panel, mock_dev_visualizer):
+        """Test remove_override raises RuntimeError when not open."""
+        override_panel.inspector = None
+
+        with pytest.raises(RuntimeError, match="OverridesPanel is not open"):
+            override_panel.remove_override(0, 0)
+
+    def test_list_overrides_no_inspector(self, override_panel, mock_dev_visualizer):
+        """Test list_overrides returns empty list when no inspector."""
+        override_panel.inspector = None
+
+        result = override_panel.list_overrides()
+
+        assert result == []

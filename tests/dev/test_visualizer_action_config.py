@@ -1,7 +1,7 @@
 """Tests for DevVisualizer action config management.
 
 Tests attach_preset_to_selected, update_action_config, and update_selected_action_config.
-These tests document current behavior including hasattr/getattr patterns.
+These tests verify protocol-based behavior using SpriteWithActionConfigs protocol.
 """
 
 from __future__ import annotations
@@ -9,25 +9,32 @@ from __future__ import annotations
 import pytest
 import arcade
 
-from actions.dev.visualizer import DevVisualizer
+from actions.dev.visualizer import DevVisualizer, SpriteWithActionConfigs
 from tests.conftest import ActionTestBase
+
+
+@pytest.fixture
+def sprite_with_action_configs(test_sprite) -> arcade.Sprite:
+    """Create a sprite conforming to SpriteWithActionConfigs protocol."""
+    test_sprite._action_configs = []  # Protocol requires attribute to exist
+    return test_sprite
 
 
 class TestAttachPresetToSelected(ActionTestBase):
     """Test suite for attach_preset_to_selected method."""
 
     def test_attach_preset_creates_configs_if_missing(self, window, test_sprite):
-        """Test that attach_preset_to_selected creates _action_configs if missing."""
-        # Document current behavior: hasattr check creates attribute
+        """Test that attach_preset_to_selected initializes _action_configs if sprite doesn't conform to protocol."""
         dev_viz = DevVisualizer()
         dev_viz.scene_sprites.append(test_sprite)
         dev_viz.selection_manager._selected.add(test_sprite)
         
+        # Sprite doesn't have _action_configs initially
         assert not hasattr(test_sprite, '_action_configs')
         
         dev_viz.attach_preset_to_selected('preset1')
         
-        # Verify attribute was created
+        # Verify attribute was initialized (protocol-based initialization)
         assert hasattr(test_sprite, '_action_configs')
         # Tag is only included when tag is not None
         assert test_sprite._action_configs == [{'preset': 'preset1', 'params': {}}]
@@ -94,7 +101,7 @@ class TestAttachPresetToSelected(ActionTestBase):
         
         dev_viz.attach_preset_to_selected('preset1', params={'x': 10})
         
-        # Verify all sprites got the config
+        # Verify all sprites got the config (attribute initialized by attach_preset_to_selected)
         for sprite in test_sprite_list:
             assert hasattr(sprite, '_action_configs')
             # Tag is only included when tag is not None
@@ -146,10 +153,10 @@ class TestUpdateActionConfig(ActionTestBase):
         assert test_sprite._action_configs[0]['tag'] == 'movement'
 
     def test_update_action_config_raises_value_error_if_no_configs(self, window, test_sprite):
-        """Test that update_action_config raises ValueError if sprite has no _action_configs."""
-        # Document current behavior: hasattr check raises ValueError
+        """Test that update_action_config raises ValueError if sprite doesn't conform to SpriteWithActionConfigs protocol."""
         dev_viz = DevVisualizer()
         
+        # Sprite doesn't conform to protocol (no _action_configs attribute)
         assert not hasattr(test_sprite, '_action_configs')
         
         with pytest.raises(ValueError, match="Sprite has no _action_configs"):
@@ -214,18 +221,19 @@ class TestUpdateSelectedActionConfig(ActionTestBase):
             assert sprite._action_configs[0]['velocity'] == (5, 0)
 
     def test_update_selected_action_config_handles_missing_configs(self, window, test_sprite):
-        """Test that update_selected_action_config silently ignores sprites without configs."""
-        # Document current behavior: Exception is caught and ignored per-sprite
+        """Test that update_selected_action_config silently ignores sprites that don't conform to protocol."""
+        # Exception (ValueError) is caught and ignored per-sprite
         dev_viz = DevVisualizer()
         dev_viz.scene_sprites.append(test_sprite)
         dev_viz.selection_manager._selected.add(test_sprite)
         
+        # Sprite doesn't conform to protocol
         assert not hasattr(test_sprite, '_action_configs')
         
         # Should not raise error, just silently ignore
         dev_viz.update_selected_action_config(0, velocity=(5, 0))
         
-        # Sprite should still not have _action_configs
+        # Sprite should still not have _action_configs (protocol not enforced for selected sprites)
         assert not hasattr(test_sprite, '_action_configs')
 
     def test_update_selected_action_config_handles_invalid_index(self, window, test_sprite):
@@ -259,7 +267,7 @@ class TestUpdateSelectedActionConfig(ActionTestBase):
         
         # First sprite should be updated
         assert test_sprite_list[0]._action_configs[0]['velocity'] == (5, 0)
-        # Second sprite should be unchanged (no error raised)
+        # Second sprite should be unchanged (ValueError caught and ignored)
         assert not hasattr(test_sprite_list[1], '_action_configs')
 
     def test_update_selected_action_config_with_empty_selection(self, window):

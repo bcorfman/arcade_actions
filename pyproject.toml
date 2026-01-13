@@ -114,21 +114,21 @@ extend-select = ["TID"]
 "builtins.hasattr".msg = "Avoid hasattr runtime checks; use explicit interfaces."
 "builtins.getattr".msg = "Avoid getattr runtime checks; use explicit interfaces."
 
-[tool.coverage.run]
+#[tool.coverage.run]
 # Exclude visualizer integration files that require OpenGL context and complex window mocking
 # These files are tested indirectly through integration tests, but direct unit testing
 # would require extensive mocking of Arcade windows and OpenGL contexts with low ROI.
-omit = [
-    "actions/visualizer/attach.py",
-    "actions/visualizer/renderer.py",
-    # Exclude GUI/integration dev files that require extensive window/OpenGL mocking
-    "actions/dev/override_panel.py",
-    "actions/dev/override_inspector.py",
-    "actions/dev/palette_window.py",
-    "actions/dev/palette.py",
-    "actions/dev/visualizer.py",
-    "actions/dev/selection.py",
-    "actions/dev/boundary_overlay.py",
-    "actions/dev/create_level.py",  # CLI tool
-    "actions/visualizer/event_window.py",
-]
+#omit = [
+#    "actions/visualizer/attach.py",
+#    "actions/visualizer/renderer.py",
+#    # Exclude GUI/integration dev files that require extensive window/OpenGL mocking
+#    "actions/dev/override_panel.py",
+#    "actions/dev/override_inspector.py",
+#    "actions/dev/palette_window.py",
+#    "actions/dev/palette.py",
+#    "actions/dev/visualizer.py",
+#    "actions/dev/selection.py",
+#    "actions/dev/boundary_overlay.py",
+#    "actions/dev/create_level.py",  # CLI tool
+#    "actions/visualizer/event_window.py",
+#]
