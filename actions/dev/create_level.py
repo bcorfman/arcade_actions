@@ -59,18 +59,17 @@ def _validate_filename(filename: str) -> tuple[bool, str | None]:
     if not filename:
         return False, "Filename cannot be empty"
 
-    if not filename.endswith(".py"):
+    path = Path(filename)
+    if path.name == "":
+        return False, "Filename cannot be empty"
+
+    if path.suffix != ".py":
         return False, "Filename must end with .py extension"
 
-    # Check for invalid characters
+    # Check for invalid characters in the final filename only (allow absolute paths on Windows)
     invalid_chars = r'[<>:"|?*\x00-\x1f]'
-    if re.search(invalid_chars, filename):
+    if re.search(invalid_chars, path.name):
         return False, f"Filename contains invalid characters: {filename}"
-
-    # Check for path separators (only allow if it's a relative path in current dir)
-    if os.path.sep in filename and not filename.startswith(".") and not os.path.isabs(filename):
-        # Allow subdirectories like "levels/my_level.py"
-        pass
 
     return True, None
 
