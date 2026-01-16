@@ -18,6 +18,8 @@ from actions.dev.visualizer import (
 )
 from tests.conftest import ActionTestBase
 
+pytestmark = pytest.mark.integration
+
 
 class TestSpriteWithActionConfigsProtocol(ActionTestBase):
     """Test suite for SpriteWithActionConfigs protocol conformance."""

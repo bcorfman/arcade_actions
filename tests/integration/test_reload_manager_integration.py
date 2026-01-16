@@ -13,8 +13,12 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 from actions import Action
 from actions.dev.reload import ReloadManager
+
+pytestmark = pytest.mark.slow
 
 
 class TestReloadManagerIntegration:

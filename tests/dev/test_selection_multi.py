@@ -9,6 +9,8 @@ import pytest
 from actions.dev.selection import SelectionManager
 from tests.conftest import ActionTestBase
 
+pytestmark = pytest.mark.integration
+
 
 class TestSelectionMulti(ActionTestBase):
     """Test suite for multi-selection functionality."""

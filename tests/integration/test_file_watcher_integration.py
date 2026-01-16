@@ -12,7 +12,11 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from actions.dev.watch import FileWatcher
+
+pytestmark = pytest.mark.slow
 
 
 class TestFileWatcherIntegration:

@@ -65,6 +65,7 @@ def cleanup_global_dev_visualizer():
         viz_module._previous_update_all_func = None
 
 
+@pytest.mark.integration
 class TestDevVisualizerManager(ActionTestBase):
     """Test suite for DevVisualizer manager."""
 
@@ -353,6 +354,7 @@ class TestDevVisualizerManager(ActionTestBase):
         assert dev_viz._attached is True
 
 
+@pytest.mark.integration
 class TestDevVisualizerPauseResume(ActionTestBase):
     """Test suite for DevVisualizer pause/resume functionality."""
 
@@ -460,6 +462,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
         assert sprite.change_x > 0
 
 
+@pytest.mark.integration
 class TestDevVisualizerSpriteIntegration(ActionTestBase):
     """Test suite for integrating existing game sprites with DevVisualizer."""
 
@@ -603,6 +606,7 @@ class TestDevVisualizerSpriteIntegration(ActionTestBase):
         assert len(dev_viz.scene_sprites) == 4
 
 
+@pytest.mark.integration
 class TestDevVisualizerEditMode(ActionTestBase):
     """Test suite for DevVisualizer edit mode."""
 

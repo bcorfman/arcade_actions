@@ -73,7 +73,8 @@ testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers=["unit: Unit tests.",
          "system: System tests.",
-         "integration: Integration tests that require window/OpenGL context."]
+         "integration: Integration tests that require window/OpenGL context.",
+         "slow: Slow tests that run only on request or in CI."]
          
 
 [tool.ruff]

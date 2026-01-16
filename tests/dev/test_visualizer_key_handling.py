@@ -12,6 +12,8 @@ import arcade
 from actions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
+pytestmark = pytest.mark.integration
+
 
 class TestHandleKeyPressBasic(ActionTestBase):
     """Test suite for basic key handling in handle_key_press."""

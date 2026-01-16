@@ -12,6 +12,8 @@ from actions.dev.prototype_registry import DevContext, register_prototype, get_r
 from actions.dev.templates import export_template, load_scene_template
 from tests.conftest import ActionTestBase
 
+pytestmark = pytest.mark.integration
+
 
 class TestYAMLRoundtrip(ActionTestBase):
     """Test suite for YAML export/import functionality."""

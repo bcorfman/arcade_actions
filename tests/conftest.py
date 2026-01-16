@@ -123,28 +123,36 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip integration tests locally unless in CI or explicitly requested.
+    """Skip integration/slow tests locally unless in CI or explicitly requested.
 
     Integration tests (marked with @pytest.mark.integration) are skipped by default
-    when running locally to avoid popping up windows. They run automatically on
+    when running locally to avoid popping up windows. Slow tests (marked with
+    @pytest.mark.slow) are also skipped by default. Both run automatically on
     GitHub Actions (CI=true or GITHUB_ACTIONS=true).
 
     To run integration tests locally, use: pytest -m integration
+    To run slow tests locally, use: pytest -m slow
     """
     # Check if we're in CI
     is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
 
-    # Check if user explicitly requested integration tests
-    # This happens when they use -m integration or -m "integration"
+    # Check if user explicitly requested integration or slow tests.
     marker_expr = config.getoption("-m", default="")
-    explicitly_requested = marker_expr and "integration" in marker_expr
+    integration_requested = bool(marker_expr) and "integration" in marker_expr
+    slow_requested = bool(marker_expr) and "slow" in marker_expr
 
-    # If not in CI and not explicitly requested, skip integration tests
-    if not is_ci and not explicitly_requested:
+    if not is_ci and not integration_requested:
         skip_integration = pytest.mark.skip(reason="Integration tests skipped locally (use -m integration to run)")
         for item in items:
-            if "integration" in item.keywords:
+            is_integration = "integration" in item.keywords
+            is_slow = "slow" in item.keywords
+            if is_integration and not is_slow:
                 item.add_marker(skip_integration)
+    if not is_ci and not slow_requested:
+        skip_slow = pytest.mark.skip(reason="Slow tests skipped locally (use -m slow to run)")
+        for item in items:
+            if "slow" in item.keywords:
+                item.add_marker(skip_slow)
 
 
 class HeadlessWindow:

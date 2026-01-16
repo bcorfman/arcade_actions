@@ -12,6 +12,8 @@ import arcade
 from actions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
+pytestmark = pytest.mark.integration
+
 
 class TestTogglePalette(ActionTestBase):
     """Test suite for toggle_palette method."""
