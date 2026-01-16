@@ -13,6 +13,8 @@ import arcade
 from actions.dev.visualizer import DevVisualizer, SpriteWithActionConfigs
 from tests.conftest import ActionTestBase
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def sprite_with_action_configs(test_sprite) -> arcade.Sprite:

@@ -86,6 +86,23 @@ def extract_file_coverage(coverage_json: Dict[str, Any]) -> Dict[str, float]:
     return out
 
 
+def is_test_file(file_path: str) -> bool:
+    """
+    Check if a file path represents a test file.
+    Excludes files in tests/ directories or files matching test naming patterns.
+    """
+    fp = normalize_path(file_path)
+    # Check if path contains 'tests/' directory
+    if "/tests/" in fp or fp.startswith("tests/"):
+        return True
+    # Check if filename starts with test_ or ends with _test.py
+    path_parts = fp.split("/")
+    filename = path_parts[-1] if path_parts else fp
+    if filename.startswith("test_") or filename.endswith("_test.py"):
+        return True
+    return False
+
+
 def best_match_coverage(file_path: str, cov_map: Dict[str, float]) -> Optional[float]:
     """
     Try a few matching strategies because coverage paths may be absolute.
@@ -141,6 +158,10 @@ def main() -> int:
     rows: List[ModuleMetrics] = []
 
     for fp in all_files:
+        # Skip test files
+        if is_test_file(fp):
+            continue
+
         sloc = raw.get(fp, {}).get("sloc", 0)
         lloc = raw.get(fp, {}).get("lloc", 0)
         cc_sum, cc_max, n = cc.get(fp, (0.0, 0.0, 0))

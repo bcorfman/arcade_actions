@@ -12,6 +12,8 @@ import arcade
 
 from actions.dev.visualizer import DevVisualizer
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(autouse=True)
 def mock_arcade_text(mocker):

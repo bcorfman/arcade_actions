@@ -15,6 +15,8 @@ import arcade
 from actions.dev.visualizer import DevVisualizer, WindowWithContext, SpriteWithSourceMarkers
 from tests.conftest import ActionTestBase
 
+pytestmark = pytest.mark.integration
+
 # Skip tests that require DISPLAY on Windows/macOS CI
 _skip_if_no_display = pytest.mark.skipif(
     (os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true")

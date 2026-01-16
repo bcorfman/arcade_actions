@@ -253,7 +253,11 @@ def main() -> None:
         filename = sys.argv[1]
     else:
         # Interactive mode - prompt for filename
-        filename = input("Enter filename for new level (e.g., my_level.py): ").strip()
+        try:
+            filename = input("Enter filename for new level (e.g., my_level.py): ").strip()
+        except KeyboardInterrupt:
+            print("\nCancelled by user.", file=sys.stderr)
+            sys.exit(130)
         if not filename:
             print("No filename provided. Exiting.", file=sys.stderr)
             sys.exit(1)
@@ -267,7 +271,11 @@ def main() -> None:
     # Check if file exists
     file_path = Path(filename).resolve()
     if file_path.exists():
-        response = input(f"File already exists: {file_path}\nOverwrite? [y/N]: ").strip().lower()
+        try:
+            response = input(f"File already exists: {file_path}\nOverwrite? [y/N]: ").strip().lower()
+        except KeyboardInterrupt:
+            print("\nCancelled by user.", file=sys.stderr)
+            sys.exit(130)
         if response not in ("y", "yes"):
             print("Cancelled. Exiting.", file=sys.stderr)
             sys.exit(0)

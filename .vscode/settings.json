@@ -17,4 +17,6 @@
     "python.REPL.enableREPLSmartSend": false,
     "cursorpyright.analysis.autoImportCompletions": true,
     "cursorpyright.analysis.typeCheckingMode": "off",
+    "chatgpt.openOnStartup": true,
+    "chatgpt.commentCodeLensEnabled": false,
 }

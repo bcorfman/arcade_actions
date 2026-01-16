@@ -11,6 +11,8 @@ from actions.dev.visualizer import DevVisualizer
 from actions import move_until, infinite
 from tests.conftest import ActionTestBase
 
+pytestmark = pytest.mark.integration
+
 
 class TestDevVisualizerImportExport(ActionTestBase):
     """Test suite for sprite import/export functionality."""

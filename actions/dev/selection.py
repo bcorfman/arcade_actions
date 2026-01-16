@@ -75,12 +75,14 @@ class SelectionManager:
         clicked_sprites = arcade.get_sprites_at_point((x, y), self.scene_sprites)
 
         if clicked_sprites:
-            sprite = clicked_sprites[0]  # Get first sprite at point
-
             if shift:
+                sprite = next((candidate for candidate in clicked_sprites if candidate not in self._selected), None)
+                if sprite is None:
+                    sprite = clicked_sprites[0]
                 # Shift-click: add to selection (don't remove if already selected)
                 self._selected.add(sprite)
             else:
+                sprite = clicked_sprites[0]  # Get first sprite at point
                 # Regular click: replace selection
                 if sprite not in self._selected:
                     self._selected.clear()

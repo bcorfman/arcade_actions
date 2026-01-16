@@ -11,6 +11,8 @@ from actions.dev.palette_window import PaletteWindow
 from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry, get_registry
 from tests.conftest import ActionTestBase
 
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture
 def registry():

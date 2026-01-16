@@ -18,6 +18,7 @@ def override_panel(dev_visualizer):
     return dev_visualizer.overrides_panel
 
 
+@pytest.mark.integration
 class TestOverridesPanel:
     """Test OverridesPanel class."""
 
@@ -84,6 +85,7 @@ class TestOverridesPanel:
         assert isinstance(result, bool)
 
 
+@pytest.mark.integration
 class TestOverridePanelIntegration:
     """Integration tests for OverridesPanel with DevVisualizer."""
 
@@ -117,6 +119,7 @@ class TestOverridePanelIntegration:
         assert isinstance(result, bool)
 
 
+@pytest.mark.integration
 class TestOverridePanelSelection:
     """Test OverridesPanel selection and navigation."""
 
@@ -275,6 +278,7 @@ class TestOverridePanelSelection:
         mock_set.assert_not_called()
 
 
+@pytest.mark.integration
 class TestOverridePanelEditing:
     """Test OverridesPanel editing functionality."""
 
@@ -499,6 +503,7 @@ class TestOverridePanelEditing:
         mock_set.assert_not_called()
 
 
+@pytest.mark.integration
 class TestOverridePanelDrawing:
     """Test OverridesPanel drawing functionality."""
 
@@ -557,6 +562,7 @@ class TestOverridePanelDrawing:
         mock_draw_text.assert_not_called()
 
 
+@pytest.mark.integration
 class TestOverridePanelKeyboard:
     """Test OverridesPanel keyboard handling."""
 
@@ -619,6 +625,7 @@ class TestOverridePanelKeyboard:
         assert panel._selected_index == initial_selection
 
 
+@pytest.mark.integration
 class TestOverridePanelErrors:
     """Test OverridesPanel error handling."""
 

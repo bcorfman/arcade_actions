@@ -6,7 +6,11 @@ Fast unit tests only - integration tests are in tests/integration/test_file_watc
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from actions.dev.watch import FileWatcher
+
+pytestmark = pytest.mark.slow
 
 
 class TestFileWatcher:

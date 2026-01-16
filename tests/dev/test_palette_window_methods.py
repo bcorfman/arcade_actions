@@ -9,6 +9,8 @@ from actions.dev.palette_window import PaletteWindow
 from actions.dev.prototype_registry import DevContext, get_registry
 from tests.conftest import ActionTestBase
 
+pytestmark = [pytest.mark.integration, pytest.mark.slow]
+
 
 class TestPaletteWindowMethods(ActionTestBase):
     """Test PaletteWindow methods that don't require full window context."""
