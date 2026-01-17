@@ -113,6 +113,7 @@ _position_cache: dict[int, tuple[float, float]] = {}
 _cached_action_count = 0
 _cached_action_ids: set[int] = set()
 _cached_targets: dict[int, object] = {}  # target_id -> target object
+_cached_action_targets: dict[int, int] = {}  # action_id -> target_id
 
 
 def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
@@ -120,14 +121,24 @@ def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
 
     Uses caching to avoid expensive iteration when action set hasn't changed.
     """
-    global _position_cache, _cached_action_count, _cached_action_ids, _cached_targets
+    global _position_cache, _cached_action_count, _cached_action_ids, _cached_targets, _cached_action_targets
 
     current_actions = Action._active_actions  # type: ignore[attr-defined]
     current_count = len(current_actions)
     current_ids = {id(a) for a in current_actions}
+    current_action_targets: dict[int, int] = {}
+    for action in current_actions:
+        target = getattr(action, "target", _WINDOW_SENTINEL)
+        if target is None or target is _WINDOW_SENTINEL:
+            continue
+        current_action_targets[id(action)] = id(target)
 
     # If action set hasn't changed, use cached targets and update positions
-    if current_count == _cached_action_count and current_ids == _cached_action_ids:
+    if (
+        current_count == _cached_action_count
+        and current_ids == _cached_action_ids
+        and current_action_targets == _cached_action_targets
+    ):
         # Fast path: update positions from cached targets
         positions = {}
         for target_id, target in _cached_targets.items():
@@ -203,6 +214,7 @@ def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
     _position_cache = positions
     _cached_action_count = current_count
     _cached_action_ids = current_ids
+    _cached_action_targets = current_action_targets
     return positions
 
 
