@@ -1,8 +1,6 @@
 import textwrap
-from pathlib import Path
 
-from actions.dev import sync
-from actions.dev import code_parser
+from actions.dev import code_parser, sync
 
 
 def test_update_simple_assignment(tmp_path):

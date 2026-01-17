@@ -8,13 +8,10 @@ Demonstrates:
 """
 
 import arcade
-from actions.group import AttackGroup
-from actions.group_state import BreakawayManager
+
 from actions.formation import arrange_grid
-from actions.conditional import MoveUntil
-from actions.frame_timing import infinite
+from actions.group import AttackGroup
 from actions.presets.entry_paths import loop_the_loop_exact
-from actions.presets.dive_paths import dive_straight
 
 
 class AttackGroupDemo(arcade.Window):

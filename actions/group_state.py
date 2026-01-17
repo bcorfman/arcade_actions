@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import arcade
-    from actions.group import AttackGroup
+
     from actions.base import Action
+    from actions.group import AttackGroup
 else:
     arcade = None  # type: ignore
     AttackGroup = Any
@@ -71,8 +72,8 @@ class DeterministicBreakawayStrategy(BreakawayStrategy):
 
         Each sprite dives along the path, then tweens back to its home slot.
         """
+        from actions.composite import parallel, sequence
         from actions.conditional import FollowPathUntil, TweenUntil
-        from actions.composite import sequence, parallel
         from actions.frame_timing import after_frames, seconds_to_frames
 
         # Create per-sprite actions
@@ -161,7 +162,6 @@ class BreakawayManager:
             strategy: Strategy name ("deterministic" or future "swarm")
             **kwargs: Strategy-specific parameters (dive_path, dive_velocity, etc.)
         """
-        import arcade
         from actions.base import Action
 
         self._trigger_type = trigger

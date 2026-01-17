@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from actions.visualizer.instrumentation import DebugDataStore, ActionSnapshot
+    from actions.visualizer.instrumentation import ActionSnapshot, DebugDataStore
 
 
 class ActionCard:

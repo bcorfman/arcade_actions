@@ -1,6 +1,5 @@
 """Test suite for condition_actions.py - Conditional actions."""
 
-import time
 from typing import Any
 
 import arcade
@@ -2566,7 +2565,7 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
     def test_callback_until_wave_pattern_issue(self, test_sprite):
         """Test CallbackUntil in wave pattern that mimics FlashingForcefieldWave behavior."""
         from actions.composite import parallel
-        from actions.conditional import BlinkUntil, MoveUntil
+        from actions.conditional import MoveUntil
 
         sprite = test_sprite
         call_count_first = 0
@@ -2672,7 +2671,7 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
     def test_callback_until_spritelist_wave_pattern(self, test_sprite):
         """Test CallbackUntil with SpriteList exactly like FlashingForcefieldWave."""
         from actions.composite import parallel
-        from actions.conditional import BlinkUntil, MoveUntil
+        from actions.conditional import MoveUntil
 
         # Create a SpriteList like FlashingForcefieldWave does
         forcefields1 = arcade.SpriteList()
@@ -2777,7 +2776,7 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
     def test_callback_until_class_instance_pattern(self, test_sprite):
         """Test CallbackUntil with class instances exactly like FlashingForcefieldWave."""
         from actions.composite import parallel
-        from actions.conditional import BlinkUntil, MoveUntil
+        from actions.conditional import MoveUntil
 
         class MockWave:
             def __init__(self, wave_id):

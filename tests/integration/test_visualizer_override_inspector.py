@@ -48,9 +48,7 @@ class TestOverrideInspector:
     def test_get_override_inspector_for_sprite_no_arrange_marker(self, dev_visualizer, test_sprite):
         """Test None return for sprites without arrange markers."""
         # Sprite has markers but no arrange type
-        test_sprite._source_markers = [
-            {"file": "test.py", "lineno": 10, "attr": "center_x", "status": "yellow"}
-        ]
+        test_sprite._source_markers = [{"file": "test.py", "lineno": 10, "attr": "center_x", "status": "yellow"}]
 
         inspector = dev_visualizer.get_override_inspector_for_sprite(test_sprite)
 

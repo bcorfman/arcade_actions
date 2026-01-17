@@ -74,7 +74,7 @@ def test_figure_eight_pattern_validates_velocity():
 
 def test_figure_eight_pattern_exposes_control_points():
     pattern = create_figure_eight_pattern((0, 0), width=100, height=50, velocity=5)
-    control_points = getattr(pattern, "control_points")
+    control_points = pattern.control_points
     assert len(control_points) == 17
     start_x, start_y = control_points[0]
     end_x, end_y = control_points[-1]

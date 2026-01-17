@@ -7,8 +7,9 @@ and path splines to help visualize action behavior in real-time.
 
 from __future__ import annotations
 
-import arcade
 from typing import TYPE_CHECKING
+
+import arcade
 
 if TYPE_CHECKING:
     from actions.visualizer.instrumentation import ActionSnapshot

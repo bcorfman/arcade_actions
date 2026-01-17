@@ -3,12 +3,13 @@
 Tests that exported YAML can be loaded back and produces identical sprite configurations.
 """
 
-import arcade
-import tempfile
 import os
+import tempfile
+
+import arcade
 import pytest
 
-from actions.dev.prototype_registry import DevContext, register_prototype, get_registry
+from actions.dev.prototype_registry import DevContext, get_registry, register_prototype
 from actions.dev.templates import export_template, load_scene_template
 from tests.conftest import ActionTestBase
 
@@ -44,7 +45,7 @@ class TestYAMLRoundtrip(ActionTestBase):
 
             # Verify file exists and has content
             assert os.path.exists(temp_path)
-            with open(temp_path, "r") as f:
+            with open(temp_path) as f:
                 content = f.read()
                 assert "test_export" in content
                 assert "150" in content or "x: 150" in content
@@ -103,8 +104,8 @@ class TestYAMLRoundtrip(ActionTestBase):
 
         @register_preset("roundtrip_preset", category="Movement", params={"speed": 7})
         def make_roundtrip_preset(ctx, speed):
-            from actions.helpers import move_until
             from actions.conditional import infinite
+            from actions.helpers import move_until
 
             return move_until(None, velocity=(-speed, 0), condition=infinite)
 

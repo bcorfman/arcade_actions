@@ -1,8 +1,8 @@
 """Tests for sync.py cell override functions: update_arrange_cell, delete_arrange_override, list_arrange_overrides."""
-import textwrap
-from pathlib import Path
 
-from actions.dev import sync, code_parser
+import textwrap
+
+from actions.dev import code_parser, sync
 
 
 def test_update_arrange_cell_adds_override_to_call_without_overrides(tmp_path):

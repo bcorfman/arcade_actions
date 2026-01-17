@@ -6,9 +6,9 @@ Tests click-to-spawn prototype spawning from palette window into scene.
 import arcade
 import pytest
 
-from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry, register_prototype, get_registry
 from actions.dev.palette import PaletteSidebar
 from actions.dev.palette_window import PaletteWindow
+from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry, get_registry, register_prototype
 from tests.conftest import ActionTestBase
 
 

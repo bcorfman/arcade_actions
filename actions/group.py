@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import arcade
+
     from actions.base import Action
     from actions.group_state import BreakawayManager
 else:
@@ -15,7 +16,7 @@ else:
     BreakawayManager = Any
 
 
-def _log_group_metrics(group: "AttackGroup", delta_time: float) -> None:
+def _log_group_metrics(group: AttackGroup, delta_time: float) -> None:
     """Log group metrics for debug telemetry (level 2+)."""
     from actions.base import Action
 
@@ -202,8 +203,8 @@ class AttackGroup:
             path = loop_the_loop(start_x=400, start_y=-100, end_x=400, end_y=500)
             group.entry_path(path, velocity=150, spacing_frames=5)
         """
+        from actions.composite import parallel, sequence
         from actions.conditional import FollowPathUntil, TweenUntil, infinite
-        from actions.composite import sequence, parallel
         from actions.frame_timing import after_frames, seconds_to_frames
 
         if not self.sprites:

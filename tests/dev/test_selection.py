@@ -266,8 +266,7 @@ class TestSelectionManager:
         # Should not draw marquee (only selected sprites if any)
         # Check that marquee-specific calls weren't made
         marquee_calls = [
-            call for call in mock_draw_outline.call_args_list
-            if len(call[0]) > 0 and call[0][4] == arcade.color.CYAN
+            call for call in mock_draw_outline.call_args_list if len(call[0]) > 0 and call[0][4] == arcade.color.CYAN
         ]
         assert len(marquee_calls) == 0
 

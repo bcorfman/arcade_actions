@@ -1,12 +1,12 @@
+import os
 import textwrap
 import webbrowser
-import os
 from unittest import mock
 
 import arcade
 
-from actions.dev.visualizer import DevVisualizer
 from actions.dev.position_tag import tag_sprite
+from actions.dev.visualizer import DevVisualizer
 
 
 class DummySprite:

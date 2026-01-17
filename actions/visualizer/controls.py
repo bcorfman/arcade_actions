@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol, Callable
+from typing import Protocol
 
 import arcade
 
-from actions.visualizer.snapshot import SnapshotExporter
-from actions.visualizer.overlay import InspectorOverlay
-from actions.visualizer.guides import GuideManager
 from actions.visualizer.condition_panel import ConditionDebugger
+from actions.visualizer.guides import GuideManager
+from actions.visualizer.overlay import InspectorOverlay
+from actions.visualizer.snapshot import SnapshotExporter
 from actions.visualizer.timeline import TimelineStrip
 
 

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 import arcade
 from arcade import window_commands
@@ -13,13 +14,12 @@ from actions.base import Action
 from actions.display import move_to_primary_monitor
 from actions.visualizer.condition_panel import ConditionDebugger
 from actions.visualizer.controls import DebugControlManager
+from actions.visualizer.event_window import EventInspectorWindow
 from actions.visualizer.guides import GuideManager
 from actions.visualizer.instrumentation import DebugDataStore
 from actions.visualizer.overlay import InspectorOverlay
-from actions.visualizer.renderer import ConditionPanelRenderer, GuideRenderer, OverlayRenderer, TimelineRenderer
-from actions.visualizer.event_window import EventInspectorWindow
+from actions.visualizer.renderer import GuideRenderer, OverlayRenderer
 from actions.visualizer.timeline import TimelineStrip
-
 
 SpritePositionsProvider = Callable[[], dict[int, tuple[float, float]]]
 TargetNamesProvider = Callable[[], dict[int, str]]
@@ -420,8 +420,8 @@ def _install_window_handler(session: VisualizerSession) -> None:
                             window_commands.set_window(previous_window)
                 return result
 
-            setattr(overlay_on_draw, "__visualizer_overlay__", True)
-            setattr(overlay_on_draw, "__visualizer_original__", current_on_draw)
+            overlay_on_draw.__visualizer_overlay__ = True
+            overlay_on_draw.__visualizer_original__ = current_on_draw
             window.on_draw = overlay_on_draw  # type: ignore[assignment]
             session.original_window_on_draw = current_on_draw
 
@@ -449,8 +449,8 @@ def _install_window_handler(session: VisualizerSession) -> None:
                     return bool(result)
                 return False
 
-            setattr(overlay_on_key_press, "__visualizer_key__", True)
-            setattr(overlay_on_key_press, "__visualizer_key_original__", current_on_key_press)
+            overlay_on_key_press.__visualizer_key__ = True
+            overlay_on_key_press.__visualizer_key_original__ = current_on_key_press
             window.on_key_press = overlay_on_key_press  # type: ignore[assignment]
             session.original_window_on_key_press = current_on_key_press
 
@@ -474,8 +474,8 @@ def _install_window_handler(session: VisualizerSession) -> None:
                     return current_on_close(*args, **kwargs)
                 return None
 
-            setattr(overlay_on_close, "__visualizer_close__", True)
-            setattr(overlay_on_close, "__visualizer_close_original__", current_on_close)
+            overlay_on_close.__visualizer_close__ = True
+            overlay_on_close.__visualizer_close_original__ = current_on_close
             window.on_close = overlay_on_close  # type: ignore[assignment]
             session.original_window_on_close = current_on_close
 
@@ -529,7 +529,7 @@ def attach_visualizer(
     controls_cls: type[DebugControlManager] = DebugControlManager,
     guide_renderer_cls: type[GuideRenderer] = GuideRenderer,
     event_window_cls: type[EventInspectorWindow] = EventInspectorWindow,
-    control_manager_kwargs: Optional[dict[str, Any]] = None,
+    control_manager_kwargs: dict[str, Any] | None = None,
 ) -> VisualizerSession:
     """
     Attach the visualizer instrumentation stack programmatically.

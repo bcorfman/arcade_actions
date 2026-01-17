@@ -13,34 +13,34 @@ Usage:
     # After this call, F3-F9 shortcuts are active automatically
 """
 
-from .instrumentation import (
-    DebugDataStore,
-    ActionEvent,
-    ConditionEvaluation,
-    ActionSnapshot,
-)
 from .attach import (
     attach_visualizer,
-    detach_visualizer,
-    is_visualizer_attached,
-    get_visualizer_session,
-    enable_visualizer_hotkey,
     auto_attach_from_env,
+    detach_visualizer,
+    enable_visualizer_hotkey,
+    get_visualizer_session,
+    is_visualizer_attached,
+)
+from .controls import DebugControlManager
+from .guides import (
+    BoundsGuide,
+    GuideManager,
+    HighlightGuide,
+    PathGuide,
+    VelocityGuide,
+)
+from .instrumentation import (
+    ActionEvent,
+    ActionSnapshot,
+    ConditionEvaluation,
+    DebugDataStore,
 )
 from .overlay import (
-    InspectorOverlay,
     ActionCard,
+    InspectorOverlay,
     TargetGroup,
 )
 from .renderer import OverlayRenderer
-from .guides import (
-    VelocityGuide,
-    BoundsGuide,
-    PathGuide,
-    HighlightGuide,
-    GuideManager,
-)
-from .controls import DebugControlManager
 from .snapshot import SnapshotExporter
 
 __all__ = [

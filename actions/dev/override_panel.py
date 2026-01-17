@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from actions.dev.override_inspector import ArrangeOverrideInspector
 
 
@@ -16,7 +14,7 @@ class OverridesPanel:
         self.dev_visualizer = dev_visualizer
         self.visible: bool = False
         self.sprite = None
-        self.inspector: Optional[ArrangeOverrideInspector] = None
+        self.inspector: ArrangeOverrideInspector | None = None
 
         # UI state
         self._selected_index: int | None = None

@@ -203,9 +203,7 @@ class TestSpriteExport:
         # Add source markers
         test_file = str(tmp_path / "test.py")
         imported._position_id = "test_sprite"
-        imported._source_markers = [
-            {"file": test_file, "lineno": 10, "attr": "center_x", "status": "yellow"}
-        ]
+        imported._source_markers = [{"file": test_file, "lineno": 10, "attr": "center_x", "status": "yellow"}]
 
         # Modify and export
         imported.center_x = 250

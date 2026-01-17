@@ -12,6 +12,7 @@ import arcade
 import pytest
 
 from actions.base import Action
+from actions.conditional import _extract_duration_seconds
 from actions.formation import (
     arrange_arc,
     arrange_arrow,
@@ -26,7 +27,6 @@ from actions.formation import (
     arrange_v_formation,
 )
 from actions.pattern import create_formation_entry_from_sprites
-from actions.conditional import _extract_duration_seconds
 
 
 @pytest.fixture(autouse=True)

@@ -1,11 +1,8 @@
 """Tests for actions.dev.__init__.py - enable_dev_mode and auto_enable_from_env functions."""
 
 import os
-from pathlib import Path
 
-import pytest
-
-from actions.dev import enable_dev_mode, auto_enable_from_env
+from actions.dev import auto_enable_from_env, enable_dev_mode
 from actions.dev.reload import ReloadManager
 
 

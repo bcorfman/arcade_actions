@@ -1,11 +1,10 @@
 import textwrap
-from pathlib import Path
 
-from actions.dev.override_inspector import ArrangeOverrideInspector
-from actions.dev import sync
-from actions.dev.visualizer import DevVisualizer
-from actions.dev import position_tag
 import arcade
+
+from actions.dev import position_tag
+from actions.dev.override_inspector import ArrangeOverrideInspector
+from actions.dev.visualizer import DevVisualizer
 
 
 def test_list_add_edit_remove_overrides(tmp_path):

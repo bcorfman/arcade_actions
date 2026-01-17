@@ -5,9 +5,9 @@ Tests for the visualizer attach/detach helper utilities.
 from __future__ import annotations
 
 import importlib
+from collections.abc import Callable
 from pathlib import Path
-import importlib
-from typing import Any, Callable
+from typing import Any
 
 import arcade
 import pytest
@@ -342,8 +342,6 @@ def test_detach_without_session_returns_false():
 
 
 def test_auto_attach_env_noop(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer import attach as attach_module
-
     monkeypatch.delenv("ARCADEACTIONS_VISUALIZER", raising=False)
 
 
@@ -698,8 +696,8 @@ def test_collect_target_names_from_view_skips_private_attributes(monkeypatch):
 
 def test_collect_target_names_from_view_finds_targets_from_actions(monkeypatch):
     """Test that _collect_target_names_from_view finds targets from active actions."""
-    from actions.visualizer.attach import _collect_target_names_from_view
     from actions.conditional import MoveUntil
+    from actions.visualizer.attach import _collect_target_names_from_view
 
     sprite = arcade.Sprite(":resources:images/items/star.png")
     action = MoveUntil(velocity=(1, 0), condition=lambda: False)
@@ -722,8 +720,8 @@ def test_collect_target_names_from_view_finds_targets_from_actions(monkeypatch):
 
 def test_collect_target_names_from_view_finds_sprite_in_list_from_action(monkeypatch):
     """Test that _collect_target_names_from_view finds sprites in lists from actions."""
-    from actions.visualizer.attach import _collect_target_names_from_view
     from actions.conditional import MoveUntil
+    from actions.visualizer.attach import _collect_target_names_from_view
 
     sprite = arcade.Sprite(":resources:images/items/star.png")
     sprite_list = arcade.SpriteList()

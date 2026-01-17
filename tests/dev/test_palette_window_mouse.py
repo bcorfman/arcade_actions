@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 import arcade
 import pytest
 
 from actions.dev.palette_window import PaletteWindow
 from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry
-from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.slow
 

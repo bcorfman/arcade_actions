@@ -133,8 +133,9 @@ class TestFileWatcher:
 
     def test_debounce_handler_is_after_cutoff_file_not_found(self, tmp_path):
         """Test _DebounceHandler._is_after_cutoff when file doesn't exist."""
-        from actions.dev.watch import _DebounceHandler
         import time
+
+        from actions.dev.watch import _DebounceHandler
 
         handler = _DebounceHandler(callback=lambda files: None, debounce_seconds=0.1)
         handler._cutoff_time = time.time()
@@ -160,8 +161,8 @@ class TestFileWatcher:
 
     def test_debounce_handler_on_modified_ignores_directories(self, tmp_path):
         """Test _DebounceHandler.on_modified ignores directory events."""
+
         from actions.dev.watch import _DebounceHandler
-        from watchdog.events import FileSystemEvent
 
         callback_called = []
 
@@ -182,9 +183,9 @@ class TestFileWatcher:
 
     def test_debounce_handler_on_modified_filters_by_pattern(self, tmp_path):
         """Test _DebounceHandler.on_modified filters files by pattern."""
-        from actions.dev.watch import _DebounceHandler
-        from watchdog.events import FileSystemEvent
         import time
+
+        from actions.dev.watch import _DebounceHandler
 
         callback_called = []
 
@@ -206,9 +207,9 @@ class TestFileWatcher:
 
     def test_debounce_handler_on_modified_filters_by_cutoff(self, tmp_path):
         """Test _DebounceHandler.on_modified filters files by cutoff time."""
-        from actions.dev.watch import _DebounceHandler
-        from watchdog.events import FileSystemEvent
         import time
+
+        from actions.dev.watch import _DebounceHandler
 
         callback_called = []
 
@@ -234,8 +235,9 @@ class TestFileWatcher:
 
     def test_debounce_handler_stop_clears_pending_files(self, tmp_path):
         """Test _DebounceHandler.stop() clears pending files."""
-        from actions.dev.watch import _DebounceHandler
         import time
+
+        from actions.dev.watch import _DebounceHandler
 
         callback_called = []
 
@@ -304,9 +306,10 @@ class TestFileWatcher:
 
     def test_debounce_handler_on_modified_triggers_callback(self, tmp_path):
         """Test _DebounceHandler.on_modified triggers callback after debounce."""
-        from actions.dev.watch import _DebounceHandler
-        import time
         import threading
+        import time
+
+        from actions.dev.watch import _DebounceHandler
 
         callback_called = []
         callback_lock = threading.Lock()
@@ -348,8 +351,9 @@ class TestFileWatcher:
 
     def test_debounce_handler_stop_joins_thread(self, tmp_path):
         """Test _DebounceHandler.stop() joins the debounce thread."""
-        from actions.dev.watch import _DebounceHandler
         import time
+
+        from actions.dev.watch import _DebounceHandler
 
         def callback(files):
             pass
@@ -410,8 +414,9 @@ class TestFileWatcher:
         (especially on Mac with Python 3.11/3.12) before we call stop(). The stop() method
         should handle this gracefully.
         """
-        from actions.dev.watch import _DebounceHandler
         import time
+
+        from actions.dev.watch import _DebounceHandler
 
         callback_called = []
 

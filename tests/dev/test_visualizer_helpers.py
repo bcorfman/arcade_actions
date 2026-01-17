@@ -5,10 +5,8 @@ Tests the pure functions extracted from visualizer.py for better testability.
 
 from __future__ import annotations
 
-import pytest
-
-from actions.dev.visualizer_helpers import resolve_condition, resolve_callback
-from actions.frame_timing import after_frames, within_frames, infinite
+from actions.dev.visualizer_helpers import resolve_callback, resolve_condition
+from actions.frame_timing import after_frames, infinite, within_frames
 
 
 class TestResolveCondition:
@@ -24,6 +22,7 @@ class TestResolveCondition:
 
     def test_resolve_condition_callable(self):
         """Test resolving a callable returns it unchanged."""
+
         def my_condition():
             return True
 
@@ -57,14 +56,14 @@ class TestResolveCondition:
         """Test resolving invalid 'after_frames:' string falls back to infinite."""
         cond = resolve_condition("after_frames:")
         # Should fall back to infinite function (preserving original behavior)
-        from actions.frame_timing import infinite
+
         # Note: Original code returns 'infinite' function object in error cases
         assert cond is infinite
 
     def test_resolve_condition_after_frames_non_numeric(self):
         """Test resolving 'after_frames:abc' falls back to infinite."""
         cond = resolve_condition("after_frames:abc")
-        from actions.frame_timing import infinite
+
         assert cond is infinite
 
     def test_resolve_condition_after_seconds(self):
@@ -81,13 +80,13 @@ class TestResolveCondition:
     def test_resolve_condition_after_seconds_invalid(self):
         """Test resolving invalid 'after_seconds:' string falls back to infinite."""
         cond = resolve_condition("after_seconds:")
-        from actions.frame_timing import infinite
+
         assert cond is infinite
 
     def test_resolve_condition_after_seconds_non_numeric(self):
         """Test resolving 'after_seconds:abc' falls back to infinite."""
         cond = resolve_condition("after_seconds:abc")
-        from actions.frame_timing import infinite
+
         assert cond is infinite
 
     def test_resolve_condition_within_frames(self):
@@ -102,31 +101,31 @@ class TestResolveCondition:
     def test_resolve_condition_within_frames_invalid(self):
         """Test resolving invalid 'within_frames:' string falls back to infinite."""
         cond = resolve_condition("within_frames:")
-        from actions.frame_timing import infinite
+
         assert cond is infinite
 
     def test_resolve_condition_within_frames_malformed(self):
         """Test resolving malformed 'within_frames:S:E' string falls back to infinite."""
         cond = resolve_condition("within_frames:10")
-        from actions.frame_timing import infinite
+
         assert cond is infinite
 
     def test_resolve_condition_unknown_string(self):
         """Test resolving unknown string falls back to infinite."""
         cond = resolve_condition("unknown_format")
-        from actions.frame_timing import infinite
+
         assert cond is infinite
 
     def test_resolve_condition_empty_string(self):
         """Test resolving empty string falls back to infinite."""
         cond = resolve_condition("")
-        from actions.frame_timing import infinite
+
         assert cond is infinite
 
     def test_resolve_condition_non_string_non_callable(self):
         """Test resolving non-string, non-callable falls back to infinite."""
         cond = resolve_condition(123)
-        from actions.frame_timing import infinite
+
         assert cond is infinite
 
 
@@ -140,6 +139,7 @@ class TestResolveCallback:
 
     def test_resolve_callback_callable(self):
         """Test resolving a callable returns it unchanged."""
+
         def my_callback():
             return "result"
 
@@ -149,6 +149,7 @@ class TestResolveCallback:
 
     def test_resolve_callback_string_with_resolver(self):
         """Test resolving string with resolver function."""
+
         def resolver(name: str):
             callbacks = {
                 "callback1": lambda: "result1",
@@ -172,6 +173,7 @@ class TestResolveCallback:
 
     def test_resolve_callback_string_resolver_returns_none(self):
         """Test resolving string when resolver returns None."""
+
         def resolver(name: str):
             return None
 
@@ -180,6 +182,7 @@ class TestResolveCallback:
 
     def test_resolve_callback_string_resolver_exception(self):
         """Test resolving string when resolver raises exception returns None."""
+
         def resolver(name: str):
             raise ValueError("Resolver error")
 
@@ -193,6 +196,7 @@ class TestResolveCallback:
 
     def test_resolve_callback_string_resolver_returns_callable(self):
         """Test resolving string when resolver returns a callable."""
+
         def my_callback():
             return "success"
 

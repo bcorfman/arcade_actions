@@ -1,13 +1,13 @@
 """Tests for YAML export/import round-trip with attack_groups."""
 
-import pytest
-import arcade
 import tempfile
 from pathlib import Path
-from actions.group import AttackGroup
-from actions.dev.templates import export_template, load_scene_template
+
+import arcade
+import pytest
+
 from actions.dev.prototype_registry import DevContext
-from actions.formation import arrange_line, arrange_grid
+from actions.dev.templates import export_template, load_scene_template
 from tests.conftest import ActionTestBase
 
 
@@ -33,7 +33,7 @@ class TestYAMLRoundtrip(ActionTestBase):
             # Load and verify it's a list (old format)
             import yaml
 
-            with open(temp_path, "r") as f:
+            with open(temp_path) as f:
                 data = yaml.safe_load(f)
                 assert isinstance(data, list)
                 assert len(data) == 3
@@ -66,7 +66,7 @@ class TestYAMLRoundtrip(ActionTestBase):
             # Load and verify it's a dict with sprites and attack_groups
             import yaml
 
-            with open(temp_path, "r") as f:
+            with open(temp_path) as f:
                 data = yaml.safe_load(f)
                 assert isinstance(data, dict)
                 assert "sprites" in data

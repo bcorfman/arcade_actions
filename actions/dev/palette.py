@@ -5,8 +5,9 @@ Provides drag-and-drop interface for spawning sprite prototypes into the scene.
 
 from __future__ import annotations
 
-import arcade
 from typing import TYPE_CHECKING
+
+import arcade
 
 if TYPE_CHECKING:
     from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry

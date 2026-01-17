@@ -7,7 +7,7 @@ import pytest
 
 from actions import Action, move_until
 from actions.conditional import infinite
-from actions.visualizer import attach_visualizer, detach_visualizer, get_visualizer_session
+from actions.visualizer import detach_visualizer, get_visualizer_session
 from tests.conftest import ActionTestBase
 
 
@@ -119,7 +119,7 @@ class TestStepMovesSprites(ActionTestBase):
 
                     def show_view(self, view) -> None:
                         self._view = view
-                        setattr(view, "window", self)
+                        view.window = self
 
                     def set_visible(self, value: bool) -> None:
                         self.visible = value

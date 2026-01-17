@@ -77,6 +77,7 @@ class GameView(arcade.View):
 
         # Sounds
         self.hit_sound = arcade.load_sound(":resources:sounds/hit5.wav")
+        arcade.play_sound(self.hit_sound, volume=0.0)  # Preload sound
 
         self.background_color = arcade.color.AMAZON
         self.window.set_mouse_visible(False)

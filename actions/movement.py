@@ -3,13 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from . import physics_adapter as _pa
-from actions.base import Action as _Action
-
 from actions._movement_bounds import _MoveUntilBoundsMixin
 from actions._movement_runtime import _MoveUntilRuntimeMixin
 from actions._shared_logging import _debug_log
+from actions.base import Action as _Action
 from actions.frame_conditions import _clone_condition
+
+from . import physics_adapter as _pa
 
 
 class MoveUntil(_MoveUntilRuntimeMixin, _MoveUntilBoundsMixin, _Action):
@@ -138,7 +138,7 @@ class MoveUntil(_MoveUntilRuntimeMixin, _MoveUntilBoundsMixin, _Action):
             action="MoveUntil",
         )
 
-    def clone(self) -> "MoveUntil":
+    def clone(self) -> MoveUntil:
         """Create a copy of this MoveUntil action."""
         _debug_log(f"clone: id={id(self)}", action="MoveUntil")
         return MoveUntil(
@@ -256,7 +256,7 @@ class RotateUntil(_Action):
 
         self.for_each_sprite(clear_rotation)
 
-    def clone(self) -> "RotateUntil":
+    def clone(self) -> RotateUntil:
         return RotateUntil(self.target_angular_velocity, _clone_condition(self.condition), self.on_stop)
 
     def reset(self) -> None:

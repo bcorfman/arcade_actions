@@ -10,17 +10,14 @@ These tests perform explicit time/step sampling to ensure that
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 
 import arcade
-import pytest
-
-import json
-from pathlib import Path
 
 from actions import Action, repeat, sequence
 from actions.pattern import create_wave_pattern
-
 
 REFERENCE_PATH = Path(__file__).with_name("data") / "wave_reference_a85.json"
 

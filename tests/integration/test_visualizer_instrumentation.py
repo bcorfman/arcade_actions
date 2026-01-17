@@ -5,12 +5,8 @@ Tests the debug data store and instrumentation hooks that capture
 action lifecycle events and condition evaluations.
 """
 
-import pytest
 from actions.visualizer.instrumentation import (
     DebugDataStore,
-    ActionEvent,
-    ConditionEvaluation,
-    ActionSnapshot,
 )
 
 
@@ -424,10 +420,11 @@ class TestFrameCounterIntegration:
 
     def test_debug_store_receives_frame_numbers(self):
         """Test that DebugDataStore receives frame numbers from Action frame counter."""
+        import arcade
+
         from actions import Action
         from actions.conditional import MoveUntil
         from actions.frame_timing import after_frames
-        import arcade
 
         store = DebugDataStore()
         Action.set_debug_store(store)
@@ -466,10 +463,11 @@ class TestFrameCounterIntegration:
 
     def test_pause_snapshots_reflect_pause_state(self):
         """Test that snapshots reflect pause state when actions are paused."""
+        import arcade
+
         from actions import Action
         from actions.conditional import MoveUntil
         from actions.frame_timing import after_frames
-        import arcade
 
         store = DebugDataStore()
         Action.set_debug_store(store)
@@ -519,11 +517,12 @@ class TestTimelinePruning:
 
     def test_timeline_shows_only_active_entries(self):
         """Test that timeline shows only active actions to match the overlay."""
+        import arcade
+
         from actions import Action
         from actions.conditional import MoveUntil
         from actions.frame_timing import after_frames
         from actions.visualizer.timeline import TimelineStrip
-        import arcade
 
         store = DebugDataStore()
         Action.set_debug_store(store)
@@ -574,11 +573,12 @@ class TestTimelinePruning:
 
     def test_timeline_removes_inactive_entries_immediately(self):
         """Test that inactive entries are removed from cache immediately."""
+        import arcade
+
         from actions import Action
         from actions.conditional import MoveUntil
         from actions.frame_timing import after_frames
         from actions.visualizer.timeline import TimelineStrip
-        import arcade
 
         store = DebugDataStore()
         Action.set_debug_store(store)

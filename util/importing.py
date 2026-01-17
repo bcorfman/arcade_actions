@@ -1,8 +1,7 @@
+import ast
 import os
 import re
 from pathlib import Path
-import ast
-import sys
 
 # Import actions to get its location
 import actions
@@ -35,7 +34,6 @@ potential_c_extensions = {
     "secrets",
     "statistics",
     "time",
-    "datetime",
     "zoneinfo",
 }
 
@@ -45,7 +43,7 @@ found_modules = set()
 def scan_file(filepath):
     """Scan a Python file for import statements."""
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             content = f.read()
 
         # Try parsing as AST
@@ -69,7 +67,7 @@ def scan_file(filepath):
                 match = re.match(r"^\s*(import|from)\s+(\w+)", line)
                 if match and match.group(2) not in {"arcade", "pyglet", "actions", "__main__"}:
                     found_modules.add(match.group(2))
-    except Exception as e:
+    except Exception:
         pass
 
 

@@ -12,7 +12,6 @@ import arcade
 import pytest
 
 from actions import Action
-from actions.frame_timing import after_frames
 from actions.conditional import (
     BlinkUntil,
     CallbackUntil,

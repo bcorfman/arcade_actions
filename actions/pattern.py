@@ -15,7 +15,7 @@ import arcade
 
 from actions import DelayUntil, FollowPathUntil, MoveUntil, sequence
 from actions.conditional import ParametricMotionUntil
-from actions.frame_timing import after_frames, seconds_to_frames
+from actions.frame_timing import after_frames
 
 
 def create_zigzag_pattern(
@@ -87,7 +87,7 @@ def create_zigzag_pattern(
 
         return dx, dy
 
-    from actions.conditional import ParametricMotionUntil, infinite  # local import to avoid cycles
+    from actions.conditional import ParametricMotionUntil  # local import to avoid cycles
 
     # Use provided condition or default to completing after calculated frames
     final_condition = condition if condition is not None else after_frames(total_frames)
@@ -138,7 +138,7 @@ def create_wave_pattern(
         create_wave_pattern(20, 80, 4, start_progress=0.75, end_progress=1.0, condition=after_frames(60))
     """
 
-    from actions.conditional import ParametricMotionUntil, infinite  # local import to avoid cycles
+    from actions.conditional import ParametricMotionUntil  # local import to avoid cycles
 
     # Validate progress parameters
     if not (0.0 <= start_progress <= 1.0 and 0.0 <= end_progress <= 1.0):
@@ -496,8 +496,8 @@ def create_bounce_pattern(
         bounce_x = create_bounce_pattern((10, 0), bounds=(0, 0, 800, 600), axis="x", on_boundary_enter=on_bounce)
     """
     # Local import to avoid potential circular dependency with main actions module
-    from .conditional import infinite
     from .axis_move import MoveXUntil, MoveYUntil
+    from .conditional import infinite
 
     # Validate axis parameter
     if axis not in {"both", "x", "y"}:

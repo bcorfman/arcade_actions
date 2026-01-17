@@ -15,7 +15,6 @@ Key Principles:
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 
 def after_frames(frame_count: int) -> Callable[[], bool]:

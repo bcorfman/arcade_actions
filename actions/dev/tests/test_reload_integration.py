@@ -1,11 +1,10 @@
 import textwrap
-from pathlib import Path
 
 import arcade
 
 from actions.dev.position_tag import tag_sprite
-from actions.dev.visualizer import enable_dev_visualizer, get_dev_visualizer
 from actions.dev.reload import ReloadManager
+from actions.dev.visualizer import enable_dev_visualizer
 
 
 class DummySprite:

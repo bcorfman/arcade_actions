@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import arcade
-import pytest
-
-from actions.dev.visualizer import DevVisualizer, _get_primary_monitor_rect
+from actions.dev.visualizer import _get_primary_monitor_rect
 
 
 class TestMonitorDetection:

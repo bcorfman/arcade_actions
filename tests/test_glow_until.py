@@ -1,7 +1,5 @@
 import types
 
-import pytest
-
 from actions import Action
 from actions.frame_timing import after_frames
 

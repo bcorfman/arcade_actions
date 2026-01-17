@@ -1,9 +1,9 @@
 import textwrap
-from pathlib import Path
 
 import arcade
+
+from actions.dev import position_tag, sync
 from actions.dev.visualizer import DevVisualizer
-from actions.dev import sync, code_parser, position_tag
 
 
 def test_export_updates_arrange_start(monkeypatch, tmp_path):

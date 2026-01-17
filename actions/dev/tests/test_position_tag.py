@@ -1,6 +1,4 @@
-import types
-
-from actions.dev.position_tag import positioned, tag_sprite, get_sprites_for, remove_sprite_from_registry
+from actions.dev.position_tag import get_sprites_for, positioned, remove_sprite_from_registry, tag_sprite
 
 
 class DummySprite:
@@ -14,7 +12,7 @@ def test_decorator_tags_sprite_and_registers():
         return DummySprite("ff")
 
     s = create()
-    assert getattr(s, "_position_id") == "forcefield"
+    assert s._position_id == "forcefield"
     sprites = get_sprites_for("forcefield")
     assert s in sprites
 
@@ -22,7 +20,7 @@ def test_decorator_tags_sprite_and_registers():
 def test_manual_tagging_and_removal():
     s = DummySprite("x")
     tag_sprite(s, "manual")
-    assert getattr(s, "_position_id") == "manual"
+    assert s._position_id == "manual"
     assert s in get_sprites_for("manual")
 
     remove_sprite_from_registry(s)
@@ -36,5 +34,5 @@ def test_decorator_preserves_factory_metadata():
         return DummySprite("a")
 
     assert hasattr(f, "__wrapped__")
-    assert getattr(f, "__doc__") == "docstring"
-    assert getattr(f, "_positioned_id") == "p1"
+    assert f.__doc__ == "docstring"
+    assert f._positioned_id == "p1"

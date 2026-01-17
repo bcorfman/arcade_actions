@@ -1,9 +1,9 @@
 import textwrap
-from pathlib import Path
 
 import arcade
-from actions.dev.visualizer import DevVisualizer
+
 from actions.dev import position_tag
+from actions.dev.visualizer import DevVisualizer
 
 
 def test_overrides_panel_open_set_remove(tmp_path):

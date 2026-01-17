@@ -5,10 +5,10 @@ Actions are used to animate sprites and sprite lists over time.
 
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar
-import time
 
 if TYPE_CHECKING:
     import arcade
@@ -56,7 +56,7 @@ def _validate_target(target: Any) -> None:
     try:
         iter(target)
         return
-    except TypeError as exc:
+    except TypeError:
         try:
             target.sprite_lists
         except AttributeError as attr_exc:

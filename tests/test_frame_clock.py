@@ -5,7 +5,6 @@ behavior with pause/resume/step debugging functionality.
 """
 
 import arcade
-import pytest
 
 from actions import Action
 from actions.frame_timing import after_frames

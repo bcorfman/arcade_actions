@@ -12,17 +12,15 @@ These tests verify:
 Note: The slow subprocess-based env var test has been moved to tests/integration/
 """
 
-import pytest
 import arcade
 
 from actions import Action
-from actions.frame_timing import after_frames
 from actions.conditional import MoveUntil
+from actions.frame_timing import after_frames
 
 
 def test_action_visualizer_hooks_dont_crash_when_disabled():
     """Test that visualizer hooks in Action don't crash when visualizer is disabled."""
-    from actions import Action
 
     # Ensure visualizer is disabled
     Action._enable_visualizer = False
@@ -47,7 +45,6 @@ def test_action_visualizer_hooks_dont_crash_when_disabled():
 
 def test_action_visualizer_hooks_with_enable_flag():
     """Test that visualizer hooks work when flag is enabled but store is None."""
-    from actions import Action
 
     # Enable visualizer but don't set debug store
     Action._enable_visualizer = True
@@ -93,7 +90,6 @@ def test_visualizer_module_import():
 
 def test_visualizer_hooks_in_action_lifecycle():
     """Test that visualizer hooks are called during normal action lifecycle without crashing."""
-    from actions import Action
 
     # Disable visualizer for this test
     Action._enable_visualizer = False

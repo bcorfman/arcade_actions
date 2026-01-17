@@ -8,29 +8,25 @@ from __future__ import annotations
 
 import os
 import time
-from collections.abc import Callable
 import types
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from weakref import WeakKeyDictionary
 
 import arcade
 
 if TYPE_CHECKING:
-    from actions.dev.palette import PaletteSidebar
-    from actions.dev.selection import SelectionManager
     from actions.dev.boundary_overlay import BoundaryGizmo
     from actions.dev.prototype_registry import DevContext
+    from actions.dev.selection import SelectionManager
 
+from actions import Action
 from actions.dev.boundary_overlay import BoundaryGizmo
-from actions.dev.palette import PaletteSidebar
 from actions.dev.palette_window import PaletteWindow
 from actions.dev.prototype_registry import DevContext, get_registry
 from actions.dev.selection import SelectionManager
-from actions.dev.visualizer_helpers import resolve_condition, resolve_callback
+from actions.dev.visualizer_helpers import resolve_callback, resolve_condition
 from actions.dev.window_position_tracker import WindowPositionTracker
-
-from actions import Action
-from actions.display import move_to_primary_monitor
 
 _MISSING_GIZMO_REFRESH_SECONDS = 0.25
 
@@ -39,33 +35,38 @@ _MISSING_GIZMO_REFRESH_SECONDS = 0.25
 @runtime_checkable
 class SpriteWithActionConfigs(Protocol):
     """Protocol for sprites with action configuration metadata."""
+
     _action_configs: list[dict[str, Any]]
 
 
 @runtime_checkable
 class SpriteWithSourceMarkers(Protocol):
     """Protocol for sprites with source code markers."""
+
     _source_markers: list[dict[str, Any]]
 
 
 @runtime_checkable
 class SpriteWithOriginal(Protocol):
     """Protocol for sprites that reference an original sprite for sync."""
+
     _original_sprite: arcade.Sprite
 
 
 @runtime_checkable
 class SpriteWithPositionId(Protocol):
     """Protocol for sprites with position ID for source code sync."""
+
     _position_id: str | None
 
 
 @runtime_checkable
 class WindowWithContext(Protocol):
     """Protocol for windows with OpenGL context."""
+
     _context: Any | None
     height: int
-    
+
     def get_location(self) -> tuple[int, int] | None: ...
 
 
@@ -375,9 +376,9 @@ class DevVisualizer:
                                         "[DevVisualizer] Decoration deltas zero on first check – will retry next frame"
                                     )
                             else:
-                                print(f"[DevVisualizer] Could not find client area coordinates, leaving deltas as None")
+                                print("[DevVisualizer] Could not find client area coordinates, leaving deltas as None")
                                 # Don't set to 0 - leave as None so we can try again later
-                except Exception as e:
+                except Exception:
                     import traceback
 
                     traceback.print_exc()
@@ -915,7 +916,7 @@ class DevVisualizer:
                             )
                     else:
                         print(
-                            f"[DevVisualizer] _poll_show_palette: Could not find client area coordinates, leaving deltas as None"
+                            "[DevVisualizer] _poll_show_palette: Could not find client area coordinates, leaving deltas as None"
                         )
                         # Don't set to 0 - leave as None so we can try again later
             except Exception as e:
@@ -1049,12 +1050,12 @@ class DevVisualizer:
             True if positioning succeeded, False otherwise.
         """
         if self.palette_window is None:
-            print(f"[DevVisualizer] No palette window, returning False")
+            print("[DevVisualizer] No palette window, returning False")
             return False
 
         # Only position when window is NOT visible (like toggle_event_window does)
         if self.palette_window.visible and not force:
-            print(f"[DevVisualizer] Palette window is visible, not repositioning")
+            print("[DevVisualizer] Palette window is visible, not repositioning")
             return False
 
         # Always get the current window (in case it was recreated)
@@ -1078,7 +1079,7 @@ class DevVisualizer:
             pass
 
         if anchor_window is None:
-            print(f"[DevVisualizer] Anchor window is None")
+            print("[DevVisualizer] Anchor window is None")
             return False
 
         # Get primary monitor rect using the same approach as move_to_primary_monitor
@@ -1254,8 +1255,9 @@ class DevVisualizer:
 
         # E key: Export scene to YAML
         if key == arcade.key.E:
-            from actions.dev.templates import export_template
             import os
+
+            from actions.dev.templates import export_template
 
             # Try common filenames based on context
             filename = "scene.yaml"
@@ -1270,9 +1272,9 @@ class DevVisualizer:
 
         # I key: Import scene from YAML
         if key == arcade.key.I:
-            from actions.dev.templates import load_scene_template
-
             import os
+
+            from actions.dev.templates import load_scene_template
 
             # Try common filenames
             for filename in ["scene.yaml", "examples/boss_level.yaml", "scenes/new_scene.yaml"]:
@@ -1646,94 +1648,94 @@ class DevVisualizer:
                     pid = getattr(sprite, "_position_id", None)
                     markers = getattr(sprite, "_source_markers", None)
                     if pid and markers:
-                            from actions.dev import sync
+                        from actions.dev import sync
 
-                            for m in markers:
-                                file = m.get("file")
-                                # handle direct attribute assignment markers
-                                attr = m.get("attr")
-                                if file and attr:
-                                    # Determine new value based on attribute
-                                    if attr == "left":
-                                        val = getattr(sprite, "left", None)
-                                        if val is None:
-                                            val = sprite.center_x
-                                        new_value_src = str(int(round(val)))
-                                    elif attr == "top":
-                                        val = getattr(sprite, "top", None)
-                                        if val is None:
-                                            val = sprite.center_y
-                                        new_value_src = str(int(round(val)))
-                                    elif attr == "center_x":
-                                        new_value_src = str(int(round(sprite.center_x)))
-                                    else:
-                                        continue
+                        for m in markers:
+                            file = m.get("file")
+                            # handle direct attribute assignment markers
+                            attr = m.get("attr")
+                            if file and attr:
+                                # Determine new value based on attribute
+                                if attr == "left":
+                                    val = getattr(sprite, "left", None)
+                                    if val is None:
+                                        val = sprite.center_x
+                                    new_value_src = str(int(round(val)))
+                                elif attr == "top":
+                                    val = getattr(sprite, "top", None)
+                                    if val is None:
+                                        val = sprite.center_y
+                                    new_value_src = str(int(round(val)))
+                                elif attr == "center_x":
+                                    new_value_src = str(int(round(sprite.center_x)))
+                                else:
+                                    continue
+
+                                try:
+                                    sync.update_position_assignment(file, pid, attr, new_value_src)
+                                except Exception:
+                                    # Don't let sync failures break export process
+                                    pass
+
+                        # handle arrange call markers (update start_x/start_y to match moved sprite)
+                        if m.get("type") == "arrange":
+                            lineno = m.get("lineno")
+                            kwargs = m.get("kwargs", {}) or {}
+                            # Prefer 'left'/'top' if available, else center
+                            new_start_x = int(round(getattr(sprite, "left", sprite.center_x)))
+                            new_start_y = int(round(getattr(sprite, "top", sprite.center_y)))
+
+                            # Update start_x and start_y on the arrange call
+                            try:
+                                sync.update_arrange_call(file, lineno, "start_x", str(new_start_x))
+                            except Exception:
+                                pass
+                            try:
+                                sync.update_arrange_call(file, lineno, "start_y", str(new_start_y))
+                            except Exception:
+                                pass
+
+                            # Also attempt to compute the grid cell (row, col) for this sprite and add a per-cell override
+                            try:
+                                rows = int(float(kwargs.get("rows", "0"))) if kwargs.get("rows") else None
+                                cols = int(float(kwargs.get("cols", "0"))) if kwargs.get("cols") else None
+                                spacing_x = (
+                                    float(kwargs.get("spacing_x", kwargs.get("spacing", "0")).strip("()"))
+                                    if kwargs.get("spacing_x") or kwargs.get("spacing")
+                                    else None
+                                )
+                                spacing_y = (
+                                    float(kwargs.get("spacing_y", kwargs.get("spacing", "0")).strip("()"))
+                                    if kwargs.get("spacing_y") or kwargs.get("spacing")
+                                    else None
+                                )
+                                start_x = float(kwargs.get("start_x")) if kwargs.get("start_x") else None
+                                start_y = float(kwargs.get("start_y")) if kwargs.get("start_y") else None
+
+                                if (
+                                    rows
+                                    and cols
+                                    and spacing_x
+                                    and spacing_y
+                                    and start_x is not None
+                                    and start_y is not None
+                                ):
+                                    # Compute closest col / row
+                                    col = int(round((sprite.center_x - start_x) / spacing_x))
+                                    row = int(round((sprite.center_y - start_y) / spacing_y))
+                                    col = max(0, min(cols - 1, col))
+                                    row = max(0, min(rows - 1, row))
+
+                                    # Coordinates to store
+                                    cell_x = int(round(sprite.center_x))
+                                    cell_y = int(round(sprite.center_y))
 
                                     try:
-                                        sync.update_position_assignment(file, pid, attr, new_value_src)
+                                        sync.update_arrange_cell(file, lineno, row, col, cell_x, cell_y)
                                     except Exception:
-                                        # Don't let sync failures break export process
                                         pass
-
-                            # handle arrange call markers (update start_x/start_y to match moved sprite)
-                            if m.get("type") == "arrange":
-                                lineno = m.get("lineno")
-                                kwargs = m.get("kwargs", {}) or {}
-                                # Prefer 'left'/'top' if available, else center
-                                new_start_x = int(round(getattr(sprite, "left", sprite.center_x)))
-                                new_start_y = int(round(getattr(sprite, "top", sprite.center_y)))
-
-                                # Update start_x and start_y on the arrange call
-                                try:
-                                    sync.update_arrange_call(file, lineno, "start_x", str(new_start_x))
-                                except Exception:
-                                    pass
-                                try:
-                                    sync.update_arrange_call(file, lineno, "start_y", str(new_start_y))
-                                except Exception:
-                                    pass
-
-                                # Also attempt to compute the grid cell (row, col) for this sprite and add a per-cell override
-                                try:
-                                    rows = int(float(kwargs.get("rows", "0"))) if kwargs.get("rows") else None
-                                    cols = int(float(kwargs.get("cols", "0"))) if kwargs.get("cols") else None
-                                    spacing_x = (
-                                        float(kwargs.get("spacing_x", kwargs.get("spacing", "0")).strip("()"))
-                                        if kwargs.get("spacing_x") or kwargs.get("spacing")
-                                        else None
-                                    )
-                                    spacing_y = (
-                                        float(kwargs.get("spacing_y", kwargs.get("spacing", "0")).strip("()"))
-                                        if kwargs.get("spacing_y") or kwargs.get("spacing")
-                                        else None
-                                    )
-                                    start_x = float(kwargs.get("start_x")) if kwargs.get("start_x") else None
-                                    start_y = float(kwargs.get("start_y")) if kwargs.get("start_y") else None
-
-                                    if (
-                                        rows
-                                        and cols
-                                        and spacing_x
-                                        and spacing_y
-                                        and start_x is not None
-                                        and start_y is not None
-                                    ):
-                                        # Compute closest col / row
-                                        col = int(round((sprite.center_x - start_x) / spacing_x))
-                                        row = int(round((sprite.center_y - start_y) / spacing_y))
-                                        col = max(0, min(cols - 1, col))
-                                        row = max(0, min(rows - 1, row))
-
-                                        # Coordinates to store
-                                        cell_x = int(round(sprite.center_x))
-                                        cell_y = int(round(sprite.center_y))
-
-                                        try:
-                                            sync.update_arrange_cell(file, lineno, row, col, cell_x, cell_y)
-                                        except Exception:
-                                            pass
-                                except Exception:
-                                    pass
+                            except Exception:
+                                pass
                 except Exception:
                     # Keep export resilient to any unexpected errors
                     pass
@@ -1759,7 +1761,9 @@ class DevVisualizer:
                 entry["tag"] = tag
             sprite._action_configs.append(entry)  # type: ignore[attr-defined]
 
-    def update_action_config(self, sprite: arcade.Sprite | SpriteWithActionConfigs, config_index: int, **updates) -> None:
+    def update_action_config(
+        self, sprite: arcade.Sprite | SpriteWithActionConfigs, config_index: int, **updates
+    ) -> None:
         """Update a single action config dict on a sprite (edit mode).
 
         Args:
@@ -1791,8 +1795,8 @@ class DevVisualizer:
         This attempts to open VSCode using the file/line URI if available. Falls back
         to printing the location if the URI can't be opened.
         """
-        import webbrowser
         import os
+        import webbrowser
 
         file = marker.get("file")
         lineno = marker.get("lineno")
@@ -1820,19 +1824,18 @@ class DevVisualizer:
             return
 
         from actions import (
-            move_until,
-            infinite,
-            follow_path_until,
-            fade_until,
             blink_until,
-            rotate_until,
-            tween_until,
-            scale_until,
             callback_until,
-            delay_until,
             cycle_textures_until,
+            delay_until,
             emit_particles_until,
+            fade_until,
+            follow_path_until,
             glow_until,
+            move_until,
+            rotate_until,
+            scale_until,
+            tween_until,
         )
         from actions.dev import get_preset_registry
 

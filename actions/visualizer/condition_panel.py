@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from actions.visualizer.instrumentation import DebugDataStore, ActionSnapshot
+    from actions.visualizer.instrumentation import DebugDataStore
 
 
 class ConditionEntry:
@@ -63,7 +63,7 @@ class ConditionDebugger:
 
     def __init__(
         self,
-        debug_store: "DebugDataStore",
+        debug_store: DebugDataStore,
         *,
         max_entries: int = 50,
         filter_tag: str | None = None,

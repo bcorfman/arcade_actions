@@ -20,6 +20,7 @@ DevVisualizer automatically draws scene sprites - completely transparent to the 
 """
 
 import arcade
+
 from actions import center_window
 from actions.dev import register_prototype
 

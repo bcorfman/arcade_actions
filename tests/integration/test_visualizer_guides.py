@@ -5,15 +5,15 @@ Tests velocity vectors, boundary rectangles, path splines, and other
 visual debug overlays that help visualize action behavior.
 """
 
-import pytest
 import arcade
-from actions.visualizer.instrumentation import DebugDataStore, ActionSnapshot
+
 from actions.visualizer.guides import (
-    VelocityGuide,
     BoundsGuide,
-    PathGuide,
     GuideManager,
+    PathGuide,
+    VelocityGuide,
 )
+from actions.visualizer.instrumentation import ActionSnapshot
 
 
 class TestVelocityGuide:

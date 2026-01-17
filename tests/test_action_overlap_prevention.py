@@ -8,12 +8,9 @@ import os
 import warnings
 
 import arcade
-import pytest
 
 from actions import Action
-from actions.base import CompositeAction
-from actions.conditional import MoveUntil, RotateUntil, FadeUntil, CycleTexturesUntil, infinite
-from actions.frame_timing import after_frames
+from actions.conditional import CycleTexturesUntil, FadeUntil, MoveUntil, RotateUntil, infinite
 
 
 def create_test_sprite() -> arcade.Sprite:

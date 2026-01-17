@@ -3,9 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from actions.base import Action as _Action
-
 from actions._shared_logging import _debug_log
+from actions.base import Action as _Action
 from actions.frame_conditions import _clone_condition
 
 
@@ -54,7 +53,7 @@ class DelayUntil(_Action):
         self._elapsed = 0.0
         self._duration = None
 
-    def clone(self) -> "DelayUntil":
+    def clone(self) -> DelayUntil:
         """Create a copy of this action."""
         return DelayUntil(_clone_condition(self.condition), self.on_stop)
 
@@ -210,7 +209,7 @@ class CallbackUntil(_Action):
         self._elapsed = 0.0
         self._next_fire_time = None
 
-    def clone(self) -> "CallbackUntil":
+    def clone(self) -> CallbackUntil:
         """Create a copy of this action."""
         return CallbackUntil(
             self.callback,

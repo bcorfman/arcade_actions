@@ -6,14 +6,14 @@ Displays action lifetime timelines in a dedicated window.
 
 from __future__ import annotations
 
-import arcade
-from typing import Callable
+from collections.abc import Callable
 
+import arcade
 from arcade import window_commands
 
 from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.timeline import TimelineStrip
 from actions.visualizer.renderer import TimelineRenderer
+from actions.visualizer.timeline import TimelineStrip
 
 
 class EventInspectorWindow(arcade.Window):

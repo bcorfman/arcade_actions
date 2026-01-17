@@ -3,20 +3,16 @@
 Fast unit tests only - integration tests are in tests/integration/test_reload_manager_integration.py
 """
 
-import importlib
 import sys
 from pathlib import Path
 from queue import Empty
 from threading import Thread
 
 import arcade
-import pytest
 
 from actions import Action
-from actions.base import Action as BaseAction
 from actions.conditional import MoveUntil, infinite
 from actions.dev.reload import ReloadIndicator, ReloadManager
-from actions.dev.watch import FileWatcher
 
 
 class TestReloadManager:

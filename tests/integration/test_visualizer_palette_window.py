@@ -16,6 +16,7 @@ def prevent_window_showing_in_ci(monkeypatch):
     if os.environ.get("CI") == "true":
         # Mock set_visible to prevent windows from actually showing in CI
         from actions.dev.palette_window import PaletteWindow
+
         original_set_visible = PaletteWindow.set_visible
 
         def mock_set_visible(self, visible: bool):
@@ -24,7 +25,7 @@ def prevent_window_showing_in_ci(monkeypatch):
             if getattr(self, "_is_headless", False):
                 self._is_visible = bool(visible)
                 return
-            
+
             # For non-headless windows in CI, update state but don't actually show
             # This prevents windows from popping up during tests
             self._is_visible = bool(visible)

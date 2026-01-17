@@ -1,11 +1,10 @@
 """Tests for path-based entry system."""
 
-import pytest
 import arcade
+
 from actions.base import Action
-from actions.group import AttackGroup
 from actions.formation import arrange_line
-from actions.frame_timing import after_frames
+from actions.group import AttackGroup
 from tests.conftest import ActionTestBase
 
 

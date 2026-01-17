@@ -1,10 +1,9 @@
 """Tests for GroupHealth mixin."""
 
-import pytest
 import arcade
+
 from actions.group import AttackGroup
 from actions.group_health import GroupHealth
-from actions.formation import arrange_line
 from tests.conftest import ActionTestBase
 
 

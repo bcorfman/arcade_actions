@@ -1,7 +1,6 @@
 """Slimmed-down coverage for CycleTexturesUntil after frame-based overhaul."""
 
 import arcade
-import pytest
 
 from actions import cycle_textures_until
 from actions.conditional import CycleTexturesUntil

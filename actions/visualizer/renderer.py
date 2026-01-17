@@ -6,16 +6,17 @@ Handles drawing overlay UI using arcade.Text and arcade.ShapeElementList.
 
 from __future__ import annotations
 
-import arcade
-from typing import TYPE_CHECKING, Callable, Iterable, NamedTuple
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING, NamedTuple
 
+import arcade
 from pyglet.gl.lib import GLException
 
 if TYPE_CHECKING:
-    from actions.visualizer.overlay import InspectorOverlay, TargetGroup, ActionCard
     from actions.visualizer.condition_panel import ConditionDebugger, ConditionEntry
-    from actions.visualizer.timeline import TimelineStrip, TimelineEntry
     from actions.visualizer.guides import GuideManager
+    from actions.visualizer.overlay import ActionCard, InspectorOverlay, TargetGroup
+    from actions.visualizer.timeline import TimelineStrip
 
 
 class _TextSpec(NamedTuple):
@@ -314,7 +315,7 @@ class ConditionPanelRenderer:
 
     def __init__(
         self,
-        debugger: "ConditionDebugger",
+        debugger: ConditionDebugger,
         *,
         width: int = 320,
         max_rows: int = 14,
@@ -359,7 +360,7 @@ class ConditionPanelRenderer:
         rows = min(len(entries), self.max_rows)
         if rows == 0:
             rows = 1
-            display_entries: Iterable["ConditionEntry"] | None = None
+            display_entries: Iterable[ConditionEntry] | None = None
         else:
             display_entries = entries[:rows]
 
@@ -449,7 +450,7 @@ class TimelineRenderer:
 
     def __init__(
         self,
-        timeline: "TimelineStrip",
+        timeline: TimelineStrip,
         *,
         width: int = 420,
         height: int = 90,
@@ -651,7 +652,7 @@ class TimelineRenderer:
 class GuideRenderer:
     """Render velocity, bounds, and path guides."""
 
-    def __init__(self, guide_manager: "GuideManager") -> None:
+    def __init__(self, guide_manager: GuideManager) -> None:
         self.guide_manager = guide_manager
 
     def update(self) -> None:

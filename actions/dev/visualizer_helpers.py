@@ -6,7 +6,8 @@ These functions have no GUI dependencies and can be fully unit tested.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 def resolve_condition(cond: Any) -> Callable[[], bool]:
@@ -23,7 +24,7 @@ def resolve_condition(cond: Any) -> Callable[[], bool]:
     Returns:
         Callable that returns a boolean
     """
-    from actions.frame_timing import after_frames, seconds_to_frames, within_frames, infinite
+    from actions.frame_timing import after_frames, infinite, seconds_to_frames, within_frames
 
     if cond is None:
         return infinite

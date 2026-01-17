@@ -122,9 +122,12 @@ class _MoveUntilBoundsMixin:
                     # Only reset state if sprite is actually moving away from boundary
                     # (not just at boundary with zero velocity)
                     is_moving_away = False
-                    if current_state["x"] == "right" and sprite.change_x < 0:
-                        is_moving_away = True
-                    elif current_state["x"] == "left" and sprite.change_x > 0:
+                    if (
+                        current_state["x"] == "right"
+                        and sprite.change_x < 0
+                        or current_state["x"] == "left"
+                        and sprite.change_x > 0
+                    ):
                         is_moving_away = True
 
                     if is_moving_away:
@@ -168,9 +171,12 @@ class _MoveUntilBoundsMixin:
                     # Only reset state if sprite is actually moving away from boundary
                     # (not just at boundary with zero velocity)
                     is_moving_away = False
-                    if current_state["y"] == "top" and sprite.change_y < 0:
-                        is_moving_away = True
-                    elif current_state["y"] == "bottom" and sprite.change_y > 0:
+                    if (
+                        current_state["y"] == "top"
+                        and sprite.change_y < 0
+                        or current_state["y"] == "bottom"
+                        and sprite.change_y > 0
+                    ):
                         is_moving_away = True
 
                     if is_moving_away:

@@ -4,12 +4,10 @@ Stress tests ensuring ACE visualizer components handle large datasets.
 
 from __future__ import annotations
 
-import arcade
+from actions.visualizer.condition_panel import ConditionDebugger
+from actions.visualizer.guides import GuideManager
 from actions.visualizer.instrumentation import DebugDataStore
 from actions.visualizer.overlay import InspectorOverlay
-from actions.visualizer.renderer import OverlayRenderer
-from actions.visualizer.guides import GuideManager
-from actions.visualizer.condition_panel import ConditionDebugger
 from actions.visualizer.timeline import TimelineStrip
 
 

@@ -15,8 +15,9 @@ Usage:
 
 from __future__ import annotations
 
-import arcade
 from pathlib import Path
+
+import arcade
 
 from actions import Action, center_window
 from actions.dev import enable_dev_mode
