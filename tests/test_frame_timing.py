@@ -5,7 +5,6 @@ All timing in ArcadeActions is based on frame counts, not seconds.
 """
 
 import arcade
-import pytest
 
 from actions import Action
 from tests.conftest import ActionTestBase

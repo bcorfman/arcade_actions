@@ -1,9 +1,9 @@
 import textwrap
-from pathlib import Path
 
 import arcade
-from actions.dev.visualizer import DevVisualizer
+
 from actions.dev import sync
+from actions.dev.visualizer import DevVisualizer
 
 
 def test_export_calls_sync_for_tagged_sprites(monkeypatch, tmp_path):

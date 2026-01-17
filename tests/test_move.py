@@ -5,7 +5,7 @@ import arcade
 from actions import move_until
 from actions.base import Action
 from actions.conditional import MoveUntil, infinite
-from actions.pattern import time_elapsed, create_bounce_pattern, create_patrol_pattern
+from actions.pattern import create_bounce_pattern, create_patrol_pattern, time_elapsed
 
 
 def create_test_sprite() -> arcade.Sprite:

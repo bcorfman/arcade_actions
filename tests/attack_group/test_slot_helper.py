@@ -1,8 +1,9 @@
 """Tests for formation slot coordinate helper."""
 
-import pytest
 import arcade
-from actions.formation import arrange_line, arrange_grid, arrange_triangle, get_slot_coordinates
+import pytest
+
+from actions.formation import arrange_grid, arrange_line, arrange_triangle, get_slot_coordinates
 from tests.conftest import ActionTestBase
 
 

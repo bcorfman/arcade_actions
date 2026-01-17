@@ -4,8 +4,6 @@ These functions return control point lists suitable for FollowPathUntil actions,
 creating common dive patterns like straight dives, curves, loops, and zigzags.
 """
 
-from typing import Any
-
 
 def dive_straight(
     start_x: float = 400,

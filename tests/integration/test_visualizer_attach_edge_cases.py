@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
-from unittest.mock import MagicMock
+from typing import Any
 
 import arcade
 import pytest
 
-from actions.base import Action
 from actions.visualizer.attach import (
-    attach_visualizer,
     detach_visualizer,
-    get_visualizer_session,
-    is_visualizer_attached,
 )
 
 
@@ -107,7 +103,6 @@ class StubControlManager:
 @pytest.fixture(autouse=True)
 def auto_detach():
     """Ensure the visualizer is detached after each test."""
-    from actions.visualizer.attach import detach_visualizer
 
     yield
     detach_visualizer()

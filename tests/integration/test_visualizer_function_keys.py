@@ -42,7 +42,7 @@ def test_f3_toggles_overlay(monkeypatch, window: arcade.Window | None) -> None:
 
                 def show_view(self, view) -> None:
                     self._view = view
-                    setattr(view, "window", self)
+                    view.window = self
 
                 def set_visible(self, value: bool) -> None:
                     self.visible = value
@@ -132,7 +132,7 @@ def test_f5_toggles_guides(monkeypatch, window: arcade.Window | None) -> None:
 
                 def show_view(self, view) -> None:
                     self._view = view
-                    setattr(view, "window", self)
+                    view.window = self
 
                 def set_visible(self, value: bool) -> None:
                     self.visible = value
@@ -218,7 +218,7 @@ def test_f6_toggles_pause(monkeypatch, window: arcade.Window | None) -> None:
 
                 def show_view(self, view) -> None:
                     self._view = view
-                    setattr(view, "window", self)
+                    view.window = self
 
                 def set_visible(self, value: bool) -> None:
                     self.visible = value
@@ -303,7 +303,7 @@ def test_f7_steps_when_paused(monkeypatch, window: arcade.Window | None) -> None
 
                 def show_view(self, view) -> None:
                     self._view = view
-                    setattr(view, "window", self)
+                    view.window = self
 
                 def set_visible(self, value: bool) -> None:
                     self.visible = value
@@ -383,7 +383,7 @@ def test_f8_highlights_next_action(monkeypatch, window: arcade.Window | None) ->
 
                 def show_view(self, view) -> None:
                     self._view = view
-                    setattr(view, "window", self)
+                    view.window = self
 
                 def set_visible(self, value: bool) -> None:
                     self.visible = value
@@ -459,7 +459,7 @@ def test_f9_exports_snapshot(monkeypatch, window: arcade.Window | None, tmp_path
 
                 def show_view(self, view) -> None:
                     self._view = view
-                    setattr(view, "window", self)
+                    view.window = self
 
                 def set_visible(self, value: bool) -> None:
                     self.visible = value
@@ -541,7 +541,7 @@ def test_non_function_keys_not_handled(monkeypatch, window: arcade.Window | None
 
                 def show_view(self, view) -> None:
                     self._view = view
-                    setattr(view, "window", self)
+                    view.window = self
 
                 def set_visible(self, value: bool) -> None:
                     self.visible = value

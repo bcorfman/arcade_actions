@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from actions.visualizer.instrumentation import DebugDataStore, ActionSnapshot, ActionEvent, ConditionEvaluation
+    from actions.visualizer.instrumentation import DebugDataStore
 
 
 class SnapshotExporter:
@@ -16,7 +17,7 @@ class SnapshotExporter:
 
     def __init__(
         self,
-        debug_store: "DebugDataStore",
+        debug_store: DebugDataStore,
         directory: Path,
         *,
         target_names_provider: Callable[[], dict[int, str]] | None = None,

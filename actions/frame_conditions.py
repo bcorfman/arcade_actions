@@ -20,6 +20,7 @@ def _clone_condition(condition):
 
 # Common condition functions
 
+
 def infinite() -> Callable[[], bool]:
     """Create a condition function that never returns True.
 

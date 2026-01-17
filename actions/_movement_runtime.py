@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from . import physics_adapter as _pa
-
 from ._shared_logging import _debug_log
 
 

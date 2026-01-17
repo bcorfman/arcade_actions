@@ -1,7 +1,6 @@
 import textwrap
-from pathlib import Path
 
-from actions.dev import sync, code_parser
+from actions.dev import code_parser, sync
 
 
 def test_update_arrange_call_kwarg(tmp_path):

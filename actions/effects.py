@@ -3,9 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from actions.base import Action as _Action
-
 from actions._shared_logging import _debug_log
+from actions.base import Action as _Action
 from actions.frame_conditions import _clone_condition, infinite
 
 
@@ -126,7 +125,7 @@ class BlinkUntil(_Action):
         """Reset blinking rate to original target rate."""
         self.current_frames_until_change = self.target_frames_until_change
 
-    def clone(self) -> "BlinkUntil":
+    def clone(self) -> BlinkUntil:
         """Create a copy of this action."""
         return BlinkUntil(
             self.target_frames_until_change,
@@ -224,7 +223,7 @@ class CycleTexturesUntil(_Action):
         self._cursor = 0.0
         self.done = False
 
-    def clone(self) -> "CycleTexturesUntil":
+    def clone(self) -> CycleTexturesUntil:
         """Create a copy of this action."""
         cloned = CycleTexturesUntil(
             textures=self._textures,
@@ -341,7 +340,7 @@ class GlowUntil(_Action):
             except Exception as e:
                 _debug_log(f"GlowUntil resize failed: {e!r}", action="GlowUntil")
 
-    def clone(self) -> "GlowUntil":
+    def clone(self) -> GlowUntil:
         return GlowUntil(
             shadertoy_factory=self._factory,
             condition=_clone_condition(self.condition),
@@ -434,7 +433,7 @@ class EmitParticlesUntil(_Action):
                 emitter.center_x = x
                 emitter.center_y = y
                 if self._follow_rotation:
-                    emitter.angle = getattr(sprite, "angle")
+                    emitter.angle = sprite.angle
                 if hasattr(emitter, "update"):
                     emitter.update()
             except Exception as e:
@@ -455,7 +454,7 @@ class EmitParticlesUntil(_Action):
                     _debug_log(f"EmitParticlesUntil destroy failed: {e!r}", action="EmitParticlesUntil")
         self._emitters.clear()
 
-    def clone(self) -> "EmitParticlesUntil":
+    def clone(self) -> EmitParticlesUntil:
         return EmitParticlesUntil(
             emitter_factory=self._factory,
             condition=_clone_condition(self.condition),

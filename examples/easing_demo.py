@@ -21,7 +21,7 @@ import arcade
 from arcade import easing
 from arcade.types import Color
 
-from actions import Action, center_window, ease, infinite, move_until, seconds_to_frames
+from actions import Action, center_window, ease, infinite, seconds_to_frames
 
 # --- Constants ---
 WINDOW_WIDTH = 1280

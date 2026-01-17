@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from . import physics_adapter as _pa
 from actions.base import Action as _Action
-
 from actions.frame_conditions import _clone_condition
+
+from . import physics_adapter as _pa
 
 
 class FollowPathUntil(_Action):
@@ -262,7 +262,7 @@ class FollowPathUntil(_Action):
             metadata={"path_points": self.control_points},
         )
 
-    def clone(self) -> "FollowPathUntil":
+    def clone(self) -> FollowPathUntil:
         return FollowPathUntil(
             self.control_points,
             self.target_velocity,

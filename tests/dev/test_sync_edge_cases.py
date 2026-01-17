@@ -1,11 +1,8 @@
 """Edge case tests for sync.py to improve coverage."""
 
 import textwrap
-from pathlib import Path
 
-import pytest
-
-from actions.dev import sync, code_parser
+from actions.dev import code_parser, sync
 
 
 class TestUpdateArrangeCallEdgeCases:

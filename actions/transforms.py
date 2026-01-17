@@ -4,7 +4,6 @@ from collections.abc import Callable
 from typing import Any
 
 from actions.base import Action as _Action
-
 from actions.frame_conditions import _clone_condition
 
 
@@ -71,7 +70,7 @@ class ScaleUntil(_Action):
 
         self.for_each_sprite(apply_scale)
 
-    def clone(self) -> "ScaleUntil":
+    def clone(self) -> ScaleUntil:
         """Create a copy of this action."""
         return ScaleUntil(self.target_scale_velocity, _clone_condition(self.condition), self.on_stop)
 
@@ -116,7 +115,7 @@ class FadeUntil(_Action):
 
         self.for_each_sprite(apply_fade)
 
-    def clone(self) -> "FadeUntil":
+    def clone(self) -> FadeUntil:
         """Create a copy of this action."""
         return FadeUntil(self.target_fade_velocity, _clone_condition(self.condition), self.on_stop)
 
@@ -335,7 +334,7 @@ class TweenUntil(_Action):
         self._completed_naturally = False
         self._evaluated_start_values.clear()
 
-    def clone(self) -> "TweenUntil":
+    def clone(self) -> TweenUntil:
         return TweenUntil(
             self.start_value,
             self.end_value,

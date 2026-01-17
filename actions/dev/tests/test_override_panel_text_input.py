@@ -1,8 +1,9 @@
 import textwrap
 
 import arcade
-from actions.dev.visualizer import DevVisualizer
+
 from actions.dev import position_tag
+from actions.dev.visualizer import DevVisualizer
 
 
 def test_text_input_hits_buffer_and_backspace(tmp_path):

@@ -20,6 +20,12 @@ Actions available:
 """
 
 # Core classes
+# Formation arrangement functions - LAZY LOADED (see __getattr__ below)
+# from .formation import (...)
+# Helper functions
+import os
+
+from .axis_move import MoveXUntil, MoveYUntil
 from .base import Action
 
 # Composition functions
@@ -41,21 +47,6 @@ from .conditional import (
     TweenUntil,
     infinite,
 )
-
-# Frame-based timing primitives
-from .frame_timing import (
-    after_frames,
-    every_frames,
-    within_frames,
-    frames_to_seconds,
-    seconds_to_frames,
-    FRAMES_PER_SECOND,
-    FRAMES_PER_HALF_SECOND,
-    FRAMES_PER_QUARTER_SECOND,
-    FRAMES_PER_TWO_SECONDS,
-    FRAMES_PER_FIVE_SECONDS,
-)
-from .axis_move import MoveXUntil, MoveYUntil
 from .config import (
     apply_environment_configuration,
     clear_observed_actions,
@@ -74,22 +65,29 @@ from .easing import (
     Ease,
 )
 
-# Formation arrangement functions - LAZY LOADED (see __getattr__ below)
-# from .formation import (...)
-
-# Helper functions
-import os
-
+# Frame-based timing primitives
+from .frame_timing import (
+    FRAMES_PER_FIVE_SECONDS,
+    FRAMES_PER_HALF_SECOND,
+    FRAMES_PER_QUARTER_SECOND,
+    FRAMES_PER_SECOND,
+    FRAMES_PER_TWO_SECONDS,
+    after_frames,
+    every_frames,
+    frames_to_seconds,
+    seconds_to_frames,
+    within_frames,
+)
 from .helpers import (
     blink_until,
     callback_until,
-    emit_particles_until,
     cycle_textures_until,
     delay_until,
     ease,
-    glow_until,
+    emit_particles_until,
     fade_until,
     follow_path_until,
+    glow_until,
     move_by,
     move_to,
     move_until,
@@ -105,7 +103,6 @@ from .instant import MoveBy, MoveTo
 
 # Movement patterns and condition helpers - LAZY LOADED (see __getattr__ below)
 # from .pattern import (...)
-
 # Experimental pools module
 from .pools import SpritePool
 

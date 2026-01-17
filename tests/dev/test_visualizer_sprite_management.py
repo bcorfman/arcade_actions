@@ -7,8 +7,8 @@ requiring OpenGL context or graphics rendering.
 import arcade
 import pytest
 
+from actions import infinite, move_until
 from actions.dev.visualizer import DevVisualizer
-from actions import move_until, infinite
 from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.integration
@@ -633,8 +633,8 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
 
     def test_apply_metadata_actions_uses_preset_and_resolves_string_callbacks(self, window):
         """Test that presets and string callbacks (via resolver) are handled."""
-        from actions.dev import register_preset, get_preset_registry
         from actions import MoveUntil
+        from actions.dev import register_preset
         from actions.frame_timing import infinite
 
         # Register preset factory that returns unbound MoveUntil

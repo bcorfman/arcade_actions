@@ -105,8 +105,6 @@ def pytest_configure(config):
     # This is a known issue in pyglet where _delete_audio_driver tries to access
     # Source._players which may not exist. We ensure it exists as an empty list.
     try:
-        import pyglet.media.drivers
-
         # Source is in pyglet.media.codecs.base, but might be imported as pyglet.media.Source
         # Try both import paths to be safe
         try:

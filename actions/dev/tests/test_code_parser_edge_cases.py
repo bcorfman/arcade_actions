@@ -1,4 +1,5 @@
 """Edge case tests for code_parser.py to improve coverage."""
+
 import textwrap
 
 from actions.dev import code_parser
@@ -14,11 +15,11 @@ def test_parse_handles_complex_expressions():
 
     assignments, arr_calls = code_parser.parse_source(src, filename="test.py")
     assert len(assignments) == 3
-    
+
     # Check that complex expressions are captured
     left = next(a for a in assignments if a.attr == "left")
     assert "100" in left.value_src or "50" in left.value_src or "*" in left.value_src
-    
+
     top = next(a for a in assignments if a.attr == "top")
     assert "func_call" in top.value_src or "20" in top.value_src
 
@@ -33,7 +34,7 @@ def test_parse_handles_attribute_chains():
     assignments, arr_calls = code_parser.parse_source(src, filename="test.py")
     # Should find assignments with attribute chains
     assert len(assignments) >= 1
-    
+
     left = next(a for a in assignments if a.attr == "left")
     assert left.target_expr  # Should have target expression
 

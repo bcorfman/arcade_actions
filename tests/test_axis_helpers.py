@@ -5,11 +5,12 @@ These tests verify that the target-first helper functions work correctly
 with keyword parameters and return the appropriate axis-specific actions.
 """
 
-import pytest
 import arcade
+import pytest
+
+from actions.axis_move import MoveXUntil, MoveYUntil
 from actions.base import Action
 from actions.conditional import infinite
-from actions.axis_move import MoveXUntil, MoveYUntil
 from actions.helpers import move_x_until, move_y_until
 
 

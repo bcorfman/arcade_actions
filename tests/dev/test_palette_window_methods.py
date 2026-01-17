@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import arcade
 import pytest
 
 from actions.dev.palette_window import PaletteWindow

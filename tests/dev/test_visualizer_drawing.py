@@ -9,10 +9,10 @@ from __future__ import annotations
 import os
 import sys
 
-import pytest
 import arcade
+import pytest
 
-from actions.dev.visualizer import DevVisualizer, WindowWithContext, SpriteWithSourceMarkers
+from actions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.integration
@@ -28,22 +28,23 @@ _skip_if_no_display = pytest.mark.skipif(
 @pytest.fixture(autouse=True)
 def mock_arcade_text(mocker):
     """Mock arcade.Text to avoid OpenGL requirements in headless CI environments.
-    
+
     This fixture patches arcade.Text in the visualizer module before DevVisualizer
     is created, preventing OpenGL context errors when Text objects are created
     in __init__ methods.
     """
+
     def create_mock_text(*args, **kwargs):
         """Create a new mock Text instance for each call."""
         mock_text = mocker.MagicMock()
         # Set default properties that tests might access
-        mock_text.y = kwargs.get('y', args[2] if len(args) > 2 else 10)
-        mock_text.text = kwargs.get('text', args[0] if len(args) > 0 else "")
+        mock_text.y = kwargs.get("y", args[2] if len(args) > 2 else 10)
+        mock_text.text = kwargs.get("text", args[0] if len(args) > 0 else "")
         mock_text.draw = mocker.MagicMock()
         return mock_text
-    
+
     # Patch Text in the visualizer module where it's used
-    mocker.patch('actions.dev.visualizer.arcade.Text', side_effect=create_mock_text)
+    mocker.patch("actions.dev.visualizer.arcade.Text", side_effect=create_mock_text)
 
 
 @pytest.fixture
@@ -67,12 +68,12 @@ class TestDrawEarlyReturns(ActionTestBase):
         """Test that draw returns early if visualizer is not visible."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = False
-        
-        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        
+
+        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+
         dev_viz.draw()
-        
+
         # Should return early without drawing
         mock_selection_draw.assert_not_called()
         mock_text_draw.assert_not_called()
@@ -82,12 +83,12 @@ class TestDrawEarlyReturns(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         dev_viz.window = None
-        
-        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        
+
+        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+
         dev_viz.draw()
-        
+
         # Should return early without drawing
         mock_selection_draw.assert_not_called()
         mock_text_draw.assert_not_called()
@@ -96,23 +97,23 @@ class TestDrawEarlyReturns(ActionTestBase):
         """Test that draw returns early if window doesn't conform to WindowWithContext protocol."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
-        
+
         # Create a simple object without _context (doesn't conform to WindowWithContext protocol)
         class WindowWithoutContext:
             def __init__(self):
                 self.height = 600
-        
+
         window_mock = WindowWithoutContext()
         dev_viz.window = window_mock
-        
+
         # Window doesn't conform to protocol (no _context attribute)
-        assert not hasattr(window_mock, '_context')
-        
-        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        
+        assert not hasattr(window_mock, "_context")
+
+        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+
         dev_viz.draw()
-        
+
         # Should return early without drawing (protocol check fails)
         mock_selection_draw.assert_not_called()
         mock_text_draw.assert_not_called()
@@ -122,12 +123,12 @@ class TestDrawEarlyReturns(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = None
-        
-        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        
+
+        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+
         dev_viz.draw()
-        
+
         # Should return early without drawing
         mock_selection_draw.assert_not_called()
         mock_text_draw.assert_not_called()
@@ -143,11 +144,11 @@ class TestDrawIndicatorText(ActionTestBase):
         dev_viz.visible = True
         window._context = mocker.MagicMock()
         window.height = 600
-        
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        
+
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+
         dev_viz.draw()
-        
+
         # Verify indicator text was drawn and positioned
         mock_text_draw.assert_called_once()
         assert dev_viz._indicator_text.y == 570  # window_height - 30
@@ -158,11 +159,11 @@ class TestDrawIndicatorText(ActionTestBase):
         dev_viz.visible = True
         window._context = mocker.MagicMock()
         window.height = 800
-        
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        
+
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+
         dev_viz.draw()
-        
+
         # Verify y position uses window height
         assert dev_viz._indicator_text.y == 770  # 800 - 30
         mock_text_draw.assert_called_once()
@@ -175,16 +176,18 @@ class TestDrawIndicatorText(ActionTestBase):
         # Create a window mock that raises AttributeError for height
         window_mock = mocker.MagicMock()
         window_mock._context = mocker.MagicMock()
+
         # Make height raise AttributeError to simulate missing attribute
         def get_height():
             raise AttributeError("height")
+
         type(window_mock).height = mocker.PropertyMock(side_effect=AttributeError("height"))
         dev_viz.window = window_mock
-        
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        
+
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+
         dev_viz.draw()
-        
+
         # Should default to 600 - 30 = 570
         # Actually, the code checks `if self.window:` before accessing height,
         # so it will try to access window.height. If it fails, it defaults to 600.
@@ -205,12 +208,12 @@ class TestDrawSelectionManager(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
-        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        
+
+        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, "draw")
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+
         dev_viz.draw()
-        
+
         mock_selection_draw.assert_called_once()
 
     def test_draw_selection_manager_handles_gl_exception_gracefully(self, window, test_sprite_list, mocker):
@@ -218,22 +221,20 @@ class TestDrawSelectionManager(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Create a mock GLException
         class GLException(Exception):
             pass
-        
+
         gl_error = GLException("Invalid operation")
         gl_error.__class__.__name__ = "GLException"
-        
-        mock_selection_draw = mocker.patch.object(
-            dev_viz.selection_manager, 'draw', side_effect=gl_error
-        )
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        
+
+        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, "draw", side_effect=gl_error)
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+
         # Should not raise, should skip remaining draws
         dev_viz.draw()
-        
+
         mock_selection_draw.assert_called_once()
         # Indicator text should still be drawn (before selection)
         mock_text_draw.assert_called_once()
@@ -243,23 +244,21 @@ class TestDrawSelectionManager(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Create a mock GLException with context switch error message
         class GLException(Exception):
             pass
-        
+
         context_error = GLException("Invalid operation current state")
         context_error.__class__.__name__ = "GLException"
-        
-        mock_selection_draw = mocker.patch.object(
-            dev_viz.selection_manager, 'draw', side_effect=context_error
-        )
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mock_stderr = mocker.patch('sys.stderr')
-        
+
+        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, "draw", side_effect=context_error)
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+        mock_stderr = mocker.patch("sys.stderr")
+
         # Should not raise, should suppress error
         dev_viz.draw()
-        
+
         mock_selection_draw.assert_called_once()
         # Should not print error for context switch errors
         # (The code checks for "Invalid operation" or "current state" in error string)
@@ -269,18 +268,16 @@ class TestDrawSelectionManager(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Create a regular exception (not context switch)
         regular_error = ValueError("Some other error")
-        
-        mock_selection_draw = mocker.patch.object(
-            dev_viz.selection_manager, 'draw', side_effect=regular_error
-        )
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mock_stderr = mocker.patch('sys.stderr')
-        
+
+        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, "draw", side_effect=regular_error)
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+        mock_stderr = mocker.patch("sys.stderr")
+
         dev_viz.draw()
-        
+
         mock_selection_draw.assert_called_once()
         # Should print error for non-context-switch errors
         # (The code prints to stderr for non-context-switch errors)
@@ -295,19 +292,19 @@ class TestDrawGizmos(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Select a sprite
         selected_sprite = test_sprite_list[0]
         dev_viz.selection_manager._selected.add(selected_sprite)
-        
+
         # Mock gizmo
         mock_gizmo = mocker.MagicMock()
-        mocker.patch.object(dev_viz, '_get_gizmo', return_value=mock_gizmo)
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        
+        mocker.patch.object(dev_viz, "_get_gizmo", return_value=mock_gizmo)
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+
         dev_viz.draw()
-        
+
         # Verify gizmo was drawn
         mock_gizmo.draw.assert_called_once()
 
@@ -316,16 +313,16 @@ class TestDrawGizmos(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Select a sprite
         selected_sprite = test_sprite_list[0]
         dev_viz.selection_manager._selected.add(selected_sprite)
-        
+
         # Mock _get_gizmo to return None
-        mocker.patch.object(dev_viz, '_get_gizmo', return_value=None)
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        
+        mocker.patch.object(dev_viz, "_get_gizmo", return_value=None)
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+
         # Should not raise
         dev_viz.draw()
 
@@ -334,18 +331,18 @@ class TestDrawGizmos(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Select a sprite
         selected_sprite = test_sprite_list[0]
         dev_viz.selection_manager._selected.add(selected_sprite)
-        
+
         # Mock gizmo that raises exception
         mock_gizmo = mocker.MagicMock()
         mock_gizmo.draw.side_effect = Exception("Gizmo draw failed")
-        mocker.patch.object(dev_viz, '_get_gizmo', return_value=mock_gizmo)
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        
+        mocker.patch.object(dev_viz, "_get_gizmo", return_value=mock_gizmo)
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+
         # Should not raise, should continue
         dev_viz.draw()
 
@@ -354,22 +351,20 @@ class TestDrawGizmos(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Select multiple sprites
         dev_viz.selection_manager._selected.add(test_sprite_list[0])
         dev_viz.selection_manager._selected.add(test_sprite_list[1])
-        
+
         # Mock gizmos
         mock_gizmo1 = mocker.MagicMock()
         mock_gizmo2 = mocker.MagicMock()
-        mocker.patch.object(
-            dev_viz, '_get_gizmo', side_effect=[mock_gizmo1, mock_gizmo2]
-        )
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        
+        mocker.patch.object(dev_viz, "_get_gizmo", side_effect=[mock_gizmo1, mock_gizmo2])
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+
         dev_viz.draw()
-        
+
         # Verify both gizmos were drawn
         mock_gizmo1.draw.assert_called_once()
         mock_gizmo2.draw.assert_called_once()
@@ -384,24 +379,21 @@ class TestDrawSourceMarkers(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Add source markers to a sprite
-        test_sprite_list[0]._source_markers = [{
-            "lineno": 42,
-            "status": "green"
-        }]
+        test_sprite_list[0]._source_markers = [{"lineno": 42, "status": "green"}]
         test_sprite_list[0].center_x = 100
         test_sprite_list[0].center_y = 200
         test_sprite_list[0].height = 32
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_draw_rect = mocker.patch('actions.dev.visualizer.arcade.draw_rectangle_filled', create=True)
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
         mock_text_instance = mocker.MagicMock()
-        mock_text_class = mocker.patch('actions.dev.visualizer.arcade.Text', return_value=mock_text_instance)
-        
+        mock_text_class = mocker.patch("actions.dev.visualizer.arcade.Text", return_value=mock_text_instance)
+
         dev_viz.draw()
-        
+
         # Verify marker was drawn
         mock_draw_rect.assert_called()
         mock_text_class.assert_called()
@@ -415,16 +407,16 @@ class TestDrawSourceMarkers(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Don't set _source_markers on any sprite (doesn't conform to protocol)
-        assert not hasattr(test_sprite_list[0], '_source_markers')
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_draw_rect = mocker.patch('actions.dev.visualizer.arcade.draw_rectangle_filled', create=True)
-        
+        assert not hasattr(test_sprite_list[0], "_source_markers")
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+
         dev_viz.draw()
-        
+
         # Should not draw markers
         mock_draw_rect.assert_not_called()
 
@@ -433,19 +425,19 @@ class TestDrawSourceMarkers(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Test green status
         test_sprite_list[0]._source_markers = [{"lineno": 1, "status": "green"}]
         test_sprite_list[0].center_x = 100
         test_sprite_list[0].center_y = 100
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_draw_rect = mocker.patch('actions.dev.visualizer.arcade.draw_rectangle_filled', create=True)
-        mocker.patch('actions.dev.visualizer.arcade.Text', create=True)
-        
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("actions.dev.visualizer.arcade.Text", create=True)
+
         dev_viz.draw()
-        
+
         # Check that green color was used
         rect_calls = mock_draw_rect.call_args_list
         assert any(call[0][4] == arcade.color.GREEN for call in rect_calls)
@@ -455,18 +447,18 @@ class TestDrawSourceMarkers(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         test_sprite_list[0]._source_markers = [{"lineno": 1, "status": "red"}]
         test_sprite_list[0].center_x = 100
         test_sprite_list[0].center_y = 100
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_draw_rect = mocker.patch('actions.dev.visualizer.arcade.draw_rectangle_filled', create=True)
-        mocker.patch('actions.dev.visualizer.arcade.Text', create=True)
-        
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("actions.dev.visualizer.arcade.Text", create=True)
+
         dev_viz.draw()
-        
+
         # Check that red color was used
         rect_calls = mock_draw_rect.call_args_list
         assert any(call[0][4] == arcade.color.RED for call in rect_calls)
@@ -476,19 +468,19 @@ class TestDrawSourceMarkers(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # No status specified (defaults to yellow)
         test_sprite_list[0]._source_markers = [{"lineno": 1}]
         test_sprite_list[0].center_x = 100
         test_sprite_list[0].center_y = 100
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_draw_rect = mocker.patch('actions.dev.visualizer.arcade.draw_rectangle_filled', create=True)
-        mocker.patch('actions.dev.visualizer.arcade.Text', create=True)
-        
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("actions.dev.visualizer.arcade.Text", create=True)
+
         dev_viz.draw()
-        
+
         # Check that yellow color was used (default)
         rect_calls = mock_draw_rect.call_args_list
         assert any(call[0][4] == arcade.color.YELLOW for call in rect_calls)
@@ -498,18 +490,18 @@ class TestDrawSourceMarkers(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         test_sprite_list[0]._source_markers = [{"lineno": 1}]
         test_sprite_list[0].center_x = 100
         test_sprite_list[0].center_y = 200
         test_sprite_list[0].height = 32
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_draw_rect = mocker.patch('actions.dev.visualizer.arcade.draw_rectangle_filled', create=True)
-        
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+
         dev_viz.draw()
-        
+
         # Marker should be positioned above sprite
         # sx = center_x = 100
         # sy = center_y + (height / 2) + 8 = 200 + 16 + 8 = 224
@@ -521,27 +513,27 @@ class TestDrawSourceMarkers(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         test_sprite_list[0]._source_markers = [{"lineno": 1}]
         test_sprite_list[0].center_x = 100
         test_sprite_list[0].center_y = 200
         # Store original height and remove it
-        original_height = getattr(test_sprite_list[0], 'height', None)
-        if hasattr(test_sprite_list[0], 'height'):
+        original_height = getattr(test_sprite_list[0], "height", None)
+        if hasattr(test_sprite_list[0], "height"):
             # Can't delete, but we can mock getattr to return 16
             pass
         # The sprite from fixture has height=32, so let's test with a sprite that has no height
         # Actually, getattr(sprite, "height", 16) will use 16 if height doesn't exist
         # But the sprite from fixture has height, so let's just verify the calculation works
         # with the actual height value
-        sprite_height = getattr(test_sprite_list[0], 'height', 16)
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_draw_rect = mocker.patch('actions.dev.visualizer.arcade.draw_rectangle_filled', create=True)
-        
+        sprite_height = getattr(test_sprite_list[0], "height", 16)
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+
         dev_viz.draw()
-        
+
         # Marker position: sy = center_y + (height / 2) + 8
         # If height is 32: sy = 200 + 16 + 8 = 224
         # If height defaults to 16: sy = 200 + 8 + 8 = 216
@@ -557,14 +549,16 @@ class TestDrawSourceMarkers(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         test_sprite_list[0]._source_markers = [{"lineno": 1}]
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
         # Make drawing raise an exception
-        mocker.patch('actions.dev.visualizer.arcade.draw_rectangle_filled', side_effect=Exception("Draw failed"), create=True)
-        
+        mocker.patch(
+            "actions.dev.visualizer.arcade.draw_rectangle_filled", side_effect=Exception("Draw failed"), create=True
+        )
+
         # Should not raise, should continue
         dev_viz.draw()
 
@@ -573,22 +567,19 @@ class TestDrawSourceMarkers(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
-        test_sprite_list[0]._source_markers = [
-            {"lineno": 10, "status": "green"},
-            {"lineno": 20, "status": "red"}
-        ]
+
+        test_sprite_list[0]._source_markers = [{"lineno": 10, "status": "green"}, {"lineno": 20, "status": "red"}]
         test_sprite_list[0].center_x = 100
         test_sprite_list[0].center_y = 100
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_draw_rect = mocker.patch('actions.dev.visualizer.arcade.draw_rectangle_filled', create=True)
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
         mock_text_instance = mocker.MagicMock()
-        mock_text_class = mocker.patch('actions.dev.visualizer.arcade.Text', return_value=mock_text_instance)
-        
+        mock_text_class = mocker.patch("actions.dev.visualizer.arcade.Text", return_value=mock_text_instance)
+
         dev_viz.draw()
-        
+
         # Should draw both markers
         assert mock_draw_rect.call_count >= 2
         assert mock_text_class.call_count >= 2
@@ -604,16 +595,16 @@ class TestDrawOverridesPanel(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Create mock overrides panel
         mock_panel = mocker.MagicMock()
         dev_viz.overrides_panel = mock_panel
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+
         dev_viz.draw()
-        
+
         # Verify panel was drawn
         mock_panel.draw.assert_called_once()
 
@@ -623,20 +614,20 @@ class TestDrawOverridesPanel(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Remove overrides_panel if it exists (it might be initialized)
-        if hasattr(dev_viz, 'overrides_panel'):
+        if hasattr(dev_viz, "overrides_panel"):
             original_panel = dev_viz.overrides_panel
-            delattr(dev_viz, 'overrides_panel')
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        
+            delattr(dev_viz, "overrides_panel")
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+
         # Should not raise
         dev_viz.draw()
-        
+
         # Restore if it existed
-        if 'original_panel' in locals():
+        if "original_panel" in locals():
             dev_viz.overrides_panel = original_panel
 
     def test_draw_overrides_panel_skips_if_none(self, window, test_sprite_list, mocker):
@@ -644,12 +635,12 @@ class TestDrawOverridesPanel(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         dev_viz.overrides_panel = None
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+
         # Should not raise
         dev_viz.draw()
 
@@ -658,15 +649,15 @@ class TestDrawOverridesPanel(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Create mock panel that raises exception
         mock_panel = mocker.MagicMock()
         mock_panel.draw.side_effect = Exception("Panel draw failed")
         dev_viz.overrides_panel = mock_panel
-        
-        mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mocker.patch.object(dev_viz.selection_manager, 'draw')
-        
+
+        mocker.patch.object(dev_viz._indicator_text, "draw")
+        mocker.patch.object(dev_viz.selection_manager, "draw")
+
         # Should not raise, should continue
         dev_viz.draw()
 
@@ -680,16 +671,14 @@ class TestDrawErrorHandling(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
         window._context = mocker.MagicMock()
-        
+
         # Make indicator text drawing raise an exception
-        mocker.patch.object(
-            dev_viz._indicator_text, 'draw', side_effect=Exception("Top level error")
-        )
-        mock_stderr = mocker.patch('sys.stderr')
-        
+        mocker.patch.object(dev_viz._indicator_text, "draw", side_effect=Exception("Top level error"))
+        mock_stderr = mocker.patch("sys.stderr")
+
         # Should not raise, should catch and log
         dev_viz.draw()
-        
+
         # Should have attempted to print error
         # (The code prints to stderr for top-level exceptions)
 
@@ -699,31 +688,31 @@ class TestDrawErrorHandling(ActionTestBase):
         dev_viz.visible = True
         window._context = mocker.MagicMock()
         window.height = 600
-        
+
         # Set up selected sprite with gizmo
         selected_sprite = test_sprite_list[0]
         dev_viz.selection_manager._selected.add(selected_sprite)
         mock_gizmo = mocker.MagicMock()
-        mocker.patch.object(dev_viz, '_get_gizmo', return_value=mock_gizmo)
-        
+        mocker.patch.object(dev_viz, "_get_gizmo", return_value=mock_gizmo)
+
         # Set up sprite with source markers
         test_sprite_list[0]._source_markers = [{"lineno": 1}]
         test_sprite_list[0].center_x = 100
         test_sprite_list[0].center_y = 100
-        
+
         # Set up overrides panel
         mock_panel = mocker.MagicMock()
         dev_viz.overrides_panel = mock_panel
-        
+
         # Mock all drawing methods
-        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, 'draw')
-        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, 'draw')
-        mock_draw_rect = mocker.patch('actions.dev.visualizer.arcade.draw_rectangle_filled', create=True)
+        mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
+        mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, "draw")
+        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
         mock_text_instance = mocker.MagicMock()
-        mock_text_class = mocker.patch('actions.dev.visualizer.arcade.Text', return_value=mock_text_instance)
-        
+        mock_text_class = mocker.patch("actions.dev.visualizer.arcade.Text", return_value=mock_text_instance)
+
         dev_viz.draw()
-        
+
         # Verify all components were drawn
         mock_text_draw.assert_called_once()
         mock_selection_draw.assert_called_once()

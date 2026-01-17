@@ -6,12 +6,14 @@ with support for symbolic bound expressions.
 
 from __future__ import annotations
 
-import yaml
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import yaml
+
 if TYPE_CHECKING:
     import arcade
+
     from actions.dev.prototype_registry import DevContext
 
 
@@ -221,7 +223,7 @@ def load_scene_template(path: str | Path, ctx: DevContext) -> arcade.SpriteList:
         ctx.scene_sprites = arcade.SpriteList()
 
     # Load YAML
-    with open(path, "r") as f:
+    with open(path) as f:
         yaml_data = yaml.safe_load(f)
 
     # Handle both old format (list) and new format (dict with sprites/attack_groups)
@@ -290,14 +292,14 @@ def _reconstruct_attack_groups(ctx: DevContext, attack_groups_data: list[dict[st
         ctx: DevContext with scene_sprites
         attack_groups_data: List of attack group definitions from YAML
     """
-    from actions.group import AttackGroup
     from actions.formation import (
-        arrange_line,
-        arrange_grid,
         arrange_circle,
-        arrange_v_formation,
+        arrange_grid,
+        arrange_line,
         arrange_triangle,
+        arrange_v_formation,
     )
+    from actions.group import AttackGroup
 
     if not ctx.scene_sprites:
         return

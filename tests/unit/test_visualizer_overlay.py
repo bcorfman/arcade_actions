@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.overlay import InspectorOverlay, ActionCard, TargetGroup
+from actions.visualizer.overlay import ActionCard, InspectorOverlay, TargetGroup
 
 
 @pytest.fixture

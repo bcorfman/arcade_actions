@@ -6,7 +6,6 @@ design principles of no runtime type checking.
 """
 
 import arcade
-import pytest
 
 from actions import Action
 from actions.dev.reload import ReloadManager

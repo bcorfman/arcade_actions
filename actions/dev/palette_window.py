@@ -6,9 +6,11 @@ Displays sprite prototypes in a dedicated window for drag-and-drop spawning.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
 import arcade
 from arcade import window_commands
-from typing import TYPE_CHECKING, Callable
 
 # Import OpenGL exceptions to catch headless CI errors
 try:
@@ -48,7 +50,7 @@ class PaletteWindow(arcade.Window):
         # This handles CI environments (Windows/macOS) where OpenGL drivers aren't available
         try:
             super().__init__(width=width, height=height, title=title, resizable=True, visible=False)
-        except (GLException, MissingFunctionException) as e:
+        except (GLException, MissingFunctionException):
             # OpenGL-related errors in headless CI environment - initialize as headless window
             self._init_headless_mode(width, height, title)
         except Exception as e:

@@ -1,6 +1,5 @@
 """Tests for actions.dev.create_level module."""
 
-import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -239,9 +238,8 @@ class TestMain:
         """Test main() in interactive mode with empty input."""
         mock_input = mocker.patch("builtins.input", return_value="")
 
-        with patch("sys.argv", ["create_level"]):
-            with pytest.raises(SystemExit) as exc_info:
-                create_level.main()
+        with patch("sys.argv", ["create_level"]), pytest.raises(SystemExit) as exc_info:
+            create_level.main()
 
         assert exc_info.value.code == 1
 
@@ -249,9 +247,8 @@ class TestMain:
         """Test main() with invalid filename."""
         mock_input = mocker.patch("builtins.input", return_value="invalid")
 
-        with patch("sys.argv", ["create_level"]):
-            with pytest.raises(SystemExit) as exc_info:
-                create_level.main()
+        with patch("sys.argv", ["create_level"]), pytest.raises(SystemExit) as exc_info:
+            create_level.main()
 
         assert exc_info.value.code == 1
 
@@ -282,9 +279,8 @@ class TestMain:
 
         mock_input = mocker.patch("builtins.input", return_value="n")
 
-        with patch("sys.argv", ["create_level", str(filename)]):
-            with pytest.raises(SystemExit) as exc_info:
-                create_level.main()
+        with patch("sys.argv", ["create_level", str(filename)]), pytest.raises(SystemExit) as exc_info:
+            create_level.main()
 
         assert exc_info.value.code == 0
 
@@ -292,9 +288,8 @@ class TestMain:
         """Test main() handles KeyboardInterrupt."""
         mock_input = mocker.patch("builtins.input", side_effect=KeyboardInterrupt())
 
-        with patch("sys.argv", ["create_level"]):
-            with pytest.raises(SystemExit) as exc_info:
-                create_level.main()
+        with patch("sys.argv", ["create_level"]), pytest.raises(SystemExit) as exc_info:
+            create_level.main()
 
         assert exc_info.value.code == 130
 
@@ -303,9 +298,8 @@ class TestMain:
         mock_generate = mocker.patch("actions.dev.create_level.generate_level_file")
         mock_generate.side_effect = ValueError("Invalid filename")
 
-        with patch("sys.argv", ["create_level", "invalid"]):
-            with pytest.raises(SystemExit) as exc_info:
-                create_level.main()
+        with patch("sys.argv", ["create_level", "invalid"]), pytest.raises(SystemExit) as exc_info:
+            create_level.main()
 
         assert exc_info.value.code == 1
 
@@ -317,9 +311,8 @@ class TestMain:
         mock_run = mocker.patch("actions.dev.create_level.run_level_file")
         mock_run.side_effect = FileNotFoundError("File not found")
 
-        with patch("sys.argv", ["create_level", "test.py"]):
-            with pytest.raises(SystemExit) as exc_info:
-                create_level.main()
+        with patch("sys.argv", ["create_level", "test.py"]), pytest.raises(SystemExit) as exc_info:
+            create_level.main()
 
         assert exc_info.value.code == 1
 
@@ -328,8 +321,7 @@ class TestMain:
         mock_generate = mocker.patch("actions.dev.create_level.generate_level_file")
         mock_generate.side_effect = RuntimeError("Unexpected error")
 
-        with patch("sys.argv", ["create_level", "test.py"]):
-            with pytest.raises(SystemExit) as exc_info:
-                create_level.main()
+        with patch("sys.argv", ["create_level", "test.py"]), pytest.raises(SystemExit) as exc_info:
+            create_level.main()
 
         assert exc_info.value.code == 1

@@ -1,13 +1,12 @@
 """Tests for breakaway system."""
 
-import pytest
 import arcade
+import pytest
+
 from actions.base import Action
+from actions.formation import arrange_line
 from actions.group import AttackGroup
 from actions.group_state import BreakawayManager, BreakawayStrategy, GroupStage
-from actions.formation import arrange_line
-from actions.conditional import FollowPathUntil, TweenUntil
-from actions.frame_timing import after_frames
 from tests.conftest import ActionTestBase
 
 

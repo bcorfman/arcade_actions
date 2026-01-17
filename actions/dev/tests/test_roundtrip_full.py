@@ -1,9 +1,9 @@
 import textwrap
-from pathlib import Path
 
 import arcade
+
+from actions.dev import position_tag
 from actions.dev.visualizer import DevVisualizer
-from actions.dev import sync, code_parser, position_tag
 
 
 def test_export_roundtrip_preserves_comment_and_backup(tmp_path):

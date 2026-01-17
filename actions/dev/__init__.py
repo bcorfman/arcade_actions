@@ -29,31 +29,33 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 
-from .reload import ReloadIndicator, ReloadManager
-from .watch import FileWatcher
+from . import code_parser
+from .boundary_overlay import BoundaryGizmo, BoundaryHandle
+from .palette import PaletteSidebar
+from .palette_window import PaletteWindow
+from .presets import (
+    ActionPresetRegistry,
+    get_preset_registry,
+    register_preset,
+)
 from .prototype_registry import (
     DevContext,
     SpritePrototypeRegistry,
     register_prototype,
+)
+from .prototype_registry import (
     get_registry as get_prototype_registry,
 )
-from .presets import (
-    ActionPresetRegistry,
-    register_preset,
-    get_preset_registry,
-)
-from .palette import PaletteSidebar
-from .palette_window import PaletteWindow
+from .reload import ReloadIndicator, ReloadManager
 from .selection import SelectionManager
-from .boundary_overlay import BoundaryGizmo, BoundaryHandle
-from .templates import export_template, load_scene_template, SYMBOLIC
-from . import code_parser
+from .templates import SYMBOLIC, export_template, load_scene_template
 from .visualizer import (
     DevVisualizer,
+    auto_enable_dev_visualizer_from_env,
     enable_dev_visualizer,
     get_dev_visualizer,
-    auto_enable_dev_visualizer_from_env,
 )
+from .watch import FileWatcher
 
 __all__ = [
     # Hot reload

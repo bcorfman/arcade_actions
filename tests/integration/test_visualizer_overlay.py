@@ -5,12 +5,10 @@ Tests the inspector overlay panels, action cards, and UI rendering
 following test-driven development and dependency injection principles.
 """
 
-import pytest
-import arcade
-from actions.visualizer.instrumentation import DebugDataStore, ActionSnapshot
+from actions.visualizer.instrumentation import ActionSnapshot, DebugDataStore
 from actions.visualizer.overlay import (
-    InspectorOverlay,
     ActionCard,
+    InspectorOverlay,
     TargetGroup,
 )
 

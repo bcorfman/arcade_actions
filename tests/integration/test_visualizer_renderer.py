@@ -5,24 +5,25 @@ from __future__ import annotations
 import arcade
 import pytest
 
+from actions.visualizer.condition_panel import ConditionDebugger
+from actions.visualizer.guides import GuideManager
 from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.overlay import InspectorOverlay, ActionCard, TargetGroup
+from actions.visualizer.overlay import InspectorOverlay
 from actions.visualizer.renderer import (
-    OverlayRenderer,
     ConditionPanelRenderer,
-    TimelineRenderer,
     GuideRenderer,
+    OverlayRenderer,
+    TimelineRenderer,
     _sync_text_objects,
     _TextSpec,
 )
-from actions.visualizer.condition_panel import ConditionDebugger
 from actions.visualizer.timeline import TimelineStrip
-from actions.visualizer.guides import GuideManager
 
 
 def _try_opengl_draw(test_func):
     """Try to execute an OpenGL draw operation, skip test if context is invalid."""
     from pyglet.gl.lib import GLException
+
     try:
         test_func()
     except GLException as e:
@@ -502,7 +503,7 @@ class TestConditionPanelRenderer:
             monkeypatch.setattr(arcade.Text, "draw", fake_draw)
             renderer.draw()  # Should recover from GLException
             assert call_count >= 2  # Should retry (may be more if multiple text objects)
-        
+
         _try_opengl_draw(run_test)
 
 
@@ -734,7 +735,7 @@ class TestGuideRenderer:
 
             renderer = GuideRenderer(guide_manager)
             renderer.draw()  # Should not crash
-        
+
         _try_opengl_draw(run_test)
 
     def test_draw_with_path_guide(self, debug_store):
@@ -761,7 +762,7 @@ class TestGuideRenderer:
 
             renderer = GuideRenderer(guide_manager)
             renderer.draw()  # Should not crash
-        
+
         _try_opengl_draw(run_test)
 
     def test_draw_with_highlight_guide(self, debug_store):
@@ -789,7 +790,7 @@ class TestGuideRenderer:
 
             renderer = GuideRenderer(guide_manager)
             renderer.draw()  # Should not crash
-        
+
         _try_opengl_draw(run_test)
 
 

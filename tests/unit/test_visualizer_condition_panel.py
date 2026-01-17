@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from actions.visualizer.instrumentation import DebugDataStore
 from actions.visualizer.condition_panel import ConditionDebugger, ConditionEntry
+from actions.visualizer.instrumentation import DebugDataStore
 
 
 @pytest.fixture

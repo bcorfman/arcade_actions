@@ -3,8 +3,6 @@ from __future__ import annotations
 from ctypes import Structure, c_int
 from unittest.mock import MagicMock
 
-import pytest
-
 from actions import display
 
 

@@ -18,7 +18,6 @@ Run with: uv run pytest tests/integration/test_hot_reload_exit_criteria.py
 import importlib
 import sys
 import time
-from pathlib import Path
 
 import arcade
 import pytest
@@ -139,7 +138,7 @@ VALUE = 0
                 reload_count[0] += 1
                 # Verify module reloaded correctly
                 if reload_count[0] % 10 == 0:
-                    assert test_module.VALUE == reload_count[0]
+                    assert reload_count[0] == test_module.VALUE
 
             manager = ReloadManager(
                 watch_paths=[tmp_path],
@@ -184,7 +183,8 @@ VALUE = {i + 1}
         # They should not conflict
 
         import arcade
-        from actions.visualizer import attach_visualizer, is_visualizer_attached, detach_visualizer
+
+        from actions.visualizer import attach_visualizer, detach_visualizer, is_visualizer_attached
 
         try:
             # Setup window (same pattern as visualizer integration tests)
@@ -206,7 +206,7 @@ VALUE = {i + 1}
 
                     def show_view(self, view) -> None:
                         self._view = view
-                        setattr(view, "window", self)
+                        view.window = self
 
                     def set_visible(self, value: bool) -> None:
                         self.visible = value

@@ -10,8 +10,6 @@ Uses libCST for robust parsing and formatting-preserving edits later.
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 import libcst as cst
 from libcst.metadata import MetadataWrapper, PositionProvider
 
@@ -59,8 +57,8 @@ class _AssignVisitor(cst.CSTVisitor):
 
     def __init__(self, module: cst.Module):
         self._module = module
-        self.assignments: List[PositionAssignment] = []
-        self.arrange_calls: List[ArrangeCall] = []
+        self.assignments: list[PositionAssignment] = []
+        self.arrange_calls: list[ArrangeCall] = []
 
     def visit_Assign(self, node: cst.Assign) -> None:
         # Each target can be an attribute like `sprite.left`
@@ -136,7 +134,7 @@ class _AssignVisitor(cst.CSTVisitor):
             )
 
 
-def parse_source(source: str, filename: str = "<string>") -> tuple[List[PositionAssignment], List[ArrangeCall]]:
+def parse_source(source: str, filename: str = "<string>") -> tuple[list[PositionAssignment], list[ArrangeCall]]:
     """Parse a source string returning coordinate assignments and arrange calls.
 
     The returned PositionAssignment.file/ArrangeCall.file will be set to the provided
@@ -156,9 +154,9 @@ def parse_source(source: str, filename: str = "<string>") -> tuple[List[Position
     return visitor.assignments, visitor.arrange_calls
 
 
-def parse_file(path: str) -> tuple[List[PositionAssignment], List[ArrangeCall]]:
+def parse_file(path: str) -> tuple[list[PositionAssignment], list[ArrangeCall]]:
     """Parse a file on disk and return assignments and arrange calls."""
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         src = fh.read()
     return parse_source(src, filename=path)
 

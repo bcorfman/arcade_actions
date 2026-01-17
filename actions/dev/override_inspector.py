@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
 
 from actions.dev import sync
 
@@ -20,7 +19,7 @@ class ArrangeOverrideInspector:
         # Simple undo stack: list of dicts describing inverse operations
         self._undo_stack: list[dict] = []
 
-    def list_overrides(self) -> List[dict]:
+    def list_overrides(self) -> list[dict]:
         """Return a list of overrides (dicts with keys 'row','col','x','y')."""
         return sync.list_arrange_overrides(self.file_path, self.lineno)
 

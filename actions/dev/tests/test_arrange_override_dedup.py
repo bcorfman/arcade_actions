@@ -1,10 +1,10 @@
-import textwrap
-from pathlib import Path
 import re
+import textwrap
 
 import arcade
+
+from actions.dev import position_tag
 from actions.dev.visualizer import DevVisualizer
-from actions.dev import sync, code_parser, position_tag
 
 
 def _count_override_entries(src: str, row: int, col: int) -> int:

@@ -7,10 +7,10 @@ import pytest
 
 from actions.base import Action
 from actions.visualizer.attach import (
+    VisualizerSession,
     _collect_sprite_positions,
     _collect_sprite_sizes_and_ids,
     _collect_target_names_from_view,
-    VisualizerSession,
     get_visualizer_session,
     is_visualizer_attached,
 )
@@ -19,7 +19,7 @@ from actions.visualizer.attach import (
 @pytest.fixture(autouse=True)
 def reset_session():
     """Reset visualizer session before each test."""
-    from actions.visualizer.attach import _VISUALIZER_SESSION, detach_visualizer
+    from actions.visualizer.attach import detach_visualizer
 
     yield
     detach_visualizer()
@@ -136,6 +136,7 @@ class TestCollectSpritePositions:
             assert positions == {}
         finally:
             Action._active_actions[:] = original_actions
+
     def test_caching(self):
         original_actions = list(Action._active_actions)
         try:
@@ -379,13 +380,14 @@ class TestCollectTargetNamesFromView:
 
 class TestVisualizerSession:
     def test_keyboard_handler_property(self):
+        from pathlib import Path
+
+        from actions.visualizer.condition_panel import ConditionDebugger
         from actions.visualizer.controls import DebugControlManager
+        from actions.visualizer.guides import GuideManager
         from actions.visualizer.instrumentation import DebugDataStore
         from actions.visualizer.overlay import InspectorOverlay
-        from actions.visualizer.guides import GuideManager
-        from actions.visualizer.condition_panel import ConditionDebugger
         from actions.visualizer.timeline import TimelineStrip
-        from pathlib import Path
 
         debug_store = DebugDataStore()
         overlay = InspectorOverlay(debug_store)
@@ -456,9 +458,9 @@ class TestVisualizerSession:
         assert session.keyboard_handler is None
 
     def test_draw_handler_property(self):
-        from actions.visualizer.renderer import OverlayRenderer
         from actions.visualizer.instrumentation import DebugDataStore
         from actions.visualizer.overlay import InspectorOverlay
+        from actions.visualizer.renderer import OverlayRenderer
 
         debug_store = DebugDataStore()
         overlay = InspectorOverlay(debug_store)

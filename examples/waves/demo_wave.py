@@ -15,12 +15,13 @@ class DemoWave:
 
     def __init__(self):
         self.enemy_count = 6
-        self.enemy_color = arcade.color.RED
+        self.enemy_color = arcade.color.YELLOW
         self.spawn_y = 550
 
     def create_enemies(self):
         """Create enemies for this wave."""
         from arcade import SpriteList, SpriteSolidColor
+
         from actions.conditional import MoveUntil, infinite
 
         enemies = SpriteList()
@@ -30,7 +31,7 @@ class DemoWave:
             enemy.center_y = self.spawn_y
 
             # Make enemies move down
-            MoveUntil((0, -2), infinite()).apply(enemy, tag="move_down")
+            MoveUntil((0, -2), infinite).apply(enemy, tag="move_down")
             enemies.append(enemy)
 
         return enemies

@@ -8,8 +8,7 @@ import arcade
 import pytest
 
 from actions.dev.palette_window import PaletteWindow
-from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry, get_registry
-from tests.conftest import ActionTestBase
+from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry
 
 pytestmark = pytest.mark.slow
 

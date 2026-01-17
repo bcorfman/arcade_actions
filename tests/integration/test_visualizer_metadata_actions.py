@@ -6,7 +6,6 @@ import arcade
 import pytest
 
 from actions.dev.visualizer import DevVisualizer, SpriteWithActionConfigs
-from actions import Action
 
 
 @pytest.fixture

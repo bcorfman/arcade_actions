@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import arcade
 import pytest
 
 from actions.visualizer.instrumentation import DebugDataStore
 from actions.visualizer.overlay import InspectorOverlay
 from actions.visualizer.renderer import (
-    OverlayRenderer,
     ConditionPanelRenderer,
-    TimelineRenderer,
     GuideRenderer,
+    OverlayRenderer,
+    TimelineRenderer,
     _sync_text_objects,
     _TextSpec,
 )

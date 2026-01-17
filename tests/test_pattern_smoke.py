@@ -1,19 +1,19 @@
 """Lightweight smoke tests for movement pattern factories."""
 
-import pytest
 import arcade
+import pytest
 
+from actions.frame_timing import after_frames
 from actions.pattern import (
     create_bounce_pattern,
     create_figure_eight_pattern,
+    create_formation_entry_from_sprites,
     create_orbit_pattern,
     create_patrol_pattern,
     create_spiral_pattern,
     create_wave_pattern,
     create_zigzag_pattern,
-    create_formation_entry_from_sprites,
 )
-from actions.frame_timing import after_frames
 
 
 def test_create_zigzag_pattern_runs_with_frame_args():

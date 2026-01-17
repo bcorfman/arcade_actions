@@ -3,9 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from actions.base import Action as _Action
-
 from actions._shared_logging import _agent_debug_log
+from actions.base import Action as _Action
 from actions.frame_conditions import _clone_condition
 
 
@@ -91,7 +90,7 @@ class ParametricMotionUntil(_Action):
         self._prev_offset = self._offset_fn(0.0)
 
     def update_effect(self, delta_time: float) -> None:  # noqa: D401
-        from math import hypot, degrees, atan2
+        from math import atan2, degrees, hypot
 
         # Frame-based timing: advance by one frame per update, scaled by factor
         self._elapsed_frames += self._factor
@@ -186,7 +185,7 @@ class ParametricMotionUntil(_Action):
             data={"action_id": id(self)},
         )
 
-    def clone(self) -> "ParametricMotionUntil":  # type: ignore[name-defined]
+    def clone(self) -> ParametricMotionUntil:  # type: ignore[name-defined]
         return ParametricMotionUntil(
             self._offset_fn,
             _clone_condition(self.condition),

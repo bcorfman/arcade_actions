@@ -415,7 +415,6 @@ class TestParametricMotionUntilCoverage:
 
     def test_parametric_motion_zero_duration_fallback(self):
         """Test ParametricMotionUntil with condition that has no extractable frame count."""
-        from actions.frame_timing import after_frames
 
         sprite = arcade.Sprite()
         sprite.center_x = 100

@@ -33,7 +33,6 @@ from actions import (
 )
 from actions.frame_timing import seconds_to_frames
 
-
 # ---------------------------------------------------------------------------
 # Window configuration
 # ---------------------------------------------------------------------------

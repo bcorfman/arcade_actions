@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from actions.visualizer.instrumentation import DebugDataStore, ActionSnapshot, ActionEvent
+    from actions.visualizer.instrumentation import DebugDataStore
 
 
 class TimelineEntry:
@@ -61,7 +61,7 @@ class TimelineStrip:
 
     def __init__(
         self,
-        debug_store: "DebugDataStore",
+        debug_store: DebugDataStore,
         *,
         max_entries: int = 100,
         filter_tag: str | None = None,
@@ -193,12 +193,7 @@ class TimelineStrip:
                         entry.start_frame = event.frame
                         entry.start_time = event.timestamp
                     # If action is currently active (has snapshot), ensure entry is marked as active
-                    if event.action_id in active_action_ids:
-                        entry.is_active = True
-                        entry.end_frame = None
-                        entry.end_time = None
-                    # If no snapshot but we see a started event, mark as active (until we see stop/remove)
-                    elif event.action_id not in stopped_action_ids:
+                    if event.action_id in active_action_ids or event.action_id not in stopped_action_ids:
                         entry.is_active = True
                         entry.end_frame = None
                         entry.end_time = None

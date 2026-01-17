@@ -6,7 +6,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
 @dataclass
@@ -17,7 +17,7 @@ class ModuleMetrics:
     cc_sum: float
     cc_max: float
     func_count: int
-    coverage_pct: Optional[float]  # 0..100, None if unknown
+    coverage_pct: float | None  # 0..100, None if unknown
     score: float
 
 
@@ -35,9 +35,9 @@ def normalize_path(p: str) -> str:
     return p
 
 
-def extract_radon_raw(raw: Dict[str, Any]) -> Dict[str, Dict[str, int]]:
+def extract_radon_raw(raw: dict[str, Any]) -> dict[str, dict[str, int]]:
     # raw[file] = {'loc':..,'lloc':..,'sloc':.., ...}
-    out: Dict[str, Dict[str, int]] = {}
+    out: dict[str, dict[str, int]] = {}
     for file_path, stats in raw.items():
         fp = normalize_path(file_path)
         out[fp] = {
@@ -47,11 +47,11 @@ def extract_radon_raw(raw: Dict[str, Any]) -> Dict[str, Dict[str, int]]:
     return out
 
 
-def extract_radon_cc(cc: Dict[str, Any]) -> Dict[str, Tuple[float, float, int]]:
+def extract_radon_cc(cc: dict[str, Any]) -> dict[str, tuple[float, float, int]]:
     # cc[file] = list of blocks; each has 'complexity' for functions/methods/classes
     # We focus on "function/method" blocks; in radon output, everything has a complexity number.
     # For refactor triage, summing all blocks is usually OK; but we'll ignore "module" blocks if present.
-    out: Dict[str, Tuple[float, float, int]] = {}
+    out: dict[str, tuple[float, float, int]] = {}
     for file_path, blocks in cc.items():
         fp = normalize_path(file_path)
         cc_sum = 0.0
@@ -69,13 +69,13 @@ def extract_radon_cc(cc: Dict[str, Any]) -> Dict[str, Tuple[float, float, int]]:
     return out
 
 
-def extract_file_coverage(coverage_json: Dict[str, Any]) -> Dict[str, float]:
+def extract_file_coverage(coverage_json: dict[str, Any]) -> dict[str, float]:
     """
     coverage.py JSON schema includes:
       - "files": { "<path>": { "summary": { "percent_covered": ... }, ... } }
     """
     files = coverage_json.get("files", {}) or {}
-    out: Dict[str, float] = {}
+    out: dict[str, float] = {}
     for file_path, data in files.items():
         fp = normalize_path(file_path)
         summary = data.get("summary", {}) or {}
@@ -103,7 +103,7 @@ def is_test_file(file_path: str) -> bool:
     return False
 
 
-def best_match_coverage(file_path: str, cov_map: Dict[str, float]) -> Optional[float]:
+def best_match_coverage(file_path: str, cov_map: dict[str, float]) -> float | None:
     """
     Try a few matching strategies because coverage paths may be absolute.
     """
@@ -114,7 +114,7 @@ def best_match_coverage(file_path: str, cov_map: Dict[str, float]) -> Optional[f
     # Try matching by suffix (repo-relative)
     # Example: cov uses "/home/runner/work/repo/your_package/a.py"
     # while radon uses "your_package/a.py"
-    candidates = [k for k in cov_map.keys() if k.endswith(fp)]
+    candidates = [k for k in cov_map if k.endswith(fp)]
     if len(candidates) == 1:
         return cov_map[candidates[0]]
     if len(candidates) > 1:
@@ -125,7 +125,7 @@ def best_match_coverage(file_path: str, cov_map: Dict[str, float]) -> Optional[f
     return None
 
 
-def compute_score(sloc: int, cc_sum: float, coverage_pct: Optional[float]) -> float:
+def compute_score(sloc: int, cc_sum: float, coverage_pct: float | None) -> float:
     # uncovered fraction U in [0..1]
     if coverage_pct is None:
         # treat unknown coverage as poor coverage (conservative)
@@ -155,7 +155,7 @@ def main() -> int:
     cov = extract_file_coverage(load_json(args.coverage_json))
 
     all_files = sorted(set(raw.keys()) | set(cc.keys()))
-    rows: List[ModuleMetrics] = []
+    rows: list[ModuleMetrics] = []
 
     for fp in all_files:
         # Skip test files

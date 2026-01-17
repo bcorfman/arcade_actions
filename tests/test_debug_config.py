@@ -232,8 +232,6 @@ class TestDebugLogging:
         def callback():
             pass
 
-        from actions.frame_timing import seconds_to_frames
-
         action = CallbackUntil(callback, after_frames(seconds_to_frames(1.0)))
         action.apply(test_sprite, tag="test")
         Action.update_all(0.016)

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer, SpriteWithSourceMarkers
+from actions.dev.visualizer import DevVisualizer
 
 
 @pytest.fixture
@@ -221,9 +219,7 @@ class TestReloadMarkerStatus:
 
         # Sprite already has markers pointing to test_file
         test_sprite = arcade.Sprite()
-        test_sprite._source_markers = [
-            {"file": str(test_file), "lineno": 1, "attr": "center_x", "status": "yellow"}
-        ]
+        test_sprite._source_markers = [{"file": str(test_file), "lineno": 1, "attr": "center_x", "status": "yellow"}]
         dev_visualizer.scene_sprites.append(test_sprite)
 
         # Mock parse to return no assignments (file no longer has the assignment)

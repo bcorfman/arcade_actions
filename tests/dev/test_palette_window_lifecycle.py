@@ -9,7 +9,6 @@ import pytest
 
 from actions.dev.palette_window import PaletteWindow
 from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry
-from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.slow
 
@@ -82,7 +81,9 @@ class TestWindowLifecycle:
         palette_window._main_window = mock_main_window
 
         # Mock super().set_visible to raise exception
-        mock_super_set_visible = mocker.patch.object(PaletteWindow.__bases__[0], "set_visible", side_effect=Exception("Error"))
+        mock_super_set_visible = mocker.patch.object(
+            PaletteWindow.__bases__[0], "set_visible", side_effect=Exception("Error")
+        )
 
         # Should not crash, should update _is_visible
         palette_window.set_visible(True)

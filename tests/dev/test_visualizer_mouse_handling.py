@@ -6,8 +6,8 @@ These tests document current behavior and priority order (gizmo > sprite > selec
 
 from __future__ import annotations
 
-import pytest
 import arcade
+import pytest
 
 from actions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
@@ -21,23 +21,23 @@ class TestHandleMousePress(ActionTestBase):
     def test_right_click_clears_selection(self, window, test_sprite_list):
         """Test that right-click clears selection."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list)
-        
+
         # Select some sprites
         for sprite in test_sprite_list:
             dev_viz.selection_manager._selected.add(sprite)
         assert len(dev_viz.selection_manager.get_selected()) == 2
-        
+
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_RIGHT, 0)
-        
+
         assert result is True
         assert len(dev_viz.selection_manager.get_selected()) == 0
 
     def test_non_left_button_returns_false(self, window):
         """Test that non-left, non-right buttons return False."""
         dev_viz = DevVisualizer()
-        
+
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_MIDDLE, 0)
-        
+
         assert result is False
 
     def test_gizmo_handle_takes_priority(self, window, test_sprite, mocker):
@@ -45,17 +45,17 @@ class TestHandleMousePress(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.scene_sprites.append(test_sprite)
         dev_viz.selection_manager._selected.add(test_sprite)
-        
+
         # Mock gizmo
         mock_gizmo = mocker.MagicMock()
         mock_gizmo.has_bounded_action.return_value = True
         mock_handle = mocker.MagicMock()
         mock_gizmo.get_handle_at_point.return_value = mock_handle
-        
-        mocker.patch.object(dev_viz, '_get_gizmo', return_value=mock_gizmo)
-        
+
+        mocker.patch.object(dev_viz, "_get_gizmo", return_value=mock_gizmo)
+
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         assert dev_viz._dragging_gizmo_handle == (mock_gizmo, mock_handle)
         # Sprite drag should not be started
@@ -66,16 +66,16 @@ class TestHandleMousePress(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.scene_sprites.append(test_sprite)
         dev_viz.selection_manager._selected.add(test_sprite)
-        
+
         # Mock gizmo that returns no handle
         mock_gizmo = mocker.MagicMock()
         mock_gizmo.has_bounded_action.return_value = True
         mock_gizmo.get_handle_at_point.return_value = None
-        
-        mocker.patch.object(dev_viz, '_get_gizmo', return_value=mock_gizmo)
-        
+
+        mocker.patch.object(dev_viz, "_get_gizmo", return_value=mock_gizmo)
+
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         # Should continue to sprite drag or selection
         assert dev_viz._dragging_gizmo_handle is None
 
@@ -86,15 +86,15 @@ class TestHandleMousePress(ActionTestBase):
         dev_viz.scene_sprites.append(test_sprite)
         test_sprite.center_x = 100
         test_sprite.center_y = 100
-        
-        test_sprite._source_markers = [{'file': 'test.py', 'lineno': 10}]
-        
-        mock_open = mocker.patch.object(dev_viz, 'open_sprite_source')
-        
+
+        test_sprite._source_markers = [{"file": "test.py", "lineno": 10}]
+
+        mock_open = mocker.patch.object(dev_viz, "open_sprite_source")
+
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
-        mock_open.assert_called_once_with(test_sprite, {'file': 'test.py', 'lineno': 10})
+        mock_open.assert_called_once_with(test_sprite, {"file": "test.py", "lineno": 10})
 
     def test_sprite_with_source_markers_requires_no_modifiers(self, window, test_sprite, mocker):
         """Test that source marker click requires no modifiers."""
@@ -102,14 +102,14 @@ class TestHandleMousePress(ActionTestBase):
         dev_viz.scene_sprites.append(test_sprite)
         test_sprite.center_x = 100
         test_sprite.center_y = 100
-        
-        test_sprite._source_markers = [{'file': 'test.py', 'lineno': 10}]
-        
-        mock_open = mocker.patch.object(dev_viz, 'open_sprite_source')
-        
+
+        test_sprite._source_markers = [{"file": "test.py", "lineno": 10}]
+
+        mock_open = mocker.patch.object(dev_viz, "open_sprite_source")
+
         # With shift modifier, should not open editor
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_LEFT, arcade.key.MOD_SHIFT)
-        
+
         mock_open.assert_not_called()
         # Should continue to sprite drag or selection
 
@@ -120,12 +120,12 @@ class TestHandleMousePress(ActionTestBase):
         dev_viz.selection_manager._selected.add(test_sprite)
         test_sprite.center_x = 100
         test_sprite.center_y = 100
-        
+
         # Mock gizmo to return None (no gizmo handle)
-        mocker.patch.object(dev_viz, '_get_gizmo', return_value=None)
-        
+        mocker.patch.object(dev_viz, "_get_gizmo", return_value=None)
+
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         assert dev_viz._dragging_sprites is not None
         assert len(dev_viz._dragging_sprites) == 1
@@ -141,13 +141,13 @@ class TestHandleMousePress(ActionTestBase):
         dev_viz.selection_manager._selected.add(test_sprite)
         test_sprite.center_x = 150
         test_sprite.center_y = 200
-        
+
         # Mock gizmo to return None
-        mocker.patch.object(dev_viz, '_get_gizmo', return_value=None)
-        
+        mocker.patch.object(dev_viz, "_get_gizmo", return_value=None)
+
         # Click at sprite center (150, 200) - offset should be (0, 0)
         result = dev_viz.handle_mouse_press(150, 200, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         assert dev_viz._dragging_sprites is not None
         assert dev_viz._dragging_sprites[0][1] == 0.0  # offset_x (click at center)
@@ -158,18 +158,18 @@ class TestHandleMousePress(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list)
         for sprite in test_sprite_list:
             dev_viz.selection_manager._selected.add(sprite)
-        
+
         test_sprite_list[0].center_x = 100
         test_sprite_list[0].center_y = 100
         test_sprite_list[1].center_x = 200
         test_sprite_list[1].center_y = 200
-        
+
         # Mock gizmo to return None
-        mocker.patch.object(dev_viz, '_get_gizmo', return_value=None)
-        
+        mocker.patch.object(dev_viz, "_get_gizmo", return_value=None)
+
         # Click on first sprite
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         assert len(dev_viz._dragging_sprites) == 2
         # Both sprites should be in drag list with their offsets
@@ -180,40 +180,40 @@ class TestHandleMousePress(ActionTestBase):
         dev_viz.scene_sprites.append(test_sprite)
         test_sprite.center_x = 100
         test_sprite.center_y = 100
-        
+
         # Mock selection manager
-        mock_select = mocker.patch.object(dev_viz.selection_manager, 'handle_mouse_press', return_value=True)
-        
+        mock_select = mocker.patch.object(dev_viz.selection_manager, "handle_mouse_press", return_value=True)
+
         # Mock gizmo to return None
-        mocker.patch.object(dev_viz, '_get_gizmo', return_value=None)
-        
+        mocker.patch.object(dev_viz, "_get_gizmo", return_value=None)
+
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         mock_select.assert_called_once()
 
     def test_empty_space_triggers_selection(self, window, test_sprite_list, mocker):
         """Test that clicking empty space triggers selection manager."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list)
-        
+
         # Mock selection manager
-        mock_select = mocker.patch.object(dev_viz.selection_manager, 'handle_mouse_press', return_value=True)
-        
+        mock_select = mocker.patch.object(dev_viz.selection_manager, "handle_mouse_press", return_value=True)
+
         # Click at empty space (sprites are at 50 and 150)
         result = dev_viz.handle_mouse_press(300, 300, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         mock_select.assert_called_once()
 
     def test_returns_false_when_selection_not_handled(self, window, mocker):
         """Test that returns False when selection manager doesn't handle."""
         dev_viz = DevVisualizer()
-        
+
         # Mock selection manager to return False
-        mocker.patch.object(dev_viz.selection_manager, 'handle_mouse_press', return_value=False)
-        
+        mocker.patch.object(dev_viz.selection_manager, "handle_mouse_press", return_value=False)
+
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is False
 
     def test_source_markers_exception_handled(self, window, test_sprite, mocker):
@@ -223,14 +223,14 @@ class TestHandleMousePress(ActionTestBase):
         dev_viz.scene_sprites.append(test_sprite)
         test_sprite.center_x = 100
         test_sprite.center_y = 100
-        
+
         # Mock open_sprite_source to raise exception
-        mock_open = mocker.patch.object(dev_viz, 'open_sprite_source', side_effect=Exception("Error"))
-        test_sprite._source_markers = [{'file': 'test.py', 'lineno': 10}]
-        
+        mock_open = mocker.patch.object(dev_viz, "open_sprite_source", side_effect=Exception("Error"))
+        test_sprite._source_markers = [{"file": "test.py", "lineno": 10}]
+
         # Should not raise, just continue to sprite drag or selection
         result = dev_viz.handle_mouse_press(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         # Should continue processing (either sprite drag or selection)
         assert result is True or result is False
 
@@ -243,11 +243,11 @@ class TestHandleMouseDrag(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz._dragging_gizmo_handle = (mocker.MagicMock(), mocker.MagicMock())
         dev_viz._dragging_sprites = [(test_sprite, 0, 0)]
-        
+
         mock_gizmo, mock_handle = dev_viz._dragging_gizmo_handle
-        
+
         result = dev_viz.handle_mouse_drag(100, 100, 10, 20, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         mock_gizmo.handle_drag.assert_called_once_with(mock_handle, 10, 20)
         # Sprite positions should not be updated
@@ -260,9 +260,9 @@ class TestHandleMouseDrag(ActionTestBase):
         dev_viz._dragging_sprites = [(test_sprite, 10, 20)]
         test_sprite.center_x = 100
         test_sprite.center_y = 100
-        
+
         result = dev_viz.handle_mouse_drag(150, 200, 50, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         # Sprite should be at (150 + 10, 200 + 20) = (160, 220)
         assert test_sprite.center_x == 160.0
@@ -271,13 +271,10 @@ class TestHandleMouseDrag(ActionTestBase):
     def test_multiple_sprite_drag(self, window, test_sprite_list, mocker):
         """Test that multiple sprites are dragged together."""
         dev_viz = DevVisualizer()
-        dev_viz._dragging_sprites = [
-            (test_sprite_list[0], 10, 20),
-            (test_sprite_list[1], 30, 40)
-        ]
-        
+        dev_viz._dragging_sprites = [(test_sprite_list[0], 10, 20), (test_sprite_list[1], 30, 40)]
+
         result = dev_viz.handle_mouse_drag(100, 100, 0, 0, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         # Both sprites should be updated
         assert test_sprite_list[0].center_x == 110.0  # 100 + 10
@@ -289,20 +286,20 @@ class TestHandleMouseDrag(ActionTestBase):
         """Test that selection marquee drag is handled."""
         dev_viz = DevVisualizer()
         dev_viz.selection_manager._is_dragging_marquee = True
-        
-        mock_marquee = mocker.patch.object(dev_viz.selection_manager, 'handle_mouse_drag')
-        
+
+        mock_marquee = mocker.patch.object(dev_viz.selection_manager, "handle_mouse_drag")
+
         result = dev_viz.handle_mouse_drag(100, 100, 10, 20, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         mock_marquee.assert_called_once_with(100, 100)
 
     def test_returns_false_when_nothing_dragging(self, window):
         """Test that returns False when nothing is being dragged."""
         dev_viz = DevVisualizer()
-        
+
         result = dev_viz.handle_mouse_drag(100, 100, 10, 20, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is False
 
     def test_priority_order_gizmo_over_sprite(self, window, test_sprite, mocker):
@@ -311,12 +308,12 @@ class TestHandleMouseDrag(ActionTestBase):
         mock_gizmo = mocker.MagicMock()
         dev_viz._dragging_gizmo_handle = (mock_gizmo, mocker.MagicMock())
         dev_viz._dragging_sprites = [(test_sprite, 0, 0)]
-        
+
         original_x = test_sprite.center_x
         original_y = test_sprite.center_y
-        
+
         result = dev_viz.handle_mouse_drag(100, 100, 10, 20, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         # Gizmo should be dragged
         mock_gizmo.handle_drag.assert_called_once()
@@ -329,11 +326,11 @@ class TestHandleMouseDrag(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz._dragging_sprites = [(test_sprite, 0, 0)]
         dev_viz.selection_manager._is_dragging_marquee = True
-        
-        mock_marquee = mocker.patch.object(dev_viz.selection_manager, 'handle_mouse_drag')
-        
+
+        mock_marquee = mocker.patch.object(dev_viz.selection_manager, "handle_mouse_drag")
+
         result = dev_viz.handle_mouse_drag(100, 100, 10, 20, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         # Sprite should be dragged
         assert test_sprite.center_x == 100.0
@@ -349,9 +346,9 @@ class TestHandleMouseRelease(ActionTestBase):
         dev_viz = DevVisualizer()
         mock_gizmo = mocker.MagicMock()
         dev_viz._dragging_gizmo_handle = (mock_gizmo, mocker.MagicMock())
-        
+
         result = dev_viz.handle_mouse_release(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         assert dev_viz._dragging_gizmo_handle is None
 
@@ -359,9 +356,9 @@ class TestHandleMouseRelease(ActionTestBase):
         """Test that sprite release clears dragging state."""
         dev_viz = DevVisualizer()
         dev_viz._dragging_sprites = [(test_sprite, 0, 0)]
-        
+
         result = dev_viz.handle_mouse_release(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         assert dev_viz._dragging_sprites is None
 
@@ -369,11 +366,11 @@ class TestHandleMouseRelease(ActionTestBase):
         """Test that selection marquee release is handled."""
         dev_viz = DevVisualizer()
         dev_viz.selection_manager._is_dragging_marquee = True
-        
-        mock_release = mocker.patch.object(dev_viz.selection_manager, 'handle_mouse_release')
-        
+
+        mock_release = mocker.patch.object(dev_viz.selection_manager, "handle_mouse_release")
+
         result = dev_viz.handle_mouse_release(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         mock_release.assert_called_once_with(100, 100)
 
@@ -384,11 +381,11 @@ class TestHandleMouseRelease(ActionTestBase):
         dev_viz._dragging_gizmo_handle = (mock_gizmo, mocker.MagicMock())
         dev_viz._dragging_sprites = [(test_sprite, 0, 0)]
         dev_viz.selection_manager._is_dragging_marquee = True
-        
-        mock_marquee = mocker.patch.object(dev_viz.selection_manager, 'handle_mouse_release')
-        
+
+        mock_marquee = mocker.patch.object(dev_viz.selection_manager, "handle_mouse_release")
+
         result = dev_viz.handle_mouse_release(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is True
         # All should be cleared/released
         assert dev_viz._dragging_gizmo_handle is None
@@ -398,7 +395,7 @@ class TestHandleMouseRelease(ActionTestBase):
     def test_returns_false_when_nothing_releasing(self, window):
         """Test that returns False when nothing is being released."""
         dev_viz = DevVisualizer()
-        
+
         result = dev_viz.handle_mouse_release(100, 100, arcade.MOUSE_BUTTON_LEFT, 0)
-        
+
         assert result is False

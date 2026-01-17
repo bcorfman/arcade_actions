@@ -9,8 +9,8 @@ orthogonal movement patterns.
 from collections.abc import Callable
 from typing import Any
 
-from actions.conditional import MoveUntil
 from actions._shared_logging import _debug_log
+from actions.conditional import MoveUntil
 
 
 class MoveXUntil(MoveUntil):

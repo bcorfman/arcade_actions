@@ -5,38 +5,40 @@ and F12 toggle functionality.
 """
 
 import os
+
 import arcade
 import pytest
 
+from actions.dev.prototype_registry import register_prototype
 from actions.dev.visualizer import (
     DevVisualizer,
+    auto_enable_dev_visualizer_from_env,
     enable_dev_visualizer,
     get_dev_visualizer,
-    auto_enable_dev_visualizer_from_env,
 )
-from actions.dev.prototype_registry import register_prototype
 from tests.conftest import ActionTestBase
 
 
 @pytest.fixture(autouse=True)
 def mock_arcade_text(mocker):
     """Mock arcade.Text to avoid OpenGL requirements in headless CI environments.
-    
+
     This fixture patches arcade.Text in the visualizer module before DevVisualizer
     is created, preventing OpenGL context errors when Text objects are created
     in __init__ methods.
     """
+
     def create_mock_text(*args, **kwargs):
         """Create a new mock Text instance for each call."""
         mock_text = mocker.MagicMock()
         # Set default properties that tests might access
-        mock_text.y = kwargs.get('y', args[2] if len(args) > 2 else 10)
-        mock_text.text = kwargs.get('text', args[0] if len(args) > 0 else "")
+        mock_text.y = kwargs.get("y", args[2] if len(args) > 2 else 10)
+        mock_text.text = kwargs.get("text", args[0] if len(args) > 0 else "")
         mock_text.draw = mocker.MagicMock()
         return mock_text
-    
+
     # Patch Text in the visualizer module where it's used
-    mocker.patch('actions.dev.visualizer.arcade.Text', side_effect=create_mock_text)
+    mocker.patch("actions.dev.visualizer.arcade.Text", side_effect=create_mock_text)
 
 
 @pytest.fixture(autouse=True)
@@ -281,7 +283,6 @@ class TestDevVisualizerManager(ActionTestBase):
     @pytest.mark.integration
     def test_auto_attach_after_window_available(self, monkeypatch):
         """Test DevVisualizer attaches automatically when window becomes available."""
-        import actions.dev.visualizer as viz_module
         import arcade.window_commands as window_commands
 
         # Ensure no window is reported
@@ -323,7 +324,6 @@ class TestDevVisualizerManager(ActionTestBase):
     @pytest.mark.integration
     def test_auto_attach_via_update_all_hook(self, monkeypatch):
         """Test DevVisualizer can auto-attach via Action.update_all, like the debug visualizer."""
-        import actions.dev.visualizer as viz_module
         from actions import Action
 
         # Start with no window
@@ -361,7 +361,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
     @pytest.mark.integration
     def test_actions_paused_when_visible(self, window):
         """Test that actions are paused when DevVisualizer becomes visible."""
-        from actions import Action, move_until, infinite
+        from actions import Action, infinite, move_until
 
         # Create sprite with action
         sprite = arcade.Sprite()
@@ -379,7 +379,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
     @pytest.mark.integration
     def test_actions_resumed_when_hidden(self, window):
         """Test that actions are resumed when DevVisualizer becomes hidden."""
-        from actions import Action, move_until, infinite
+        from actions import Action, infinite, move_until
 
         # Create sprite with action
         sprite = arcade.Sprite()
@@ -398,7 +398,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
     @pytest.mark.integration
     def test_toggle_pauses_and_resumes(self, window):
         """Test that toggle() pauses/resumes actions."""
-        from actions import Action, move_until, infinite
+        from actions import Action, infinite, move_until
 
         # Create sprite with action first
         sprite = arcade.Sprite()
@@ -421,7 +421,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
     @pytest.mark.integration
     def test_sprites_dont_move_when_paused(self, window):
         """Test that sprites don't move when actions are paused."""
-        from actions import Action, move_until, infinite
+        from actions import Action, infinite, move_until
 
         # Create sprite with action
         sprite = arcade.Sprite()
@@ -442,7 +442,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
     @pytest.mark.integration
     def test_sprites_move_when_resumed(self, window):
         """Test that sprites move again when actions are resumed."""
-        from actions import Action, move_until, infinite
+        from actions import Action, infinite, move_until
 
         # Create sprite with action
         sprite = arcade.Sprite()
@@ -613,7 +613,6 @@ class TestDevVisualizerEditMode(ActionTestBase):
     @pytest.mark.integration
     def test_actions_stored_as_metadata(self, window):
         """Test that actions are stored as metadata in edit mode."""
-        from actions import move_until, infinite
 
         sprite = arcade.Sprite()
         sprite.center_x = 100
@@ -663,7 +662,7 @@ class TestDevVisualizerEditMode(ActionTestBase):
 
     def test_apply_metadata_actions_to_runtime(self, window):
         """Test converting metadata actions to runtime actions."""
-        from actions import Action, move_until, infinite
+        from actions import Action
 
         sprite = arcade.Sprite()
         sprite.center_x = 100

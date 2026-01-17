@@ -6,12 +6,9 @@ runtime to associate a stable identifier for code↔visual mapping.
 
 from __future__ import annotations
 
-from typing import Dict, List
-
-
 # Runtime registry mapping position_id -> list of sprites
-_REGISTRY: Dict[str, List[object]] = {}
-_SPRITE_TO_POSITION_ID: Dict[int, str] = {}
+_REGISTRY: dict[str, list[object]] = {}
+_SPRITE_TO_POSITION_ID: dict[int, str] = {}
 
 
 def tag_sprite(sprite: object, position_id: str) -> None:
@@ -21,7 +18,7 @@ def tag_sprite(sprite: object, position_id: str) -> None:
         sprite: sprite-like object (any object) to tag
         position_id: stable identifier used in code and visualizer to map
     """
-    setattr(sprite, "_position_id", position_id)
+    sprite._position_id = position_id
     _REGISTRY.setdefault(position_id, []).append(sprite)
     _SPRITE_TO_POSITION_ID[id(sprite)] = position_id
 
@@ -41,7 +38,7 @@ def remove_sprite_from_registry(sprite: object) -> None:
         _REGISTRY.pop(pid, None)
 
 
-def get_sprites_for(position_id: str) -> List[object]:
+def get_sprites_for(position_id: str) -> list[object]:
     return list(_REGISTRY.get(position_id, []))
 
 

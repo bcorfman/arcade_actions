@@ -1,10 +1,10 @@
-import textwrap
-from pathlib import Path
 import re
+import textwrap
 
 import arcade
-from actions.dev.visualizer import DevVisualizer
+
 from actions.dev import position_tag
+from actions.dev.visualizer import DevVisualizer
 
 
 def _count_override_entries(src: str, row: int, col: int) -> int:
@@ -16,7 +16,7 @@ def _find_override_coords(src: str, row: int, col: int):
     # Find the first dict for given row/col and extract x and y ints
     pattern = re.compile(r"\{([^}]*)\}")
     for m in pattern.findall(src):
-        if f"'row'" in m and f"'col'" in m and f"{row}" in m and f"{col}" in m:
+        if "'row'" in m and "'col'" in m and f"{row}" in m and f"{col}" in m:
             # find x and y
             x_m = re.search(r"'x'\s*[:=]\s*(\d+)", m)
             y_m = re.search(r"'y'\s*[:=]\s*(\d+)", m)

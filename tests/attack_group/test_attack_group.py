@@ -1,11 +1,11 @@
 """Tests for AttackGroup core functionality."""
 
-import pytest
 import arcade
+
 from actions.base import Action
-from actions.formation import arrange_line, arrange_grid
+from actions.conditional import MoveUntil
+from actions.formation import arrange_grid, arrange_line
 from actions.frame_timing import after_frames
-from actions.conditional import MoveUntil, infinite
 from tests.conftest import ActionTestBase
 
 
@@ -110,8 +110,8 @@ class TestAttackGroup(ActionTestBase):
 
     def test_attack_group_script_multiple_actions(self):
         """Test applying multiple actions as a script."""
-        from actions.group import AttackGroup
         from actions.composite import sequence
+        from actions.group import AttackGroup
 
         sprites = arcade.SpriteList()
         for _ in range(2):
@@ -131,8 +131,8 @@ class TestAttackGroup(ActionTestBase):
 
     def test_attack_group_update(self):
         """Test AttackGroup.update() updates breakaway manager, not actions."""
-        from actions.group import AttackGroup
         from actions.base import Action
+        from actions.group import AttackGroup
 
         sprites = arcade.SpriteList()
         for _ in range(2):

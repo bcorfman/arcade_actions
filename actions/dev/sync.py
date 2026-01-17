@@ -7,14 +7,13 @@ Uses libcst to perform AST edits while preserving formatting and comments.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import libcst as cst
-from libcst.metadata import PositionProvider, MetadataWrapper
+from libcst.metadata import MetadataWrapper, PositionProvider
 
 
 class UpdateResult:
-    def __init__(self, *, file: Path, changed: bool, backup: Optional[Path]) -> None:
+    def __init__(self, *, file: Path, changed: bool, backup: Path | None) -> None:
         self.file = file
         self.changed = changed
         self.backup = backup

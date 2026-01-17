@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import arcade
 import pytest
 
-from actions.dev.override_panel import OverridesPanel
 from actions.dev.visualizer import DevVisualizer
-from tests.conftest import ActionTestBase
-
-
 
 
 @pytest.fixture
@@ -527,10 +522,10 @@ class TestOverridePanelDrawing:
 
     def test_draw_not_visible(self, window, mock_inspector, mock_window, mocker):
         """Test draw does nothing when not visible."""
-        mock_draw_rect = mocker.patch('arcade.draw_rect_filled', create=True)
-        mock_draw_text = mocker.patch('arcade.draw_text', create=True)
-        mock_color = mocker.patch('arcade.color_from_hex_string', return_value=(34, 40, 42), create=True)
-        
+        mock_draw_rect = mocker.patch("arcade.draw_rect_filled", create=True)
+        mock_draw_text = mocker.patch("arcade.draw_text", create=True)
+        mock_color = mocker.patch("arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+
         dev_viz = DevVisualizer()
         dev_viz.window = mock_window
         panel = dev_viz.overrides_panel
@@ -539,16 +534,16 @@ class TestOverridePanelDrawing:
 
         # Should return early without drawing
         panel.draw()
-        
+
         mock_draw_rect.assert_not_called()
         mock_draw_text.assert_not_called()
 
     def test_draw_no_inspector(self, window, mock_window, mocker):
         """Test draw does nothing when no inspector."""
-        mock_draw_rect = mocker.patch('arcade.draw_rect_filled', create=True)
-        mock_draw_text = mocker.patch('arcade.draw_text', create=True)
-        mock_color = mocker.patch('arcade.color_from_hex_string', return_value=(34, 40, 42), create=True)
-        
+        mock_draw_rect = mocker.patch("arcade.draw_rect_filled", create=True)
+        mock_draw_text = mocker.patch("arcade.draw_text", create=True)
+        mock_color = mocker.patch("arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+
         dev_viz = DevVisualizer()
         dev_viz.window = mock_window
         panel = dev_viz.overrides_panel
@@ -557,7 +552,7 @@ class TestOverridePanelDrawing:
 
         # Should return early without drawing
         panel.draw()
-        
+
         mock_draw_rect.assert_not_called()
         mock_draw_text.assert_not_called()
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.timeline import TimelineStrip, TimelineEntry
+from actions.visualizer.timeline import TimelineEntry, TimelineStrip
 
 
 @pytest.fixture

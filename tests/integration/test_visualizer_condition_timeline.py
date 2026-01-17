@@ -7,9 +7,8 @@ and timeline entries derived from debug instrumentation.
 
 from __future__ import annotations
 
-import pytest
-from actions.visualizer.instrumentation import DebugDataStore, ActionSnapshot
 from actions.visualizer.condition_panel import ConditionDebugger
+from actions.visualizer.instrumentation import DebugDataStore
 from actions.visualizer.timeline import TimelineStrip
 
 

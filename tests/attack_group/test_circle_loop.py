@@ -1,12 +1,13 @@
 """Tests for exact circular loop path generation."""
 
-import pytest
 import math
+
 import arcade
+
 from actions.base import Action
-from actions.group import AttackGroup
-from actions.formation import arrange_line
 from actions.conditional import FollowPathUntil, infinite
+from actions.formation import arrange_line
+from actions.group import AttackGroup
 from actions.presets.entry_paths import circle_arc_waypoints, loop_the_loop_exact
 from tests.conftest import ActionTestBase
 

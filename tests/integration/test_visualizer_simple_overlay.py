@@ -5,7 +5,6 @@ Tests the minimal inspector overlay that only shows action count
 and cycles through corner positions.
 """
 
-import pytest
 from actions.visualizer.instrumentation import DebugDataStore
 from actions.visualizer.overlay import InspectorOverlay
 

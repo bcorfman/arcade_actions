@@ -50,7 +50,7 @@ def _remember_window_location(window: _WindowProto, x: int, y: int) -> None:
     """
 
     try:
-        setattr(window, "_arcadeactions_last_set_location", (int(x), int(y)))
+        window._arcadeactions_last_set_location = int(x), int(y)
     except Exception:
         pass
 

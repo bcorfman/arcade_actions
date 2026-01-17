@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import arcade
 import pytest
-
 from arcade import window_commands
+
 from actions.visualizer import event_window as event_window_module
 from actions.visualizer.event_window import EventInspectorWindow
 from actions.visualizer.instrumentation import DebugDataStore

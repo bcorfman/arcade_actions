@@ -1,5 +1,3 @@
-import types
-
 import pytest
 
 from actions import Action

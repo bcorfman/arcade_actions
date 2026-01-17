@@ -5,7 +5,6 @@ instead of wall-clock timing (BlinkUntil, CallbackUntil, TweenUntil, DelayUntil,
 """
 
 import arcade
-import pytest
 
 from actions import Action
 from tests.conftest import ActionTestBase
@@ -296,9 +295,10 @@ class TestTweenUntilFrames(ActionTestBase):
 
     def test_tween_until_frames_with_easing(self, test_sprite):
         """Test TweenUntil with frame-based duration and easing."""
+        from arcade import easing
+
         from actions import tween_until
         from actions.frame_timing import after_frames
-        from arcade import easing
 
         sprite = test_sprite
         sprite.center_x = 0
@@ -354,9 +354,9 @@ class TestEaseFrames(ActionTestBase):
 
     def test_ease_frames_basic(self, test_sprite):
         """Test Ease wrapper with frame-based duration."""
-        from actions import ease, MoveUntil
-        from actions.frame_timing import after_frames
         from arcade import easing
+
+        from actions import MoveUntil, ease
 
         sprite = test_sprite
         sprite.center_x = 100
@@ -387,9 +387,10 @@ class TestEaseFrames(ActionTestBase):
 
     def test_ease_frames_with_completion_callback(self, test_sprite):
         """Test Ease wrapper completion callback with frames."""
-        from actions import ease, MoveUntil
-        from actions.conditional import infinite
         from arcade import easing
+
+        from actions import MoveUntil, ease
+        from actions.conditional import infinite
 
         sprite = test_sprite
 
@@ -498,8 +499,8 @@ class TestFrameBasedPatterns(ActionTestBase):
 
     def test_zigzag_pattern_frames(self, test_sprite):
         """Test zigzag pattern with frame-based timing."""
-        from actions.pattern import create_zigzag_pattern
         from actions.frame_timing import after_frames
+        from actions.pattern import create_zigzag_pattern
 
         sprite = test_sprite
         sprite.center_x = 100

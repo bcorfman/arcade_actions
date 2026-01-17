@@ -5,8 +5,6 @@ Tests the WindowPositionTracker class extracted from visualizer.py.
 
 from __future__ import annotations
 
-import pytest
-
 from actions.dev.window_position_tracker import WindowPositionTracker
 from tests.conftest import HeadlessWindow
 
