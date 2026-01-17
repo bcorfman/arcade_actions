@@ -210,15 +210,38 @@ def test_validate_entry_kwargs_requires_window_bounds():
 
 
 def test_determine_min_spacing_uses_sprite_dimensions():
+    """Test min spacing uses sprite width/height when available."""
     dummy = SimpleNamespace(width=80, height=40)
     spacing = _determine_min_spacing([dummy])
     assert spacing == 120  # 1.5 * width
+
+
+def test_determine_min_spacing_uses_texture_dimensions():
+    """Test min spacing uses texture size when width/height are missing."""
+    dummy = SimpleNamespace(texture=SimpleNamespace(width=40, height=20))
+    spacing = _determine_min_spacing([dummy])
+    assert spacing == 60  # 1.5 * texture width
+
+
+def test_determine_min_spacing_uses_default_when_missing_dimensions():
+    """Test min spacing falls back to default when no dimensions are available."""
+    dummy = SimpleNamespace()
+    spacing = _determine_min_spacing([dummy])
+    assert spacing == 96  # 1.5 * default 64
 
 
 def test_clone_formation_sprites_handles_missing_texture():
     dummy = SimpleNamespace(texture=None)
     clones = _clone_formation_sprites([dummy])
     assert len(clones) == 1
+
+
+def test_clone_formation_sprites_defaults_scale_when_missing():
+    template = arcade.Sprite(":resources:images/items/star.png")
+    dummy = SimpleNamespace(texture=template.texture)
+    clones = _clone_formation_sprites([dummy])
+    assert len(clones) == 1
+    assert clones[0].scale in (1.0, (1.0, 1.0))
 
 
 def test_calculate_velocity_to_target_handles_zero_distance():

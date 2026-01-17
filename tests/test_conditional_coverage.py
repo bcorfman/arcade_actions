@@ -1,4 +1,4 @@
-"""Tests to cover missing branches and edge cases in conditional.py."""
+"""Tests to cover missing branches and edge cases in conditional actions."""
 
 import arcade
 import pytest

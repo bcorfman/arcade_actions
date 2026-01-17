@@ -492,6 +492,23 @@ class TestAction:
         assert action.tag is None
         assert action._is_active
 
+    def test_action_apply_with_none_target_sets_tag(self):
+        """Test applying action with None target sets tag and skips activation."""
+        action = MockAction(condition=lambda: False)
+
+        action.apply(None, tag="unbound")
+
+        assert action.target is None
+        assert action.tag == "unbound"
+        assert action not in Action._active_actions
+
+    def test_action_apply_invalid_target_raises_type_error(self):
+        """Test applying action with invalid target raises TypeError."""
+        action = MockAction(condition=lambda: False)
+
+        with pytest.raises(TypeError, match="Action target must be iterable or expose sprite_lists"):
+            action.apply(object())
+
     def test_action_for_each_sprite_with_single_sprite(self):
         """Test for_each_sprite with single sprite target."""
         sprite = create_test_sprite()
@@ -507,6 +524,117 @@ class TestAction:
 
         assert len(visited) == 1
         assert visited[0] == sprite
+
+    def test_action_for_each_sprite_with_sprite_list(self):
+        """Test for_each_sprite iterates over sprite list targets."""
+        sprite_list = arcade.SpriteList()
+        sprites = [create_test_sprite(), create_test_sprite()]
+        for sprite in sprites:
+            sprite_list.append(sprite)
+
+        action = MockAction(condition=lambda: False)
+        action.target = sprite_list
+
+        visited = []
+
+        def visit(sprite):
+            visited.append(sprite)
+
+        action.for_each_sprite(visit)
+
+        assert len(visited) == len(sprites)
+        for sprite in sprites:
+            assert sprite in visited
+
+    def test_action_start_paused_calls_hook(self):
+        """Test actions started while globally paused run pause hook and skip apply_effect."""
+        sprite = create_test_sprite()
+
+        class HookAction(MockAction):
+            def __init__(self):
+                super().__init__(condition=lambda: False)
+                self.hook_called = False
+                self.apply_called = False
+
+            def _on_start_paused(self) -> None:
+                self.hook_called = True
+
+            def apply_effect(self) -> None:
+                self.apply_called = True
+
+        # Existing action paused to trigger start-paused path
+        existing = MockAction(condition=lambda: False)
+        existing.apply(sprite, tag="existing")
+        Action.pause_all()
+
+        action = HookAction()
+        action.apply(sprite, tag="new")
+
+        assert action._paused is True
+        assert action.hook_called is True
+        assert action.apply_called is False
+
+    def test_action_is_paused_with_no_actions(self):
+        """Test is_paused returns False when there are no active actions."""
+        Action.stop_all()
+
+        assert Action.is_paused() is False
+
+    def test_action_apply_with_iterable_target(self):
+        """Test applying action to a plain iterable of sprites."""
+        sprites = [create_test_sprite(), create_test_sprite()]
+        visited = []
+
+        class VisitingAction(MockAction):
+            def apply_effect(self) -> None:
+                def mark(sprite):
+                    sprite.test_marker = True
+                    visited.append(sprite)
+
+                self.for_each_sprite(mark)
+
+        action = VisitingAction(condition=lambda: False)
+        action.apply(sprites)
+
+        assert action.target is sprites
+        assert len(visited) == len(sprites)
+        for sprite in sprites:
+            assert sprite.test_marker
+
+    def test_action_apply_with_scene_like_target(self):
+        """Test applying action to a scene-like container with sprite lists."""
+        sprite_list = arcade.SpriteList()
+        sprites = [create_test_sprite(), create_test_sprite()]
+        for sprite in sprites:
+            sprite_list.append(sprite)
+
+        class SceneLike:
+            def __init__(self, sprite_lists):
+                self.sprite_lists = sprite_lists
+
+            def __iter__(self):
+                for sprite_list in self.sprite_lists:
+                    for sprite in sprite_list:
+                        yield sprite
+
+        scene = SceneLike([sprite_list])
+        visited = []
+
+        class VisitingAction(MockAction):
+            def apply_effect(self) -> None:
+                def mark(sprite):
+                    sprite.test_marker = True
+                    visited.append(sprite)
+
+                self.for_each_sprite(mark)
+
+        action = VisitingAction(condition=lambda: False)
+        action.apply(scene)
+
+        assert action.target is scene
+        assert len(visited) == len(sprites)
+        for sprite in sprites:
+            assert sprite.test_marker
 
     def test_on_stop_callback_with_condition_data(self):
         """Test on_stop callback with condition data."""
@@ -793,3 +921,40 @@ class TestBonusCoverage_GetSpriteListNameAttributeError:
 
         # Should fall back to simple description
         assert "SpriteList(len=0)" in result
+
+
+class TestInstrumentationConditionDocstring:
+    """Test condition evaluation recording with docstring fallback."""
+
+    def teardown_method(self):
+        Action.stop_all()
+        Action._enable_visualizer = False
+        Action._debug_store = None
+
+    def test_condition_docstring_fallback_recorded(self):
+        """Condition without __name__ should use __doc__ for recording."""
+
+        class DocCondition:
+            """Docstring condition."""
+
+            def __call__(self):
+                return False
+
+        class RecordingStore:
+            def __init__(self):
+                self.condition_str = None
+
+            def record_condition_evaluation(self, *, condition_str, **_kwargs):
+                self.condition_str = condition_str
+
+        store = RecordingStore()
+        Action._enable_visualizer = True
+        Action.set_debug_store(store)
+
+        sprite = create_test_sprite()
+        action = MockAction(condition=DocCondition())
+        action.apply(sprite)
+
+        Action.update_all(0.016)
+
+        assert store.condition_str == "Docstring condition."

@@ -1,5 +1,5 @@
 Read before coding:
-- Follow docs in order: `docs/prd.md` -> `docs/api_usage_guide.md` -> `docs/testing_index.md`.
+- Follow docs in order: `docs/prd.md` -> `docs/api_usage_guide.md` -> `docs/testing_guide.md`.
 - Refer to `/docs` for any context or patterns before implementation.
 
 Design priorities (in order): dev experience, simplicity, fit with underlying APIs, API quality, testability, best practices.
@@ -14,6 +14,7 @@ Hard rules:
 - Avoid runtime type/attribute checks (hasattr/getattr/isinstance/EAFP-with-pass).
 - No silent EAFP; `except AttributeError: pass` is forbidden.
 - Use `uv run python` (never plain `python`).
+- Define and use explicit Protocols/adapters for sprite/window/action interfaces; validate at boundaries instead of ad-hoc attribute probes.
 
 Dependency/testability:
 - Accept dependencies via constructors; avoid hidden instantiation inside methods.

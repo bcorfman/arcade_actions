@@ -81,6 +81,14 @@ class AsteroidDemoView(arcade.View):
 This example shows how animation actions can be logically separated from collision responses, making your code simple and appealing. 
 If writing high-level game code appeals to you ... it's why you chose Python in the first place ... read on!
 
+### Import Paths
+By default, import from `actions`. If that conflicts with another dependency, use the compatibility package instead:
+```python
+from arcadeactions import MoveUntil, Action
+# or
+import arcadeactions as actions
+```
+
 ## 📚 Documentation Overview
 
 ### Essential Reading
@@ -170,7 +178,7 @@ docs/
 - **MoveBy** - Relative Sprite or SpriteList positioning
 - **MoveTo** - Absolute positioning
 
-#### Conditional Actions (actions/conditional.py)
+#### Conditional Actions (actions/movement.py, actions/paths.py, actions/transforms.py, actions/effects.py, actions/callbacks.py, actions/parametric.py)
 - **MoveUntil** - Velocity-based movement until condition met (optional PyMunk physics integration)
 - **FollowPathUntil** - Follow Bezier curve paths with optional automatic sprite rotation (optional PyMunk physics steering with `use_physics=True`)
 - **RotateUntil** - Angular velocity rotation (optional PyMunk physics integration)
@@ -189,7 +197,7 @@ docs/
 - **Parallel actions** - Run actions in parallel (use `parallel()`)
 - **Repeat actions** - Repeat an action indefinitely (use `repeat()`)
 
-#### Boundary Handling (actions/conditional.py)
+#### Boundary Handling (actions/movement.py)
 - **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors using edge-based coordinates
 
 #### Formation Management (actions/formation.py)
@@ -438,4 +446,3 @@ See `.cursor/rules/project.mdc` for detailed DevVisualizer architecture and usag
 | SMART State Machine | Guards, transitions, physics forces, animations | Complex: all game logic |
 | @dataclass InputState | Hold input data, computed properties | Simple: fields + properties |
 | PlayerSprite | Hold textures, forward to state machine | Medium: setup + callbacks |
-

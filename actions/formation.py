@@ -18,6 +18,18 @@ def _default_factory(texture: str = ":resources:images/items/star.png", scale: f
     return lambda: arcade.Sprite(texture, scale=scale)
 
 
+def _ensure_sprite_list(sprites) -> arcade.SpriteList:
+    """Return sprites as an arcade.SpriteList."""
+    try:
+        sprites.draw
+        return sprites
+    except AttributeError:
+        sprite_list = arcade.SpriteList()
+        for sprite in sprites:
+            sprite_list.append(sprite)
+        return sprite_list
+
+
 def arrange_line(
     sprites: arcade.SpriteList | list[arcade.Sprite] | None = None,
     *,
@@ -77,12 +89,7 @@ def arrange_line(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
     # Arrange positions
     for i, sprite in enumerate(sprites):
@@ -144,12 +151,7 @@ def arrange_grid(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
         # Validate sprite count matches grid dimensions
         expected_count = rows * cols
@@ -229,12 +231,7 @@ def arrange_circle(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
     count = len(sprites)
     if count == 0:
@@ -313,12 +310,7 @@ def arrange_v_formation(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
     count = len(sprites)
     if count == 0:
@@ -468,12 +460,7 @@ def arrange_diamond(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
     count = len(sprites)
     if count == 0:
@@ -593,12 +580,7 @@ def arrange_triangle(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
     sprite_index = 0
     row = 0
@@ -853,12 +835,7 @@ def arrange_hexagonal_grid(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
     # Calculate offset and spacing based on orientation
     if orientation == "pointy":
@@ -942,12 +919,7 @@ def arrange_arc(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
     count = len(sprites)
     if count == 0:
@@ -1040,12 +1012,7 @@ def arrange_concentric_rings(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
     sprite_index = 0
     for _ring_idx, (radius, sprite_count) in enumerate(zip(radii, sprites_per_ring, strict=False)):
@@ -1129,12 +1096,7 @@ def arrange_cross(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
     sprite_index = 0
     total_sprites = len(sprites)
@@ -1230,12 +1192,7 @@ def arrange_arrow(
             sprite.visible = visible
             sprites.append(sprite)
     else:
-        # Convert list to SpriteList if needed
-        if isinstance(sprites, list):
-            sprite_list = arcade.SpriteList()
-            for sprite in sprites:
-                sprite_list.append(sprite)
-            sprites = sprite_list
+        sprites = _ensure_sprite_list(sprites)
 
     sprite_index = 0
     total_sprites = len(sprites)

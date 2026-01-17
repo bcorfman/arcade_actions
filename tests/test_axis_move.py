@@ -38,6 +38,11 @@ def create_test_sprite_list() -> arcade.SpriteList:
 class TestMoveXUntil:
     """Test suite for MoveXUntil - X-axis only movement."""
 
+    def test_move_x_until_rejects_invalid_velocity(self):
+        """Test MoveXUntil rejects invalid velocity values."""
+        with pytest.raises(ValueError, match="velocity must be a tuple or list of length 2"):
+            MoveXUntil(velocity=(5,), condition=infinite)
+
     def teardown_method(self):
         """Clean up after each test."""
         Action.stop_all()
@@ -151,6 +156,11 @@ class TestMoveXUntil:
 
 class TestMoveYUntil:
     """Test suite for MoveYUntil - Y-axis only movement."""
+
+    def test_move_y_until_rejects_invalid_velocity(self):
+        """Test MoveYUntil rejects invalid velocity values."""
+        with pytest.raises(ValueError, match="velocity must be a tuple or list of length 2"):
+            MoveYUntil(velocity="invalid", condition=infinite)
 
     def teardown_method(self):
         """Clean up after each test."""

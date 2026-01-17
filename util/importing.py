@@ -51,14 +51,18 @@ def scan_file(filepath):
         # Try parsing as AST
         try:
             tree = ast.parse(content, filename=str(filepath))
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
+
+            class ImportCollector(ast.NodeVisitor):
+                def visit_Import(self, node):
                     for alias in node.names:
                         if alias.name not in {"arcade", "pyglet", "actions", "__main__"}:
                             found_modules.add(alias.name)
-                elif isinstance(node, ast.ImportFrom):
+
+                def visit_ImportFrom(self, node):
                     if node.module and node.module not in {"arcade", "pyglet", "actions", "__main__"}:
                         found_modules.add(node.module)
+
+            ImportCollector().visit(tree)
         except SyntaxError:
             # Fallback to regex if AST parsing fails
             for line in content.split("\n"):

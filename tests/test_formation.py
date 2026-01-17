@@ -457,21 +457,19 @@ def _group_sprites_by_wave(entry_actions):
 def _extract_delay_from_action(action):
     """Extract delay from action."""
     # Check if action is a DelayUntil action with _duration set
-    if hasattr(action, "_duration") and action._duration is not None:
+    if action._duration is not None:
         return action._duration
 
     # Check if action has a condition with frame metadata
-    if hasattr(action, "condition") and action.condition:
-        seconds = _extract_duration_seconds(action.condition)
-        if seconds and seconds > 0:
-            return seconds
+    seconds = _extract_duration_seconds(action.condition)
+    if seconds and seconds > 0:
+        return seconds
 
     # Check if action is a sequence and search through its sub-actions
-    if hasattr(action, "actions") and isinstance(action.actions, list):
-        for sub_action in action.actions:
-            delay = _extract_delay_from_action(sub_action)
-            if delay > 0:
-                return delay
+    for sub_action in action.sub_actions():
+        delay = _extract_delay_from_action(sub_action)
+        if delay > 0:
+            return delay
 
     # No delay found
     return 0.0

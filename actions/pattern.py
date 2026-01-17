@@ -697,10 +697,15 @@ def _determine_min_spacing(target_formation) -> float:
     max_sprite_dimension = 64  # Default fallback
     # Get the maximum dimension from the first sprite as a reference
     first_sprite = target_formation[0]
-    if hasattr(first_sprite, "width") and hasattr(first_sprite, "height"):
+    try:
         max_sprite_dimension = max(first_sprite.width, first_sprite.height)
-    elif hasattr(first_sprite, "texture") and first_sprite.texture:
-        max_sprite_dimension = max(first_sprite.texture.width, first_sprite.texture.height)
+    except AttributeError:
+        try:
+            texture = first_sprite.texture
+        except AttributeError:
+            texture = None
+        if texture:
+            max_sprite_dimension = max(texture.width, texture.height)
 
     # Minimum spacing is 1.5x the maximum sprite dimension
     min_spacing = max_sprite_dimension * 1.5

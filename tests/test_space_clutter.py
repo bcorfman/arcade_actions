@@ -113,7 +113,7 @@ class MockStarfieldView:
                 ),
                 "target_index": target_index,
                 "texture": sprite.texture,
-                "scale": getattr(sprite, "scale", 1.0),
+                "scale": sprite.scale,
             }
             self.cached_entry_paths.append(path_data)
 

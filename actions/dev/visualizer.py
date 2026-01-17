@@ -69,6 +69,14 @@ class WindowWithContext(Protocol):
     def get_location(self) -> tuple[int, int] | None: ...
 
 
+def _has_window_context(window: Any) -> bool:
+    """Return True when window has a valid OpenGL context."""
+    try:
+        return window._context is not None
+    except AttributeError:
+        return False
+
+
 def _get_primary_monitor_rect() -> tuple[int, int, int, int] | None:
     """Get the primary monitor rect (x, y, width, height) using the same approach as move_to_primary_monitor.
 
@@ -426,7 +434,7 @@ class DevVisualizer:
             restore_window = None
             try:
                 # Check if window has an active OpenGL context
-                if not isinstance(window, WindowWithContext) or window._context is None:
+                if not _has_window_context(window):
                     return
 
                 if window_commands_module is not None:
@@ -445,7 +453,7 @@ class DevVisualizer:
                             return
 
                 # Verify context is still valid after switch
-                if not isinstance(window, WindowWithContext) or window._context is None:
+                if not _has_window_context(window):
                     return
 
                 # Call original on_draw first (game's draw code, including clear())
@@ -463,7 +471,7 @@ class DevVisualizer:
                     # This prevents GL errors when palette window has focus
                     try:
                         # Ensure context is still valid before drawing
-                        if isinstance(window, WindowWithContext) and window._context is not None:
+                        if _has_window_context(window):
                             # Verify we're still on the correct window
                             if window_commands_module is not None:
                                 try:
@@ -1479,7 +1487,7 @@ class DevVisualizer:
             return
 
         # Check if OpenGL context is valid
-        if not isinstance(self.window, WindowWithContext) or self.window._context is None:
+        if not _has_window_context(self.window):
             return
 
         try:

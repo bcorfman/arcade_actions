@@ -6,27 +6,52 @@ Builds timeline entries from debug store events.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from actions.visualizer.instrumentation import DebugDataStore, ActionSnapshot, ActionEvent
 
 
-@dataclass(slots=True)
 class TimelineEntry:
     """Represents a single action on the timeline."""
 
-    action_id: int
-    action_type: str
-    target_id: int | None
-    target_type: str | None
-    tag: str | None
-    start_frame: int | None
-    start_time: float | None
-    end_frame: int | None
-    end_time: float | None
-    is_active: bool
+    __slots__ = (
+        "action_id",
+        "action_type",
+        "target_id",
+        "target_type",
+        "tag",
+        "start_frame",
+        "start_time",
+        "end_frame",
+        "end_time",
+        "is_active",
+    )
+
+    def __init__(
+        self,
+        *,
+        action_id: int,
+        action_type: str,
+        target_id: int | None,
+        target_type: str | None,
+        tag: str | None,
+        start_frame: int | None,
+        start_time: float | None,
+        end_frame: int | None,
+        end_time: float | None,
+        is_active: bool,
+    ) -> None:
+        self.action_id = action_id
+        self.action_type = action_type
+        self.target_id = target_id
+        self.target_type = target_type
+        self.tag = tag
+        self.start_frame = start_frame
+        self.start_time = start_time
+        self.end_frame = end_frame
+        self.end_time = end_time
+        self.is_active = is_active
 
 
 class TimelineStrip:

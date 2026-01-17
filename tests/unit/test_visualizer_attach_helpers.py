@@ -88,6 +88,54 @@ class TestCollectSpritePositions:
         finally:
             Action._active_actions[:] = original_actions
 
+    def test_sprite_list_skips_missing_position(self):
+        original_actions = list(Action._active_actions)
+        try:
+
+            class DummySprite:
+                def __init__(self, x, y):
+                    self.center_x = x
+                    self.center_y = y
+
+            class DummySpriteMissing:
+                pass
+
+            class DummyList(list):
+                pass
+
+            sprite_ok = DummySprite(5, 6)
+            sprite_missing = DummySpriteMissing()
+            sprite_list = DummyList([sprite_missing, sprite_ok])
+
+            class DummyAction:
+                def __init__(self, target):
+                    self.target = target
+
+            Action._active_actions.append(DummyAction(sprite_list))
+            positions = _collect_sprite_positions()
+            assert id(sprite_ok) in positions
+            assert id(sprite_missing) not in positions
+            assert positions[id(sprite_list)] == (5, 6)
+        finally:
+            Action._active_actions[:] = original_actions
+
+    def test_non_iterable_target_missing_position(self):
+        original_actions = list(Action._active_actions)
+        try:
+
+            class DummyTarget:
+                pass
+
+            class DummyAction:
+                def __init__(self, target):
+                    self.target = target
+
+            Action._active_actions.append(DummyAction(DummyTarget()))
+            positions = _collect_sprite_positions()
+            assert isinstance(positions, dict)
+            assert positions == {}
+        finally:
+            Action._active_actions[:] = original_actions
     def test_caching(self):
         original_actions = list(Action._active_actions)
         try:
@@ -186,6 +234,38 @@ class TestCollectSpriteSizesAndIds:
             assert sizes[id(sprite1)] == (20, 20)
             assert sizes[id(sprite2)] == (30, 30)
             assert ids[id(sprite_list)] == [id(sprite1), id(sprite2)]
+        finally:
+            Action._active_actions[:] = original_actions
+
+    def test_sprite_list_skips_missing_sizes(self):
+        original_actions = list(Action._active_actions)
+        try:
+
+            class DummySprite:
+                def __init__(self, w, h):
+                    self.width = w
+                    self.height = h
+
+            class DummySpriteMissing:
+                pass
+
+            class DummyList(list):
+                pass
+
+            sprite_ok = DummySprite(10, 20)
+            sprite_missing = DummySpriteMissing()
+            sprite_list = DummyList([sprite_ok, sprite_missing])
+
+            class DummyAction:
+                def __init__(self, target):
+                    self.target = target
+
+            Action._active_actions.append(DummyAction(sprite_list))
+            _collect_sprite_positions()
+            sizes, ids = _collect_sprite_sizes_and_ids()
+            assert sizes[id(sprite_ok)] == (10, 20)
+            assert id(sprite_missing) not in sizes
+            assert ids[id(sprite_list)] == [id(sprite_ok)]
         finally:
             Action._active_actions[:] = original_actions
 

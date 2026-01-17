@@ -26,13 +26,13 @@ def resolve_condition(cond: Any) -> Callable[[], bool]:
     from actions.frame_timing import after_frames, seconds_to_frames, within_frames, infinite
 
     if cond is None:
-        return infinite()
+        return infinite
     if callable(cond):
         return cond
     if isinstance(cond, str):
         cond = cond.strip()
         if cond == "infinite":
-            return infinite()
+            return infinite
         if cond.startswith("after_frames:"):
             try:
                 n = int(cond.split(":", 1)[1])
