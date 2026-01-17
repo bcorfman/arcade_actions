@@ -8,7 +8,7 @@ CRITICAL API Rule - Velocity Semantics:
 * NEVER use sprite.velocity - that's not how MoveUntil works
 
 CRITICAL: infinite() function rule:
-* NEVER suggest changing the infinite() function implementation in actions/conditional.py
+* NEVER suggest changing the infinite() function implementation in actions/frame_conditions.py
 * The current implementation (return False) is intentional and correct for the project's usage patterns
 * Do not recommend changing it to return lambda: False or any other callable
 * This function works correctly with the existing codebase and should not be modified

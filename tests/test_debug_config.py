@@ -377,7 +377,7 @@ class TestDebugLogAction:
 
 
 class TestDebugLogConditional:
-    """Test the _debug_log function in conditional.py."""
+    """Test the _debug_log function in actions/_shared_logging.py."""
 
     def setup_method(self):
         """Reset debug config before each test."""

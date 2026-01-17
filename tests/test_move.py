@@ -354,7 +354,7 @@ class TestMoveUntilBoundaries:
 
 
 class TestPriority3_BoundaryBehaviorMethods:
-    """Test boundary behavior methods - covers lines 469-501 in conditional.py."""
+    """Test boundary behavior methods for MoveUntil boundary helpers."""
 
     def teardown_method(self):
         """Clean up after each test."""

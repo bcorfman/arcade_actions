@@ -6,27 +6,52 @@ Collects recent condition evaluations and formats them for display.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from actions.visualizer.instrumentation import DebugDataStore, ActionSnapshot
 
 
-@dataclass(slots=True)
 class ConditionEntry:
     """Represents a single condition evaluation entry."""
 
-    action_id: int
-    action_type: str
-    frame: int
-    timestamp: float
-    result: Any
-    condition_str: str | None
-    variables: dict[str, Any]
-    tag: str | None
-    target_id: int | None
-    target_type: str | None
+    __slots__ = (
+        "action_id",
+        "action_type",
+        "frame",
+        "timestamp",
+        "result",
+        "condition_str",
+        "variables",
+        "tag",
+        "target_id",
+        "target_type",
+    )
+
+    def __init__(
+        self,
+        *,
+        action_id: int,
+        action_type: str,
+        frame: int,
+        timestamp: float,
+        result: Any,
+        condition_str: str | None,
+        variables: dict[str, Any],
+        tag: str | None,
+        target_id: int | None,
+        target_type: str | None,
+    ) -> None:
+        self.action_id = action_id
+        self.action_type = action_type
+        self.frame = frame
+        self.timestamp = timestamp
+        self.result = result
+        self.condition_str = condition_str
+        self.variables = variables
+        self.tag = tag
+        self.target_id = target_id
+        self.target_type = target_type
 
 
 class ConditionDebugger:

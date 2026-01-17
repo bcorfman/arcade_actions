@@ -11,6 +11,7 @@ from typing import Dict, List
 
 # Runtime registry mapping position_id -> list of sprites
 _REGISTRY: Dict[str, List[object]] = {}
+_SPRITE_TO_POSITION_ID: Dict[int, str] = {}
 
 
 def tag_sprite(sprite: object, position_id: str) -> None:
@@ -22,10 +23,11 @@ def tag_sprite(sprite: object, position_id: str) -> None:
     """
     setattr(sprite, "_position_id", position_id)
     _REGISTRY.setdefault(position_id, []).append(sprite)
+    _SPRITE_TO_POSITION_ID[id(sprite)] = position_id
 
 
 def remove_sprite_from_registry(sprite: object) -> None:
-    pid = getattr(sprite, "_position_id", None)
+    pid = _SPRITE_TO_POSITION_ID.pop(id(sprite), None)
     if not pid:
         return
     lst = _REGISTRY.get(pid)

@@ -6,7 +6,6 @@ Uses libcst to perform AST edits while preserving formatting and comments.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -14,11 +13,11 @@ import libcst as cst
 from libcst.metadata import PositionProvider, MetadataWrapper
 
 
-@dataclass
 class UpdateResult:
-    file: Path
-    changed: bool
-    backup: Optional[Path]
+    def __init__(self, *, file: Path, changed: bool, backup: Optional[Path]) -> None:
+        self.file = file
+        self.changed = changed
+        self.backup = backup
 
 
 class _ArrangeCallTransformer(cst.CSTTransformer):

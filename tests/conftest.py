@@ -91,7 +91,7 @@ class StderrFilter:
 
     def __getattr__(self, name):
         """Delegate other attributes to original stderr."""
-        return getattr(self.original_stderr, name)
+        return self.original_stderr.__getattribute__(name)
 
 
 def pytest_configure(config):

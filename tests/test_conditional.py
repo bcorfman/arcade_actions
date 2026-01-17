@@ -1721,7 +1721,7 @@ class TestConditionalErrorCases:
 
 
 class TestConditionalAdditionalCoverage:
-    """Additional tests to improve conditional.py coverage."""
+    """Additional tests to improve conditional action coverage."""
 
     def teardown_method(self):
         """Clean up after each test."""

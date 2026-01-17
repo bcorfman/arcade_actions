@@ -15,9 +15,9 @@ This system enables complex sprite behaviors (movement, rotation, scaling, fadin
 | Module / Feature      | Why It's Included                                                    |
 |------------------------|---------------------------------------------------------------------|
 | `base.py`             | Core `Action` class with global action management and composition helpers |
-| `conditional.py`      | Condition-based actions (MoveUntil, RotateUntil, etc.) |
+| `movement.py` / `paths.py` / `transforms.py` / `effects.py` / `callbacks.py` / `parametric.py` | Condition-based actions (MoveUntil, RotateUntil, etc.) |
 | `composite.py`        | Composite actions for combining multiple actions (sequential, parallel) |
-| `conditional.py`      | Includes boundary handling in `MoveUntil` for arcade-style patterns |
+| `movement.py`         | Includes boundary handling in `MoveUntil` for arcade-style patterns |
 | `pattern.py`          | Formation functions for positioning and layout patterns |
 | `pools.py`            | Experimental `SpritePool` for zero-allocation gameplay |
 | `display.py`         | Cross-platform window centering utility (SDL2 + screeninfo) |

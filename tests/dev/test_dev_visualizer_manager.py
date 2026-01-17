@@ -639,6 +639,28 @@ class TestDevVisualizerEditMode(ActionTestBase):
         assert len(sprite._action_configs) == 1
         assert sprite._action_configs[0]["velocity"] == (5, 0)
 
+    @pytest.mark.integration
+    def test_edit_mode_does_not_apply_actions(self, window, monkeypatch):
+        """Test that edit mode writes metadata without applying actions."""
+        scene_sprites = arcade.SpriteList()
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.BLUE)
+        scene_sprites.append(sprite)
+
+        dev_viz = DevVisualizer(scene_sprites=scene_sprites)
+        dev_viz.show()
+
+        dev_viz.selection_manager._selected.add(sprite)
+
+        def fail_apply(*args, **kwargs):
+            raise AssertionError("Action.apply should not run in edit mode")
+
+        monkeypatch.setattr("actions.base.Action.apply", fail_apply)
+
+        dev_viz.attach_preset_to_selected("test_preset", params={"speed": 3}, tag="movement")
+
+        assert hasattr(sprite, "_action_configs")
+        assert sprite._action_configs[0]["preset"] == "test_preset"
+
     def test_apply_metadata_actions_to_runtime(self, window):
         """Test converting metadata actions to runtime actions."""
         from actions import Action, move_until, infinite

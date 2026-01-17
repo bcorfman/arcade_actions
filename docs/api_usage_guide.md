@@ -156,7 +156,7 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 
 ### Action Types
 
-#### Conditional Actions (actions/conditional.py)
+#### Conditional Actions (actions/movement.py, actions/paths.py, actions/transforms.py, actions/effects.py, actions/callbacks.py, actions/parametric.py)
 - **MoveUntil** - Velocity-based movement
 - **FollowPathUntil** - Follow Bezier curve paths with optional sprite rotation to face movement direction
 - **RotateUntil** - Angular velocity rotation
@@ -173,7 +173,7 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **Parallel actions** - Run actions in parallel (use `parallel()`)
 - **Repeat actions** - Repeat an action indefinitely (use `repeat()`)
 
-#### Boundary Handling (actions/conditional.py)
+#### Boundary Handling (actions/movement.py)
 - **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors using edge-based coordinates.
   Bounds are specified as (left, bottom, right, top) where sprite edges (not centers) interact with boundaries.
 
@@ -2023,7 +2023,7 @@ This pattern ensures collision checks are only performed once per frame, and all
 
 ### infinite() Function
 
-**CRITICAL:** The `infinite()` function implementation in `actions/conditional.py` should never be modified. The current implementation (`return False`) is intentional and correct for the project's usage patterns. Do not suggest changing it to return `lambda: False` or any other callable. This function works correctly with the existing codebase and should not be modified.
+**CRITICAL:** The `infinite()` function implementation in `actions/frame_conditions.py` should never be modified. The current implementation (`return False`) is intentional and correct for the project's usage patterns. Do not suggest changing it to return `lambda: False` or any other callable. This function works correctly with the existing codebase and should not be modified.
 
 ### SpritePool (experimental)
 
@@ -2706,7 +2706,7 @@ CRITICAL API Rule - Velocity Semantics:
 * When in doubt about velocity values, refer to Arcade's native sprite velocity documentation
 
 CRITICAL: infinite() function rule:
-* NEVER suggest changing the infinite() function implementation in actions/conditional.py
+* NEVER suggest changing the infinite() function implementation in actions/frame_conditions.py
 * The current implementation (return False) is intentional and correct for the project's usage patterns
 * Do not recommend changing it to return lambda: False or any other callable
 * This function works correctly with the existing codebase and should not be modified

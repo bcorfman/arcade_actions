@@ -10,31 +10,48 @@ Uses libCST for robust parsing and formatting-preserving edits later.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import List, Optional
 
 import libcst as cst
 from libcst.metadata import MetadataWrapper, PositionProvider
 
 
-@dataclass
 class PositionAssignment:
-    file: str
-    lineno: int
-    col: int
-    target_expr: str
-    attr: str
-    value_src: str
+    def __init__(
+        self,
+        *,
+        file: str,
+        lineno: int,
+        col: int,
+        target_expr: str,
+        attr: str,
+        value_src: str,
+    ) -> None:
+        self.file = file
+        self.lineno = lineno
+        self.col = col
+        self.target_expr = target_expr
+        self.attr = attr
+        self.value_src = value_src
 
 
-@dataclass
 class ArrangeCall:
-    file: str
-    lineno: int
-    col: int
-    call_src: str
-    kwargs: dict
-    tokens: list
+    def __init__(
+        self,
+        *,
+        file: str,
+        lineno: int,
+        col: int,
+        call_src: str,
+        kwargs: dict,
+        tokens: list,
+    ) -> None:
+        self.file = file
+        self.lineno = lineno
+        self.col = col
+        self.call_src = call_src
+        self.kwargs = kwargs
+        self.tokens = tokens
 
 
 class _AssignVisitor(cst.CSTVisitor):

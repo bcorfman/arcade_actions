@@ -9,7 +9,8 @@ orthogonal movement patterns.
 from collections.abc import Callable
 from typing import Any
 
-from actions.conditional import MoveUntil, _debug_log
+from actions.conditional import MoveUntil
+from actions._shared_logging import _debug_log
 
 
 class MoveXUntil(MoveUntil):
@@ -69,10 +70,12 @@ class MoveXUntil(MoveUntil):
 
         # Extract duration from condition if present (for duration-based conditions)
         self._duration = None
-        if hasattr(self.condition, "_duration_seconds"):
+        try:
             seconds = self.condition._duration_seconds
-            if isinstance(seconds, (int, float)) and seconds > 0:
-                self._duration = seconds
+        except AttributeError:
+            seconds = None
+        if isinstance(seconds, (int, float)) and seconds > 0:
+            self._duration = seconds
 
         self._elapsed = 0.0
 
@@ -258,10 +261,12 @@ class MoveYUntil(MoveUntil):
 
         # Extract duration from condition if present (for duration-based conditions)
         self._duration = None
-        if hasattr(self.condition, "_duration_seconds"):
+        try:
             seconds = self.condition._duration_seconds
-            if isinstance(seconds, (int, float)) and seconds > 0:
-                self._duration = seconds
+        except AttributeError:
+            seconds = None
+        if isinstance(seconds, (int, float)) and seconds > 0:
+            self._duration = seconds
 
         self._elapsed = 0.0
 

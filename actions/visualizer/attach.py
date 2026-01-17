@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -28,31 +27,55 @@ TargetNamesProvider = Callable[[], dict[int, str]]
 _WINDOW_SENTINEL = object()
 
 
-@dataclass
 class VisualizerSession:
     """Keeps track of the active visualizer attachment state."""
 
-    debug_store: DebugDataStore
-    overlay: InspectorOverlay
-    renderer: OverlayRenderer
-    guides: GuideManager
-    condition_debugger: ConditionDebugger
-    timeline: TimelineStrip
-    control_manager: DebugControlManager
-    guide_renderer: GuideRenderer
-    event_window: EventInspectorWindow | None
-    snapshot_directory: Path
-    sprite_positions_provider: SpritePositionsProvider | None
-    target_names_provider: TargetNamesProvider | None
-    wrapped_update_all: Callable[[type[Action], float, Any], None]
-    previous_update_all: Callable[[type[Action], float, Any], None]
-    previous_debug_store: Any
-    previous_enable_flag: bool
-    window: arcade.Window | None = None
-    original_window_on_draw: Callable[..., Any] | None = None
-    original_window_on_key_press: Callable[..., Any] | None = None
-    original_window_on_close: Callable[..., Any] | None = None
-    key_handler: Callable[[int, int], bool] | None = None
+    def __init__(
+        self,
+        *,
+        debug_store: DebugDataStore,
+        overlay: InspectorOverlay,
+        renderer: OverlayRenderer,
+        guides: GuideManager,
+        condition_debugger: ConditionDebugger,
+        timeline: TimelineStrip,
+        control_manager: DebugControlManager,
+        guide_renderer: GuideRenderer,
+        event_window: EventInspectorWindow | None,
+        snapshot_directory: Path,
+        sprite_positions_provider: SpritePositionsProvider | None,
+        target_names_provider: TargetNamesProvider | None,
+        wrapped_update_all: Callable[[type[Action], float, Any], None],
+        previous_update_all: Callable[[type[Action], float, Any], None],
+        previous_debug_store: Any,
+        previous_enable_flag: bool,
+        window: arcade.Window | None = None,
+        original_window_on_draw: Callable[..., Any] | None = None,
+        original_window_on_key_press: Callable[..., Any] | None = None,
+        original_window_on_close: Callable[..., Any] | None = None,
+        key_handler: Callable[[int, int], bool] | None = None,
+    ) -> None:
+        self.debug_store = debug_store
+        self.overlay = overlay
+        self.renderer = renderer
+        self.guides = guides
+        self.condition_debugger = condition_debugger
+        self.timeline = timeline
+        self.control_manager = control_manager
+        self.guide_renderer = guide_renderer
+        self.event_window = event_window
+        self.snapshot_directory = snapshot_directory
+        self.sprite_positions_provider = sprite_positions_provider
+        self.target_names_provider = target_names_provider
+        self.wrapped_update_all = wrapped_update_all
+        self.previous_update_all = previous_update_all
+        self.previous_debug_store = previous_debug_store
+        self.previous_enable_flag = previous_enable_flag
+        self.window = window
+        self.original_window_on_draw = original_window_on_draw
+        self.original_window_on_key_press = original_window_on_key_press
+        self.original_window_on_close = original_window_on_close
+        self.key_handler = key_handler
 
     @property
     def keyboard_handler(self) -> Callable[[int, int], bool] | None:
@@ -146,12 +169,16 @@ def _collect_sprite_positions() -> dict[int, tuple[float, float]]:
 
         target_id = id(target)
 
+        sprite_target = True
         try:
             positions[target_id] = (target.center_x, target.center_y)
             _cached_targets[target_id] = target
-            continue
         except AttributeError:
-            pass
+            # Not a sprite-like target, fall back to iteration path.
+            sprite_target = False
+
+        if sprite_target:
+            continue
 
         # Try iterating if the target behaves like a sprite list.
         try:

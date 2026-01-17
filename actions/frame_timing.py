@@ -248,8 +248,5 @@ def infinite() -> Callable[[], bool]:
         # Rotate continuously
         rotate_until(sprite, angular_velocity=90, condition=infinite)
 
-    Note:
-        This is the same as actions.conditional.infinite() but provided here
-        for convenience when working with frame-based timing.
     """
-    return lambda: False
+    return False

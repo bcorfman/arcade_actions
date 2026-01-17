@@ -8,7 +8,7 @@ Velocity and movement:
 - MoveUntil uses sprite.change_x/change_y only; never sprite.velocity.
 
 Do-not-change / usage:
-- Do not change `infinite()` in `actions/conditional.py` (implementation stays `return False`).
+- Do not change `infinite()` in `actions/frame_conditions.py` (implementation stays `return False`).
 - When using it, reference `infinite` and do not call `infinite()`; see `examples/space_clutter.py`.
 
 Debug logging:

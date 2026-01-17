@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, Callable
 
@@ -25,21 +24,32 @@ class ActionController(Protocol):
     def step_all(self, delta_time: float) -> None: ...
 
 
-@dataclass
 class DebugControlManager:
     """Handles keyboard shortcuts for debug visualization controls."""
 
-    overlay: InspectorOverlay
-    guides: GuideManager
-    condition_debugger: ConditionDebugger
-    timeline: TimelineStrip
-    snapshot_directory: Path
-    action_controller: ActionController
-    toggle_event_window: Callable[[bool], None]
-    target_names_provider: Callable[[], dict[int, str]] | None = None
-    step_delta: float = 1 / 60
+    def __init__(
+        self,
+        *,
+        overlay: InspectorOverlay,
+        guides: GuideManager,
+        condition_debugger: ConditionDebugger,
+        timeline: TimelineStrip,
+        snapshot_directory: Path,
+        action_controller: ActionController,
+        toggle_event_window: Callable[[bool], None],
+        target_names_provider: Callable[[], dict[int, str]] | None = None,
+        step_delta: float = 1 / 60,
+    ) -> None:
+        self.overlay = overlay
+        self.guides = guides
+        self.condition_debugger = condition_debugger
+        self.timeline = timeline
+        self.snapshot_directory = snapshot_directory
+        self.action_controller = action_controller
+        self.toggle_event_window = toggle_event_window
+        self.target_names_provider = target_names_provider
+        self.step_delta = step_delta
 
-    def __post_init__(self) -> None:
         # Assume overlay provides access to debug store
         self._cached_target_names: dict[int, str] = {}
         self._target_names_frame = -1  # Track when we last refreshed target names

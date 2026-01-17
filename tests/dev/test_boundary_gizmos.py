@@ -7,7 +7,7 @@ import arcade
 import pytest
 
 from actions.conditional import MoveUntil, infinite
-from actions.dev.boundary_overlay import BoundaryGizmo
+from actions.dev.boundary_overlay import BoundaryGizmo, BoundaryHandle
 from tests.conftest import ActionTestBase
 
 
@@ -109,6 +109,30 @@ class TestBoundaryGizmos(ActionTestBase):
         assert gizmo.has_bounded_action()
         handles = gizmo.get_handles()
         assert len(handles) == 4
+
+    def test_gizmo_no_bounded_action(self):
+        """Gizmo should ignore sprites without bounded actions or metadata."""
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
+        gizmo = BoundaryGizmo(sprite)
+        assert not gizmo.has_bounded_action()
+        assert gizmo.get_handles() == []
+
+    def test_gizmo_ignores_metadata_without_bounds(self):
+        """Gizmo should not create handles when MoveUntil metadata has no bounds."""
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
+        sprite._action_configs = [{"action_type": "MoveUntil", "velocity": (1, 0)}]
+        gizmo = BoundaryGizmo(sprite)
+        assert not gizmo.has_bounded_action()
+        assert gizmo.get_handles() == []
+
+    def test_handle_drag_no_bounded_action_noop(self):
+        """Dragging without bounded actions should be a no-op."""
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
+        gizmo = BoundaryGizmo(sprite)
+        handle = gizmo.get_handle_at_point(0, 0)
+        assert handle is None
+        gizmo.handle_drag(BoundaryHandle(0, 0, "top_left"), 5, 5)
+        assert gizmo.get_handles() == []
 
     def test_gizmo_drag_updates_metadata_bounds(self):
         """Dragging gizmo handles should update bounds stored in metadata when no runtime action exists."""

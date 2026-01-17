@@ -8,7 +8,6 @@ and frame-by-frame state for debugging and visualization.
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -17,54 +16,136 @@ if TYPE_CHECKING:
     SpriteTarget = arcade.Sprite | arcade.SpriteList
 
 
-@dataclass
 class ActionEvent:
     """Records a lifecycle event for an action."""
 
-    frame: int
-    timestamp: float
-    event_type: str  # "created", "started", "stopped", "removed"
-    action_id: int
-    action_type: str
-    target_id: int
-    target_type: str  # "Sprite" or "SpriteList"
-    tag: str | None
-    details: dict[str, Any] = field(default_factory=dict)
+    __slots__ = (
+        "frame",
+        "timestamp",
+        "event_type",
+        "action_id",
+        "action_type",
+        "target_id",
+        "target_type",
+        "tag",
+        "details",
+    )
+
+    def __init__(
+        self,
+        *,
+        frame: int,
+        timestamp: float,
+        event_type: str,
+        action_id: int,
+        action_type: str,
+        target_id: int,
+        target_type: str,
+        tag: str | None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        self.frame = frame
+        self.timestamp = timestamp
+        self.event_type = event_type
+        self.action_id = action_id
+        self.action_type = action_type
+        self.target_id = target_id
+        self.target_type = target_type
+        self.tag = tag
+        self.details = details or {}
 
 
-@dataclass
 class ConditionEvaluation:
     """Records a condition evaluation result."""
 
-    frame: int
-    timestamp: float
-    action_id: int
-    action_type: str
-    result: Any  # The condition return value
-    condition_str: str | None  # String representation if available
-    variables: dict[str, Any] = field(default_factory=dict)  # Captured variable values
+    __slots__ = (
+        "frame",
+        "timestamp",
+        "action_id",
+        "action_type",
+        "result",
+        "condition_str",
+        "variables",
+    )
+
+    def __init__(
+        self,
+        *,
+        frame: int,
+        timestamp: float,
+        action_id: int,
+        action_type: str,
+        result: Any,
+        condition_str: str | None,
+        variables: dict[str, Any] | None = None,
+    ) -> None:
+        self.frame = frame
+        self.timestamp = timestamp
+        self.action_id = action_id
+        self.action_type = action_type
+        self.result = result
+        self.condition_str = condition_str
+        self.variables = variables or {}
 
 
-@dataclass
 class ActionSnapshot:
     """Current state snapshot of an action."""
 
-    action_id: int
-    action_type: str
-    target_id: int
-    target_type: str
-    tag: str | None
-    is_active: bool
-    is_paused: bool
-    factor: float
-    elapsed: float
-    progress: float | None  # 0-1 if measurable, None otherwise
-    velocity: tuple[float, float] | None = None
-    bounds: tuple[float, float, float, float] | None = None
-    boundary_state: dict[str, Any] | None = None
-    last_condition_result: Any = None
-    condition_str: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    __slots__ = (
+        "action_id",
+        "action_type",
+        "target_id",
+        "target_type",
+        "tag",
+        "is_active",
+        "is_paused",
+        "factor",
+        "elapsed",
+        "progress",
+        "velocity",
+        "bounds",
+        "boundary_state",
+        "last_condition_result",
+        "condition_str",
+        "metadata",
+    )
+
+    def __init__(
+        self,
+        *,
+        action_id: int,
+        action_type: str,
+        target_id: int,
+        target_type: str,
+        tag: str | None,
+        is_active: bool,
+        is_paused: bool,
+        factor: float,
+        elapsed: float,
+        progress: float | None,
+        velocity: tuple[float, float] | None = None,
+        bounds: tuple[float, float, float, float] | None = None,
+        boundary_state: dict[str, Any] | None = None,
+        last_condition_result: Any = None,
+        condition_str: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.action_id = action_id
+        self.action_type = action_type
+        self.target_id = target_id
+        self.target_type = target_type
+        self.tag = tag
+        self.is_active = is_active
+        self.is_paused = is_paused
+        self.factor = factor
+        self.elapsed = elapsed
+        self.progress = progress
+        self.velocity = velocity
+        self.bounds = bounds
+        self.boundary_state = boundary_state
+        self.last_condition_result = last_condition_result
+        self.condition_str = condition_str
+        self.metadata = metadata or {}
 
 
 class DebugDataStore:

@@ -23,10 +23,7 @@ _T = TypeVar("_T", bound="Action")
 
 def _debug_log_action(action, level: int, message: str) -> None:
     """Centralized debug logger with level and per-Action filtering."""
-    try:
-        action_name = action if isinstance(action, str) else type(action).__name__
-    except Exception:
-        action_name = "Action"
+    action_name = type(action).__name__
 
     # Level gate
     if Action.debug_level < level:
@@ -41,12 +38,50 @@ def _debug_log_action(action, level: int, message: str) -> None:
     print(f"[AA L{level} {action_name}] {message}")
 
 
+def _iter_target_sprites(target: Any) -> tuple[bool, list[Any]]:
+    """Return (is_iterable_target, sprites) without runtime type checks."""
+    try:
+        return True, list(iter(target))
+    except TypeError:
+        return False, []
+
+
+def _get_target_sprite_lists(target: Any) -> list[Any]:
+    """Return sprite lists for a target."""
+    return list(target.sprite_lists)
+
+
+def _validate_target(target: Any) -> None:
+    """Validate target supports required sprite interfaces."""
+    try:
+        iter(target)
+        return
+    except TypeError as exc:
+        try:
+            target.sprite_lists
+        except AttributeError as attr_exc:
+            raise TypeError("Action target must be iterable or expose sprite_lists") from attr_exc
+        return
+
+
 class VelocityControllable(Protocol):
     """Protocol for actions that support velocity control."""
 
     def set_current_velocity(self, velocity: tuple[float, float]) -> None:
         """Set the current velocity for this action."""
         ...
+
+
+class SpriteIterable(Protocol):
+    """Protocol for iterable sprite targets."""
+
+    def __iter__(self): ...
+
+
+class SpriteListContainer(Protocol):
+    """Protocol for sprite targets that expose sprite_lists."""
+
+    sprite_lists: list[Any]
 
 
 class Action(ABC, Generic[_T]):
@@ -68,6 +103,7 @@ class Action(ABC, Generic[_T]):
     # Class-level conflict declaration - subclasses should override
     # Declares which sprite properties this action mutates (e.g., "position", "velocity", "texture", "alpha", "angle")
     _conflicts_with: tuple[str, ...] = ()
+    _requires_sprite_target: bool = True
 
     num_active_actions = 0
     debug_level: int = 0
@@ -101,8 +137,11 @@ class Action(ABC, Generic[_T]):
         self._factor = 1.0  # Multiplier for speed/rate, 1.0 = normal
         self._condition_met = False
         self._elapsed = 0.0
+        self._duration: float | None = None
+        self.bounds: tuple[float, float, float, float] | None = None
         self.condition_data: Any = None
         self._instrumented = False  # Set True when action is applied via Action.apply()
+        self.wrapped_action: Action | None = None
 
     # Note on local imports in operator overloads:
     # These imports are done locally (not at module level) to avoid circular
@@ -132,7 +171,7 @@ class Action(ABC, Generic[_T]):
         # this will be parallel(other, self)
         return other.__or__(self)
 
-    def apply(self, target: arcade.Sprite | arcade.SpriteList, tag: str | None = None, replace: bool = False) -> Action:
+    def apply(self, target: SpriteTarget | None, tag: str | None = None, replace: bool = False) -> Action:
         """
         Apply this action to a sprite or sprite list.
 
@@ -146,6 +185,14 @@ class Action(ABC, Generic[_T]):
             replace: If True and tag is provided, stop existing actions with the same
                      tag on the same target before applying this action.
         """
+        if target is None:
+            self.target = None
+            if tag is not None:
+                self.tag = tag
+            return self
+
+        if self._requires_sprite_target:
+            _validate_target(target)
         self.target = target
         if tag is not None:
             self.tag = tag
@@ -156,7 +203,8 @@ class Action(ABC, Generic[_T]):
             Action.stop_actions_for_target(target, tag=tag)
 
         # Conflict detection: check for overlapping actions that mutate same properties
-        _check_action_conflicts(self, target)
+        if self._requires_sprite_target:
+            _check_action_conflicts(self, target)
 
         # Instrumentation: record creation
         if self._instrumentation_active():
@@ -183,9 +231,7 @@ class Action(ABC, Generic[_T]):
             other_actions = [a for a in Action._active_actions if a is not self]
             if other_actions and all(a._paused for a in other_actions):
                 self._paused = True
-                # For MoveUntil actions, we need to save paused velocity
-                if hasattr(self, "_paused_velocity") and hasattr(self, "current_velocity"):
-                    self._paused_velocity = self.current_velocity
+                self._on_start_paused()
                 # Don't apply initial effects when starting paused
                 _debug_log_action(self, 2, "starting in paused state (matching global pause)")
 
@@ -416,8 +462,8 @@ class Action(ABC, Generic[_T]):
             # Phase 2: Update all actions (stopped actions' callbacks won't fire)
             # Update easing/wrapper actions first so they can adjust factors before wrapped actions run
             current = cls._active_actions[:]
-            wrappers = [a for a in current if hasattr(a, "wrapped_action")]
-            non_wrappers = [a for a in current if not hasattr(a, "wrapped_action")]
+            wrappers = [a for a in current if a.wrapped_action is not None]
+            non_wrappers = [a for a in current if a.wrapped_action is None]
             for action in wrappers:
                 action.update(delta_time)
             for action in non_wrappers:
@@ -573,6 +619,10 @@ class Action(ABC, Generic[_T]):
 
         pass
 
+    def sub_actions(self) -> list[Action]:
+        """Return child actions for composite types; empty for leaf actions."""
+        return []
+
     def _safe_call(self, fn: Callable, *args) -> None:
         """
         Safely call a callback function with exception handling.
@@ -582,11 +632,14 @@ class Action(ABC, Generic[_T]):
         All other exceptions are silently caught to prevent crashes.
         """
         # Guard against stopped actions - do not execute callbacks
-        # Check if this is an instance call (has _callbacks_active) vs class call (for testing)
-        if hasattr(self, "_callbacks_active") and not self._callbacks_active:
+        if not self._callbacks_active:
             return
 
         Action._execute_callback_impl(fn, *args)
+
+    def _on_start_paused(self) -> None:
+        """Hook for actions that need to capture state when starting paused."""
+        pass
 
     def _instrumentation_active(self) -> bool:
         return self._instrumented and Action._enable_visualizer and Action._debug_store is not None
@@ -732,15 +785,17 @@ class Action(ABC, Generic[_T]):
 
         # Get string representation of condition - use EAFP with genuine fallback
         condition_str = None
+        condition_str = "<unknown>"
         try:
             condition_str = self.condition.__name__
         except AttributeError:
             # Fallback for lambda functions which don't have __name__
             try:
-                if self.condition.__doc__:
-                    condition_str = self.condition.__doc__.strip()
+                condition_doc = self.condition.__doc__
             except AttributeError:
-                pass  # No name or doc available
+                condition_doc = None
+            if condition_doc:
+                condition_str = condition_doc.strip()
 
         store = Action._debug_store
         if not store:
@@ -849,34 +904,25 @@ def _check_action_conflicts(new_action: Action, target: arcade.Sprite | arcade.S
         if new_conflict_set & existing_conflict_set:
             conflicting_actions.append(existing_action)
 
-    # Also check per-sprite actions if target is a SpriteList
-    if hasattr(target, "__iter__") and not isinstance(target, (str, bytes)):
-        try:
-            for sprite in target:
-                sprite_actions = Action.get_actions_for_target(sprite)
-                for sprite_action in sprite_actions:
-                    sprite_conflicts = getattr(sprite_action.__class__, "_conflicts_with", ())
-                    sprite_conflict_set = set(sprite_conflicts)
-                    if new_conflict_set & sprite_conflict_set:
-                        conflicting_actions.append(sprite_action)
-        except TypeError:
-            # Not iterable, skip
-            pass
-    # Also check SpriteList actions if target is a sprite (reverse direction)
-    # Check if the sprite belongs to any SpriteList that has conflicting actions
-    elif hasattr(target, "sprite_lists"):
-        try:
-            # sprite.sprite_lists is a list of SpriteList objects
-            for sprite_list in target.sprite_lists:
-                list_actions = Action.get_actions_for_target(sprite_list)
-                for list_action in list_actions:
-                    list_conflicts = getattr(list_action.__class__, "_conflicts_with", ())
-                    list_conflict_set = set(list_conflicts)
-                    if new_conflict_set & list_conflict_set:
-                        conflicting_actions.append(list_action)
-        except (AttributeError, TypeError):
-            # No sprite_lists attribute or not iterable, skip
-            pass
+    # Also check per-sprite actions if target is iterable (SpriteList-like).
+    is_iterable_target, sprites = _iter_target_sprites(target)
+    if is_iterable_target:
+        for sprite in sprites:
+            sprite_actions = Action.get_actions_for_target(sprite)
+            for sprite_action in sprite_actions:
+                sprite_conflicts = getattr(sprite_action.__class__, "_conflicts_with", ())
+                sprite_conflict_set = set(sprite_conflicts)
+                if new_conflict_set & sprite_conflict_set:
+                    conflicting_actions.append(sprite_action)
+    else:
+        # Also check SpriteList actions if target is a sprite (reverse direction).
+        for sprite_list in _get_target_sprite_lists(target):
+            list_actions = Action.get_actions_for_target(sprite_list)
+            for list_action in list_actions:
+                list_conflicts = getattr(list_action.__class__, "_conflicts_with", ())
+                list_conflict_set = set(list_conflicts)
+                if new_conflict_set & list_conflict_set:
+                    conflicting_actions.append(list_action)
 
     # Warn about conflicts
     if conflicting_actions:
@@ -900,6 +946,7 @@ class CompositeAction(Action):
         # Composite actions manage their own completion - no external condition
         super().__init__(condition=None, on_stop=None)
         self._on_complete_called = False
+        self.actions: list[Action] = []
 
     def _check_complete(self) -> None:
         """Mark the composite action as complete."""
@@ -910,6 +957,10 @@ class CompositeAction(Action):
     def reverse_movement(self, axis: str) -> None:
         """Reverse movement for boundary bouncing. Override in subclasses."""
         pass
+
+    def sub_actions(self) -> list[Action]:
+        """Return child actions for composite types."""
+        return self.actions
 
     def reset(self) -> None:
         """Reset the action to its initial state."""

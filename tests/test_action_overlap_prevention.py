@@ -318,31 +318,26 @@ class TestConflictDeclaration:
     def test_move_until_declares_conflicts(self):
         """Test that MoveUntil declares position and velocity conflicts."""
         # MoveUntil should declare conflicts with position and velocity
-        assert hasattr(MoveUntil, "_conflicts_with")
         conflicts = MoveUntil._conflicts_with
         assert "position" in conflicts or "velocity" in conflicts
 
     def test_rotate_until_declares_conflicts(self):
         """Test that RotateUntil declares angle conflicts."""
-        assert hasattr(RotateUntil, "_conflicts_with")
         conflicts = RotateUntil._conflicts_with
         assert "angle" in conflicts or "rotation" in conflicts
 
     def test_fade_until_declares_conflicts(self):
         """Test that FadeUntil declares alpha conflicts."""
-        assert hasattr(FadeUntil, "_conflicts_with")
         conflicts = FadeUntil._conflicts_with
         assert "alpha" in conflicts
 
     def test_cycle_textures_until_declares_conflicts(self):
         """Test that CycleTexturesUntil declares texture conflicts."""
-        assert hasattr(CycleTexturesUntil, "_conflicts_with")
         conflicts = CycleTexturesUntil._conflicts_with
         assert "texture" in conflicts
 
     def test_conflict_declaration_is_tuple(self):
         """Test that _conflicts_with is a tuple or tuple-like."""
-        assert hasattr(MoveUntil, "_conflicts_with")
         conflicts = MoveUntil._conflicts_with
         assert isinstance(conflicts, (tuple, list, set))
         # Should be iterable
