@@ -497,18 +497,17 @@ class Action(ABC, Generic[_T]):
             # Phase 5: Sync Arcade velocities to Pymunk for kinematic bodies
             # This allows MoveUntil/RotateUntil to work seamlessly with kinematic sprites
             if physics_engine is not None:
-                try:
-                    # Access internal sprites dict to find kinematic bodies
-                    for sprite in physics_engine._sprites.keys():
-                        body = physics_engine._sprites[sprite]
-                        # Only sync for kinematic bodies (user controls velocity)
-                        if body.body_type == physics_engine.KINEMATIC:
-                            # Convert Arcade's px/frame to Pymunk's px/sec
-                            velocity = (sprite.change_x / delta_time, sprite.change_y / delta_time)
-                            physics_engine.set_velocity(sprite, velocity)
-                except (AttributeError, KeyError):
-                    # Physics engine doesn't have expected structure, skip sync
-                    pass
+                if delta_time <= 0:
+                    return
+
+                sprite_map = physics_engine.sprites
+
+                # Sync Arcade velocities to Pymunk for kinematic bodies
+                for sprite, body in sprite_map.items():
+                    if body.body.body_type == physics_engine.KINEMATIC:
+                        # Convert Arcade's px/frame to Pymunk's px/sec
+                        velocity = (sprite.change_x / delta_time, sprite.change_y / delta_time)
+                        physics_engine.set_velocity(sprite, velocity)
         finally:
             cls._is_updating = False
             if set_current_engine is not None:

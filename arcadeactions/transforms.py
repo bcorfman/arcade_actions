@@ -299,6 +299,8 @@ class TweenUntil(_Action):
             self.for_each_sprite(lambda sprite: setattr(sprite, self.property_name, self.end_value))
             self._completed_naturally = True  # Mark as naturally completed
             self.done = True
+            if self.on_stop:
+                self.on_stop()
 
     def remove_effect(self) -> None:
         """Clean up the tween effect.

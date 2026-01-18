@@ -44,7 +44,7 @@ class PatternDemo(arcade.Window):
 
     def __init__(self):
         # Create hidden window so we can center before showing.
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE, visible=False)
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE, visible=False, vsync=True)
 
         # Center on primary monitor.
         center_window(self)

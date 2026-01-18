@@ -360,7 +360,7 @@ class GameView(arcade.View):
 
 def main():
     """Run the Slime Invaders game"""
-    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, visible=False)
+    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, visible=False, vsync=True)
     center_window(window)
     window.set_visible(True)
     game = GameView()

@@ -85,7 +85,13 @@ class SceneEditorView(arcade.View):
 
 def main():
     """Run the scene editor."""
-    window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, visible=False)
+    window = arcade.Window(
+        WINDOW_WIDTH,
+        WINDOW_HEIGHT,
+        WINDOW_TITLE,
+        visible=False,
+        vsync=True,
+    )
     center_window(window)
     window.set_visible(True)
 

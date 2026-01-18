@@ -331,7 +331,7 @@ class GameWindow(arcade.Window):
     """Main game window with state machine pattern."""
 
     def __init__(self, width, height, title):
-        super().__init__(width, height, title)
+        super().__init__(width, height, title, vsync=True)
 
         self.player_sprite: PlayerSprite | None = None
         self.player_list: arcade.SpriteList | None = None
@@ -400,14 +400,18 @@ class GameWindow(arcade.Window):
 
         # Apply MoveUntil actions to moving platforms with bounce
         for sprite in self.moving_sprites_list:
-            # Use sprite's initial change_x/change_y as velocity and boundaries from map
+            # Use sprite's initial change_x/change_y as velocity and boundaries from map.
+            # Offset bounds by one frame of movement so bounce timing matches the Arcade sample
+            # (which flips after crossing the boundary, not before).
             velocity = (sprite.change_x, sprite.change_y)
+            abs_dx = abs(velocity[0])
+            abs_dy = abs(velocity[1])
             # bounds format: (left, bottom, right, top)
             bounds = (
-                sprite.boundary_left if sprite.boundary_left is not None else float("-inf"),
-                sprite.boundary_bottom if sprite.boundary_bottom is not None else float("-inf"),
-                sprite.boundary_right if sprite.boundary_right is not None else float("inf"),
-                sprite.boundary_top if sprite.boundary_top is not None else float("inf"),
+                (sprite.boundary_left if sprite.boundary_left is not None else float("-inf")) - abs_dx,
+                (sprite.boundary_bottom if sprite.boundary_bottom is not None else float("-inf")) - abs_dy,
+                (sprite.boundary_right if sprite.boundary_right is not None else float("inf")) + abs_dx,
+                (sprite.boundary_top if sprite.boundary_top is not None else float("inf")) + abs_dy,
             )
 
             move_until(sprite, velocity=velocity, condition=infinite, boundary_behavior="bounce", bounds=bounds)

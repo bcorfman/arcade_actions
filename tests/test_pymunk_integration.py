@@ -50,6 +50,30 @@ class _StubPhysicsEngine:
         self.calls.append(("set_angular_velocity", (sprite, omega), {}))
 
 
+class _StubBody:
+    def __init__(self, body_type: str) -> None:
+        self.body_type = body_type
+
+
+class _StubKinematicBody:
+    def __init__(self, body_type: str) -> None:
+        self.body = _StubBody(body_type)
+
+
+class _StubEngineWithSprites:
+    """Stub engine exposing .sprites mapping for Action.update_all sync."""
+
+    KINEMATIC = "kinematic"
+    DYNAMIC = "dynamic"
+
+    def __init__(self) -> None:
+        self.sprites: dict[arcade.Sprite, _StubKinematicBody] = {}
+        self.calls: list[tuple[arcade.Sprite, tuple[float, float]]] = []
+
+    def set_velocity(self, sprite: arcade.Sprite, velocity: tuple[float, float]) -> None:
+        self.calls.append((sprite, velocity))
+
+
 # ---------------------------------------------------------------------------
 # Helper fixtures -----------------------------------------------------------
 # ---------------------------------------------------------------------------
@@ -192,3 +216,34 @@ def test_physics_adapter_apply_force_without_engine() -> None:
 
     # Should not raise an error when no physics engine
     apply_force(sprite, (10.0, 20.0))
+
+
+def test_update_all_syncs_kinematic_sprite_velocities() -> None:
+    """Action.update_all syncs change_x/change_y through engine.sprites for kinematic bodies."""
+    engine = _StubEngineWithSprites()
+    sprite = arcade.Sprite()
+    sprite.change_x = 4.0
+    sprite.change_y = -2.0
+    engine.sprites[sprite] = _StubKinematicBody(engine.KINEMATIC)
+
+    dynamic_sprite = arcade.Sprite()
+    dynamic_sprite.change_x = 10.0
+    dynamic_sprite.change_y = 5.0
+    engine.sprites[dynamic_sprite] = _StubKinematicBody(engine.DYNAMIC)
+
+    Action.update_all(0.5, physics_engine=engine)
+
+    assert engine.calls == [(sprite, (8.0, -4.0))]
+
+
+def test_update_all_skips_sync_when_delta_time_zero() -> None:
+    """Zero delta_time should skip kinematic sync to avoid divide-by-zero."""
+    engine = _StubEngineWithSprites()
+    sprite = arcade.Sprite()
+    sprite.change_x = 3.0
+    sprite.change_y = 1.0
+    engine.sprites[sprite] = _StubKinematicBody(engine.KINEMATIC)
+
+    Action.update_all(0.0, physics_engine=engine)
+
+    assert engine.calls == []

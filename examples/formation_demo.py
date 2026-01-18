@@ -160,7 +160,9 @@ class FormationDemo(arcade.Window):
 
     def __init__(self):
         # Start hidden so we can center before showing.
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE, visible=False)
+        super().__init__(
+            SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE, visible=False, draw_rate=1 / 10, update_rate=1 / 10, vsync=True
+        )
 
         # Center on primary monitor while hidden.
         center_window(self)
