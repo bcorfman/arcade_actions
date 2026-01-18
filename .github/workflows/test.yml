@@ -87,7 +87,7 @@ jobs:
         env:
           DISPLAY: ':99.0'
           LIBGL_ALWAYS_SOFTWARE: '1'
-        run: uv run pytest tests/ --cov=arcadeactions --cov-report=xml --cov-report=json:coverage.json --cov-report=term-missing --ignore=tests/integration
+        run: CI=true uv run pytest tests/ --cov=arcadeactions --cov-report=xml --cov-report=json:coverage.json --cov-report=term-missing 
 
       - name: Collect Radon metrics (Linux Python 3.11 only)
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
