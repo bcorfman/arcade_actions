@@ -18,7 +18,7 @@ try:
 except ImportError:
     sprite_list_module = None
 
-from actions import Action
+from arcadeactions import Action
 
 
 class StderrFilter:

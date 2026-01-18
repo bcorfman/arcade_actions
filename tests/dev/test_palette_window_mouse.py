@@ -5,8 +5,8 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.palette_window import PaletteWindow
-from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry
+from arcadeactions.dev.palette_window import PaletteWindow
+from arcadeactions.dev.prototype_registry import DevContext, SpritePrototypeRegistry
 
 pytestmark = pytest.mark.slow
 

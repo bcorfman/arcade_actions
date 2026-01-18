@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from actions.dev.visualizer import _get_primary_monitor_rect
+from arcadeactions.dev.visualizer import _get_primary_monitor_rect
 
 
 class TestMonitorDetection:

@@ -2,12 +2,12 @@
 
 import arcade
 
-from actions import move_until
-from actions.easing import Ease
+from arcadeactions import move_until
+from arcadeactions.easing import Ease
 
 
 def _step_frames(count: int) -> None:
-    from actions import Action
+    from arcadeactions import Action
 
     for _ in range(count):
         Action.update_all(0.016)

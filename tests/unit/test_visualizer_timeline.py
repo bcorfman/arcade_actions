@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.timeline import TimelineEntry, TimelineStrip
+from arcadeactions.visualizer.instrumentation import DebugDataStore
+from arcadeactions.visualizer.timeline import TimelineEntry, TimelineStrip
 
 
 @pytest.fixture

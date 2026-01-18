@@ -5,7 +5,7 @@ from typing import Any
 import arcade
 import pytest
 
-from actions import (
+from arcadeactions import (
     Action,
     blink_until,
     delay_until,
@@ -17,7 +17,7 @@ from actions import (
     scale_until,
     tween_until,
 )
-from actions.conditional import (
+from arcadeactions.conditional import (
     BlinkUntil,
     CallbackUntil,
     FollowPathUntil,
@@ -25,7 +25,7 @@ from actions.conditional import (
     TweenUntil,
     _extract_duration_seconds,
 )
-from actions.frame_timing import after_frames, frames_to_seconds, seconds_to_frames, within_frames
+from arcadeactions.frame_timing import after_frames, frames_to_seconds, seconds_to_frames, within_frames
 from tests.conftest import ActionTestBase
 
 
@@ -1046,8 +1046,8 @@ def test_repeat_with_wallclock_drift_no_jump():
 
     import arcade
 
-    from actions import Action, repeat
-    from actions.pattern import create_wave_pattern
+    from arcadeactions import Action, repeat
+    from arcadeactions.pattern import create_wave_pattern
 
     def _run_frames(frames: int) -> None:
         for _ in range(frames):
@@ -1940,7 +1940,7 @@ class TestCallbackUntilInterval(ActionTestBase):
 
     def test_callback_until_with_interval_calls_on_schedule(self, test_sprite):
         """With interval, callback should be called at specified intervals."""
-        from actions.frame_timing import seconds_to_frames
+        from arcadeactions.frame_timing import seconds_to_frames
 
         sprite = test_sprite
         call_count = 0
@@ -1968,7 +1968,7 @@ class TestCallbackUntilInterval(ActionTestBase):
 
     def test_callback_until_interval_factor_scaling(self, test_sprite):
         """Factor scaling should affect the interval timing."""
-        from actions.frame_timing import seconds_to_frames
+        from arcadeactions.frame_timing import seconds_to_frames
 
         sprite = test_sprite
         call_count = 0
@@ -1997,7 +1997,7 @@ class TestCallbackUntilInterval(ActionTestBase):
 
     def test_callback_until_zero_factor_stops_calls(self, test_sprite):
         """Factor of 0.0 should stop callback calls."""
-        from actions.frame_timing import seconds_to_frames
+        from arcadeactions.frame_timing import seconds_to_frames
 
         sprite = test_sprite
         call_count = 0
@@ -2449,8 +2449,8 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
 
     def test_callback_until_in_parallel_stop_and_restart_with_tag(self, test_sprite):
         """Test CallbackUntil within parallel composition with stop and restart functionality."""
-        from actions.composite import parallel
-        from actions.conditional import DelayUntil
+        from arcadeactions.composite import parallel
+        from arcadeactions.conditional import DelayUntil
 
         sprite = test_sprite
         call_count_first = 0
@@ -2564,8 +2564,8 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
 
     def test_callback_until_wave_pattern_issue(self, test_sprite):
         """Test CallbackUntil in wave pattern that mimics FlashingForcefieldWave behavior."""
-        from actions.composite import parallel
-        from actions.conditional import MoveUntil
+        from arcadeactions.composite import parallel
+        from arcadeactions.conditional import MoveUntil
 
         sprite = test_sprite
         call_count_first = 0
@@ -2670,8 +2670,8 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
 
     def test_callback_until_spritelist_wave_pattern(self, test_sprite):
         """Test CallbackUntil with SpriteList exactly like FlashingForcefieldWave."""
-        from actions.composite import parallel
-        from actions.conditional import MoveUntil
+        from arcadeactions.composite import parallel
+        from arcadeactions.conditional import MoveUntil
 
         # Create a SpriteList like FlashingForcefieldWave does
         forcefields1 = arcade.SpriteList()
@@ -2775,8 +2775,8 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
 
     def test_callback_until_class_instance_pattern(self, test_sprite):
         """Test CallbackUntil with class instances exactly like FlashingForcefieldWave."""
-        from actions.composite import parallel
-        from actions.conditional import MoveUntil
+        from arcadeactions.composite import parallel
+        from arcadeactions.conditional import MoveUntil
 
         class MockWave:
             def __init__(self, wave_id):
@@ -3104,7 +3104,7 @@ class TestCallbackUntilCoverage(ActionTestBase):
         def callback(_target=None):
             call_state["count"] += 1
 
-        from actions.frame_timing import seconds_to_frames
+        from arcadeactions.frame_timing import seconds_to_frames
 
         action = CallbackUntil(
             callback=callback, condition=after_frames(seconds_to_frames(0.5)), seconds_between_calls=0.5
@@ -3126,7 +3126,7 @@ class TestCallbackUntilCoverage(ActionTestBase):
         def callback():
             call_count["value"] += 1
 
-        from actions.frame_timing import seconds_to_frames
+        from arcadeactions.frame_timing import seconds_to_frames
 
         action = CallbackUntil(
             callback=callback, condition=after_frames(seconds_to_frames(0.2)), seconds_between_calls=0.1
@@ -3151,7 +3151,7 @@ class TestCallbackUntilCoverage(ActionTestBase):
         def callback():
             call_count["value"] += 1
 
-        from actions.frame_timing import seconds_to_frames
+        from arcadeactions.frame_timing import seconds_to_frames
 
         action = CallbackUntil(
             callback=callback, condition=after_frames(seconds_to_frames(0.3)), seconds_between_calls=0.05
@@ -3224,7 +3224,7 @@ class TestPriority8_CallbackUntilEdgeCases:
         def callback():
             call_count[0] += 1
 
-        from actions.frame_timing import seconds_to_frames
+        from arcadeactions.frame_timing import seconds_to_frames
 
         action = CallbackUntil(callback, after_frames(seconds_to_frames(1.0)), seconds_between_calls=0.1)
         action.apply(sprite, tag="callback")
@@ -3247,7 +3247,7 @@ class TestPriority8_CallbackUntilEdgeCases:
         def callback():
             call_count[0] += 1
 
-        from actions.frame_timing import seconds_to_frames
+        from arcadeactions.frame_timing import seconds_to_frames
 
         action = CallbackUntil(callback, after_frames(seconds_to_frames(1.0)), seconds_between_calls=0.2)
         action.apply(sprite, tag="callback")
@@ -3536,7 +3536,7 @@ class TestFrameBasedRegression(ActionTestBase):
 
     def test_after_frames_condition_cloning_preserves_metadata(self):
         """Test that _clone_condition preserves frame metadata for after_frames conditions."""
-        from actions.conditional import _clone_condition
+        from arcadeactions.conditional import _clone_condition
 
         # Create a frame-based condition
         original = after_frames(60)

@@ -7,8 +7,8 @@ requiring OpenGL context or graphics rendering.
 import arcade
 import pytest
 
-from actions import infinite, move_until
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions import infinite, move_until
+from arcadeactions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.integration
@@ -427,7 +427,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         dev_viz.apply_metadata_actions(sprite)
 
         # Action should be applied
-        from actions import Action
+        from arcadeactions import Action
 
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 1
@@ -445,7 +445,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         # No metadata - should not crash
         dev_viz.apply_metadata_actions(sprite)
 
-        from actions import Action
+        from arcadeactions import Action
 
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 0
@@ -469,7 +469,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         # Should not crash
         dev_viz.apply_metadata_actions(sprite)
 
-        from actions import Action
+        from arcadeactions import Action
 
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 0
@@ -496,7 +496,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         # Apply metadata
         dev_viz.apply_metadata_actions(sprite)
 
-        from actions import Action
+        from arcadeactions import Action
 
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 1
@@ -534,7 +534,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         # Apply metadata
         dev_viz.apply_metadata_actions(sprite)
 
-        from actions import Action
+        from arcadeactions import Action
 
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 1
@@ -566,7 +566,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         # Apply metadata
         dev_viz.apply_metadata_actions(sprite)
 
-        from actions import Action
+        from arcadeactions import Action
 
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 1
@@ -593,7 +593,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
 
         dev_viz.apply_metadata_actions(sprite)
 
-        from actions import Action
+        from arcadeactions import Action
 
         # Step frames - action should finish after 3 frames
         for _ in range(3):
@@ -621,7 +621,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
 
         dev_viz.apply_metadata_actions(sprite)
 
-        from actions import Action
+        from arcadeactions import Action
 
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 1
@@ -633,9 +633,9 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
 
     def test_apply_metadata_actions_uses_preset_and_resolves_string_callbacks(self, window):
         """Test that presets and string callbacks (via resolver) are handled."""
-        from actions import MoveUntil
-        from actions.dev import register_preset
-        from actions.frame_timing import infinite
+        from arcadeactions import MoveUntil
+        from arcadeactions.dev import register_preset
+        from arcadeactions.frame_timing import infinite
 
         # Register preset factory that returns unbound MoveUntil
         @register_preset("test_scroll", category="Test", params={"speed": 4})
@@ -673,7 +673,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
 
         dev_viz.apply_metadata_actions(sprite, resolver=resolver)
 
-        from actions import Action
+        from arcadeactions import Action
 
         # After one frame the action should finish and resolver callback called
         Action.update_all(1.0 / 60.0)
@@ -700,7 +700,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
 
         dev_viz.apply_metadata_actions(sprite)
 
-        from actions import Action
+        from arcadeactions import Action
 
         actions = Action.get_actions_for_target(sprite)
         assert len(actions) == 1
@@ -739,7 +739,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         dev_viz.apply_metadata_actions(sprite1)
         dev_viz.apply_metadata_actions(sprite2)
 
-        from actions import Action
+        from arcadeactions import Action
 
         actions1 = Action.get_actions_for_target(sprite1)
         actions2 = Action.get_actions_for_target(sprite2)
@@ -781,7 +781,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         dev_viz.apply_metadata_actions(sprite_r)
         dev_viz.apply_metadata_actions(sprite_t)
 
-        from actions import Action
+        from arcadeactions import Action
 
         # Run one frame - tween should update property, rotate should be applied
         Action.update_all(1.0 / 60.0)
@@ -908,7 +908,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         dev_viz.apply_metadata_actions(sprite_c)
         dev_viz.apply_metadata_actions(sprite_d)
 
-        from actions import Action
+        from arcadeactions import Action
 
         # Run one frame to trigger after_frames:1
         Action.update_all(1.0 / 60.0)

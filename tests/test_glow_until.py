@@ -1,7 +1,7 @@
 import types
 
-from actions import Action
-from actions.frame_timing import after_frames
+from arcadeactions import Action
+from arcadeactions.frame_timing import after_frames
 
 
 class FakeShadertoy:
@@ -37,7 +37,7 @@ class TestGlowUntil:
         Action.stop_all()
 
     def test_glow_renders_and_sets_uniforms_with_camera_correction(self):
-        from actions.conditional import GlowUntil
+        from arcadeactions.conditional import GlowUntil
 
         # Arrange fakes
         fake = FakeShadertoy()
@@ -76,7 +76,7 @@ class TestGlowUntil:
         assert action.done
 
     def test_glow_resize(self):
-        from actions.conditional import GlowUntil
+        from arcadeactions.conditional import GlowUntil
 
         fake = FakeShadertoy()
         action = GlowUntil(
@@ -99,7 +99,7 @@ class TestGlowUntilErrorHandling:
 
     def test_factory_failure(self):
         """Test GlowUntil handles shader factory failure gracefully."""
-        from actions.conditional import GlowUntil
+        from arcadeactions.conditional import GlowUntil
 
         def failing_factory(size):
             raise RuntimeError("Shader creation failed")
@@ -119,7 +119,7 @@ class TestGlowUntilErrorHandling:
 
     def test_no_shader_update(self):
         """Test update_effect handles None shader."""
-        from actions.conditional import GlowUntil
+        from arcadeactions.conditional import GlowUntil
 
         action = GlowUntil(
             shadertoy_factory=lambda size: None,  # Returns None
@@ -133,7 +133,7 @@ class TestGlowUntilErrorHandling:
 
     def test_on_stop_callback_exception(self):
         """Test GlowUntil handles on_stop callback exceptions."""
-        from actions.conditional import GlowUntil
+        from arcadeactions.conditional import GlowUntil
 
         fake = FakeShadertoy()
 
@@ -153,7 +153,7 @@ class TestGlowUntilErrorHandling:
 
     def test_uniforms_provider_failure(self):
         """Test GlowUntil handles uniforms_provider exceptions."""
-        from actions.conditional import GlowUntil
+        from arcadeactions.conditional import GlowUntil
 
         fake = FakeShadertoy()
 
@@ -173,7 +173,7 @@ class TestGlowUntilErrorHandling:
 
     def test_camera_correction_failure(self):
         """Test GlowUntil handles camera correction exceptions."""
-        from actions.conditional import GlowUntil
+        from arcadeactions.conditional import GlowUntil
 
         fake = FakeShadertoy()
 
@@ -197,7 +197,7 @@ class TestGlowUntilErrorHandling:
 
     def test_render_failure(self):
         """Test GlowUntil handles render exceptions."""
-        from actions.conditional import GlowUntil
+        from arcadeactions.conditional import GlowUntil
 
         class FailingShadertoy(FakeShadertoy):
             def render(self):
@@ -217,7 +217,7 @@ class TestGlowUntilErrorHandling:
 
     def test_resize_failure(self):
         """Test GlowUntil handles resize exceptions."""
-        from actions.conditional import GlowUntil
+        from arcadeactions.conditional import GlowUntil
 
         class FailingShadertoy(FakeShadertoy):
             def resize(self, size):
@@ -238,7 +238,7 @@ class TestGlowUntilErrorHandling:
 
     def test_clone_method(self):
         """Test GlowUntil clone method."""
-        from actions.conditional import GlowUntil
+        from arcadeactions.conditional import GlowUntil
 
         fake = FakeShadertoy()
 

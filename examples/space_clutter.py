@@ -17,7 +17,7 @@ import random
 
 import arcade
 
-from actions import (
+from arcadeactions import (
     Action,
     BlinkUntil,
     DelayUntil,
@@ -31,7 +31,7 @@ from actions import (
     repeat,
     sequence,
 )
-from actions.frame_timing import seconds_to_frames
+from arcadeactions.frame_timing import seconds_to_frames
 
 # ---------------------------------------------------------------------------
 # Window configuration
@@ -499,7 +499,7 @@ class StarfieldView(arcade.View):
             velocity = action_template["velocity"]
             target_position = action_template["target_position"]
 
-            from actions.pattern import _create_precision_condition_and_callback
+            from arcadeactions.pattern import _create_precision_condition_and_callback
 
             # Create new action with fresh condition bound to this sprite
             action = MoveUntil(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from ctypes import Structure, c_int
 from unittest.mock import MagicMock
 
-from actions import display
+from arcadeactions import display
 
 
 class DummyWindow:

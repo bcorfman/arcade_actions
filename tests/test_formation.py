@@ -11,9 +11,9 @@ import math
 import arcade
 import pytest
 
-from actions.base import Action
-from actions.conditional import _extract_duration_seconds
-from actions.formation import (
+from arcadeactions.base import Action
+from arcadeactions.conditional import _extract_duration_seconds
+from arcadeactions.formation import (
     arrange_arc,
     arrange_arrow,
     arrange_circle,
@@ -26,7 +26,7 @@ from actions.formation import (
     arrange_triangle,
     arrange_v_formation,
 )
-from actions.pattern import create_formation_entry_from_sprites
+from arcadeactions.pattern import create_formation_entry_from_sprites
 
 
 @pytest.fixture(autouse=True)
@@ -310,8 +310,8 @@ def test_arrange_line_python_list():
 
 def test_formation_with_actions_workflow():
     """Test typical workflow of arranging sprites and applying actions."""
-    from actions.conditional import MoveUntil
-    from actions.pattern import time_elapsed
+    from arcadeactions.conditional import MoveUntil
+    from arcadeactions.pattern import time_elapsed
 
     # Create sprites and arrange them
     sprite_list = create_test_sprite_list(6)
@@ -582,7 +582,7 @@ def test_sprite_distance_from_center(formation_entry_fixture):
 
 def test_line_segment_intersection_basic_cases():
     """Test basic line segment intersection cases."""
-    from actions.pattern import _do_line_segments_intersect
+    from arcadeactions.pattern import _do_line_segments_intersect
 
     # Test intersecting lines
     line1 = (0, 0, 10, 10)
@@ -602,7 +602,7 @@ def test_line_segment_intersection_basic_cases():
 
 def test_multiple_sprites_converging_to_formation():
     """Test collision detection when multiple sprites converge to formation positions."""
-    from actions.pattern import _sprites_would_collide_during_movement_with_assignments
+    from arcadeactions.pattern import _sprites_would_collide_during_movement_with_assignments
 
     # Create a simple 2x2 formation
     sprites = [arcade.Sprite(":resources:images/items/star.png", scale=0.5) for _ in range(4)]
@@ -632,7 +632,7 @@ def test_multiple_sprites_converging_to_formation():
 
 def test_formation_entry_with_line_intersection_detection():
     """Test formation entry with line intersection detection."""
-    from actions.pattern import _do_line_segments_intersect
+    from arcadeactions.pattern import _do_line_segments_intersect
 
     # Create test sprites
     sprites = [arcade.Sprite(":resources:images/items/star.png", scale=0.5) for _ in range(2)]

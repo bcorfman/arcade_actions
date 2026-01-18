@@ -10,7 +10,7 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.integration
@@ -227,7 +227,7 @@ class TestExportSpritesPositionAssignments(ActionTestBase):
         dev_viz.scene_sprites.append(test_sprite)
 
         # Mock sync function
-        mock_update = mocker.patch("actions.dev.sync.update_position_assignment")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_position_assignment")
 
         dev_viz.export_sprites()
 
@@ -257,7 +257,7 @@ class TestExportSpritesPositionAssignments(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_position_assignment")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_position_assignment")
 
         dev_viz.export_sprites()
 
@@ -285,7 +285,7 @@ class TestExportSpritesPositionAssignments(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_position_assignment")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_position_assignment")
 
         dev_viz.export_sprites()
 
@@ -316,7 +316,7 @@ class TestExportSpritesPositionAssignments(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_position_assignment")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_position_assignment")
 
         dev_viz.export_sprites()
 
@@ -343,7 +343,7 @@ class TestExportSpritesPositionAssignments(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_position_assignment")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_position_assignment")
 
         dev_viz.export_sprites()
 
@@ -369,7 +369,7 @@ class TestExportSpritesPositionAssignments(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_position_assignment")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_position_assignment")
 
         dev_viz.export_sprites()
 
@@ -394,7 +394,7 @@ class TestExportSpritesPositionAssignments(ActionTestBase):
         dev_viz.scene_sprites.append(test_sprite)
 
         # Make sync raise an exception
-        mock_update = mocker.patch("actions.dev.sync.update_position_assignment", side_effect=Exception("Sync failed"))
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_position_assignment", side_effect=Exception("Sync failed"))
 
         # Should not raise, should continue
         dev_viz.export_sprites()
@@ -419,7 +419,7 @@ class TestExportSpritesPositionAssignments(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_position_assignment")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_position_assignment")
 
         dev_viz.export_sprites()
 
@@ -441,7 +441,7 @@ class TestExportSpritesPositionAssignments(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_position_assignment")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_position_assignment")
 
         dev_viz.export_sprites()
 
@@ -472,7 +472,7 @@ class TestExportSpritesArrangeCalls(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_arrange_call")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_arrange_call")
 
         dev_viz.export_sprites()
 
@@ -503,7 +503,7 @@ class TestExportSpritesArrangeCalls(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_arrange_call")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_arrange_call")
 
         dev_viz.export_sprites()
 
@@ -533,7 +533,7 @@ class TestExportSpritesArrangeCalls(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_arrange_call")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_arrange_call")
 
         dev_viz.export_sprites()
 
@@ -561,7 +561,7 @@ class TestExportSpritesArrangeCalls(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update = mocker.patch("actions.dev.sync.update_arrange_call")
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_arrange_call")
 
         dev_viz.export_sprites()
 
@@ -586,7 +586,7 @@ class TestExportSpritesArrangeCalls(ActionTestBase):
         dev_viz.scene_sprites.append(test_sprite)
 
         # Make sync raise exceptions
-        mock_update = mocker.patch("actions.dev.sync.update_arrange_call", side_effect=Exception("Sync failed"))
+        mock_update = mocker.patch("arcadeactions.dev.sync.update_arrange_call", side_effect=Exception("Sync failed"))
 
         # Should not raise, should continue
         dev_viz.export_sprites()
@@ -635,8 +635,8 @@ class TestExportSpritesGridCellOverrides(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update_arrange = mocker.patch("actions.dev.sync.update_arrange_call")
-        mock_update_cell = mocker.patch("actions.dev.sync.update_arrange_cell")
+        mock_update_arrange = mocker.patch("arcadeactions.dev.sync.update_arrange_call")
+        mock_update_cell = mocker.patch("arcadeactions.dev.sync.update_arrange_cell")
 
         dev_viz.export_sprites()
 
@@ -683,7 +683,7 @@ class TestExportSpritesGridCellOverrides(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update_cell = mocker.patch("actions.dev.sync.update_arrange_cell")
+        mock_update_cell = mocker.patch("arcadeactions.dev.sync.update_arrange_cell")
 
         dev_viz.export_sprites()
 
@@ -726,7 +726,7 @@ class TestExportSpritesGridCellOverrides(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update_cell = mocker.patch("actions.dev.sync.update_arrange_cell")
+        mock_update_cell = mocker.patch("arcadeactions.dev.sync.update_arrange_cell")
 
         dev_viz.export_sprites()
 
@@ -759,7 +759,7 @@ class TestExportSpritesGridCellOverrides(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update_cell = mocker.patch("actions.dev.sync.update_arrange_cell")
+        mock_update_cell = mocker.patch("arcadeactions.dev.sync.update_arrange_cell")
 
         dev_viz.export_sprites()
 
@@ -800,7 +800,7 @@ class TestExportSpritesGridCellOverrides(ActionTestBase):
 
         # Make update_arrange_cell raise exception
         mock_update_cell = mocker.patch(
-            "actions.dev.sync.update_arrange_cell", side_effect=Exception("Cell update failed")
+            "arcadeactions.dev.sync.update_arrange_cell", side_effect=Exception("Cell update failed")
         )
 
         # Should not raise, should continue
@@ -833,8 +833,8 @@ class TestExportSpritesMixedScenarios(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update_pos = mocker.patch("actions.dev.sync.update_position_assignment")
-        mock_update_arrange = mocker.patch("actions.dev.sync.update_arrange_call")
+        mock_update_pos = mocker.patch("arcadeactions.dev.sync.update_position_assignment")
+        mock_update_arrange = mocker.patch("arcadeactions.dev.sync.update_arrange_call")
 
         dev_viz.export_sprites()
 
@@ -864,8 +864,8 @@ class TestExportSpritesMixedScenarios(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update_arrange = mocker.patch("actions.dev.sync.update_arrange_call")
-        mock_update_cell = mocker.patch("actions.dev.sync.update_arrange_cell")
+        mock_update_arrange = mocker.patch("arcadeactions.dev.sync.update_arrange_call")
+        mock_update_cell = mocker.patch("arcadeactions.dev.sync.update_arrange_cell")
 
         dev_viz.export_sprites()
 
@@ -896,8 +896,8 @@ class TestExportSpritesMixedScenarios(ActionTestBase):
 
         dev_viz.scene_sprites.append(test_sprite)
 
-        mock_update_arrange = mocker.patch("actions.dev.sync.update_arrange_call")
-        mock_update_cell = mocker.patch("actions.dev.sync.update_arrange_cell")
+        mock_update_arrange = mocker.patch("arcadeactions.dev.sync.update_arrange_call")
+        mock_update_cell = mocker.patch("arcadeactions.dev.sync.update_arrange_cell")
 
         dev_viz.export_sprites()
 

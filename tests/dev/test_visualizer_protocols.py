@@ -9,7 +9,7 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.visualizer import (
+from arcadeactions.dev.visualizer import (
     SpriteWithActionConfigs,
     SpriteWithOriginal,
     SpriteWithPositionId,

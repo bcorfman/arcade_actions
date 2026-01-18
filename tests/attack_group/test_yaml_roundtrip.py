@@ -6,8 +6,8 @@ from pathlib import Path
 import arcade
 import pytest
 
-from actions.dev.prototype_registry import DevContext
-from actions.dev.templates import export_template, load_scene_template
+from arcadeactions.dev.prototype_registry import DevContext
+from arcadeactions.dev.templates import export_template, load_scene_template
 from tests.conftest import ActionTestBase
 
 

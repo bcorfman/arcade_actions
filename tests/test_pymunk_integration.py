@@ -16,9 +16,9 @@ from typing import Any
 import arcade  # runtime dependency already used in existing tests
 import pytest
 
-from actions import Action  # global update helper
-from actions import physics_adapter as pa
-from actions.conditional import MoveUntil, RotateUntil, infinite
+from arcadeactions import Action  # global update helper
+from arcadeactions import physics_adapter as pa
+from arcadeactions.conditional import MoveUntil, RotateUntil, infinite
 
 
 class _StubPhysicsEngine:
@@ -134,7 +134,7 @@ def test_rotateuntil_falls_back_without_engine() -> None:
 
 def test_physics_adapter_get_current_engine() -> None:
     """Test get_current_engine returns the context engine."""
-    from actions.physics_adapter import get_current_engine, set_current_engine
+    from arcadeactions.physics_adapter import get_current_engine, set_current_engine
 
     # Should be None initially
     assert get_current_engine() is None
@@ -152,7 +152,7 @@ def test_physics_adapter_get_current_engine() -> None:
 
 def test_physics_adapter_detect_engine_with_provided() -> None:
     """Test detect_engine prioritizes provided parameter."""
-    from actions.physics_adapter import detect_engine, set_current_engine
+    from arcadeactions.physics_adapter import detect_engine, set_current_engine
 
     context_engine = _StubPhysicsEngine()
     provided_engine = _StubPhysicsEngine()
@@ -172,7 +172,7 @@ def test_physics_adapter_detect_engine_with_provided() -> None:
 
 def test_physics_adapter_get_velocity_fallback() -> None:
     """Test get_velocity falls back to sprite attributes without engine."""
-    from actions.physics_adapter import get_velocity
+    from arcadeactions.physics_adapter import get_velocity
 
     sprite = arcade.Sprite()
     sprite.change_x = 42.0
@@ -186,7 +186,7 @@ def test_physics_adapter_get_velocity_fallback() -> None:
 
 def test_physics_adapter_apply_force_without_engine() -> None:
     """Test apply_force without physics engine (no-op when no engine present)."""
-    from actions.physics_adapter import apply_force
+    from arcadeactions.physics_adapter import apply_force
 
     sprite = arcade.Sprite()
 

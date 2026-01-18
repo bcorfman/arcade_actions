@@ -5,14 +5,14 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.visualizer.guides import (
+from arcadeactions.visualizer.guides import (
     BoundsGuide,
     GuideManager,
     HighlightGuide,
     PathGuide,
     VelocityGuide,
 )
-from actions.visualizer.instrumentation import DebugDataStore
+from arcadeactions.visualizer.instrumentation import DebugDataStore
 
 
 @pytest.fixture

@@ -9,9 +9,9 @@ from pathlib import Path
 import arcade
 import pytest
 
-from actions import Action, follow_path_until, infinite, move_until
-from actions.visualizer.attach import _collect_sprite_positions, attach_visualizer, detach_visualizer
-from actions.visualizer.guides import VelocityGuide
+from arcadeactions import Action, follow_path_until, infinite, move_until
+from arcadeactions.visualizer.attach import _collect_sprite_positions, attach_visualizer, detach_visualizer
+from arcadeactions.visualizer.guides import VelocityGuide
 
 
 class PassiveOverlay:

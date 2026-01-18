@@ -5,7 +5,7 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.dev.visualizer import DevVisualizer
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ class TestReloadParsing:
         test_file.write_text("sprite.center_x = 100\nsprite.center_y = 200\n")
 
         # Mock code_parser to return test data
-        mock_parse = mocker.patch("actions.dev.code_parser.parse_file")
+        mock_parse = mocker.patch("arcadeactions.dev.code_parser.parse_file")
         mock_parse.return_value = (
             [],  # assignments
             [],  # arrange_calls
@@ -40,7 +40,7 @@ class TestReloadParsing:
         test_file = tmp_path / "test_scene.py"
         test_file.write_text("invalid python code\n")
 
-        mock_parse = mocker.patch("actions.dev.code_parser.parse_file")
+        mock_parse = mocker.patch("arcadeactions.dev.code_parser.parse_file")
         mock_parse.side_effect = Exception("Parse error")
 
         # Should not crash
@@ -54,7 +54,7 @@ class TestReloadSourceMarkers:
 
     def test_on_reload_updates_source_markers(self, dev_visualizer, tmp_path, mocker):
         """Test marker updates for assignment tokens."""
-        from actions.dev.code_parser import PositionAssignment
+        from arcadeactions.dev.code_parser import PositionAssignment
 
         test_file = tmp_path / "test_scene.py"
         test_file.write_text("sprite.center_x = 100\n")
@@ -69,14 +69,14 @@ class TestReloadSourceMarkers:
             attr="center_x",
         )
 
-        mock_parse = mocker.patch("actions.dev.code_parser.parse_file")
+        mock_parse = mocker.patch("arcadeactions.dev.code_parser.parse_file")
         mock_parse.return_value = ([assignment], [])  # assignments, arrange_calls
 
         # Mock position_tag registry
         test_sprite = arcade.Sprite()
         test_sprite.center_x = 100
 
-        mock_get_sprites = mocker.patch("actions.dev.position_tag.get_sprites_for")
+        mock_get_sprites = mocker.patch("arcadeactions.dev.position_tag.get_sprites_for")
         mock_get_sprites.return_value = [test_sprite]
 
         dev_visualizer.on_reload([test_file])
@@ -92,7 +92,7 @@ class TestReloadSourceMarkers:
 
     def test_on_reload_updates_arrange_markers(self, dev_visualizer, tmp_path, mocker):
         """Test marker updates for arrange call tokens."""
-        from actions.dev.code_parser import ArrangeCall
+        from arcadeactions.dev.code_parser import ArrangeCall
 
         test_file = tmp_path / "test_scene.py"
         test_file.write_text("arrange(sprites, rows=2, cols=3)\n")
@@ -107,11 +107,11 @@ class TestReloadSourceMarkers:
             kwargs={"rows": "2", "cols": "3", "start_x": "0", "start_y": "0", "spacing": "50"},
         )
 
-        mock_parse = mocker.patch("actions.dev.code_parser.parse_file")
+        mock_parse = mocker.patch("arcadeactions.dev.code_parser.parse_file")
         mock_parse.return_value = ([], [arrange_call])  # assignments, arrange_calls
 
         test_sprite = arcade.Sprite()
-        mock_get_sprites = mocker.patch("actions.dev.position_tag.get_sprites_for")
+        mock_get_sprites = mocker.patch("arcadeactions.dev.position_tag.get_sprites_for")
         mock_get_sprites.return_value = [test_sprite]
 
         dev_visualizer.on_reload([test_file])
@@ -129,7 +129,7 @@ class TestReloadSourceMarkers:
 
     def test_on_reload_marks_changed_files_yellow(self, dev_visualizer, tmp_path, mocker):
         """Verify changed files get 'yellow' status."""
-        from actions.dev.code_parser import PositionAssignment
+        from arcadeactions.dev.code_parser import PositionAssignment
 
         test_file = tmp_path / "test_scene.py"
 
@@ -142,11 +142,11 @@ class TestReloadSourceMarkers:
             attr="center_x",
         )
 
-        mock_parse = mocker.patch("actions.dev.code_parser.parse_file")
+        mock_parse = mocker.patch("arcadeactions.dev.code_parser.parse_file")
         mock_parse.return_value = ([assignment], [])
 
         test_sprite = arcade.Sprite()
-        mock_get_sprites = mocker.patch("actions.dev.position_tag.get_sprites_for")
+        mock_get_sprites = mocker.patch("arcadeactions.dev.position_tag.get_sprites_for")
         mock_get_sprites.return_value = [test_sprite]
 
         dev_visualizer.on_reload([test_file])
@@ -157,7 +157,7 @@ class TestReloadSourceMarkers:
 
     def test_on_reload_with_multiple_files(self, dev_visualizer, tmp_path, mocker):
         """Test reload with multiple changed files."""
-        from actions.dev.code_parser import PositionAssignment
+        from arcadeactions.dev.code_parser import PositionAssignment
 
         file1 = tmp_path / "file1.py"
         file2 = tmp_path / "file2.py"
@@ -187,7 +187,7 @@ class TestReloadSourceMarkers:
                 return ([assignment2], [])
             return ([], [])
 
-        mocker.patch("actions.dev.code_parser.parse_file", side_effect=mock_parse)
+        mocker.patch("arcadeactions.dev.code_parser.parse_file", side_effect=mock_parse)
 
         sprite1 = arcade.Sprite()
         sprite2 = arcade.Sprite()
@@ -199,7 +199,7 @@ class TestReloadSourceMarkers:
                 return [sprite2]
             return []
 
-        mocker.patch("actions.dev.position_tag.get_sprites_for", side_effect=mock_get_sprites)
+        mocker.patch("arcadeactions.dev.position_tag.get_sprites_for", side_effect=mock_get_sprites)
 
         dev_visualizer.on_reload([file1, file2])
 
@@ -223,7 +223,7 @@ class TestReloadMarkerStatus:
         dev_visualizer.scene_sprites.append(test_sprite)
 
         # Mock parse to return no assignments (file no longer has the assignment)
-        mock_parse = mocker.patch("actions.dev.code_parser.parse_file")
+        mock_parse = mocker.patch("arcadeactions.dev.code_parser.parse_file")
         mock_parse.return_value = ([], [])  # No assignments found
 
         dev_visualizer.on_reload([test_file])

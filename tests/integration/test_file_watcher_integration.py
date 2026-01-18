@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from actions.dev.watch import FileWatcher
+from arcadeactions.dev.watch import FileWatcher
 
 pytestmark = pytest.mark.slow
 

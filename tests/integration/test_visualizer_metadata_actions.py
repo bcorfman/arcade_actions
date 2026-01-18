@@ -5,7 +5,7 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer, SpriteWithActionConfigs
+from arcadeactions.dev.visualizer import DevVisualizer, SpriteWithActionConfigs
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ class TestApplyMetadataActionsPreset:
         mock_registry = mocker.MagicMock()
         mock_preset_action = mocker.MagicMock()
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         sprite_with_configs._action_configs = [{"preset": "test_preset", "params": {"speed": 5}}]
 
@@ -46,7 +46,7 @@ class TestApplyMetadataActionsActionTypes:
 
     def test_apply_metadata_actions_move_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test MoveUntil action type."""
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         sprite_with_configs._action_configs = [
             {
@@ -66,7 +66,7 @@ class TestApplyMetadataActionsActionTypes:
 
     def test_apply_metadata_actions_follow_path_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test FollowPathUntil action type."""
-        mock_follow_path = mocker.patch("actions.follow_path_until")
+        mock_follow_path = mocker.patch("arcadeactions.follow_path_until")
 
         sprite_with_configs._action_configs = [
             {
@@ -86,7 +86,7 @@ class TestApplyMetadataActionsActionTypes:
 
     def test_apply_metadata_actions_cycle_textures_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test CycleTexturesUntil action type."""
-        mock_cycle = mocker.patch("actions.cycle_textures_until")
+        mock_cycle = mocker.patch("arcadeactions.cycle_textures_until")
 
         textures = [arcade.SpriteSolidColor(32, 32, arcade.color.RED)]
         sprite_with_configs._action_configs = [
@@ -107,7 +107,7 @@ class TestApplyMetadataActionsActionTypes:
 
     def test_apply_metadata_actions_fade_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test FadeUntil action type."""
-        mock_fade = mocker.patch("actions.fade_until")
+        mock_fade = mocker.patch("arcadeactions.fade_until")
 
         sprite_with_configs._action_configs = [
             {"action_type": "FadeUntil", "fade_velocity": -10, "condition": "infinite"}
@@ -121,7 +121,7 @@ class TestApplyMetadataActionsActionTypes:
 
     def test_apply_metadata_actions_blink_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test BlinkUntil action type."""
-        mock_blink = mocker.patch("actions.blink_until")
+        mock_blink = mocker.patch("arcadeactions.blink_until")
 
         sprite_with_configs._action_configs = [
             {"action_type": "BlinkUntil", "frames_until_change": 10, "condition": "infinite"}
@@ -135,7 +135,7 @@ class TestApplyMetadataActionsActionTypes:
 
     def test_apply_metadata_actions_rotate_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test RotateUntil action type."""
-        mock_rotate = mocker.patch("actions.rotate_until")
+        mock_rotate = mocker.patch("arcadeactions.rotate_until")
 
         sprite_with_configs._action_configs = [
             {"action_type": "RotateUntil", "angular_velocity": 90, "condition": "infinite"}
@@ -149,7 +149,7 @@ class TestApplyMetadataActionsActionTypes:
 
     def test_apply_metadata_actions_tween_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test TweenUntil action type."""
-        mock_tween = mocker.patch("actions.tween_until")
+        mock_tween = mocker.patch("arcadeactions.tween_until")
 
         sprite_with_configs._action_configs = [
             {
@@ -171,7 +171,7 @@ class TestApplyMetadataActionsActionTypes:
 
     def test_apply_metadata_actions_scale_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test ScaleUntil action type."""
-        mock_scale = mocker.patch("actions.scale_until")
+        mock_scale = mocker.patch("arcadeactions.scale_until")
 
         sprite_with_configs._action_configs = [
             {"action_type": "ScaleUntil", "velocity": (0.1, 0.1), "condition": "infinite"}
@@ -185,7 +185,7 @@ class TestApplyMetadataActionsActionTypes:
 
     def test_apply_metadata_actions_callback_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test CallbackUntil action type."""
-        mock_callback = mocker.patch("actions.callback_until")
+        mock_callback = mocker.patch("arcadeactions.callback_until")
 
         def test_callback():
             pass
@@ -202,7 +202,7 @@ class TestApplyMetadataActionsActionTypes:
 
     def test_apply_metadata_actions_delay_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test DelayUntil action type."""
-        mock_delay = mocker.patch("actions.delay_until")
+        mock_delay = mocker.patch("arcadeactions.delay_until")
 
         sprite_with_configs._action_configs = [{"action_type": "DelayUntil", "condition": "infinite"}]
 
@@ -216,7 +216,7 @@ class TestApplyMetadataActionsResolvers:
 
     def test_apply_metadata_actions_with_resolver(self, dev_visualizer, sprite_with_configs, mocker):
         """Test callback/condition resolver parameter."""
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         def resolver(name):
             if name == "test_callback":
@@ -240,7 +240,7 @@ class TestApplyMetadataActionsResolvers:
 
     def test_apply_metadata_actions_with_overrides(self, dev_visualizer, sprite_with_configs, mocker):
         """Test velocity, bounds, boundary_behavior overrides."""
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         sprite_with_configs._action_configs = [
             {
@@ -267,7 +267,7 @@ class TestApplyMetadataActionsErrorHandling:
         """Verify graceful handling of invalid presets."""
         mock_registry = mocker.MagicMock()
         mock_registry.create.side_effect = Exception("Invalid preset")
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         sprite_with_configs._action_configs = [{"preset": "invalid_preset", "params": {}}]
 
@@ -281,7 +281,7 @@ class TestApplyMetadataActionsErrorHandling:
         # Sprite doesn't have _action_configs attribute
         assert not isinstance(test_sprite, SpriteWithActionConfigs)
 
-        mock_registry = mocker.patch("actions.dev.get_preset_registry")
+        mock_registry = mocker.patch("arcadeactions.dev.get_preset_registry")
 
         dev_visualizer.apply_metadata_actions(test_sprite)
 

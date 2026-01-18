@@ -1,4 +1,4 @@
-### DevVisualizer Development Tools (actions/dev/):
+### DevVisualizer Development Tools (arcadeactions/dev/):
 * SpritePrototypeRegistry: Decorator-based registry for sprite "prefabs" that can be spawned in the visualizer
   - Use @register_prototype("id") to register factory functions
   - Prototypes receive DevContext with scene_sprites reference

@@ -2,8 +2,8 @@
 
 import arcade
 
-from actions.group import AttackGroup
-from actions.group_health import GroupHealth
+from arcadeactions.group import AttackGroup
+from arcadeactions.group_health import GroupHealth
 from tests.conftest import ActionTestBase
 
 

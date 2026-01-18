@@ -5,7 +5,7 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.dev.visualizer import DevVisualizer
 
 
 @pytest.fixture
@@ -189,7 +189,7 @@ class TestSpriteExport:
         def mock_update_position_assignment(file, pid, attr, value):
             sync_calls.append(("update_position_assignment", file, pid, attr, value))
 
-        mocker.patch("actions.dev.sync.update_position_assignment", side_effect=mock_update_position_assignment)
+        mocker.patch("arcadeactions.dev.sync.update_position_assignment", side_effect=mock_update_position_assignment)
 
         game_sprites = arcade.SpriteList()
         original = arcade.Sprite()
@@ -239,7 +239,7 @@ class TestSpriteExport:
             if call_count == 1:
                 raise Exception("Sync error")
 
-        mocker.patch("actions.dev.sync.update_position_assignment", side_effect=mock_update_position_assignment)
+        mocker.patch("arcadeactions.dev.sync.update_position_assignment", side_effect=mock_update_position_assignment)
 
         imported1 = dev_visualizer.scene_sprites[0]
         imported1._position_id = "sprite1"

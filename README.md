@@ -30,7 +30,7 @@ So much of building an arcade game is a cluttered way of saying "animate this sp
 
 ```python 
 import arcade
-from actions import MoveUntil, Action
+from arcadeactions import MoveUntil, Action
 
 class AsteroidDemoView(arcade.View):
     def __init__(self):
@@ -163,22 +163,22 @@ docs/
 
 ### ✅ Implementation
 
-#### Base Action System (actions/base.py)
+#### Base Action System (arcadeactions/base.py)
 - **Action** - Core action class with global management
 - **Global management** - Automatic action tracking and updates
 
-#### Configuration (actions/config.py)
+#### Configuration (arcadeactions/config.py)
 - **Configurable debug logging**: Fine-grained, level-based diagnostics with per-Action filtering for focused output
 - **Debug levels**: Level 0 (off), Level 1 (summary counts), Level 2 (lifecycle events), Level 3+ (verbose per-frame details)
 - **Action filtering**: Observe specific action classes or all actions for targeted debugging
 - **Environment variables**: `ARCADEACTIONS_DEBUG=2`, `ARCADEACTIONS_DEBUG_ALL=1`, `ARCADEACTIONS_DEBUG_INCLUDE=MoveUntil,CallbackUntil`
 - **Programmatic API**: `set_debug_options(level=2, include=["MoveUntil"])` or `observe_actions(MoveUntil, CallbackUntil)` in your app startup
 
-#### Instant Action System (actions/instant.py)
+#### Instant Action System (arcadeactions/instant.py)
 - **MoveBy** - Relative Sprite or SpriteList positioning
 - **MoveTo** - Absolute positioning
 
-#### Conditional Actions (actions/movement.py, actions/paths.py, actions/transforms.py, actions/effects.py, actions/callbacks.py, actions/parametric.py)
+#### Conditional Actions (arcadeactions/movement.py, arcadeactions/paths.py, arcadeactions/transforms.py, arcadeactions/effects.py, arcadeactions/callbacks.py, arcadeactions/parametric.py)
 - **MoveUntil** - Velocity-based movement until condition met (optional PyMunk physics integration)
 - **FollowPathUntil** - Follow Bezier curve paths with optional automatic sprite rotation (optional PyMunk physics steering with `use_physics=True`)
 - **RotateUntil** - Angular velocity rotation (optional PyMunk physics integration)
@@ -192,22 +192,22 @@ docs/
 - **GlowUntil** - Render full-screen Shadertoy effects with camera offset support
 - **EmitParticlesUntil** - Manage per-sprite particle emitters with anchor and rotation following
 
-#### Composite Actions (actions/composite.py)
+#### Composite Actions (arcadeactions/composite.py)
 - **Sequential actions** - Run actions one after another (use `sequence()`)
 - **Parallel actions** - Run actions in parallel (use `parallel()`)
 - **Repeat actions** - Repeat an action indefinitely (use `repeat()`)
 
-#### Boundary Handling (actions/movement.py)
+#### Boundary Handling (arcadeactions/movement.py)
 - **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors using edge-based coordinates
 
-#### Formation Management (actions/formation.py)
+#### Formation Management (arcadeactions/formation.py)
 - **Formation functions** - Grid, line, circle, diamond, V-formation, triangle, hexagonal grid, arc, concentric rings, cross, and arrow positioning
   - Zero-allocation support: pass `sprites=` to arrange existing sprites without allocating
   - Contract: exactly one of `sprites` or creation inputs (`count` or `sprite_factory`) is required
   - Grid rule: when `sprites` is provided, `len(sprites)` must equal `rows * cols`
   - See `examples/formation_demo.py` for a quick start
 
-#### Movement Patterns (actions/pattern.py)
+#### Movement Patterns (arcadeactions/pattern.py)
 - **Movement pattern functions** - Zigzag, wave, spiral, figure-8, orbit, bounce, and patrol patterns
 - **Condition helpers** - Time-based and sprite count conditions for conditional actions
 - See `examples/pattern_demo.py` for a quick start
@@ -228,11 +228,11 @@ ArcadeActions integrates seamlessly with the external [`python-statemachine`](ht
 
 ArcadeActions now provides an optional zero-allocation workflow to eliminate per-wave sprite creation.
 
-1) Use the new `SpritePool` (in `actions.pools`) to pre-allocate sprites once at boot:
+1) Use the new `SpritePool` (in `arcadeactions.pools`) to pre-allocate sprites once at boot:
 
 ```python
-from actions.pools import SpritePool
-from actions import arrange_grid
+from arcadeactions.pools import SpritePool
+from arcadeactions import arrange_grid
 import arcade
 
 def make_block():
@@ -263,12 +263,12 @@ Arrange functions contract:
 - When using `sprites` with `arrange_grid`, `len(sprites) == rows * cols` is required
 
 
-#### Easing Effects (actions/easing.py)
+#### Easing Effects (arcadeactions/easing.py)
 - **Ease wrapper** - Apply smooth acceleration/deceleration curves to any conditional action
 - **Multiple easing functions** - Built-in ease_in, ease_out, ease_in_out support
 - **Custom easing** - Create specialized easing curves and nested easing effects
 
-#### Optional Physics Integration (actions/physics_adapter.py)
+#### Optional Physics Integration (arcadeactions/physics_adapter.py)
 - **PyMunk Physics Support** - Optional integration with `arcade.PymunkPhysicsEngine` for physics-driven movement
 - **Zero API Changes** - Existing code works unchanged; physics is opt-in via `Action.update_all(dt, physics_engine=engine)`
 - **Automatic Kinematic Sync** - **NEW:** Kinematic bodies automatically synced (eliminates manual `set_velocity()` loops)
@@ -278,7 +278,7 @@ Arrange functions contract:
 - **Complete Example** - See `examples/pymunk_demo_platformer.py` for state machine + physics + actions integration
 - **See the [API Usage Guide](docs/api_usage_guide.md#optional-physics-integration-arcade-3x--pymunk)** for detailed examples
 
-#### Development Visualizer (actions/dev/) - **NEW**
+#### Development Visualizer (arcadeactions/dev/) - **NEW**
 ArcadeActions includes a comprehensive development visualizer for rapid prototyping and scene editing.
 
 **Sprite Prototype Registry:**
@@ -287,7 +287,7 @@ ArcadeActions includes a comprehensive development visualizer for rapid prototyp
 - Automatic prototype ID tracking for serialization
 
 ```python
-from actions.dev import register_prototype, DevContext
+from arcadeactions.dev import register_prototype, DevContext
 
 @register_prototype("enemy_ship")
 def make_enemy_ship(ctx):
@@ -309,12 +309,12 @@ def make_enemy_ship(ctx):
 - Actions stored as metadata in edit mode (not running) for safe editing
 
 ```python
-from actions.dev import register_preset
-from actions.conditional import infinite
+from arcadeactions.dev import register_preset
+from arcadeactions.conditional import infinite
 
 @register_preset("scroll_left_cleanup", category="Movement", params={"speed": 4})
 def preset_scroll_left_cleanup(ctx, speed):
-    from actions.helpers import move_until
+    from arcadeactions.helpers import move_until
     return move_until(
         None,
         velocity=(-speed, 0),
@@ -337,7 +337,7 @@ def preset_scroll_left_cleanup(ctx, speed):
 - Flat list schema: prototype, position, group, and action presets
 
 ```python
-from actions.dev import export_template, load_scene_template, DevContext
+from arcadeactions.dev import export_template, load_scene_template, DevContext
 
 # Export scene
 export_template(scene_sprites, "wave1.yaml", prompt_user=False)
@@ -355,7 +355,7 @@ load_scene_template("wave1.yaml", ctx)
 - Creates backup files before changes
 
 ```python
-from actions.dev.position_tag import positioned
+from arcadeactions.dev.position_tag import positioned
 
 @positioned("forcefield")
 def make_forcefield():

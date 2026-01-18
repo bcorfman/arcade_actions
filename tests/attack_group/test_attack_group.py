@@ -2,10 +2,10 @@
 
 import arcade
 
-from actions.base import Action
-from actions.conditional import MoveUntil
-from actions.formation import arrange_grid, arrange_line
-from actions.frame_timing import after_frames
+from arcadeactions.base import Action
+from arcadeactions.conditional import MoveUntil
+from arcadeactions.formation import arrange_grid, arrange_line
+from arcadeactions.frame_timing import after_frames
 from tests.conftest import ActionTestBase
 
 
@@ -14,7 +14,7 @@ class TestAttackGroup(ActionTestBase):
 
     def test_attack_group_creation(self):
         """Test creating an AttackGroup with sprites."""
-        from actions.group import AttackGroup
+        from arcadeactions.group import AttackGroup
 
         sprites = arcade.SpriteList()
         for _ in range(5):
@@ -31,7 +31,7 @@ class TestAttackGroup(ActionTestBase):
 
     def test_attack_group_place_formation(self):
         """Test placing sprites in a formation."""
-        from actions.group import AttackGroup
+        from arcadeactions.group import AttackGroup
 
         sprites = arcade.SpriteList()
         for _ in range(5):
@@ -54,7 +54,7 @@ class TestAttackGroup(ActionTestBase):
 
     def test_attack_group_place_grid(self):
         """Test placing sprites in a grid formation."""
-        from actions.group import AttackGroup
+        from arcadeactions.group import AttackGroup
 
         sprites = arcade.SpriteList()
         for _ in range(6):  # 2x3 grid
@@ -79,7 +79,7 @@ class TestAttackGroup(ActionTestBase):
 
     def test_attack_group_script_application(self):
         """Test applying a script action to the group."""
-        from actions.group import AttackGroup
+        from arcadeactions.group import AttackGroup
 
         sprites = arcade.SpriteList()
         for _ in range(3):
@@ -110,8 +110,8 @@ class TestAttackGroup(ActionTestBase):
 
     def test_attack_group_script_multiple_actions(self):
         """Test applying multiple actions as a script."""
-        from actions.composite import sequence
-        from actions.group import AttackGroup
+        from arcadeactions.composite import sequence
+        from arcadeactions.group import AttackGroup
 
         sprites = arcade.SpriteList()
         for _ in range(2):
@@ -131,8 +131,8 @@ class TestAttackGroup(ActionTestBase):
 
     def test_attack_group_update(self):
         """Test AttackGroup.update() updates breakaway manager, not actions."""
-        from actions.base import Action
-        from actions.group import AttackGroup
+        from arcadeactions.base import Action
+        from arcadeactions.group import AttackGroup
 
         sprites = arcade.SpriteList()
         for _ in range(2):
@@ -160,7 +160,7 @@ class TestAttackGroup(ActionTestBase):
 
     def test_attack_group_home_slot_preservation(self):
         """Test that home slots are preserved after breakaway."""
-        from actions.group import AttackGroup
+        from arcadeactions.group import AttackGroup
 
         sprites = arcade.SpriteList()
         for _ in range(3):

@@ -87,13 +87,13 @@ jobs:
         env:
           DISPLAY: ':99.0'
           LIBGL_ALWAYS_SOFTWARE: '1'
-        run: uv run pytest tests/ --cov=actions --cov-report=xml --cov-report=json:coverage.json --cov-report=term-missing --ignore=tests/integration
+        run: uv run pytest tests/ --cov=arcadeactions --cov-report=xml --cov-report=json:coverage.json --cov-report=term-missing --ignore=tests/integration
 
       - name: Collect Radon metrics (Linux Python 3.11 only)
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         run: |
-          uv run radon raw -j actions > radon_raw.json
-          uv run radon cc -j actions > radon_cc.json
+          uv run radon raw -j arcadeactions > radon_raw.json
+          uv run radon cc -j arcadeactions > radon_cc.json
 
       - name: Generate refactoring priority report (Linux Python 3.11 only)
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'

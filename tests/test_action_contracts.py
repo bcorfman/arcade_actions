@@ -11,8 +11,8 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions import Action
-from actions.conditional import (
+from arcadeactions import Action
+from arcadeactions.conditional import (
     BlinkUntil,
     CallbackUntil,
     CycleTexturesUntil,
@@ -25,9 +25,9 @@ from actions.conditional import (
     ScaleUntil,
     TweenUntil,
 )
-from actions.debug import MotionDebugger
-from actions.frame_timing import after_frames
-from actions.instant import MoveBy, MoveTo
+from arcadeactions.debug import MotionDebugger
+from arcadeactions.frame_timing import after_frames
+from arcadeactions.instant import MoveBy, MoveTo
 
 
 def _make_texture(name: str) -> arcade.Texture:

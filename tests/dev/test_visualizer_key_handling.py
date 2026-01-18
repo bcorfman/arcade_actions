@@ -9,7 +9,7 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.integration
@@ -74,7 +74,7 @@ class TestHandleKeyPressBasic(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list)
 
         # Mock export_template (imported inside the function, so patch the module)
-        mock_export = mocker.patch("actions.dev.templates.export_template")
+        mock_export = mocker.patch("arcadeactions.dev.templates.export_template")
 
         result = dev_viz.handle_key_press(arcade.key.E, 0)
 
@@ -86,7 +86,7 @@ class TestHandleKeyPressBasic(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list)
 
         # Mock load_scene_template (imported inside the function, so patch the module)
-        mock_load = mocker.patch("actions.dev.templates.load_scene_template")
+        mock_load = mocker.patch("arcadeactions.dev.templates.load_scene_template")
 
         result = dev_viz.handle_key_press(arcade.key.I, 0)
 

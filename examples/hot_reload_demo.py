@@ -19,8 +19,8 @@ from pathlib import Path
 
 import arcade
 
-from actions import Action, center_window
-from actions.dev import enable_dev_mode
+from arcadeactions import Action, center_window
+from arcadeactions.dev import enable_dev_mode
 
 
 class HotReloadDemo(arcade.Window):
@@ -71,7 +71,7 @@ class DemoWave:
     def create_enemies(self):
         """Create enemies for this wave."""
         from arcade import SpriteList, SpriteSolidColor
-        from actions.conditional import MoveUntil, infinite
+        from arcadeactions.conditional import MoveUntil, infinite
 
         enemies = SpriteList()
         for i in range(self.enemy_count):

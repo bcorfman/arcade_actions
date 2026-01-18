@@ -12,7 +12,7 @@ import sys
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.integration
@@ -44,7 +44,7 @@ def mock_arcade_text(mocker):
         return mock_text
 
     # Patch Text in the visualizer module where it's used
-    mocker.patch("actions.dev.visualizer.arcade.Text", side_effect=create_mock_text)
+    mocker.patch("arcadeactions.dev.visualizer.arcade.Text", side_effect=create_mock_text)
 
 
 @pytest.fixture
@@ -388,9 +388,9 @@ class TestDrawSourceMarkers(ActionTestBase):
 
         mocker.patch.object(dev_viz._indicator_text, "draw")
         mocker.patch.object(dev_viz.selection_manager, "draw")
-        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
         mock_text_instance = mocker.MagicMock()
-        mock_text_class = mocker.patch("actions.dev.visualizer.arcade.Text", return_value=mock_text_instance)
+        mock_text_class = mocker.patch("arcadeactions.dev.visualizer.arcade.Text", return_value=mock_text_instance)
 
         dev_viz.draw()
 
@@ -413,7 +413,7 @@ class TestDrawSourceMarkers(ActionTestBase):
 
         mocker.patch.object(dev_viz._indicator_text, "draw")
         mocker.patch.object(dev_viz.selection_manager, "draw")
-        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
 
         dev_viz.draw()
 
@@ -433,8 +433,8 @@ class TestDrawSourceMarkers(ActionTestBase):
 
         mocker.patch.object(dev_viz._indicator_text, "draw")
         mocker.patch.object(dev_viz.selection_manager, "draw")
-        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
-        mocker.patch("actions.dev.visualizer.arcade.Text", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("arcadeactions.dev.visualizer.arcade.Text", create=True)
 
         dev_viz.draw()
 
@@ -454,8 +454,8 @@ class TestDrawSourceMarkers(ActionTestBase):
 
         mocker.patch.object(dev_viz._indicator_text, "draw")
         mocker.patch.object(dev_viz.selection_manager, "draw")
-        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
-        mocker.patch("actions.dev.visualizer.arcade.Text", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("arcadeactions.dev.visualizer.arcade.Text", create=True)
 
         dev_viz.draw()
 
@@ -476,8 +476,8 @@ class TestDrawSourceMarkers(ActionTestBase):
 
         mocker.patch.object(dev_viz._indicator_text, "draw")
         mocker.patch.object(dev_viz.selection_manager, "draw")
-        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
-        mocker.patch("actions.dev.visualizer.arcade.Text", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("arcadeactions.dev.visualizer.arcade.Text", create=True)
 
         dev_viz.draw()
 
@@ -498,7 +498,7 @@ class TestDrawSourceMarkers(ActionTestBase):
 
         mocker.patch.object(dev_viz._indicator_text, "draw")
         mocker.patch.object(dev_viz.selection_manager, "draw")
-        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
 
         dev_viz.draw()
 
@@ -530,7 +530,7 @@ class TestDrawSourceMarkers(ActionTestBase):
 
         mocker.patch.object(dev_viz._indicator_text, "draw")
         mocker.patch.object(dev_viz.selection_manager, "draw")
-        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
 
         dev_viz.draw()
 
@@ -556,7 +556,7 @@ class TestDrawSourceMarkers(ActionTestBase):
         mocker.patch.object(dev_viz.selection_manager, "draw")
         # Make drawing raise an exception
         mocker.patch(
-            "actions.dev.visualizer.arcade.draw_rectangle_filled", side_effect=Exception("Draw failed"), create=True
+            "arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", side_effect=Exception("Draw failed"), create=True
         )
 
         # Should not raise, should continue
@@ -574,9 +574,9 @@ class TestDrawSourceMarkers(ActionTestBase):
 
         mocker.patch.object(dev_viz._indicator_text, "draw")
         mocker.patch.object(dev_viz.selection_manager, "draw")
-        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
         mock_text_instance = mocker.MagicMock()
-        mock_text_class = mocker.patch("actions.dev.visualizer.arcade.Text", return_value=mock_text_instance)
+        mock_text_class = mocker.patch("arcadeactions.dev.visualizer.arcade.Text", return_value=mock_text_instance)
 
         dev_viz.draw()
 
@@ -707,9 +707,9 @@ class TestDrawErrorHandling(ActionTestBase):
         # Mock all drawing methods
         mock_text_draw = mocker.patch.object(dev_viz._indicator_text, "draw")
         mock_selection_draw = mocker.patch.object(dev_viz.selection_manager, "draw")
-        mock_draw_rect = mocker.patch("actions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", create=True)
         mock_text_instance = mocker.MagicMock()
-        mock_text_class = mocker.patch("actions.dev.visualizer.arcade.Text", return_value=mock_text_instance)
+        mock_text_class = mocker.patch("arcadeactions.dev.visualizer.arcade.Text", return_value=mock_text_instance)
 
         dev_viz.draw()
 

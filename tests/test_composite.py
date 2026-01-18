@@ -2,10 +2,10 @@
 
 import arcade
 
-from actions.base import Action
-from actions.composite import parallel, repeat, sequence
-from actions.conditional import CycleTexturesUntil, DelayUntil, MoveUntil, infinite
-from actions.frame_timing import after_frames
+from arcadeactions.base import Action
+from arcadeactions.composite import parallel, repeat, sequence
+from arcadeactions.conditional import CycleTexturesUntil, DelayUntil, MoveUntil, infinite
+from arcadeactions.frame_timing import after_frames
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -562,7 +562,7 @@ class TestRepeatFunction:
 
     def test_repeat_with_move_action(self):
         """Test repeat with a MoveUntil action."""
-        from actions.conditional import MoveUntil
+        from arcadeactions.conditional import MoveUntil
 
         sprite = create_test_sprite()
 
@@ -674,7 +674,7 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_to_children(self):
         """Test that CompositeActions forward velocity changes to child actions that support it."""
-        from actions.conditional import MoveUntil, infinite
+        from arcadeactions.conditional import MoveUntil, infinite
 
         sprite = create_test_sprite()
 
@@ -723,7 +723,7 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_base_class(self):
         """Test that base CompositeAction set_current_velocity does nothing."""
-        from actions.base import CompositeAction
+        from arcadeactions.base import CompositeAction
 
         # Create a direct instance of the base CompositeAction
         base_composite = CompositeAction()
@@ -736,7 +736,7 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_with_noop_velocity(self):
         """Test velocity forwarding gracefully handles actions using the default no-op setter."""
-        from actions.conditional import DelayUntil, MoveUntil, infinite
+        from arcadeactions.conditional import DelayUntil, MoveUntil, infinite
 
         sprite = create_test_sprite()
 
@@ -762,7 +762,7 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_sequence_no_current_action(self):
         """Test sequence velocity forwarding when there's no current action."""
-        from actions.conditional import DelayUntil
+        from arcadeactions.conditional import DelayUntil
 
         sprite = create_test_sprite()
 
@@ -778,7 +778,7 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_repeat_no_current_action(self):
         """Test repeat velocity forwarding when there's no current action."""
-        from actions.conditional import DelayUntil
+        from arcadeactions.conditional import DelayUntil
 
         sprite = create_test_sprite()
 
@@ -808,7 +808,7 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_sequence_noop(self):
         """Test sequence velocity forwarding with actions relying on the default no-op setter."""
-        from actions.conditional import DelayUntil
+        from arcadeactions.conditional import DelayUntil
 
         sprite = create_test_sprite()
 
@@ -829,7 +829,7 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_repeat_noop(self):
         """Test repeat velocity forwarding with actions relying on the default no-op setter."""
-        from actions.conditional import DelayUntil
+        from arcadeactions.conditional import DelayUntil
 
         sprite = create_test_sprite()
 
@@ -862,7 +862,7 @@ class TestCompositeReset:
 
     def test_base_composite_action_reset(self):
         """Test that base CompositeAction.reset() resets flags."""
-        from actions.base import CompositeAction
+        from arcadeactions.base import CompositeAction
 
         # Create a minimal concrete subclass for testing
         class TestComposite(CompositeAction):

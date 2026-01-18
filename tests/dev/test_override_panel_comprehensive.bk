@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import arcade
 import pytest
 
-from actions.dev.override_panel import OverridesPanel
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.dev.override_panel import OverridesPanel
+from arcadeactions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 
@@ -490,8 +490,8 @@ class TestDrawing:
     def test_draw_not_visible(self, override_panel, mock_dev_visualizer, mocker):
         """Test draw does nothing when not visible."""
         # Patch at module level where it's used
-        mock_draw_rect = mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
-        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mock_draw_text = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_text", create=True)
 
         override_panel.visible = False
         override_panel.draw()
@@ -501,8 +501,8 @@ class TestDrawing:
 
     def test_draw_no_inspector(self, override_panel, mock_dev_visualizer, mocker):
         """Test draw does nothing when no inspector."""
-        mock_draw_rect = mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
-        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mock_draw_text = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_text", create=True)
 
         override_panel.visible = True
         override_panel.inspector = None
@@ -513,8 +513,8 @@ class TestDrawing:
 
     def test_draw_no_window(self, override_panel, mock_dev_visualizer, mocker):
         """Test draw does nothing when no window."""
-        mock_draw_rect = mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
-        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mock_draw_text = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_text", create=True)
 
         override_panel.visible = True
         override_panel.inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
@@ -526,9 +526,9 @@ class TestDrawing:
 
     def test_draw_with_overrides(self, override_panel, mock_dev_visualizer, mocker):
         """Test draw renders overrides."""
-        mock_draw_rect = mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
-        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
-        mock_color_from_hex = mocker.patch("actions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+        mock_draw_rect = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mock_draw_text = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_text", create=True)
+        mock_color_from_hex = mocker.patch("arcadeactions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
 
         inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
         override_panel.open(MagicMock())
@@ -543,9 +543,9 @@ class TestDrawing:
 
     def test_draw_selection_highlighting(self, override_panel, mock_dev_visualizer, mocker):
         """Test draw highlights selected item."""
-        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
-        mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
-        mocker.patch("actions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+        mock_draw_text = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_text", create=True)
+        mocker.patch("arcadeactions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("arcadeactions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
 
         inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}, {"row": 0, "col": 1, "x": 200, "y": 200}])
         override_panel.open(MagicMock())
@@ -560,9 +560,9 @@ class TestDrawing:
 
     def test_draw_editing_state(self, override_panel, mock_dev_visualizer, mocker):
         """Test draw displays editing state."""
-        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
-        mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
-        mocker.patch("actions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+        mock_draw_text = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_text", create=True)
+        mocker.patch("arcadeactions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("arcadeactions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
 
         inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
         override_panel.open(MagicMock())
@@ -584,9 +584,9 @@ class TestDrawing:
 
     def test_draw_input_buffer_display(self, override_panel, mock_dev_visualizer, mocker):
         """Test draw displays input buffer when editing."""
-        mock_draw_text = mocker.patch("actions.dev.override_panel.arcade.draw_text", create=True)
-        mocker.patch("actions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
-        mocker.patch("actions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+        mock_draw_text = mocker.patch("arcadeactions.dev.override_panel.arcade.draw_text", create=True)
+        mocker.patch("arcadeactions.dev.override_panel.arcade.draw_rectangle_filled", create=True)
+        mocker.patch("arcadeactions.dev.override_panel.arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
 
         inspector = MockInspector([{"row": 0, "col": 0, "x": 100, "y": 100}])
         override_panel.open(MagicMock())

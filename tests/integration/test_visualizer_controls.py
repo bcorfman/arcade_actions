@@ -10,12 +10,12 @@ from pathlib import Path
 import arcade
 import pytest
 
-from actions.visualizer.condition_panel import ConditionDebugger
-from actions.visualizer.controls import DebugControlManager
-from actions.visualizer.guides import GuideManager
-from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.overlay import InspectorOverlay
-from actions.visualizer.timeline import TimelineStrip
+from arcadeactions.visualizer.condition_panel import ConditionDebugger
+from arcadeactions.visualizer.controls import DebugControlManager
+from arcadeactions.visualizer.guides import GuideManager
+from arcadeactions.visualizer.instrumentation import DebugDataStore
+from arcadeactions.visualizer.overlay import InspectorOverlay
+from arcadeactions.visualizer.timeline import TimelineStrip
 
 
 class StubActionController:

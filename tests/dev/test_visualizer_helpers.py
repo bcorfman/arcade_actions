@@ -5,8 +5,8 @@ Tests the pure functions extracted from visualizer.py for better testability.
 
 from __future__ import annotations
 
-from actions.dev.visualizer_helpers import resolve_callback, resolve_condition
-from actions.frame_timing import after_frames, infinite, within_frames
+from arcadeactions.dev.visualizer_helpers import resolve_callback, resolve_condition
+from arcadeactions.frame_timing import after_frames, infinite, within_frames
 
 
 class TestResolveCondition:

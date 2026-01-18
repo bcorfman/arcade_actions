@@ -9,9 +9,9 @@ Demonstrates:
 
 import arcade
 
-from actions.formation import arrange_grid
-from actions.group import AttackGroup
-from actions.presets.entry_paths import loop_the_loop_exact
+from arcadeactions.formation import arrange_grid
+from arcadeactions.group import AttackGroup
+from arcadeactions.presets.entry_paths import loop_the_loop_exact
 
 
 class AttackGroupDemo(arcade.Window):
@@ -103,7 +103,7 @@ class AttackGroupDemo(arcade.Window):
 
     def on_update(self, delta_time: float):
         """Update game state."""
-        from actions.base import Action
+        from arcadeactions.base import Action
 
         # Update all groups
         for group in self.enemy_groups:

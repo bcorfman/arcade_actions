@@ -9,8 +9,8 @@ window and spaceship sprites for all formations.
 import arcade
 import arcade.gui
 
-from actions import center_window
-from actions.formation import (
+from arcadeactions import center_window
+from arcadeactions.formation import (
     arrange_arc,
     arrange_circle,
     arrange_concentric_rings,

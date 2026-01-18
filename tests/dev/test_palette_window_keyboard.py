@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 import arcade
 import pytest
 
-from actions.dev.palette_window import PaletteWindow
-from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry
+from arcadeactions.dev.palette_window import PaletteWindow
+from arcadeactions.dev.prototype_registry import DevContext, SpritePrototypeRegistry
 
 pytestmark = pytest.mark.slow
 
@@ -41,7 +41,7 @@ def mock_arcade_text(mocker):
         return mock_text
 
     # Patch Text in the palette_window module where it's used
-    mocker.patch("actions.dev.palette_window.arcade.Text", side_effect=create_mock_text)
+    mocker.patch("arcadeactions.dev.palette_window.arcade.Text", side_effect=create_mock_text)
 
 
 @pytest.fixture

@@ -11,9 +11,9 @@ from typing import Any
 import arcade
 import pytest
 
-from actions import Action
-from actions import physics_adapter as pa
-from actions.conditional import FollowPathUntil, infinite
+from arcadeactions import Action
+from arcadeactions import physics_adapter as pa
+from arcadeactions.conditional import FollowPathUntil, infinite
 
 
 class _StubPhysicsEngine:

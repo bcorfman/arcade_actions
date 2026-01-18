@@ -6,10 +6,10 @@ Tests preset registration, parameter editing, and bulk application to selected s
 import arcade
 import pytest
 
-from actions.conditional import infinite
-from actions.dev.presets import ActionPresetRegistry, register_preset
-from actions.dev.selection import SelectionManager
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.conditional import infinite
+from arcadeactions.dev.presets import ActionPresetRegistry, register_preset
+from arcadeactions.dev.selection import SelectionManager
+from arcadeactions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 
@@ -22,7 +22,7 @@ class TestPresetAttach(ActionTestBase):
 
         @registry.register("scroll_left", category="Movement", params={"speed": 4})
         def make_scroll_left(ctx, speed):
-            from actions.helpers import move_until
+            from arcadeactions.helpers import move_until
 
             return move_until(
                 None,  # Unbound action
@@ -35,13 +35,13 @@ class TestPresetAttach(ActionTestBase):
 
     def test_preset_create_action(self):
         """Test creating action from preset."""
-        from actions.dev.presets import get_preset_registry
+        from arcadeactions.dev.presets import get_preset_registry
 
         registry = get_preset_registry()
 
         @register_preset("test_scroll", category="Movement", params={"speed": 3})
         def make_test_scroll(ctx, speed):
-            from actions.helpers import move_until
+            from arcadeactions.helpers import move_until
 
             return move_until(None, velocity=(-speed, 0), condition=infinite)
 
@@ -71,7 +71,7 @@ class TestPresetAttach(ActionTestBase):
 
         @register_preset("bulk_test", category="Movement", params={"speed": 5})
         def make_bulk_test(ctx, speed):
-            from actions.helpers import move_until
+            from arcadeactions.helpers import move_until
 
             return move_until(None, velocity=(-speed, 0), condition=infinite)
 
@@ -95,11 +95,11 @@ class TestPresetAttach(ActionTestBase):
 
     def test_preset_param_editing(self):
         """Test editing preset parameters."""
-        from actions.dev.presets import get_preset_registry
+        from arcadeactions.dev.presets import get_preset_registry
 
         @register_preset("editable", category="Movement", params={"speed": 2, "direction": -1})
         def make_editable(ctx, speed, direction):
-            from actions.helpers import move_until
+            from arcadeactions.helpers import move_until
 
             return move_until(None, velocity=(speed * direction, 0), condition=infinite)
 

@@ -9,8 +9,8 @@ import unittest
 
 import arcade
 
-from actions import Action, arrange_grid
-from actions.pattern import (
+from arcadeactions import Action, arrange_grid
+from arcadeactions.pattern import (
     _do_line_segments_intersect,
     create_formation_entry_from_sprites,
 )

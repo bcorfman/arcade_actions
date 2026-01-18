@@ -12,13 +12,13 @@ from typing import Any
 import arcade
 import pytest
 
-from actions.base import Action
+from arcadeactions.base import Action
 
 
 @pytest.fixture(autouse=True)
 def auto_detach():
     """Ensure the visualizer is detached after each test."""
-    from actions.visualizer.attach import detach_visualizer
+    from arcadeactions.visualizer.attach import detach_visualizer
 
     yield
     detach_visualizer()
@@ -150,7 +150,7 @@ def stub_attach_kwargs(tmp_path: Path) -> dict[str, Any]:
 
 
 def test_attach_visualizer_wraps_update(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer.attach import (
+    from arcadeactions.visualizer.attach import (
         attach_visualizer,
         get_visualizer_session,
         is_visualizer_attached,
@@ -179,7 +179,7 @@ def test_attach_visualizer_wraps_update(monkeypatch, stub_attach_kwargs):
 
 
 def test_attach_visualizer_uses_sprite_positions_provider(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer.attach import attach_visualizer
+    from arcadeactions.visualizer.attach import attach_visualizer
 
     def fake_update_all(cls, delta_time: float, physics_engine: Any = None) -> None:
         pass
@@ -196,7 +196,7 @@ def test_attach_visualizer_uses_sprite_positions_provider(monkeypatch, stub_atta
 
 
 def test_attach_is_idempotent(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer.attach import attach_visualizer
+    from arcadeactions.visualizer.attach import attach_visualizer
 
     def fake_update_all(cls, delta_time: float, physics_engine: Any = None) -> None:
         pass
@@ -210,7 +210,7 @@ def test_attach_is_idempotent(monkeypatch, stub_attach_kwargs):
 
 
 def test_detach_restores_previous_state(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer.attach import attach_visualizer, detach_visualizer, is_visualizer_attached
+    from arcadeactions.visualizer.attach import attach_visualizer, detach_visualizer, is_visualizer_attached
 
     sentinel_store = object()
     Action.set_debug_store(sentinel_store)
@@ -233,7 +233,7 @@ def test_detach_restores_previous_state(monkeypatch, stub_attach_kwargs):
 
 
 def test_auto_attach_from_env_triggers(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer import attach as attach_module
+    from arcadeactions.visualizer import attach as attach_module
 
     monkeypatch.setenv("ARCADEACTIONS_VISUALIZER", "1")
     called: dict[str, Any] = {}
@@ -250,7 +250,7 @@ def test_auto_attach_from_env_triggers(monkeypatch, stub_attach_kwargs):
 
 
 def test_enable_visualizer_hotkey_attaches(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer.attach import enable_visualizer_hotkey, is_visualizer_attached
+    from arcadeactions.visualizer.attach import enable_visualizer_hotkey, is_visualizer_attached
 
     def fake_update_all(cls, delta_time: float, physics_engine: Any = None) -> None:
         pass
@@ -283,10 +283,10 @@ def test_enable_visualizer_hotkey_attaches(monkeypatch, stub_attach_kwargs):
 
 def test_enable_dev_visualizer_function(monkeypatch):
     """Test enable_dev_visualizer function."""
-    from actions.dev.visualizer import enable_dev_visualizer, get_dev_visualizer
+    from arcadeactions.dev.visualizer import enable_dev_visualizer, get_dev_visualizer
 
     # Clean up any existing instance
-    monkeypatch.setattr("actions.dev.visualizer._global_dev_visualizer", None)
+    monkeypatch.setattr("arcadeactions.dev.visualizer._global_dev_visualizer", None)
 
     scene_sprites = arcade.SpriteList()
     dev_viz = enable_dev_visualizer(scene_sprites=scene_sprites, auto_attach=False)
@@ -298,10 +298,10 @@ def test_enable_dev_visualizer_function(monkeypatch):
 
 def test_get_dev_visualizer_function(monkeypatch):
     """Test get_dev_visualizer function."""
-    from actions.dev.visualizer import enable_dev_visualizer, get_dev_visualizer
+    from arcadeactions.dev.visualizer import enable_dev_visualizer, get_dev_visualizer
 
     # Clean up any existing instance
-    monkeypatch.setattr("actions.dev.visualizer._global_dev_visualizer", None)
+    monkeypatch.setattr("arcadeactions.dev.visualizer._global_dev_visualizer", None)
 
     # Initially None
     assert get_dev_visualizer() is None
@@ -316,10 +316,10 @@ def test_get_dev_visualizer_function(monkeypatch):
 
 def test_auto_enable_dev_visualizer_from_env(monkeypatch):
     """Test auto_enable_dev_visualizer_from_env function."""
-    from actions.dev.visualizer import auto_enable_dev_visualizer_from_env, get_dev_visualizer
+    from arcadeactions.dev.visualizer import auto_enable_dev_visualizer_from_env, get_dev_visualizer
 
     # Clean up any existing instance
-    monkeypatch.setattr("actions.dev.visualizer._global_dev_visualizer", None)
+    monkeypatch.setattr("arcadeactions.dev.visualizer._global_dev_visualizer", None)
 
     # Without env var, should return None
     monkeypatch.delenv("ARCADEACTIONS_DEVVIZ", raising=False)
@@ -336,7 +336,7 @@ def test_auto_enable_dev_visualizer_from_env(monkeypatch):
 
 
 def test_detach_without_session_returns_false():
-    from actions.visualizer.attach import detach_visualizer
+    from arcadeactions.visualizer.attach import detach_visualizer
 
     assert detach_visualizer() is False
 
@@ -346,20 +346,20 @@ def test_auto_attach_env_noop(monkeypatch, stub_attach_kwargs):
 
 
 def test_actions_import_auto_attaches_with_env(monkeypatch, stub_attach_kwargs):
-    """Importing actions with ARCADEACTIONS_VISUALIZER=1 should auto-attach."""
+    """Importing arcadeactions with ARCADEACTIONS_VISUALIZER=1 should auto-attach."""
     monkeypatch.setenv("ARCADEACTIONS_VISUALIZER", "1")
 
     try:
-        import actions.visualizer.attach as visualizer_attach
+        import arcadeactions.visualizer.attach as visualizer_attach
 
         if visualizer_attach.is_visualizer_attached():
             visualizer_attach.detach_visualizer()
 
         visualizer_attach._AUTO_ATTACH_ATTEMPTED = False  # type: ignore[attr-defined]
 
-        import actions  # noqa: F401
+        import arcadeactions
 
-        importlib.reload(actions)
+        importlib.reload(arcadeactions)
 
         assert visualizer_attach.is_visualizer_attached() is True
     finally:
@@ -368,7 +368,7 @@ def test_actions_import_auto_attaches_with_env(monkeypatch, stub_attach_kwargs):
 
 
 def test_attach_handles_provider_exception(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer.attach import attach_visualizer
+    from arcadeactions.visualizer.attach import attach_visualizer
 
     def fake_update_all(cls, delta_time: float, physics_engine: Any = None) -> None:
         pass
@@ -385,7 +385,7 @@ def test_attach_handles_provider_exception(monkeypatch, stub_attach_kwargs):
 
 
 def test_enable_visualizer_hotkey_autodetects_window(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer.attach import enable_visualizer_hotkey, is_visualizer_attached
+    from arcadeactions.visualizer.attach import enable_visualizer_hotkey, is_visualizer_attached
 
     def fake_update_all(cls, delta_time: float, physics_engine: Any = None) -> None:
         pass
@@ -413,7 +413,7 @@ def test_enable_visualizer_hotkey_autodetects_window(monkeypatch, stub_attach_kw
 
 
 def test_detach_does_not_override_restored_update(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer.attach import attach_visualizer, detach_visualizer
+    from arcadeactions.visualizer.attach import attach_visualizer, detach_visualizer
 
     original = Action.update_all
 
@@ -431,7 +431,7 @@ def test_detach_does_not_override_restored_update(monkeypatch, stub_attach_kwarg
 
 
 def test_collect_sprite_positions_handles_targets():
-    from actions.visualizer.attach import _collect_sprite_positions
+    from arcadeactions.visualizer.attach import _collect_sprite_positions
 
     original_active = list(Action._active_actions)
     try:
@@ -463,7 +463,7 @@ def test_collect_sprite_positions_handles_targets():
 
 
 def test_auto_attach_multiple_calls(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer import attach as attach_module
+    from arcadeactions.visualizer import attach as attach_module
 
     monkeypatch.setenv("ARCADEACTIONS_VISUALIZER", "1")
     calls: list[dict[str, Any]] = []
@@ -483,7 +483,7 @@ def test_auto_attach_multiple_calls(monkeypatch, stub_attach_kwargs):
 
 
 def test_auto_attach_defaults_kwargs(monkeypatch):
-    from actions.visualizer import attach as attach_module
+    from arcadeactions.visualizer import attach as attach_module
 
     monkeypatch.setenv("ARCADEACTIONS_VISUALIZER", "1")
     called: list[dict[str, Any]] = []
@@ -509,7 +509,7 @@ def test_auto_attach_defaults_kwargs(monkeypatch):
 
 
 def test_enable_hotkey_no_window(monkeypatch):
-    from actions.visualizer.attach import enable_visualizer_hotkey
+    from arcadeactions.visualizer.attach import enable_visualizer_hotkey
 
     def fake_update_all(cls, delta_time: float, physics_engine: Any = None) -> None:
         pass
@@ -525,7 +525,7 @@ def test_enable_hotkey_no_window(monkeypatch):
 
 
 def test_enable_hotkey_default_attach_kwargs(monkeypatch):
-    from actions.visualizer.attach import enable_visualizer_hotkey
+    from arcadeactions.visualizer.attach import enable_visualizer_hotkey
 
     def fake_update_all(cls, delta_time: float, physics_engine: Any = None) -> None:
         pass
@@ -556,7 +556,7 @@ def test_enable_hotkey_default_attach_kwargs(monkeypatch):
 
         return DummySession()
 
-    monkeypatch.setattr("actions.visualizer.attach.attach_visualizer", fake_attach)
+    monkeypatch.setattr("arcadeactions.visualizer.attach.attach_visualizer", fake_attach)
 
     assert enable_visualizer_hotkey() is True
     handler = window.handlers["on_key_press"]
@@ -565,7 +565,7 @@ def test_enable_hotkey_default_attach_kwargs(monkeypatch):
 
 
 def test_enable_visualizer_hotkey_returns_false_without_window(monkeypatch, stub_attach_kwargs):
-    from actions.visualizer.attach import enable_visualizer_hotkey
+    from arcadeactions.visualizer.attach import enable_visualizer_hotkey
 
     def fake_update_all(cls, delta_time: float, physics_engine: Any = None) -> None:
         pass
@@ -577,7 +577,7 @@ def test_enable_visualizer_hotkey_returns_false_without_window(monkeypatch, stub
 
 def test_collect_target_names_from_view_no_window(monkeypatch):
     """Test that _collect_target_names_from_view handles missing window gracefully."""
-    from actions.visualizer.attach import _collect_target_names_from_view
+    from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
     monkeypatch.setattr(arcade, "get_window", lambda: (_ for _ in ()).throw(RuntimeError("no window")))
 
@@ -587,7 +587,7 @@ def test_collect_target_names_from_view_no_window(monkeypatch):
 
 def test_collect_target_names_from_view_no_view(monkeypatch):
     """Test that _collect_target_names_from_view handles missing view gracefully."""
-    from actions.visualizer.attach import _collect_target_names_from_view
+    from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
     class StubWindow:
         current_view = None
@@ -600,7 +600,7 @@ def test_collect_target_names_from_view_no_view(monkeypatch):
 
 def test_collect_target_names_from_view_finds_sprite_lists(monkeypatch):
     """Test that _collect_target_names_from_view finds SpriteList objects."""
-    from actions.visualizer.attach import _collect_target_names_from_view
+    from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
     sprite_list = arcade.SpriteList()
     sprite_list.append(arcade.Sprite(":resources:images/items/star.png"))
@@ -622,7 +622,7 @@ def test_collect_target_names_from_view_finds_sprite_lists(monkeypatch):
 
 def test_collect_target_names_from_view_finds_sprites(monkeypatch):
     """Test that _collect_target_names_from_view finds Sprite objects."""
-    from actions.visualizer.attach import _collect_target_names_from_view
+    from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
     sprite = arcade.Sprite(":resources:images/items/star.png")
 
@@ -643,7 +643,7 @@ def test_collect_target_names_from_view_finds_sprites(monkeypatch):
 
 def test_collect_target_names_from_view_finds_sprites_in_lists(monkeypatch):
     """Test that _collect_target_names_from_view finds sprites within lists."""
-    from actions.visualizer.attach import _collect_target_names_from_view
+    from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
     sprite1 = arcade.Sprite(":resources:images/items/star.png")
     sprite2 = arcade.Sprite(":resources:images/items/star.png")
@@ -673,7 +673,7 @@ def test_collect_target_names_from_view_finds_sprites_in_lists(monkeypatch):
 
 def test_collect_target_names_from_view_skips_private_attributes(monkeypatch):
     """Test that _collect_target_names_from_view skips private attributes."""
-    from actions.visualizer.attach import _collect_target_names_from_view
+    from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
     public_list = arcade.SpriteList()
     private_list = arcade.SpriteList()
@@ -696,8 +696,8 @@ def test_collect_target_names_from_view_skips_private_attributes(monkeypatch):
 
 def test_collect_target_names_from_view_finds_targets_from_actions(monkeypatch):
     """Test that _collect_target_names_from_view finds targets from active actions."""
-    from actions.conditional import MoveUntil
-    from actions.visualizer.attach import _collect_target_names_from_view
+    from arcadeactions.conditional import MoveUntil
+    from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
     sprite = arcade.Sprite(":resources:images/items/star.png")
     action = MoveUntil(velocity=(1, 0), condition=lambda: False)
@@ -719,9 +719,9 @@ def test_collect_target_names_from_view_finds_targets_from_actions(monkeypatch):
 
 
 def test_collect_target_names_from_view_finds_sprite_in_list_from_action(monkeypatch):
-    """Test that _collect_target_names_from_view finds sprites in lists from actions."""
-    from actions.conditional import MoveUntil
-    from actions.visualizer.attach import _collect_target_names_from_view
+    """Test that _collect_target_names_from_view finds sprites in lists from arcadeactions."""
+    from arcadeactions.conditional import MoveUntil
+    from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
     sprite = arcade.Sprite(":resources:images/items/star.png")
     sprite_list = arcade.SpriteList()
@@ -748,7 +748,7 @@ def test_collect_target_names_from_view_finds_sprite_in_list_from_action(monkeyp
 
 def test_collect_target_names_from_view_handles_exceptions(monkeypatch):
     """Test that _collect_target_names_from_view handles exceptions gracefully."""
-    from actions.visualizer.attach import _collect_target_names_from_view
+    from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
     class StubView:
         def __init__(self):
@@ -775,7 +775,7 @@ def test_collect_target_names_from_view_handles_exceptions(monkeypatch):
 
 def test_collect_target_names_from_view_handles_none_attributes(monkeypatch):
     """Test that _collect_target_names_from_view handles None attributes gracefully."""
-    from actions.visualizer.attach import _collect_target_names_from_view
+    from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
     valid_list = arcade.SpriteList()
 
@@ -798,7 +798,7 @@ def test_collect_target_names_from_view_handles_none_attributes(monkeypatch):
 
 def test_collect_target_names_from_view_auto_attach_provides_provider(monkeypatch):
     """Test that auto_attach_from_env automatically provides target_names_provider."""
-    from actions.visualizer import attach as attach_module
+    from arcadeactions.visualizer import attach as attach_module
 
     monkeypatch.setenv("ARCADEACTIONS_VISUALIZER", "1")
     called: list[dict[str, Any]] = []

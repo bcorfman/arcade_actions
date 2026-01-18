@@ -2,9 +2,9 @@
 
 import arcade
 
-from actions import cycle_textures_until
-from actions.conditional import CycleTexturesUntil
-from actions.frame_timing import after_frames
+from arcadeactions import cycle_textures_until
+from arcadeactions.conditional import CycleTexturesUntil
+from arcadeactions.frame_timing import after_frames
 
 
 def _make_textures(count: int):

@@ -2,7 +2,7 @@
 
 import pytest
 
-from actions import (
+from arcadeactions import (
     Action,
     CallbackUntil,
     MoveUntil,
@@ -15,7 +15,7 @@ from actions import (
     set_debug_actions,
     set_debug_options,
 )
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 
 class TestDebugConfiguration:
@@ -259,7 +259,7 @@ class TestDebugEnvironmentConfig:
 
     def test_env_debug_numeric_level(self, monkeypatch):
         """Test ARCADEACTIONS_DEBUG with numeric level."""
-        from actions.config import apply_environment_configuration
+        from arcadeactions.config import apply_environment_configuration
 
         monkeypatch.setenv("ARCADEACTIONS_DEBUG", "2")
         apply_environment_configuration()
@@ -268,7 +268,7 @@ class TestDebugEnvironmentConfig:
 
     def test_env_debug_boolean_true(self, monkeypatch):
         """Test ARCADEACTIONS_DEBUG with boolean values."""
-        from actions.config import apply_environment_configuration
+        from arcadeactions.config import apply_environment_configuration
 
         monkeypatch.setenv("ARCADEACTIONS_DEBUG", "true")
         apply_environment_configuration()
@@ -277,7 +277,7 @@ class TestDebugEnvironmentConfig:
 
     def test_env_debug_all_flag(self, monkeypatch):
         """Test ARCADEACTIONS_DEBUG_ALL environment variable."""
-        from actions.config import apply_environment_configuration
+        from arcadeactions.config import apply_environment_configuration
 
         monkeypatch.setenv("ARCADEACTIONS_DEBUG", "2")
         monkeypatch.setenv("ARCADEACTIONS_DEBUG_ALL", "1")
@@ -288,7 +288,7 @@ class TestDebugEnvironmentConfig:
 
     def test_env_debug_include_classes(self, monkeypatch):
         """Test ARCADEACTIONS_DEBUG_INCLUDE environment variable."""
-        from actions.config import apply_environment_configuration
+        from arcadeactions.config import apply_environment_configuration
 
         monkeypatch.setenv("ARCADEACTIONS_DEBUG", "2")
         monkeypatch.setenv("ARCADEACTIONS_DEBUG_INCLUDE", "MoveUntil,CallbackUntil")
@@ -300,7 +300,7 @@ class TestDebugEnvironmentConfig:
 
     def test_env_debug_empty_string(self, monkeypatch):
         """Test ARCADEACTIONS_DEBUG with empty string."""
-        from actions.config import apply_environment_configuration
+        from arcadeactions.config import apply_environment_configuration
 
         monkeypatch.setenv("ARCADEACTIONS_DEBUG", "")
         apply_environment_configuration()
@@ -309,7 +309,7 @@ class TestDebugEnvironmentConfig:
 
     def test_env_debug_whitespace_only(self, monkeypatch):
         """Test ARCADEACTIONS_DEBUG with whitespace only."""
-        from actions.config import apply_environment_configuration
+        from arcadeactions.config import apply_environment_configuration
 
         monkeypatch.setenv("ARCADEACTIONS_DEBUG", "   ")
         apply_environment_configuration()
@@ -318,7 +318,7 @@ class TestDebugEnvironmentConfig:
 
     def test_env_debug_false_values(self, monkeypatch):
         """Test ARCADEACTIONS_DEBUG with false/no/off."""
-        from actions.config import apply_environment_configuration
+        from arcadeactions.config import apply_environment_configuration
 
         for value in ["false", "no", "off"]:
             monkeypatch.setenv("ARCADEACTIONS_DEBUG", value)
@@ -327,7 +327,7 @@ class TestDebugEnvironmentConfig:
 
     def test_env_debug_unknown_value(self, monkeypatch):
         """Test ARCADEACTIONS_DEBUG with unknown value defaults to level 1."""
-        from actions.config import apply_environment_configuration
+        from arcadeactions.config import apply_environment_configuration
 
         monkeypatch.setenv("ARCADEACTIONS_DEBUG", "unknown_value")
         apply_environment_configuration()
@@ -350,7 +350,7 @@ class TestDebugLogAction:
 
     def test_debug_log_action_with_exception_in_type(self, capsys):
         """Test _debug_log_action handles exceptions when getting action name."""
-        from actions.base import _debug_log_action
+        from arcadeactions.base import _debug_log_action
 
         # Create a mock object whose type() raises an exception
         class BadMeta(type):
@@ -375,7 +375,7 @@ class TestDebugLogAction:
 
 
 class TestDebugLogConditional:
-    """Test the _debug_log function in actions/_shared_logging.py."""
+    """Test the _debug_log function in arcadeactions/_shared_logging.py."""
 
     def setup_method(self):
         """Reset debug config before each test."""
@@ -389,7 +389,7 @@ class TestDebugLogConditional:
 
     def test_debug_log_verbose_output(self, capsys):
         """Test _debug_log prints verbose messages at level 3."""
-        from actions.conditional import _debug_log
+        from arcadeactions.conditional import _debug_log
 
         # Enable level 3 logging for CallbackUntil
         set_debug_options(level=3, include=["CallbackUntil"])
@@ -406,29 +406,29 @@ class TestNormalizeNames:
 
     def test_normalize_none(self):
         """Test that None input returns None."""
-        from actions.config import _normalize_names
+        from arcadeactions.config import _normalize_names
 
         result = _normalize_names(None)
         assert result is None
 
     def test_normalize_string_list(self):
         """Test normalizing list of strings."""
-        from actions.config import _normalize_names
+        from arcadeactions.config import _normalize_names
 
         result = _normalize_names(["MoveUntil", "CallbackUntil"])
         assert result == {"MoveUntil", "CallbackUntil"}
 
     def test_normalize_class_types(self):
         """Test normalizing actual class types."""
-        from actions import CallbackUntil, MoveUntil
-        from actions.config import _normalize_names
+        from arcadeactions import CallbackUntil, MoveUntil
+        from arcadeactions.config import _normalize_names
 
         result = _normalize_names([MoveUntil, CallbackUntil])
         assert result == {"MoveUntil", "CallbackUntil"}
 
     def test_normalize_invalid_object(self):
         """Test normalizing object without __name__ attribute."""
-        from actions.config import _normalize_names
+        from arcadeactions.config import _normalize_names
 
         # Objects without __name__ should be skipped silently
         result = _normalize_names([123, None, "ValidName"])
@@ -436,7 +436,7 @@ class TestNormalizeNames:
 
     def test_normalize_empty_list(self):
         """Test normalizing empty list returns None."""
-        from actions.config import _normalize_names
+        from arcadeactions.config import _normalize_names
 
         result = _normalize_names([])
         assert result is None

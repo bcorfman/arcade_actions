@@ -11,7 +11,7 @@ import arcade
 import pytest
 
 # Import the required functions and classes
-from actions import (
+from arcadeactions import (
     arrange_grid,
     create_formation_entry_from_sprites,
 )
@@ -145,8 +145,8 @@ class MockStarfieldView:
                 velocity_x = velocity_y = 0
 
             # Create movement action using the exact same precision condition as the real implementation
-            from actions import MoveUntil
-            from actions.pattern import _create_precision_condition_and_callback
+            from arcadeactions import MoveUntil
+            from arcadeactions.pattern import _create_precision_condition_and_callback
 
             movement_action = MoveUntil(
                 velocity=(velocity_x, velocity_y),
@@ -331,7 +331,7 @@ class TestSpaceClutterPathCaching:
 
     def test_cached_sprites_stop_at_formation_slots(self):
         """Test that cached sprites actually stop at their formation slots."""
-        from actions import Action
+        from arcadeactions import Action
 
         view = MockStarfieldView()
 
@@ -554,8 +554,8 @@ class MockOptimizedStarfieldView:
         self.wave_count += 1
 
         # Stop all existing enemy actions for both sprite list and individual sprites
-        from actions import Action, DelayUntil, MoveUntil, repeat, sequence
-        from actions.pattern import create_wave_pattern
+        from arcadeactions import Action, DelayUntil, MoveUntil, repeat, sequence
+        from arcadeactions.pattern import create_wave_pattern
 
         Action.stop_actions_for_target(self.enemy_list, tag="enemy_formation_entry")
         Action.stop_actions_for_target(self.enemy_list, tag="enemy_wave")
@@ -591,7 +591,7 @@ class MockOptimizedStarfieldView:
             velocity = action_template["velocity"]
             target_position = action_template["target_position"]
 
-            from actions.pattern import _create_precision_condition_and_callback
+            from arcadeactions.pattern import _create_precision_condition_and_callback
 
             # Create new action with fresh condition bound to this sprite
             action = MoveUntil(
@@ -631,7 +631,7 @@ class TestSpaceClutterOptimizations:
 
     def teardown_method(self):
         """Clean up after each test."""
-        from actions import Action
+        from arcadeactions import Action
 
         Action.stop_all()
 
@@ -755,7 +755,7 @@ class TestSpaceClutterOptimizations:
 
     def test_fresh_actions_created_per_wave(self):
         """Test that fresh action instances are created for each wave."""
-        from actions import Action
+        from arcadeactions import Action
 
         view = MockOptimizedStarfieldView()
 

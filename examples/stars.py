@@ -18,7 +18,7 @@ from collections.abc import Callable
 import arcade
 from arcade import easing
 
-from actions import (
+from arcadeactions import (
     Action,
     BlinkUntil,
     DelayUntil,
@@ -27,7 +27,7 @@ from actions import (
     center_window,
     infinite,
 )
-from actions.frame_timing import after_frames
+from arcadeactions.frame_timing import after_frames
 
 # ---------------------------------------------------------------------------
 # Window configuration

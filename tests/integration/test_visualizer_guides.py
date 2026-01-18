@@ -7,13 +7,13 @@ visual debug overlays that help visualize action behavior.
 
 import arcade
 
-from actions.visualizer.guides import (
+from arcadeactions.visualizer.guides import (
     BoundsGuide,
     GuideManager,
     PathGuide,
     VelocityGuide,
 )
-from actions.visualizer.instrumentation import ActionSnapshot
+from arcadeactions.visualizer.instrumentation import ActionSnapshot
 
 
 class TestVelocityGuide:
@@ -269,7 +269,7 @@ class TestHighlightGuide:
 
     def test_highlight_guide_initialization(self):
         """Test that highlight guide initializes with always enabled."""
-        from actions.visualizer.guides import HighlightGuide
+        from arcadeactions.visualizer.guides import HighlightGuide
 
         guide = HighlightGuide()
         assert guide.enabled is True
@@ -277,7 +277,7 @@ class TestHighlightGuide:
 
     def test_highlight_guide_draws_box_for_highlighted_target(self):
         """Test that highlight guide draws box around highlighted sprite."""
-        from actions.visualizer.guides import HighlightGuide
+        from arcadeactions.visualizer.guides import HighlightGuide
 
         guide = HighlightGuide()
 
@@ -305,7 +305,7 @@ class TestHighlightGuide:
 
     def test_highlight_guide_draws_boxes_for_sprite_list(self):
         """Test that highlight guide draws boxes around all sprites in a highlighted list."""
-        from actions.visualizer.guides import HighlightGuide
+        from arcadeactions.visualizer.guides import HighlightGuide
 
         guide = HighlightGuide()
 
@@ -337,7 +337,7 @@ class TestHighlightGuide:
 
     def test_highlight_guide_clears_when_no_highlight(self):
         """Test that highlight guide clears rectangles when nothing is highlighted."""
-        from actions.visualizer.guides import HighlightGuide
+        from arcadeactions.visualizer.guides import HighlightGuide
 
         guide = HighlightGuide()
 
@@ -354,7 +354,7 @@ class TestHighlightGuide:
 
     def test_highlight_guide_disabled_produces_no_rectangles(self):
         """Test that disabled highlight guide doesn't draw anything."""
-        from actions.visualizer.guides import HighlightGuide
+        from arcadeactions.visualizer.guides import HighlightGuide
 
         guide = HighlightGuide(enabled=False)
 

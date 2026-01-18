@@ -3,10 +3,10 @@
 import arcade
 import pytest
 
-from actions import Action
-from actions.base import CompositeAction
-from actions.conditional import MoveUntil, infinite
-from actions.frame_timing import after_frames
+from arcadeactions import Action
+from arcadeactions.base import CompositeAction
+from arcadeactions.conditional import MoveUntil, infinite
+from arcadeactions.frame_timing import after_frames
 
 
 def create_test_sprite() -> arcade.Sprite:

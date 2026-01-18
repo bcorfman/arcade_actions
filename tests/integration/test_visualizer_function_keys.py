@@ -5,9 +5,9 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions import Action
-from actions.visualizer import attach as visualizer_attach
-from actions.visualizer import detach_visualizer, get_visualizer_session
+from arcadeactions import Action
+from arcadeactions.visualizer import attach as visualizer_attach
+from arcadeactions.visualizer import detach_visualizer, get_visualizer_session
 
 
 @pytest.mark.usefixtures("window")

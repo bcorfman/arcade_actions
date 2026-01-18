@@ -13,7 +13,7 @@ detect the change.
 
 from pathlib import Path
 
-from actions.dev import FileWatcher
+from arcadeactions.dev import FileWatcher
 
 
 def on_files_changed(changed_files: list[Path]) -> None:

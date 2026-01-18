@@ -1,7 +1,7 @@
 import pytest
 
-from actions import Action
-from actions.frame_timing import after_frames
+from arcadeactions import Action
+from arcadeactions.frame_timing import after_frames
 
 
 class FakeEmitter:
@@ -31,7 +31,7 @@ class TestEmitParticlesUntil:
         Action.stop_all()
 
     def test_emitter_per_sprite_center_anchor_and_rotation(self, test_sprite_list):
-        from actions.conditional import EmitParticlesUntil
+        from arcadeactions.conditional import EmitParticlesUntil
 
         # Assign distinct angles for follow_rotation verification
         for i, s in enumerate(test_sprite_list):
@@ -72,7 +72,7 @@ class TestEmitParticlesUntil:
         assert action.done
 
     def test_custom_anchor_offset_tuple(self, test_sprite):
-        from actions.conditional import EmitParticlesUntil
+        from arcadeactions.conditional import EmitParticlesUntil
 
         test_sprite.center_x = 200
         test_sprite.center_y = 300
@@ -111,7 +111,7 @@ class TestEmitParticlesUntilErrorHandling:
 
     def test_on_stop_callback_exception(self, test_sprite):
         """Test EmitParticlesUntil handles on_stop callback exceptions."""
-        from actions.conditional import EmitParticlesUntil
+        from arcadeactions.conditional import EmitParticlesUntil
 
         def failing_callback():
             raise ValueError("Callback failed")
@@ -130,7 +130,7 @@ class TestEmitParticlesUntilErrorHandling:
 
     def test_missing_emitter_update(self, test_sprite):
         """Test update_effect handles missing emitter gracefully."""
-        from actions.conditional import EmitParticlesUntil
+        from arcadeactions.conditional import EmitParticlesUntil
 
         action = EmitParticlesUntil(
             emitter_factory=make_emitter_factory(),
@@ -148,7 +148,7 @@ class TestEmitParticlesUntilErrorHandling:
 
     def test_emitter_update_failure(self, test_sprite):
         """Test EmitParticlesUntil handles emitter update exceptions."""
-        from actions.conditional import EmitParticlesUntil
+        from arcadeactions.conditional import EmitParticlesUntil
 
         class FailingEmitter(FakeEmitter):
             def update(self):
@@ -169,7 +169,7 @@ class TestEmitParticlesUntilErrorHandling:
 
     def test_emitter_destroy_failure(self, test_sprite):
         """Test EmitParticlesUntil handles emitter destroy exceptions."""
-        from actions.conditional import EmitParticlesUntil
+        from arcadeactions.conditional import EmitParticlesUntil
 
         class FailingEmitter(FakeEmitter):
             def destroy(self):
@@ -192,7 +192,7 @@ class TestEmitParticlesUntilErrorHandling:
 
     def test_emitter_without_destroy_method(self, test_sprite):
         """Test EmitParticlesUntil handles emitters without destroy method."""
-        from actions.conditional import EmitParticlesUntil
+        from arcadeactions.conditional import EmitParticlesUntil
 
         class NoDestroyEmitter:
             """Emitter without destroy method."""
@@ -224,7 +224,7 @@ class TestEmitParticlesUntilErrorHandling:
 
     def test_emitter_without_update_method(self, test_sprite):
         """Test EmitParticlesUntil handles emitters without update method."""
-        from actions.conditional import EmitParticlesUntil
+        from arcadeactions.conditional import EmitParticlesUntil
 
         class NoUpdateEmitter:
             """Emitter without update method."""
@@ -254,7 +254,7 @@ class TestEmitParticlesUntilErrorHandling:
 
     def test_clone_method(self, test_sprite):
         """Test EmitParticlesUntil clone method."""
-        from actions.conditional import EmitParticlesUntil
+        from arcadeactions.conditional import EmitParticlesUntil
 
         original = EmitParticlesUntil(
             emitter_factory=make_emitter_factory(),
@@ -277,7 +277,7 @@ class TestEmitParticlesUntilErrorHandling:
 
     def test_destroy_on_stop_false(self, test_sprite):
         """Test EmitParticlesUntil with destroy_on_stop=False."""
-        from actions.conditional import EmitParticlesUntil
+        from arcadeactions.conditional import EmitParticlesUntil
 
         action = EmitParticlesUntil(
             emitter_factory=make_emitter_factory(),

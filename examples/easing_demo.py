@@ -21,7 +21,7 @@ import arcade
 from arcade import easing
 from arcade.types import Color
 
-from actions import Action, center_window, ease, infinite, seconds_to_frames
+from arcadeactions import Action, center_window, ease, infinite, seconds_to_frames
 
 # --- Constants ---
 WINDOW_WIDTH = 1280
@@ -129,7 +129,7 @@ class EaseDemoView(arcade.View):
 
         # Create continuous movement action (missile flies until hitting boundary)
         # Note: Don't apply the action yet - Ease will apply it
-        from actions.conditional import MoveUntil
+        from arcadeactions.conditional import MoveUntil
 
         # Edge-based bounds: missile is 16px wide (radius=8), so add half-width to boundaries
         # This allows the sprite center to reach the full window width

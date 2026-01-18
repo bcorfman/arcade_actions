@@ -3,7 +3,7 @@
 import arcade
 import pytest
 
-from actions import Action, MoveUntil, infinite
+from arcadeactions import Action, MoveUntil, infinite
 
 
 @pytest.fixture

@@ -1,7 +1,7 @@
 """Additional SpritePool coverage tests.
 
 Covers error branches, counters, and property accessors to improve
-coverage for actions/pools.py.
+coverage for arcadeactions/pools.py.
 """
 
 import arcade
@@ -13,14 +13,14 @@ def _make_sprite():
 
 
 def test_sprite_pool_invalid_max_size():
-    from actions.pools import SpritePool
+    from arcadeactions.pools import SpritePool
 
     with pytest.raises(ValueError):
         SpritePool(_make_sprite, max_size=0)
 
 
 def test_sprite_pool_acquire_invalid_n():
-    from actions.pools import SpritePool
+    from arcadeactions.pools import SpritePool
 
     pool = SpritePool(_make_sprite, max_size=5)
     with pytest.raises(ValueError):
@@ -28,7 +28,7 @@ def test_sprite_pool_acquire_invalid_n():
 
 
 def test_sprite_pool_counts_properties_update():
-    from actions.pools import SpritePool
+    from arcadeactions.pools import SpritePool
 
     pool = SpritePool(_make_sprite, max_size=10)
     assert pool.active_count == 0
@@ -52,7 +52,7 @@ def test_sprite_pool_counts_properties_update():
 
 
 def test_assign_handles_active_and_new_sprites_and_enforces_max():
-    from actions.pools import SpritePool
+    from arcadeactions.pools import SpritePool
 
     pool = SpritePool(_make_sprite, max_size=4)
 

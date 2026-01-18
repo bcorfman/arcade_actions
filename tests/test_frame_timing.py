@@ -6,7 +6,7 @@ All timing in ArcadeActions is based on frame counts, not seconds.
 
 import arcade
 
-from actions import Action
+from arcadeactions import Action
 from tests.conftest import ActionTestBase
 
 
@@ -35,8 +35,8 @@ class TestFrameCounter(ActionTestBase):
 
     def test_frame_counter_pauses_when_actions_paused(self, test_sprite):
         """Test that frame counter does NOT increment when actions are paused."""
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         Action._frame_counter = 0
         sprite = test_sprite
@@ -68,7 +68,7 @@ class TestAfterFrames(ActionTestBase):
 
     def test_after_frames_basic(self):
         """Test basic after_frames functionality."""
-        from actions.frame_timing import after_frames
+        from arcadeactions.frame_timing import after_frames
 
         condition = after_frames(3)
 
@@ -84,7 +84,7 @@ class TestAfterFrames(ActionTestBase):
 
     def test_after_frames_zero(self):
         """Test after_frames with zero frames."""
-        from actions.frame_timing import after_frames
+        from arcadeactions.frame_timing import after_frames
 
         condition = after_frames(0)
 
@@ -93,7 +93,7 @@ class TestAfterFrames(ActionTestBase):
 
     def test_after_frames_negative(self):
         """Test after_frames with negative frames (should behave like zero)."""
-        from actions.frame_timing import after_frames
+        from arcadeactions.frame_timing import after_frames
 
         condition = after_frames(-5)
 
@@ -102,8 +102,8 @@ class TestAfterFrames(ActionTestBase):
 
     def test_after_frames_with_action(self, test_sprite):
         """Test after_frames as a condition in an action."""
-        from actions import move_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import move_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 100
@@ -132,7 +132,7 @@ class TestEveryFrames(ActionTestBase):
 
     def test_every_frames_basic(self):
         """Test basic every_frames functionality."""
-        from actions.frame_timing import every_frames
+        from arcadeactions.frame_timing import every_frames
 
         counter = 0
 
@@ -166,7 +166,7 @@ class TestEveryFrames(ActionTestBase):
 
     def test_every_frames_one(self):
         """Test every_frames with interval of 1 (every frame)."""
-        from actions.frame_timing import every_frames
+        from arcadeactions.frame_timing import every_frames
 
         counter = 0
 
@@ -186,8 +186,8 @@ class TestEveryFrames(ActionTestBase):
 
     def test_every_frames_with_callback_until(self, test_sprite):
         """Test every_frames with CallbackUntil action."""
-        from actions import callback_until
-        from actions.frame_timing import after_frames, every_frames
+        from arcadeactions import callback_until
+        from arcadeactions.frame_timing import after_frames, every_frames
 
         sprite = test_sprite
         call_count = 0
@@ -215,7 +215,7 @@ class TestWithinFrames(ActionTestBase):
 
     def test_within_frames_basic(self):
         """Test basic within_frames functionality."""
-        from actions.frame_timing import within_frames
+        from arcadeactions.frame_timing import within_frames
 
         condition = within_frames(2, 5)
 
@@ -236,7 +236,7 @@ class TestWithinFrames(ActionTestBase):
 
     def test_within_frames_single_frame(self):
         """Test within_frames with single frame window."""
-        from actions.frame_timing import within_frames
+        from arcadeactions.frame_timing import within_frames
 
         condition = within_frames(3, 4)
 
@@ -253,7 +253,7 @@ class TestWithinFrames(ActionTestBase):
 
     def test_within_frames_zero_start(self):
         """Test within_frames starting at frame 0."""
-        from actions.frame_timing import within_frames
+        from arcadeactions.frame_timing import within_frames
 
         condition = within_frames(0, 3)
 
@@ -271,8 +271,8 @@ class TestPauseResumeStepBehavior(ActionTestBase):
 
     def test_pause_halts_frame_counter(self, test_sprite):
         """Test that pausing stops frame counter and action progress."""
-        from actions import move_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import move_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 100
@@ -301,8 +301,8 @@ class TestPauseResumeStepBehavior(ActionTestBase):
 
     def test_resume_continues_frame_counter(self, test_sprite):
         """Test that resuming continues frame counter and action progress."""
-        from actions import move_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import move_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 100
@@ -331,8 +331,8 @@ class TestPauseResumeStepBehavior(ActionTestBase):
 
     def test_step_advances_one_frame(self, test_sprite):
         """Test that step_all advances exactly one frame while keeping paused."""
-        from actions import move_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import move_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 100
@@ -365,8 +365,8 @@ class TestPauseResumeStepBehavior(ActionTestBase):
         This ensures game code doesn't need to know about pause state when
         creating new actions (e.g., firing bullets during pause).
         """
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         # Create first sprite with action
         sprite1 = test_sprite
@@ -421,8 +421,8 @@ class TestPauseResumeStepBehavior(ActionTestBase):
 
     def test_heavy_load_determinism(self, test_sprite):
         """Test that frame-based timing is deterministic regardless of delta_time."""
-        from actions import move_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import move_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 100
@@ -450,8 +450,8 @@ class TestFrameTimingIntegration(ActionTestBase):
 
     def test_multiple_actions_same_frame_timing(self, test_sprite):
         """Test multiple actions using frame timing complete at correct frames."""
-        from actions import move_until, rotate_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import move_until, rotate_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 100
@@ -481,8 +481,8 @@ class TestFrameTimingIntegration(ActionTestBase):
 
     def test_frame_timing_with_sequences(self, test_sprite):
         """Test frame timing works correctly in sequences."""
-        from actions import DelayUntil, MoveUntil, sequence
-        from actions.frame_timing import after_frames
+        from arcadeactions import DelayUntil, MoveUntil, sequence
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 100

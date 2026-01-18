@@ -10,7 +10,7 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.integration
@@ -34,7 +34,7 @@ class TestApplyMetadataActionsEarlyReturn(ActionTestBase):
         # Sprite doesn't conform to protocol (no _action_configs attribute)
         assert not hasattr(test_sprite, "_action_configs")
 
-        mock_registry = mocker.patch("actions.dev.get_preset_registry")
+        mock_registry = mocker.patch("arcadeactions.dev.get_preset_registry")
 
         # Should return early without calling registry (protocol check fails)
         dev_viz.apply_metadata_actions(test_sprite)
@@ -53,7 +53,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_registry = mocker.MagicMock()
         mock_preset_action = mocker.MagicMock()
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         # Set up sprite with _action_configs
         test_sprite._action_configs = [{"preset": "test_preset", "params": {"speed": 5}}]
@@ -73,7 +73,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_registry = mocker.MagicMock()
         mock_preset_action = mocker.MagicMock()
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "test_preset", "params": {}}]
 
@@ -90,7 +90,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_registry = mocker.MagicMock()
         mock_preset_action = mocker.MagicMock()
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "test_preset", "params": None}]
 
@@ -109,7 +109,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_preset_action = mocker.MagicMock()
         mock_preset_action.condition = None  # Initially no condition
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "test_preset", "params": {}, "condition": "after_frames:60"}]
 
@@ -142,7 +142,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
 
         mock_preset_action = ActionWithFailingCondition()
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "test_preset", "params": {}, "condition": "after_frames:60"}]
 
@@ -162,7 +162,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         def resolver(callback_name):
             return lambda: None  # Return a dummy callback
 
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "test_preset", "params": {}, "on_stop": "my_callback"}]
 
@@ -197,7 +197,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
 
         mock_preset_action = ActionTrackingOnStop()
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [
             {
@@ -221,7 +221,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_registry = mocker.MagicMock()
         mock_preset_action = mocker.MagicMock()
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "test_preset", "params": {}, "tag": "movement"}]
 
@@ -241,7 +241,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_preset_action.target_velocity = (0, 0)
         mock_preset_action.current_velocity = (0, 0)
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "test_preset", "params": {}, "velocity": (5, 10)}]
 
@@ -260,7 +260,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_preset_action = mocker.MagicMock()
         # Don't add target_velocity attribute
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "test_preset", "params": {}, "velocity": (5, 10)}]
 
@@ -278,7 +278,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_preset_action = mocker.MagicMock()
         mock_preset_action.bounds = None
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "test_preset", "params": {}, "bounds": (0, 0, 800, 600)}]
 
@@ -296,7 +296,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_preset_action = mocker.MagicMock()
         mock_preset_action.boundary_behavior = None
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "test_preset", "params": {}, "boundary_behavior": "wrap"}]
 
@@ -314,7 +314,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_preset_action = mocker.MagicMock()
         mock_preset_action.velocity_provider = None
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         def velocity_provider():
             return (1, 1)
@@ -336,7 +336,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_preset_action.on_boundary_enter = None
         mock_preset_action.on_boundary_exit = None
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         def enter_cb():
             pass
@@ -361,7 +361,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
 
         mock_registry = mocker.MagicMock()
         mock_registry.create.side_effect = KeyError("Preset 'invalid' not found")
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "invalid", "params": {}}]
 
@@ -379,7 +379,7 @@ class TestApplyMetadataActionsPresetBased(ActionTestBase):
         mock_action1 = mocker.MagicMock()
         mock_action2 = mocker.MagicMock()
         mock_registry.create.side_effect = [mock_action1, mock_action2]
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         test_sprite._action_configs = [{"preset": "preset1", "params": {}}, {"preset": "preset2", "params": {}}]
 
@@ -398,7 +398,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         test_sprite._action_configs = [{"action_type": "MoveUntil", "velocity": (5, 0), "condition": "after_frames:60"}]
 
@@ -418,7 +418,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         def velocity_provider():
             return (1, 1)
@@ -464,7 +464,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_follow_path = mocker.patch("actions.follow_path_until")
+        mock_follow_path = mocker.patch("arcadeactions.follow_path_until")
 
         control_points = [(0, 0), (100, 100), (200, 0)]
         test_sprite._action_configs = [
@@ -489,7 +489,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_follow_path = mocker.patch("actions.follow_path_until")
+        mock_follow_path = mocker.patch("arcadeactions.follow_path_until")
 
         control_points = [(0, 0), (100, 100)]
 
@@ -524,7 +524,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_follow_path = mocker.patch("actions.follow_path_until")
+        mock_follow_path = mocker.patch("arcadeactions.follow_path_until")
 
         test_sprite._action_configs = [
             {
@@ -545,7 +545,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_cycle = mocker.patch("actions.cycle_textures_until")
+        mock_cycle = mocker.patch("arcadeactions.cycle_textures_until")
 
         textures = [arcade.load_texture(":resources:images/tiles/grassCenter.png")]
         test_sprite._action_configs = [
@@ -565,7 +565,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_cycle = mocker.patch("actions.cycle_textures_until")
+        mock_cycle = mocker.patch("arcadeactions.cycle_textures_until")
 
         textures = [arcade.load_texture(":resources:images/tiles/grassCenter.png")]
 
@@ -597,7 +597,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_cycle = mocker.patch("actions.cycle_textures_until")
+        mock_cycle = mocker.patch("arcadeactions.cycle_textures_until")
 
         test_sprite._action_configs = [
             {
@@ -616,7 +616,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_fade = mocker.patch("actions.fade_until")
+        mock_fade = mocker.patch("arcadeactions.fade_until")
 
         test_sprite._action_configs = [
             {"action_type": "FadeUntil", "fade_velocity": -5, "condition": "after_frames:60"}
@@ -634,7 +634,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_fade = mocker.patch("actions.fade_until")
+        mock_fade = mocker.patch("arcadeactions.fade_until")
 
         test_sprite._action_configs = [
             {
@@ -653,7 +653,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_blink = mocker.patch("actions.blink_until")
+        mock_blink = mocker.patch("arcadeactions.blink_until")
 
         def on_blink_enter():
             pass
@@ -691,7 +691,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_blink = mocker.patch("actions.blink_until")
+        mock_blink = mocker.patch("arcadeactions.blink_until")
 
         test_sprite._action_configs = [
             {
@@ -710,7 +710,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_rotate = mocker.patch("actions.rotate_until")
+        mock_rotate = mocker.patch("arcadeactions.rotate_until")
 
         test_sprite._action_configs = [
             {"action_type": "RotateUntil", "angular_velocity": 90.0, "condition": "after_frames:60"}
@@ -728,7 +728,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_rotate = mocker.patch("actions.rotate_until")
+        mock_rotate = mocker.patch("arcadeactions.rotate_until")
 
         test_sprite._action_configs = [
             {
@@ -747,7 +747,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_tween = mocker.patch("actions.tween_until")
+        mock_tween = mocker.patch("arcadeactions.tween_until")
 
         test_sprite._action_configs = [
             {
@@ -772,7 +772,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_tween = mocker.patch("actions.tween_until")
+        mock_tween = mocker.patch("arcadeactions.tween_until")
 
         # Missing end_value
         test_sprite._action_configs = [
@@ -788,7 +788,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_scale = mocker.patch("actions.scale_until")
+        mock_scale = mocker.patch("arcadeactions.scale_until")
 
         test_sprite._action_configs = [{"action_type": "ScaleUntil", "velocity": 0.1, "condition": "after_frames:60"}]
 
@@ -803,7 +803,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_scale = mocker.patch("actions.scale_until")
+        mock_scale = mocker.patch("arcadeactions.scale_until")
 
         test_sprite._action_configs = [
             {
@@ -822,7 +822,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_callback = mocker.patch("actions.callback_until")
+        mock_callback = mocker.patch("arcadeactions.callback_until")
 
         def my_callback():
             pass
@@ -848,7 +848,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_callback = mocker.patch("actions.callback_until")
+        mock_callback = mocker.patch("arcadeactions.callback_until")
 
         test_sprite._action_configs = [
             {
@@ -867,7 +867,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_delay = mocker.patch("actions.delay_until")
+        mock_delay = mocker.patch("arcadeactions.delay_until")
 
         def on_stop():
             pass
@@ -889,7 +889,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_emit = mocker.patch("actions.emit_particles_until")
+        mock_emit = mocker.patch("arcadeactions.emit_particles_until")
 
         def emitter_factory():
             return None  # Mock emitter
@@ -921,7 +921,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_emit = mocker.patch("actions.emit_particles_until")
+        mock_emit = mocker.patch("arcadeactions.emit_particles_until")
 
         test_sprite._action_configs = [
             {
@@ -940,7 +940,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_glow = mocker.patch("actions.glow_until")
+        mock_glow = mocker.patch("arcadeactions.glow_until")
 
         def shadertoy_factory():
             return None  # Mock shadertoy
@@ -976,7 +976,7 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_glow = mocker.patch("actions.glow_until")
+        mock_glow = mocker.patch("arcadeactions.glow_until")
 
         test_sprite._action_configs = [
             {
@@ -1010,7 +1010,7 @@ class TestApplyMetadataActionsConditionResolution(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         test_sprite._action_configs = [
             {
@@ -1033,7 +1033,7 @@ class TestApplyMetadataActionsConditionResolution(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         test_sprite._action_configs = [{"action_type": "MoveUntil", "velocity": (5, 0), "condition": "after_frames:60"}]
 
@@ -1047,7 +1047,7 @@ class TestApplyMetadataActionsConditionResolution(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         def my_condition():
             return True
@@ -1068,7 +1068,7 @@ class TestApplyMetadataActionsCallbackResolution(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         def my_callback():
             pass
@@ -1085,7 +1085,7 @@ class TestApplyMetadataActionsCallbackResolution(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         def resolved_callback():
             pass
@@ -1106,7 +1106,7 @@ class TestApplyMetadataActionsCallbackResolution(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         test_sprite._action_configs = [
             {
@@ -1126,7 +1126,7 @@ class TestApplyMetadataActionsCallbackResolution(ActionTestBase):
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         test_sprite._action_configs = [{"action_type": "MoveUntil", "velocity": (5, 0), "on_stop": None}]
 
@@ -1148,10 +1148,10 @@ class TestApplyMetadataActionsMixedConfigs(ActionTestBase):
         mock_registry = mocker.MagicMock()
         mock_preset_action = mocker.MagicMock()
         mock_registry.create.return_value = mock_preset_action
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         # Mock direct action
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         test_sprite._action_configs = [
             {"preset": "preset1", "params": {}},
@@ -1173,10 +1173,10 @@ class TestApplyMetadataActionsMixedConfigs(ActionTestBase):
         # First config will fail (invalid preset)
         mock_registry = mocker.MagicMock()
         mock_registry.create.side_effect = KeyError("Preset 'invalid' not found")
-        mocker.patch("actions.dev.get_preset_registry", return_value=mock_registry)
+        mocker.patch("arcadeactions.dev.get_preset_registry", return_value=mock_registry)
 
         # Second config should still be processed
-        mock_move_until = mocker.patch("actions.move_until")
+        mock_move_until = mocker.patch("arcadeactions.move_until")
 
         test_sprite._action_configs = [
             {"preset": "invalid", "params": {}},

@@ -2,7 +2,7 @@
 
 import warnings
 
-from actions.base import Action
+from arcadeactions.base import Action
 
 
 class TestCallbackExecution:

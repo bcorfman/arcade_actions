@@ -5,11 +5,11 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.visualizer.condition_panel import ConditionDebugger
-from actions.visualizer.guides import GuideManager
-from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.overlay import InspectorOverlay
-from actions.visualizer.renderer import (
+from arcadeactions.visualizer.condition_panel import ConditionDebugger
+from arcadeactions.visualizer.guides import GuideManager
+from arcadeactions.visualizer.instrumentation import DebugDataStore
+from arcadeactions.visualizer.overlay import InspectorOverlay
+from arcadeactions.visualizer.renderer import (
     ConditionPanelRenderer,
     GuideRenderer,
     OverlayRenderer,
@@ -17,7 +17,7 @@ from actions.visualizer.renderer import (
     _sync_text_objects,
     _TextSpec,
 )
-from actions.visualizer.timeline import TimelineStrip
+from arcadeactions.visualizer.timeline import TimelineStrip
 
 
 def _try_opengl_draw(test_func):

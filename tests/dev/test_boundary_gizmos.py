@@ -6,8 +6,8 @@ Tests draggable handles that edit bounds of MoveUntil actions.
 import arcade
 import pytest
 
-from actions.conditional import MoveUntil, infinite
-from actions.dev.boundary_overlay import BoundaryGizmo, BoundaryHandle
+from arcadeactions.conditional import MoveUntil, infinite
+from arcadeactions.dev.boundary_overlay import BoundaryGizmo, BoundaryHandle
 from tests.conftest import ActionTestBase
 
 

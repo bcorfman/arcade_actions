@@ -55,7 +55,7 @@ This enables more flexible, game-state-driven behaviors.
 
 ### Pattern 2: Operator-Based Composition
 ```python
-from actions import move_until, rotate_until, fade_until, infinite
+from arcadeactions import move_until, rotate_until, fade_until, infinite
 
 # Clean declarative syntax with operators
 # Unbound actions can be created by passing `None` as the target
@@ -238,7 +238,7 @@ PRD.md (this file)           → Architecture & Requirements
 
 ### Pattern 1: Direct Action Application
 ```python
-from actions import infinite, move_until
+from arcadeactions import infinite, move_until
 
 # Works with any arcade.Sprite or arcade.SpriteList
 sprite = arcade.Sprite("image.png")
@@ -250,7 +250,7 @@ move_until(enemies, velocity=(100, 0), condition=infinite)
 
 ### Pattern 2: Operator-Based Composition
 ```python
-from actions import infinite, move_until, rotate_until, fade_until
+from arcadeactions import infinite, move_until, rotate_until, fade_until
 
 # Clean declarative syntax with operators
 # Unbound actions can be created by passing `None` as the target
@@ -267,7 +267,7 @@ complex_action.apply(sprite)
 
 ### Pattern 3: Global Management
 ```python
-from actions import Action
+from arcadeactions import Action
 
 # Single update handles all actions
 def on_update(self, delta_time):
@@ -276,7 +276,7 @@ def on_update(self, delta_time):
 
 ### Pattern 4: Formation Functions for Layout
 ```python
-from actions import arrange_grid
+from arcadeactions import arrange_grid
 arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
 ```
 
@@ -285,8 +285,8 @@ arrange_grid(enemies, rows=3, cols=5, start_x=100, start_y=400)
 To eliminate per-wave allocations, pre-allocate sprites and reuse:
 
 ```python
-from actions.pools import SpritePool
-from actions import arrange_grid
+from arcadeactions.pools import SpritePool
+from arcadeactions import arrange_grid
 import arcade
 
 def make_enemy():

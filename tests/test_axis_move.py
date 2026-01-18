@@ -10,10 +10,10 @@ import warnings
 import arcade
 import pytest
 
-from actions.axis_move import MoveXUntil, MoveYUntil
-from actions.base import Action
-from actions.composite import parallel
-from actions.conditional import infinite
+from arcadeactions.axis_move import MoveXUntil, MoveYUntil
+from arcadeactions.base import Action
+from arcadeactions.composite import parallel
+from arcadeactions.conditional import infinite
 
 
 def create_test_sprite() -> arcade.Sprite:

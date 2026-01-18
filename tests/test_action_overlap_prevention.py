@@ -9,8 +9,8 @@ import warnings
 
 import arcade
 
-from actions import Action
-from actions.conditional import CycleTexturesUntil, FadeUntil, MoveUntil, RotateUntil, infinite
+from arcadeactions import Action
+from arcadeactions.conditional import CycleTexturesUntil, FadeUntil, MoveUntil, RotateUntil, infinite
 
 
 def create_test_sprite() -> arcade.Sprite:

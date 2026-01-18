@@ -29,8 +29,8 @@ consistent:
 import pytest
 import arcade
 
-from actions import Action
-from actions.frame_timing import after_frames
+from arcadeactions import Action
+from arcadeactions.frame_timing import after_frames
 
 class ActionTestBase:
     """Base class for action tests with common setup and teardown."""
@@ -63,8 +63,8 @@ def test_sprite_list() -> arcade.SpriteList:
 Test basic action functionality using the global action update system:
 
 ```python
-from actions import Action, move_until, rotate_until, infinite
-from actions.frame_timing import after_frames
+from arcadeactions import Action, move_until, rotate_until, infinite
+from arcadeactions.frame_timing import after_frames
 
 class TestMoveUntil(ActionTestBase):
     """Test suite for MoveUntil action."""
@@ -131,8 +131,8 @@ class TestMoveUntil(ActionTestBase):
 Test easing functionality that provides smooth acceleration/deceleration for continuous actions:
 
 ```python
-from actions import Action, MoveUntil, Ease, infinite
-from actions.frame_timing import seconds_to_frames
+from arcadeactions import Action, MoveUntil, Ease, infinite
+from arcadeactions.frame_timing import seconds_to_frames
 from arcade import easing
 
 class TestEase(ActionTestBase):
@@ -186,8 +186,8 @@ class TestEase(ActionTestBase):
 Test sequences and parallel actions using the current API:
 
 ```python
-from actions import Action, sequence, parallel, DelayUntil, MoveUntil, RotateUntil
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import Action, sequence, parallel, DelayUntil, MoveUntil, RotateUntil
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 class TestSequenceFunction:
     """Test suite for sequence() function."""
@@ -248,7 +248,7 @@ class TestParallelFunction:
 When testing `MoveXUntil` and `MoveYUntil`, it's critical to verify that each action only affects its designated axis and that boundary behaviors work independently:
 
 ```python
-from actions import Action, MoveXUntil, MoveYUntil, parallel, infinite
+from arcadeactions import Action, MoveXUntil, MoveYUntil, parallel, infinite
 
 class TestAxisBoundaryBehaviors:
     """Test boundary behaviors for axis-specific actions."""
@@ -347,7 +347,7 @@ class TestAxisBoundaryBehaviors:
 Test boundary detection and callbacks using the current edge-triggered API:
 
 ```python
-from actions import Action, MoveUntil, infinite
+from arcadeactions import Action, MoveUntil, infinite
 
 class TestBoundaryCallbacks:
     """Test boundary enter/exit callbacks."""
@@ -389,7 +389,7 @@ class TestBoundaryCallbacks:
 
 ## Frame Helpers
 
-Every timing assertion uses the primitives from `actions.frame_timing`:
+Every timing assertion uses the primitives from `arcadeactions.frame_timing`:
 
 - `after_frames(n)` returns a condition that completes once at frame `n`.
 - `every_frames(n, callback)` wraps a callback that fires on frame multiples.
@@ -398,8 +398,8 @@ Every timing assertion uses the primitives from `actions.frame_timing`:
 Example assertions from `tests/test_frame_timing.py`:
 
 ```python
-from actions import Action, move_until
-from actions.frame_timing import after_frames
+from arcadeactions import Action, move_until
+from arcadeactions.frame_timing import after_frames
 
         assert len(velocity_calls) == 2  # Called in apply_effect and update_effect
         assert sprite.change_x == 5
@@ -443,8 +443,8 @@ from actions.frame_timing import after_frames
 Test shader effects without OpenGL dependencies using fakes:
 
 ```python
-from actions import Action, GlowUntil
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import Action, GlowUntil
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 class FakeShadertoy:
     """Minimal stand-in for arcade.experimental.Shadertoy."""
@@ -513,8 +513,8 @@ def test_glow_camera_offset_correction(test_sprite):
 Test particle emitters without Arcade's particle system:
 
 ```python
-from actions import Action, EmitParticlesUntil
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import Action, EmitParticlesUntil
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 class FakeEmitter:
     """Minimal stand-in for arcade particle emitters."""
@@ -629,8 +629,8 @@ Sequence and parallel helpers are validated with the same primitives.
 sleeping:
 
 ```python
-from actions import Action, blink_until, infinite
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import Action, blink_until, infinite
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 class TestBlinkUntilCallbacks:
     """Test BlinkUntil visibility callback functionality."""
@@ -873,7 +873,7 @@ class TestBlinkUntilCallbacks:
 Test formation functions for proper sprite positioning:
 
 ```python
-from actions import arrange_triangle, arrange_hexagonal_grid, arrange_arc, arrange_concentric_rings, arrange_cross, arrange_arrow
+from arcadeactions import arrange_triangle, arrange_hexagonal_grid, arrange_arc, arrange_concentric_rings, arrange_cross, arrange_arrow
 
 def test_formation_positioning():
     # Test triangle formation
@@ -1014,7 +1014,7 @@ DevVisualizer components follow the same testing patterns as core actions, with 
 Test prototype registration and instantiation:
 
 ```python
-from actions.dev.prototype_registry import SpritePrototypeRegistry, DevContext
+from arcadeactions.dev.prototype_registry import SpritePrototypeRegistry, DevContext
 import arcade
 
 def test_prototype_registry():
@@ -1037,7 +1037,7 @@ def test_prototype_registry():
 Test multi-selection behavior:
 
 ```python
-from actions.dev.selection import SelectionManager
+from arcadeactions.dev.selection import SelectionManager
 import arcade
 
 def test_marquee_selection(window):
@@ -1065,15 +1065,15 @@ def test_marquee_selection(window):
 Test preset registration and action creation:
 
 ```python
-from actions.dev.presets import ActionPresetRegistry
-from actions.conditional import infinite
+from arcadeactions.dev.presets import ActionPresetRegistry
+from arcadeactions.conditional import infinite
 
 def test_preset_creation():
     registry = ActionPresetRegistry()
     
     @registry.register("test_preset", category="Movement", params={"speed": 3})
     def make_preset(ctx, speed):
-        from actions.helpers import move_until
+        from arcadeactions.helpers import move_until
         return move_until(None, velocity=(-speed, 0), condition=infinite)
     
     ctx = type("Context", (), {})()  # Mock context
@@ -1087,8 +1087,8 @@ def test_preset_creation():
 Test gizmo detection and bounds editing:
 
 ```python
-from actions.dev.boundary_overlay import BoundaryGizmo
-from actions.conditional import MoveUntil, infinite
+from arcadeactions.dev.boundary_overlay import BoundaryGizmo
+from arcadeactions.conditional import MoveUntil, infinite
 
 def test_gizmo_bounds_editing(window):
     sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
@@ -1119,7 +1119,7 @@ def test_gizmo_bounds_editing(window):
 Test export/import maintains all data:
 
 ```python
-from actions.dev import export_template, load_scene_template, DevContext
+from arcadeactions.dev import export_template, load_scene_template, DevContext
 import tempfile
 import os
 
@@ -1170,8 +1170,8 @@ def test_yaml_roundtrip(window):
 Test code sync functionality for updating source files:
 
 ```python
-from actions.dev import sync
-from actions.dev.position_tag import tag_sprite, get_sprites_for
+from arcadeactions.dev import sync
+from arcadeactions.dev.position_tag import tag_sprite, get_sprites_for
 from pathlib import Path
 import tempfile
 
@@ -1234,7 +1234,7 @@ def test_sync_arrange_call():
 Test code parsing for position assignments and arrange calls:
 
 ```python
-from actions.dev.code_parser import parse_source, PositionAssignment, ArrangeCall
+from arcadeactions.dev.code_parser import parse_source, PositionAssignment, ArrangeCall
 
 def test_code_parser():
     source = """
