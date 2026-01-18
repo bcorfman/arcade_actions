@@ -9,7 +9,7 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.dev.visualizer import DevVisualizer
 
 pytestmark = pytest.mark.integration
 
@@ -33,7 +33,7 @@ def mock_arcade_text(mocker):
         return mock_text
 
     # Patch Text in the visualizer module where it's used
-    mocker.patch("actions.dev.visualizer.arcade.Text", side_effect=create_mock_text)
+    mocker.patch("arcadeactions.dev.visualizer.arcade.Text", side_effect=create_mock_text)
 
 
 @pytest.mark.integration

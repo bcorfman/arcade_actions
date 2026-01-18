@@ -3,8 +3,8 @@
 import arcade
 import pytest
 
-from actions import Action, MoveUntil, RotateUntil, move_until
-from actions.conditional import (
+from arcadeactions import Action, MoveUntil, RotateUntil, move_until
+from arcadeactions.conditional import (
     BlinkUntil,
     DelayUntil,
     FadeUntil,
@@ -12,7 +12,7 @@ from actions.conditional import (
     ScaleUntil,
     TweenUntil,
 )
-from actions.frame_timing import after_frames
+from arcadeactions.frame_timing import after_frames
 
 
 # Fixtures for creating test sprites and lists
@@ -90,7 +90,7 @@ class TestKeywordParameterSupport:
 
     def test_rotate_until_keyword_parameters(self, sprite):
         """Test rotate_until with keyword parameters as shown in docstring."""
-        from actions import rotate_until
+        from arcadeactions import rotate_until
 
         action = rotate_until(sprite, angular_velocity=180, condition=after_frames(60))
 
@@ -100,7 +100,7 @@ class TestKeywordParameterSupport:
 
     def test_follow_path_until_keyword_parameters(self, sprite):
         """Test follow_path_until with keyword parameters as shown in docstring."""
-        from actions import follow_path_until
+        from arcadeactions import follow_path_until
 
         path_points = [(100, 100), (200, 200), (300, 100)]
         action = follow_path_until(sprite, control_points=path_points, velocity=200, condition=after_frames(180))
@@ -112,7 +112,7 @@ class TestKeywordParameterSupport:
 
     def test_blink_until_keyword_parameters(self, sprite):
         """Test blink_until with keyword parameters."""
-        from actions import blink_until
+        from arcadeactions import blink_until
 
         action = blink_until(sprite, frames_until_change=15, condition=after_frames(120))
 
@@ -122,7 +122,7 @@ class TestKeywordParameterSupport:
 
     def test_tween_until_keyword_parameters(self, sprite):
         """Test tween_until with keyword parameters."""
-        from actions import tween_until
+        from arcadeactions import tween_until
 
         action = tween_until(sprite, start_value=0, end_value=100, property_name="center_x", condition=after_frames(60))
 
@@ -134,7 +134,7 @@ class TestKeywordParameterSupport:
 
     def test_scale_until_keyword_parameters(self, sprite):
         """Test scale_until with keyword parameters."""
-        from actions import scale_until
+        from arcadeactions import scale_until
 
         action = scale_until(sprite, velocity=0.5, condition=after_frames(120))
 
@@ -144,7 +144,7 @@ class TestKeywordParameterSupport:
 
     def test_fade_until_keyword_parameters(self, sprite):
         """Test fade_until with keyword parameters."""
-        from actions import fade_until
+        from arcadeactions import fade_until
 
         action = fade_until(sprite, velocity=-50, condition=after_frames(90))
 
@@ -154,7 +154,7 @@ class TestKeywordParameterSupport:
 
     def test_delay_until_keyword_parameters(self, sprite):
         """Test delay_until with keyword parameters."""
-        from actions import delay_until
+        from arcadeactions import delay_until
 
         action = delay_until(sprite, condition=after_frames(60))
 
@@ -163,7 +163,7 @@ class TestKeywordParameterSupport:
 
     def test_keyword_parameter_error_handling(self, sprite):
         """Test that missing required keyword parameters raise appropriate errors."""
-        from actions import move_until
+        from arcadeactions import move_until
 
         # Test with missing required parameters - these should raise TypeError for missing keyword arguments
         with pytest.raises(TypeError):
@@ -177,7 +177,7 @@ class TestKeywordParameterSupport:
 
     def test_keyword_parameter_with_callback(self, sprite):
         """Test keyword parameters with callback functions."""
-        from actions import move_until
+        from arcadeactions import move_until
 
         callback_called = False
 

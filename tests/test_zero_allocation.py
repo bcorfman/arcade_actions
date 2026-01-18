@@ -9,7 +9,7 @@ This test suite covers:
 import arcade
 import pytest
 
-from actions.formation import (
+from arcadeactions.formation import (
     arrange_arc,
     arrange_arrow,
     arrange_circle,
@@ -27,7 +27,7 @@ from actions.formation import (
 @pytest.fixture(autouse=True)
 def cleanup_actions():
     """Clean up actions after each test."""
-    from actions.base import Action
+    from arcadeactions.base import Action
 
     yield
     Action.stop_all()
@@ -182,7 +182,7 @@ class TestSpritePool:
 
     def test_sprite_pool_creation(self):
         """Test SpritePool creation with factory and max_size."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_enemy():
             return arcade.Sprite(":resources:images/enemies/bee.png", scale=0.5)
@@ -194,7 +194,7 @@ class TestSpritePool:
 
     def test_sprite_pool_acquire_basic(self):
         """Test basic acquire functionality."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_block():
             return arcade.Sprite(":resources:images/items/star.png", scale=0.8)
@@ -218,7 +218,7 @@ class TestSpritePool:
 
     def test_sprite_pool_acquire_creates_new_sprites(self):
         """Test that acquire creates new sprites when pool is empty."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         call_count = 0
 
@@ -241,7 +241,7 @@ class TestSpritePool:
 
     def test_sprite_pool_release_basic(self):
         """Test basic release functionality."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_sprite():
             return arcade.Sprite(":resources:images/items/star.png")
@@ -278,7 +278,7 @@ class TestSpritePool:
 
     def test_sprite_pool_release_removes_from_sprite_lists(self):
         """Test that release removes sprites from all sprite lists."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_sprite():
             return arcade.Sprite(":resources:images/items/star.png")
@@ -307,7 +307,7 @@ class TestSpritePool:
 
     def test_sprite_pool_acquire_reuses_released_sprites(self):
         """Test that acquire reuses previously released sprites."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         call_count = 0
 
@@ -335,7 +335,7 @@ class TestSpritePool:
 
     def test_sprite_pool_assign_basic(self):
         """Test basic assign functionality."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_sprite():
             return arcade.Sprite(":resources:images/items/star.png")
@@ -364,7 +364,7 @@ class TestSpritePool:
 
     def test_sprite_pool_assign_then_acquire(self):
         """Test that assigned sprites can be acquired later."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_sprite():
             return arcade.Sprite(":resources:images/items/star.png")
@@ -389,7 +389,7 @@ class TestSpritePool:
 
     def test_sprite_pool_max_size_enforcement(self):
         """Test that max_size prevents runaway growth."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_sprite():
             return arcade.Sprite(":resources:images/items/star.png")
@@ -407,7 +407,7 @@ class TestSpritePool:
 
     def test_sprite_pool_max_size_with_acquire(self):
         """Test max_size behavior with acquire operations."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_sprite():
             return arcade.Sprite(":resources:images/items/star.png")
@@ -424,7 +424,7 @@ class TestSpritePool:
 
     def test_sprite_pool_partial_release(self):
         """Test releasing only some of the acquired sprites."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_sprite():
             return arcade.Sprite(":resources:images/items/star.png")
@@ -442,7 +442,7 @@ class TestSpritePool:
 
     def test_sprite_pool_release_non_active_sprites_ignored(self):
         """Test that releasing non-active sprites is safely ignored."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_sprite():
             return arcade.Sprite(":resources:images/items/star.png")
@@ -469,7 +469,7 @@ class TestZeroAllocationIntegration:
 
     def test_recommended_usage_pattern_boot_time(self):
         """Test the boot-time setup pattern from the requirements."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_block():
             sprite = arcade.Sprite(":resources:images/items/star.png", scale=0.8)
@@ -507,7 +507,7 @@ class TestZeroAllocationIntegration:
 
     def test_recommended_usage_pattern_wave_spawning(self):
         """Test the in-wave spawning pattern from the requirements."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_block():
             return arcade.Sprite(":resources:images/items/star.png", scale=0.5)
@@ -555,7 +555,7 @@ class TestZeroAllocationIntegration:
 
     def test_zero_allocation_no_sprite_creation_during_gameplay(self):
         """Test that no new sprites are created during gameplay with proper pooling."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         creation_count = 0
 
@@ -587,7 +587,7 @@ class TestZeroAllocationIntegration:
 
     def test_sprite_pool_with_all_arrange_functions(self):
         """Test that SpritePool works with all arrange functions."""
-        from actions.pools import SpritePool
+        from arcadeactions.pools import SpritePool
 
         def make_sprite():
             return arcade.Sprite(":resources:images/items/star.png", scale=0.6)

@@ -14,9 +14,9 @@ Note: The slow subprocess-based env var test has been moved to tests/integration
 
 import arcade
 
-from actions import Action
-from actions.conditional import MoveUntil
-from actions.frame_timing import after_frames
+from arcadeactions import Action
+from arcadeactions.conditional import MoveUntil
+from arcadeactions.frame_timing import after_frames
 
 
 def test_action_visualizer_hooks_dont_crash_when_disabled():
@@ -74,7 +74,7 @@ def test_action_visualizer_hooks_with_enable_flag():
 
 def test_visualizer_module_import():
     """Test that visualizer module can be imported and has expected structure."""
-    from actions import visualizer  # noqa: F401
+    from arcadeactions import visualizer  # noqa: F401
 
     # Verify module exists and has expected structure
     assert hasattr(visualizer, "__file__") and visualizer.__file__

@@ -2,7 +2,7 @@
 
 import textwrap
 
-from actions.dev import code_parser, sync
+from arcadeactions.dev import code_parser, sync
 
 
 class TestUpdateArrangeCallEdgeCases:

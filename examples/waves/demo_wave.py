@@ -22,7 +22,7 @@ class DemoWave:
         """Create enemies for this wave."""
         from arcade import SpriteList, SpriteSolidColor
 
-        from actions.conditional import MoveUntil, infinite
+        from arcadeactions.conditional import MoveUntil, infinite
 
         enemies = SpriteList()
         for i in range(self.enemy_count):

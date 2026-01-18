@@ -3,9 +3,9 @@
 import arcade
 import pytest
 
-from actions.base import Action
-from actions.conditional import ParametricMotionUntil
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions.base import Action
+from arcadeactions.conditional import ParametricMotionUntil
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 
 def create_test_sprite() -> arcade.Sprite:

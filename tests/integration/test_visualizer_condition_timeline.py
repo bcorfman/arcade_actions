@@ -7,9 +7,9 @@ and timeline entries derived from debug instrumentation.
 
 from __future__ import annotations
 
-from actions.visualizer.condition_panel import ConditionDebugger
-from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.timeline import TimelineStrip
+from arcadeactions.visualizer.condition_panel import ConditionDebugger
+from arcadeactions.visualizer.instrumentation import DebugDataStore
+from arcadeactions.visualizer.timeline import TimelineStrip
 
 
 class TestConditionDebugger:

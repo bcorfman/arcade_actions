@@ -3,8 +3,8 @@
 import arcade
 import pytest
 
-from actions.base import Action
-from actions.formation import arrange_circle, arrange_line
+from arcadeactions.base import Action
+from arcadeactions.formation import arrange_circle, arrange_line
 
 
 def create_test_sprite() -> arcade.Sprite:

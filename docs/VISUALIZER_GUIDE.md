@@ -17,7 +17,7 @@ Setting `ARCADEACTIONS_VISUALIZER=1` is enough—`attach_visualizer()` is called
 ### Programmatic Attach (Manual Opt-in)
 
 ```python
-from actions.visualizer import attach_visualizer
+from arcadeactions.visualizer import attach_visualizer
 
 attach_visualizer()
 ```
@@ -35,7 +35,7 @@ attach_visualizer(
 ### Runtime Hot-Key Attachment
 
 ```python
-from actions.visualizer import enable_visualizer_hotkey
+from arcadeactions.visualizer import enable_visualizer_hotkey
 
 enable_visualizer_hotkey()  # registers Shift+F3 on the active window
 ```

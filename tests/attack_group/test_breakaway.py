@@ -3,10 +3,10 @@
 import arcade
 import pytest
 
-from actions.base import Action
-from actions.formation import arrange_line
-from actions.group import AttackGroup
-from actions.group_state import BreakawayManager, BreakawayStrategy, GroupStage
+from arcadeactions.base import Action
+from arcadeactions.formation import arrange_line
+from arcadeactions.group import AttackGroup
+from arcadeactions.group_state import BreakawayManager, BreakawayStrategy, GroupStage
 from tests.conftest import ActionTestBase
 
 

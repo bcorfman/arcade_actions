@@ -22,8 +22,8 @@ import arcade
 from arcade import easing
 from arcade.types import Color
 
-from actions import Action, center_window, tween_until
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import Action, center_window, tween_until
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 # --- Constants ---
 SPRITE_SCALING = 0.5

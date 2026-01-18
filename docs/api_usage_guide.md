@@ -9,7 +9,7 @@ ArcadeActions provides a conditional action system that works directly with Arca
 ArcadeActions is fully **frame-driven**. Every action measures time in *frames*, not seconds, and `Action.update_all()` is the only metronome. Key takeaways:
 
 - `Action.current_frame()` returns the global frame counter (starts at 0 and only increments when actions are active).
-- Use helpers from `actions.frame_timing` to express intent:
+- Use helpers from `arcadeactions.frame_timing` to express intent:
   - `after_frames(n)` – condition becomes true after `n` frames elapse.
   - `every_frames(n, callback)` – run a callback on every `n`th frame.
   - `within_frames(start, end)` – windowed conditions.
@@ -26,8 +26,8 @@ ArcadeActions is fully **frame-driven**. Every action measures time in *frames*,
 Helper functions like `move_until`, `rotate_until`, and `follow_path_until` are designed for simple, immediate application to sprites:
 
 ```python
-from actions import move_until, rotate_until, cycle_textures_until
-from actions.frame_timing import after_frames
+from arcadeactions import move_until, rotate_until, cycle_textures_until
+from arcadeactions.frame_timing import after_frames
 
 # Simple, immediate actions - this is what helper functions are for
 move_until(player_sprite, velocity=(5, 0), condition=lambda: player_sprite.center_x > 800)
@@ -40,8 +40,8 @@ cycle_textures_until(power_up_sprite, textures=power_up_textures, frames_per_tex
 For complex, multi-step sequences, use direct action classes with the `sequence()` and `parallel()` functions:
 
 ```python
-from actions import Action, DelayUntil, FadeUntil, MoveUntil, RotateUntil, sequence, parallel
-from actions.frame_timing import after_frames
+from arcadeactions import Action, DelayUntil, FadeUntil, MoveUntil, RotateUntil, sequence, parallel
+from arcadeactions.frame_timing import after_frames
 
 # Complex sequences - use direct classes
 complex_behavior = sequence(
@@ -60,7 +60,7 @@ complex_behavior.apply(sprite, tag="complex_movement")
 **Helper functions** immediately apply actions when called, which conflicts with sequence construction. **Direct classes** create actions without applying them, allowing proper sequence composition.
 
 ```python
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 # ✅ CORRECT: Direct classes + sequence() with frame-based timing
 # This works perfectly because actions aren't applied until the sequence is
@@ -96,8 +96,8 @@ This maintains consistency with Arcade's native sprite system where `sprite.chan
 All actions are managed globally - no manual action tracking needed:
 
 ```python
-from actions import Action, move_until
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import Action, move_until
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 # Apply actions directly to any arcade.Sprite or arcade.SpriteList
 move_until(sprite, velocity=(100, 0), condition=after_frames(120))  # 2 seconds at 60 FPS
@@ -129,7 +129,7 @@ move_until(enemies, velocity=(0, -50), condition=after_frames(180))  # 3 seconds
 Actions run until conditions are met, not for fixed durations:
 
 ```python
-from actions import move_until, rotate_until, fade_until, follow_path_until
+from arcadeactions import move_until, rotate_until, fade_until, follow_path_until
 
 # Velocity-based movement until condition is met (pixels per frame at 60 FPS)
 move_until(sprite, velocity=(5, -2), condition=lambda: sprite.center_y < 100)
@@ -156,7 +156,7 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 
 ### Action Types
 
-#### Conditional Actions (actions/movement.py, actions/paths.py, actions/transforms.py, actions/effects.py, actions/callbacks.py, actions/parametric.py)
+#### Conditional Actions (arcadeactions/movement.py, arcadeactions/paths.py, arcadeactions/transforms.py, arcadeactions/effects.py, arcadeactions/callbacks.py, arcadeactions/parametric.py)
 - **MoveUntil** - Velocity-based movement
 - **FollowPathUntil** - Follow Bezier curve paths with optional sprite rotation to face movement direction
 - **RotateUntil** - Angular velocity rotation
@@ -168,33 +168,33 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **DelayUntil** - Wait for condition
 - **TweenUntil** - Direct property animation from start to end value
 
-#### Composite Actions (actions/composite.py)
+#### Composite Actions (arcadeactions/composite.py)
 - **Sequential actions** - Run actions one after another (use `sequence()`)
 - **Parallel actions** - Run actions in parallel (use `parallel()`)
 - **Repeat actions** - Repeat an action indefinitely (use `repeat()`)
 
-#### Boundary Handling (actions/movement.py)
+#### Boundary Handling (arcadeactions/movement.py)
 - **MoveUntil with bounds** - Built-in boundary detection with bounce/wrap behaviors using edge-based coordinates.
   Bounds are specified as (left, bottom, right, top) where sprite edges (not centers) interact with boundaries.
 
-#### Formation Management (actions/formation.py)
+#### Formation Management (arcadeactions/formation.py)
 - **Formation functions** - Grid, line, circle, diamond, V-formation, triangle, hexagonal grid, arc, concentric rings, cross, and arrow positioning patterns
   - Zero-allocation support: pass `sprites=` to arrange existing sprites without allocating
   - Contract: exactly one of `sprites` or creation inputs (`count` / `sprite_factory`) is required
   - Grid rule: when `sprites` is provided, `len(sprites)` must equal `rows * cols`
 
-#### Movement Patterns (actions/pattern.py)
+#### Movement Patterns (arcadeactions/pattern.py)
 - **Movement pattern functions** - Zigzag, wave, spiral, figure-8, orbit, bounce, and patrol movement patterns
 - **Condition helpers** - Time-based and sprite count conditions for use with conditional actions
 
-#### Easing Effects (actions/easing.py)
+#### Easing Effects (arcadeactions/easing.py)
 - **Ease wrapper** - Apply smooth acceleration/deceleration curves to any conditional action
 - **Built-in easing functions** - Use Arcade's ease_in, ease_out, ease_in_out curves
 - **Custom easing support** - Create custom easing curves for specialized effects
 - **Nested easing** - Combine multiple easing levels for complex animations
 - **Completion callbacks** - Execute code when easing transitions complete
 
-#### Development Visualizer (actions/dev/)
+#### Development Visualizer (arcadeactions/dev/)
 - **SpritePrototypeRegistry** - Decorator-based registry for sprite "prefabs"
 - **PaletteSidebar** - Drag-and-drop interface for spawning prototypes
 - **SelectionManager** - Multi-selection system (click, shift-click, marquee)
@@ -224,7 +224,7 @@ ArcadeActions provides two distinct but complementary approaches for creating sm
 - Supports complex actions like curved path following
 
 ```python
-from actions import ease, infinite, move_until, follow_path_until, seconds_to_frames
+from arcadeactions import ease, infinite, move_until, follow_path_until, seconds_to_frames
 from arcade import easing
 
 # Example 1: Smooth missile launch
@@ -261,8 +261,8 @@ ease(enemy_formation, formation_move, frames=seconds_to_frames(1.0), ease_functi
 - Perfect for UI animations and precise movements
 
 ```python
-from actions.frame_timing import after_frames, seconds_to_frames
-from actions importtween_until
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions importtween_until
 from arcade import easing
 
 # Example 1: UI panel slide-in
@@ -303,8 +303,8 @@ You can use both techniques together for complex animations:
 
 ```python
 # Sequential combination: precise positioning followed by smooth movement
-from actions.frame_timing import after_frames, seconds_to_frames
-from actions import TweenUntil, MoveUntil, ease, sequence
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import TweenUntil, MoveUntil, ease, sequence
 
 def create_guard_behavior(guard_sprite):
     # Step 1: Precise positioning
@@ -325,7 +325,7 @@ def create_guard_behavior(guard_sprite):
 ### Advanced Easing Patterns
 
 ```python
-from actions import ease, fade_until, infinite, move_until, rotate_until, seconds_to_frames
+from arcadeactions import ease, fade_until, infinite, move_until, rotate_until, seconds_to_frames
 from arcade import easing
 
 # Multiple concurrent eased effects
@@ -346,8 +346,8 @@ For player characters, single enemies, individual UI elements:
 
 ```python
 import arcade
-from actions.frame_timing import after_frames, seconds_to_frames
-from actions import move_until, rotate_until
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import move_until, rotate_until
 
 # Create any arcade.Sprite
 player = arcade.Sprite(":resources:images/player.png")
@@ -377,8 +377,8 @@ move_until(enemies, velocity=(0, -50), condition=after_frames(180))  # 3 seconds
 For multi-step animations and complex game scenarios:
 
 ```python
-from actions.frame_timing import after_frames, seconds_to_frames
-from actions import Action, DelayUntil, MoveUntil, RotateUntil, FadeUntil, sequence, parallel
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import Action, DelayUntil, MoveUntil, RotateUntil, FadeUntil, sequence, parallel
 
 # Create complex behavior using direct classes
 def create_enemy_attack_sequence(enemy_sprite):
@@ -402,7 +402,7 @@ for enemy in enemy_list:
 For complex game scenarios with formation positioning:
 
 ```python
-from actions import (
+from arcadeactions import (
     arrange_grid, arrange_circle, arrange_diamond, arrange_triangle, 
     arrange_hexagonal_grid, arrange_arc, arrange_concentric_rings, 
     arrange_cross, arrange_arrow
@@ -469,7 +469,7 @@ move_until(enemies, velocity=(0, -50), condition=after_frames(seconds_to_frames(
 For creating complex movement behaviors using pattern functions:
 
 ```python
-from actions import (
+from arcadeactions import (
     create_zigzag_pattern, create_wave_pattern, create_spiral_pattern,
     create_figure_eight_pattern, create_orbit_pattern, create_bounce_pattern,
     create_patrol_pattern, time_elapsed, sprite_count
@@ -488,7 +488,7 @@ wave_movement = create_wave_pattern(
 wave_movement.apply(boss_sprite)
 
 # Enemy with repeating wave pattern (forward then backward)
-from actions import repeat, sequence
+from arcadeactions import repeat, sequence
 
 forward_wave = create_wave_pattern(
     amplitude=15, frequency=1, length=50, speed=100, reverse=False
@@ -515,8 +515,8 @@ patrol_movement.apply(guard_sprite)
 For smooth curved movement with automatic sprite rotation:
 
 ```python
-from actions.frame_timing import after_frames, seconds_to_frames
-from actions import follow_path_until
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import follow_path_until
 
 # Basic path following without rotation
 path_points = [(100, 100), (200, 150), (300, 100)]
@@ -556,8 +556,8 @@ follow_path_until(
 For creating precise entry paths with tight circular loops for enemy formations:
 
 ```python
-from actions.presets.entry_paths import loop_the_loop_exact
-from actions.group import AttackGroup
+from arcadeactions.presets.entry_paths import loop_the_loop_exact
+from arcadeactions.group import AttackGroup
 
 # Create exact circular loop entry path
 # Path: off-screen start → approach → tight loop → exit → formation position
@@ -594,8 +594,8 @@ group.entry_path(entry_path, velocity=2.5, spacing_frames=50)
 For animating sprites by cycling through textures at specified frame rates:
 
 ```python
-from actions import cycle_textures_until, infinite
-from actions.frame_timing import after_frames
+from arcadeactions import cycle_textures_until, infinite
+from arcadeactions.frame_timing import after_frames
 
 # Create a list of textures for animation
 texture_list = []
@@ -631,7 +631,7 @@ cycle_textures_until(
 )
 
 # Using with sequences for complex animations
-from actions import sequence, DelayUntil
+from arcadeactions import sequence, DelayUntil
 
 animation_sequence = sequence(
     # Phase 1: Spin up animation
@@ -672,7 +672,7 @@ animation_sequence.apply(machinery_sprite, tag="machinery_startup")
 `CycleTexturesUntil` timing is entirely frame-based:
 
 ```python
-from actions.frame_timing import after_frames
+from arcadeactions.frame_timing import after_frames
 
 # Deterministic animation length
 cycle_textures_until(
@@ -701,8 +701,8 @@ action.set_factor(0.0)  # Paused: animation and frame counting stop
 For sprite blinking effects with collision detection management. **Note:** `BlinkUntil` accepts `frames_until_change` (frame count between toggles). Use `seconds_to_frames()` if you need wall-clock conversions.
 
 ```python
-from actions import blink_until, infinite
-from actions.frame_timing import after_frames
+from arcadeactions import blink_until, infinite
+from arcadeactions.frame_timing import after_frames
 
 # Basic blinking without callbacks
 blink_until(
@@ -923,7 +923,7 @@ For games combining character animation, physics simulation, and player input:
 
 ```python
 from statemachine import State, StateMachine
-from actions import Action, cycle_textures_until, infinite
+from arcadeactions import Action, cycle_textures_until, infinite
 
 class PlayerAnimationState(StateMachine):
     """SMART state machine: handles all logic."""
@@ -1055,8 +1055,8 @@ def on_update(self, delta_time):
 For arcade-style movement with boundary detection using edge-based bounds:
 
 ```python
-from actions.frame_timing import after_frames, seconds_to_frames
-from actions import infinite, move_until
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import infinite, move_until
 
 # Individual sprite bouncing with enter/exit events
 def on_bounce_enter(sprite, axis, side):
@@ -1150,8 +1150,8 @@ move_until(
 
 ```python
 from arcade.experimental import Shadertoy
-from actions import GlowUntil
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import GlowUntil
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 # Create shader factory
 def make_glow_shader(size):
@@ -1193,7 +1193,7 @@ GlowUntil(
 **Helper Function:**
 
 ```python
-from actions import glow_until
+from arcadeactions import glow_until
 
 # Same as above, with automatic application
 glow_until(
@@ -1210,8 +1210,8 @@ glow_until(
 
 ```python
 from arcade import make_burst_emitter
-from actions import EmitParticlesUntil
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import EmitParticlesUntil
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 # Factory receives the sprite and returns an emitter
 def create_thrust_emitter(sprite):
@@ -1261,8 +1261,8 @@ EmitParticlesUntil(
 **Helper Function:**
 
 ```python
-from actions import emit_particles_until
-from actions.frame_timing import seconds_to_frames, after_frames
+from arcadeactions import emit_particles_until
+from arcadeactions.frame_timing import seconds_to_frames, after_frames
 
 # Same as above, with automatic application
 emit_particles_until(
@@ -1283,8 +1283,8 @@ The `ease()` helper function provides smooth acceleration and deceleration effec
 ### Basic Easing Usage
 
 ```python
-from actions.frame_timing import after_frames, seconds_to_frames
-from actions import ease, move_until, seconds_to_frames
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import ease, move_until, seconds_to_frames
 from arcade import easing
 
 # Wrap any conditional action with easing
@@ -1299,8 +1299,8 @@ Use Arcade's built-in easing functions for different effects:
 
 ```python
 from arcade import easing
-from actions.frame_timing import after_frames, seconds_to_frames
-from actions import ease, move_until, seconds_to_frames
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import ease, move_until, seconds_to_frames
 
 move = move_until(sprite, velocity=(200, 0), condition=after_frames(seconds_to_frames(3.0))
 
@@ -1319,7 +1319,7 @@ Create smooth curved movements with automatic sprite rotation:
 
 ```python
 # Complex curved missile trajectory with easing
-from actions import ease, follow_path_until, seconds_to_frames
+from arcadeactions import ease, follow_path_until, seconds_to_frames
 from arcade import easing
 control_points = [(player.center_x, player.center_y),
                   (target.center_x + 100, target.center_y + 50),  # Arc over target
@@ -1344,7 +1344,7 @@ ease(missile_sprite, missile_path, frames=seconds_to_frames(1.5), ease_function=
 Apply different easing to multiple effects simultaneously:
 
 ```python
-from actions import ease, move_until, rotate_until, fade_until, infinite, seconds_to_frames
+from arcadeactions import ease, move_until, rotate_until, fade_until, infinite, seconds_to_frames
 from arcade import easing
 
 # Create multiple effects with different easing curves
@@ -1364,8 +1364,8 @@ ease(sprite, fade, frames=seconds_to_frames(3.0), ease_function=easing.ease_out)
 Create your own easing curves:
 
 ```python
-from actions.frame_timing import after_frames, seconds_to_frames
-from actions import ease, move_until, seconds_to_frames
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import ease, move_until, seconds_to_frames
 def bounce_ease(t):
     """Custom bouncing ease function."""
     if t < 0.5:
@@ -1428,13 +1428,13 @@ ArcadeActions provides a powerful, fine-grained debug logging system with levels
 #### Programmatic API (Recommended)
 
 ```python
-from actions import set_debug_options, observe_actions, clear_observed_actions
+from arcadeactions import set_debug_options, observe_actions, clear_observed_actions
 
 # Focused debugging: Level 2, only MoveUntil and CallbackUntil
 set_debug_options(level=2, include=["MoveUntil", "CallbackUntil"])
 
 # Or using class types
-from actions import MoveUntil, CallbackUntil
+from arcadeactions import MoveUntil, CallbackUntil
 set_debug_options(level=2, include=[MoveUntil, CallbackUntil])
 
 # Incrementally add observed actions
@@ -1451,7 +1451,7 @@ set_debug_options(level=1, include_all=True)
 set_debug_options(level=3, include=["MoveUntil"])
 
 # Check current settings
-from actions import get_debug_options
+from arcadeactions import get_debug_options
 print(get_debug_options())
 # {'level': 2, 'include_all': False, 'include': ['MoveUntil']}
 ```
@@ -1476,7 +1476,7 @@ ARCADEACTIONS_DEBUG=true uv run python your_app.py
 
 **Example 1: Monitor all action activity (Level 1)**
 ```python
-from actions import set_debug_options
+from arcadeactions import set_debug_options
 
 # Minimal overhead - only logs when counts change
 set_debug_options(level=1, include_all=True)
@@ -1490,7 +1490,7 @@ Output:
 
 **Example 2: Track specific action lifecycle (Level 2)**
 ```python
-from actions import set_debug_options
+from arcadeactions import set_debug_options
 
 # See when MoveUntil actions are created/removed
 set_debug_options(level=2, include=["MoveUntil"])
@@ -1507,7 +1507,7 @@ Output:
 
 **Example 3: Deep debugging with verbose output (Level 3)**
 ```python
-from actions import set_debug_options
+from arcadeactions import set_debug_options
 
 # Internal state logging for MoveUntil only
 set_debug_options(level=3, include=["MoveUntil"])
@@ -1517,7 +1517,7 @@ Output includes per-frame velocity updates, boundary checks, and internal state 
 
 **Example 4: Incremental observation during development**
 ```python
-from actions import observe_actions, set_debug_options
+from arcadeactions import observe_actions, set_debug_options
 
 # Start with level 2
 set_debug_options(level=2)
@@ -1562,8 +1562,8 @@ Details: bad_callback() takes 0 positional arguments but 1 was given
 
 ```python
 import arcade
-from actions import Action, DelayUntil, MoveUntil, arrange_grid, sequence
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import Action, DelayUntil, MoveUntil, arrange_grid, sequence
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 class SpaceInvadersGame(arcade.Window):
     def __init__(self):
@@ -1643,7 +1643,7 @@ complex_behavior.apply(sprite)
 move_until(sprite, velocity=(100, 0), condition=lambda: sprite.center_x > 700)
 
 # Also Good: Explicit frame helpers
-from actions.frame_timing import after_frames
+from arcadeactions.frame_timing import after_frames
 rotate_until(sprite, angular_velocity=2.5, condition=after_frames(180))
 
 # Avoid: Wall-clock assumptions
@@ -1653,7 +1653,7 @@ rotate_until(sprite, angular_velocity=2.5, condition=after_frames(180))
 ### 3. Use Formation Functions for Positioning
 ```python
 # Good: Formation positioning
-from actions import arrange_grid
+from arcadeactions import arrange_grid
 arrange_grid(enemies, rows=3, cols=5)
 
 # Avoid: Manual sprite positioning
@@ -1673,7 +1673,7 @@ Action.stop_actions_for_target(sprite, tag="effects")
 ### 5. Choose the Right Animation Approach
 ```python
 # Good: Use Easing for continuous actions
-from actions import seconds_to_frames
+from arcadeactions import seconds_to_frames
 move_action = move_until(sprite, velocity=(200, 0), condition=infinite)
 ease(sprite, move_action, frames=seconds_to_frames(1.5))
 
@@ -1753,7 +1753,7 @@ def on_update(self, delta_time):
 
 ```python
 import arcade
-from actions import Action, move_until, infinite
+from arcadeactions import Action, move_until, infinite
 
 # Set up physics
 physics = arcade.PymunkPhysicsEngine(damping=1.0, gravity=(0, -1500))
@@ -1789,7 +1789,7 @@ def on_update(delta_time):
 
 ```python
 import arcade
-from actions import Action, MoveUntil, infinite
+from arcadeactions import Action, MoveUntil, infinite
 
 window = arcade.Window(800, 600, "Physics Example")
 player = arcade.Sprite(":resources:images/animated_characters/female_adventurer/femaleAdventurer_idle.png")
@@ -1811,7 +1811,7 @@ def on_update(delta_time):
 
 ```python
 import arcade
-from actions import Action, FollowPathUntil, infinite
+from arcadeactions import Action, FollowPathUntil, infinite
 
 window = arcade.Window(800, 600, "Physics Path Following")
 enemy = arcade.Sprite(":resources:images/enemies/slimeBlue.png")
@@ -1900,7 +1900,7 @@ ArcadeActions provides axis-specific movement actions that enable safe compositi
 This allows you to compose orthogonal movements safely using `parallel()`:
 
 ```python
-from actions import MoveXUntil, MoveYUntil, parallel, infinite
+from arcadeactions import MoveXUntil, MoveYUntil, parallel, infinite
 
 # X-axis scrolling with limit boundary behavior
 scroll_x = MoveXUntil(
@@ -1929,7 +1929,7 @@ parallel(scroll_x, bob_y).apply(sprite)
 For convenience, use the target-first helper functions:
 
 ```python
-from actions import move_x_until, move_y_until, infinite
+from arcadeactions import move_x_until, move_y_until, infinite
 
 # X-axis movement only
 scroll = move_x_until(
@@ -1958,7 +1958,7 @@ bob = move_y_until(
 Pattern factories support an `axis` parameter for creating axis-specific patterns:
 
 ```python
-from actions import create_bounce_pattern, create_patrol_pattern
+from arcadeactions import create_bounce_pattern, create_patrol_pattern
 
 # X-axis only bouncing
 bounce_x = create_bounce_pattern(
@@ -2023,15 +2023,15 @@ This pattern ensures collision checks are only performed once per frame, and all
 
 ### infinite() Function
 
-**CRITICAL:** The `infinite()` function implementation in `actions/frame_conditions.py` should never be modified. The current implementation (`return False`) is intentional and correct for the project's usage patterns. Do not suggest changing it to return `lambda: False` or any other callable. This function works correctly with the existing codebase and should not be modified.
+**CRITICAL:** The `infinite()` function implementation in `arcadeactions/frame_conditions.py` should never be modified. The current implementation (`return False`) is intentional and correct for the project's usage patterns. Do not suggest changing it to return `lambda: False` or any other callable. This function works correctly with the existing codebase and should not be modified.
 
 ### SpritePool (experimental)
 
-`actions.pools.SpritePool` enables zero-allocation gameplay by reusing sprites:
+`arcadeactions.pools.SpritePool` enables zero-allocation gameplay by reusing sprites:
 
 ```python
-from actions.pools import SpritePool
-from actions import arrange_grid
+from arcadeactions.pools import SpritePool
+from arcadeactions import arrange_grid
 import arcade
 
 def make_enemy():
@@ -2065,8 +2065,8 @@ The `CallbackUntil` action executes a callback function at specified intervals o
 ### Basic Usage
 
 ```python
-from actions import CallbackUntil, callback_until, infinite
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import CallbackUntil, callback_until, infinite
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 # Every frame callback
 def update_color():
@@ -2151,8 +2151,8 @@ action.set_factor(1.0)  # Back to every 0.1 seconds
 `CallbackUntil` excels at managing temporal shader effects and particle systems, eliminating manual state tracking. The key pattern is to encapsulate state in objects that update themselves, similar to the laser_gates forcefield color cycling example:
 
 ```python
-from actions import CallbackUntil, callback_until, infinite
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions import CallbackUntil, callback_until, infinite
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 # Particle emitter management
 thruster_emitter = arcade.Emitter(...)
@@ -2304,7 +2304,7 @@ callback_until(
 # callback_until(target, expensive_operation, infinite)  # No interval!
 ```
 
-## Development Visualizer (actions/dev/)
+## Development Visualizer (arcadeactions/dev/)
 
 ArcadeActions includes a comprehensive development visualizer for rapid prototyping, scene editing, and visual action configuration. The DevVisualizer provides a complete workflow for designing game levels and wave patterns without writing code.
 
@@ -2313,7 +2313,7 @@ ArcadeActions includes a comprehensive development visualizer for rapid prototyp
 Register sprite "prefabs" that can be spawned visually in the development environment:
 
 ```python
-from actions.dev import register_prototype, DevContext
+from arcadeactions.dev import register_prototype, DevContext
 import arcade
 
 @register_prototype("enemy_ship")
@@ -2341,9 +2341,9 @@ def make_power_up(ctx: DevContext):
 Create reusable action presets with default parameters that can be customized:
 
 ```python
-from actions.dev import register_preset
-from actions.conditional import infinite
-from actions.helpers import move_until
+from arcadeactions.dev import register_preset
+from arcadeactions.conditional import infinite
+from arcadeactions.helpers import move_until
 
 @register_preset("scroll_left_cleanup", category="Movement", params={"speed": 4})
 def preset_scroll_left_cleanup(ctx, speed):
@@ -2360,7 +2360,7 @@ def preset_scroll_left_cleanup(ctx, speed):
 @register_preset("orbit_pattern", category="Movement", params={"radius": 50, "angular_speed": 2})
 def preset_orbit(ctx, radius, angular_speed):
     """Preset for orbiting movement pattern."""
-    from actions.pattern import create_orbit_pattern
+    from arcadeactions.pattern import create_orbit_pattern
     return create_orbit_pattern(radius=radius, angular_velocity=angular_speed, condition=infinite)
 ```
 
@@ -2375,7 +2375,7 @@ def preset_orbit(ctx, radius, angular_speed):
 Use the DevVisualizer for complete visual scene design:
 
 ```python
-from actions.dev import (
+from arcadeactions.dev import (
     DevContext,
     PaletteSidebar,
     SelectionManager,
@@ -2465,7 +2465,7 @@ class DevView(arcade.View):
         
         # Draw boundary gizmos for selected sprites with bounded actions
         for sprite in self.selection_manager.get_selected():
-            from actions.dev import BoundaryGizmo
+            from arcadeactions.dev import BoundaryGizmo
             gizmo = BoundaryGizmo(sprite)
             if gizmo.has_bounded_action():
                 gizmo.draw()
@@ -2476,7 +2476,7 @@ class DevView(arcade.View):
 Export scenes to YAML, modify them, and reimport for iterative design:
 
 ```python
-from actions.dev import export_template, load_scene_template, DevContext
+from arcadeactions.dev import export_template, load_scene_template, DevContext
 
 # Export scene
 scene_sprites = arcade.SpriteList()
@@ -2533,8 +2533,8 @@ bounds: [OFFSCREEN_LEFT, 0, SCREEN_RIGHT, SCREEN_HEIGHT]
 Visually edit bounds of MoveUntil actions with draggable handles:
 
 ```python
-from actions.dev import BoundaryGizmo
-from actions.conditional import MoveUntil, infinite
+from arcadeactions.dev import BoundaryGizmo
+from arcadeactions.conditional import MoveUntil, infinite
 
 # Create sprite with bounded action
 sprite = arcade.Sprite(":resources:images/items/star.png")
@@ -2580,7 +2580,7 @@ DevVisualizer can automatically update your source code files when you export sp
 To enable code sync, tag your sprites with stable position IDs using the `@positioned()` decorator or `tag_sprite()` function:
 
 ```python
-from actions.dev.position_tag import positioned, tag_sprite
+from arcadeactions.dev.position_tag import positioned, tag_sprite
 
 # Option 1: Decorator on factory function (recommended)
 @positioned("forcefield")
@@ -2605,8 +2605,8 @@ When you call `dev_viz.export_sprites()`, DevVisualizer automatically:
 - Updates `arrange_grid()` call parameters when grid sprites are moved
 
 ```python
-from actions.dev import enable_dev_visualizer
-from actions.dev.position_tag import positioned
+from arcadeactions.dev import enable_dev_visualizer
+from arcadeactions.dev.position_tag import positioned
 
 @positioned("player")
 def make_player():
@@ -2630,7 +2630,7 @@ dev_viz.export_sprites()
 The code parser finds position assignments and `arrange_grid()` calls in your source:
 
 ```python
-from actions.dev.code_parser import parse_file, PositionAssignment, ArrangeCall
+from arcadeactions.dev.code_parser import parse_file, PositionAssignment, ArrangeCall
 
 # Parse a source file
 assignments, arrange_calls = parse_file("game.py")
@@ -2706,7 +2706,7 @@ CRITICAL API Rule - Velocity Semantics:
 * When in doubt about velocity values, refer to Arcade's native sprite velocity documentation
 
 CRITICAL: infinite() function rule:
-* NEVER suggest changing the infinite() function implementation in actions/frame_conditions.py
+* NEVER suggest changing the infinite() function implementation in arcadeactions/frame_conditions.py
 * The current implementation (return False) is intentional and correct for the project's usage patterns
 * Do not recommend changing it to return lambda: False or any other callable
 * This function works correctly with the existing codebase and should not be modified

@@ -9,7 +9,7 @@ from typing import Any
 import arcade
 import pytest
 
-from actions.visualizer.attach import (
+from arcadeactions.visualizer.attach import (
     detach_visualizer,
 )
 
@@ -125,7 +125,7 @@ class TestCollectTargetNames:
 
     def test_collect_target_names_no_view(self, monkeypatch):
         """Test _collect_target_names_from_view when window has no view."""
-        from actions.visualizer.attach import _collect_target_names_from_view
+        from arcadeactions.visualizer.attach import _collect_target_names_from_view
 
         class StubWindow:
             current_view = None

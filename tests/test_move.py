@@ -2,10 +2,10 @@
 
 import arcade
 
-from actions import move_until
-from actions.base import Action
-from actions.conditional import MoveUntil, infinite
-from actions.pattern import create_bounce_pattern, create_patrol_pattern, time_elapsed
+from arcadeactions import move_until
+from arcadeactions.base import Action
+from arcadeactions.conditional import MoveUntil, infinite
+from arcadeactions.pattern import create_bounce_pattern, create_patrol_pattern, time_elapsed
 
 
 def create_test_sprite() -> arcade.Sprite:

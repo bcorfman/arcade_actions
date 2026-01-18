@@ -6,9 +6,9 @@ Tests click-to-spawn prototype spawning from palette window into scene.
 import arcade
 import pytest
 
-from actions.dev.palette import PaletteSidebar
-from actions.dev.palette_window import PaletteWindow
-from actions.dev.prototype_registry import DevContext, SpritePrototypeRegistry, get_registry, register_prototype
+from arcadeactions.dev.palette import PaletteSidebar
+from arcadeactions.dev.palette_window import PaletteWindow
+from arcadeactions.dev.prototype_registry import DevContext, SpritePrototypeRegistry, get_registry, register_prototype
 from tests.conftest import ActionTestBase
 
 
@@ -36,7 +36,7 @@ class TestPaletteSpawn(ActionTestBase):
 
     def test_prototype_registry_global_decorator(self):
         """Test global decorator-based registration."""
-        from actions.dev.prototype_registry import get_registry
+        from arcadeactions.dev.prototype_registry import get_registry
 
         registry = get_registry()
 

@@ -6,8 +6,8 @@ behavior with pause/resume/step debugging functionality.
 
 import arcade
 
-from actions import Action
-from actions.frame_timing import after_frames
+from arcadeactions import Action
+from arcadeactions.frame_timing import after_frames
 from tests.conftest import ActionTestBase
 
 
@@ -34,8 +34,8 @@ class TestFrameClockSemantics(ActionTestBase):
         sprite = arcade.Sprite()
         sprite.center_x = 100
         sprite.center_y = 100
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         action = move_until(sprite, velocity=(5, 0), condition=infinite, tag="test")
         Action.update_all(0.016)
@@ -52,8 +52,8 @@ class TestFrameClockSemantics(ActionTestBase):
         sprite = arcade.Sprite()
         sprite.center_x = 100
         sprite.center_y = 100
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         action = move_until(sprite, velocity=(5, 0), condition=infinite, tag="test")
 
@@ -86,8 +86,8 @@ class TestFrameClockSemantics(ActionTestBase):
         sprite = arcade.Sprite()
         sprite.center_x = 100
         sprite.center_y = 100
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         action1 = move_until(sprite, velocity=(5, 0), condition=infinite, tag="test1")
         action2 = move_until(sprite, velocity=(0, 5), condition=infinite, tag="test2")
@@ -120,8 +120,8 @@ class TestFrameClockSemantics(ActionTestBase):
         sprite = arcade.Sprite()
         sprite.center_x = 100
         sprite.center_y = 100
-        from actions import move_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import move_until
+        from arcadeactions.frame_timing import after_frames
 
         action = move_until(sprite, velocity=(5, 0), condition=after_frames(10), tag="test")
         initial_frame = Action.current_frame()
@@ -145,8 +145,8 @@ class TestFrameClockSemantics(ActionTestBase):
         sprite = arcade.Sprite()
         sprite.center_x = 100
         sprite.center_y = 100
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         action = move_until(sprite, velocity=(5, 0), condition=infinite, tag="test")
 
@@ -169,7 +169,7 @@ class TestFrameClockSemantics(ActionTestBase):
         sprite = arcade.Sprite()
         sprite.center_x = 100
         sprite.center_y = 100
-        from actions import move_until
+        from arcadeactions import move_until
 
         # Create action with frame-based condition
         condition = after_frames(10)

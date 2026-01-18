@@ -2,8 +2,8 @@
 
 from unittest.mock import patch
 
-from actions import Action
-from actions.debug import MotionDebugger, attach_motion_debugger
+from arcadeactions import Action
+from arcadeactions.debug import MotionDebugger, attach_motion_debugger
 from tests.conftest import ActionTestBase
 
 
@@ -255,7 +255,7 @@ class TestPriority5_ExceptionHandlingInDebug:
 
     def test_debug_log_action_exception_handling(self):
         """Test _debug_log_action handles exceptions gracefully - line 24-25."""
-        from actions.base import _debug_log_action
+        from arcadeactions.base import _debug_log_action
 
         # Create an object that will raise an exception when type() is called
         class ProblematicAction:

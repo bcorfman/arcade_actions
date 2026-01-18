@@ -7,8 +7,8 @@ design principles of no runtime type checking.
 
 import arcade
 
-from actions import Action
-from actions.dev.reload import ReloadManager
+from arcadeactions import Action
+from arcadeactions.dev.reload import ReloadManager
 
 
 class TestStateRestoration:

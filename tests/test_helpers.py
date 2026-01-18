@@ -2,9 +2,9 @@
 
 import arcade
 
-from actions import Action
-from actions.frame_timing import after_frames
-from actions.helpers import callback_until, cycle_textures_until, move_by, move_to
+from arcadeactions import Action
+from arcadeactions.frame_timing import after_frames
+from arcadeactions.helpers import callback_until, cycle_textures_until, move_by, move_to
 from tests.conftest import ActionTestBase
 
 

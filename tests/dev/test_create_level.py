@@ -1,4 +1,4 @@
-"""Tests for actions.dev.create_level module."""
+"""Tests for arcadeactions.dev.create_level module."""
 
 import subprocess
 from pathlib import Path
@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from actions.dev import create_level
+from arcadeactions.dev import create_level
 
 
 class TestDeriveTitleFromFilename:
@@ -152,7 +152,7 @@ class TestRunLevelFile:
         test_file = tmp_path / "test.py"
         test_file.write_text("# test file")
 
-        mock_run = mocker.patch("actions.dev.create_level.subprocess.run")
+        mock_run = mocker.patch("arcadeactions.dev.create_level.subprocess.run")
         mock_run.return_value = MagicMock(returncode=0)
 
         create_level.run_level_file(str(test_file))
@@ -175,7 +175,7 @@ class TestRunLevelFile:
         test_file = tmp_path / "test.py"
         test_file.write_text("# test file")
 
-        mock_run = mocker.patch("actions.dev.create_level.subprocess.run")
+        mock_run = mocker.patch("arcadeactions.dev.create_level.subprocess.run")
         mock_run.side_effect = subprocess.CalledProcessError(1, "uv")
 
         with pytest.raises(subprocess.CalledProcessError):
@@ -186,7 +186,7 @@ class TestRunLevelFile:
         test_file = tmp_path / "test.py"
         test_file.write_text("# test file")
 
-        mock_run = mocker.patch("actions.dev.create_level.subprocess.run")
+        mock_run = mocker.patch("arcadeactions.dev.create_level.subprocess.run")
         mock_run.side_effect = FileNotFoundError("uv not found")
 
         with pytest.raises(FileNotFoundError):
@@ -200,10 +200,10 @@ class TestMain:
         """Test main() with filename argument."""
         filename = tmp_path / "test_level.py"
 
-        mock_generate = mocker.patch("actions.dev.create_level.generate_level_file")
+        mock_generate = mocker.patch("arcadeactions.dev.create_level.generate_level_file")
         mock_generate.return_value = str(filename.resolve())
 
-        mock_run = mocker.patch("actions.dev.create_level.run_level_file")
+        mock_run = mocker.patch("arcadeactions.dev.create_level.run_level_file")
 
         with patch("sys.argv", ["create_level", str(filename)]):
             try:
@@ -219,10 +219,10 @@ class TestMain:
         filename = tmp_path / "interactive_level.py"
 
         mock_input = mocker.patch("builtins.input", return_value=str(filename))
-        mock_generate = mocker.patch("actions.dev.create_level.generate_level_file")
+        mock_generate = mocker.patch("arcadeactions.dev.create_level.generate_level_file")
         mock_generate.return_value = str(filename.resolve())
 
-        mock_run = mocker.patch("actions.dev.create_level.run_level_file")
+        mock_run = mocker.patch("arcadeactions.dev.create_level.run_level_file")
 
         with patch("sys.argv", ["create_level"]):
             try:
@@ -258,10 +258,10 @@ class TestMain:
         filename.write_text("existing content")
 
         mock_input = mocker.patch("builtins.input", side_effect=["y"])
-        mock_generate = mocker.patch("actions.dev.create_level.generate_level_file")
+        mock_generate = mocker.patch("arcadeactions.dev.create_level.generate_level_file")
         mock_generate.return_value = str(filename.resolve())
 
-        mock_run = mocker.patch("actions.dev.create_level.run_level_file")
+        mock_run = mocker.patch("arcadeactions.dev.create_level.run_level_file")
 
         with patch("sys.argv", ["create_level", str(filename)]):
             try:
@@ -295,7 +295,7 @@ class TestMain:
 
     def test_main_value_error(self, mocker):
         """Test main() handles ValueError."""
-        mock_generate = mocker.patch("actions.dev.create_level.generate_level_file")
+        mock_generate = mocker.patch("arcadeactions.dev.create_level.generate_level_file")
         mock_generate.side_effect = ValueError("Invalid filename")
 
         with patch("sys.argv", ["create_level", "invalid"]), pytest.raises(SystemExit) as exc_info:
@@ -305,10 +305,10 @@ class TestMain:
 
     def test_main_file_not_found_error(self, mocker):
         """Test main() handles FileNotFoundError."""
-        mock_generate = mocker.patch("actions.dev.create_level.generate_level_file")
+        mock_generate = mocker.patch("arcadeactions.dev.create_level.generate_level_file")
         mock_generate.return_value = "/fake/path.py"
 
-        mock_run = mocker.patch("actions.dev.create_level.run_level_file")
+        mock_run = mocker.patch("arcadeactions.dev.create_level.run_level_file")
         mock_run.side_effect = FileNotFoundError("File not found")
 
         with patch("sys.argv", ["create_level", "test.py"]), pytest.raises(SystemExit) as exc_info:
@@ -318,7 +318,7 @@ class TestMain:
 
     def test_main_unexpected_error(self, mocker):
         """Test main() handles unexpected errors."""
-        mock_generate = mocker.patch("actions.dev.create_level.generate_level_file")
+        mock_generate = mocker.patch("arcadeactions.dev.create_level.generate_level_file")
         mock_generate.side_effect = RuntimeError("Unexpected error")
 
         with patch("sys.argv", ["create_level", "test.py"]), pytest.raises(SystemExit) as exc_info:

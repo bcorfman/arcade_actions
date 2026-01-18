@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from actions.dev.watch import FileWatcher
+from arcadeactions.dev.watch import FileWatcher
 
 pytestmark = pytest.mark.slow
 
@@ -120,7 +120,7 @@ class TestFileWatcher:
 
     def test_debounce_handler_is_after_cutoff_none(self, tmp_path):
         """Test _DebounceHandler._is_after_cutoff when cutoff_time is None."""
-        from actions.dev.watch import _DebounceHandler
+        from arcadeactions.dev.watch import _DebounceHandler
 
         handler = _DebounceHandler(callback=lambda files: None, debounce_seconds=0.1)
         handler._cutoff_time = None
@@ -135,7 +135,7 @@ class TestFileWatcher:
         """Test _DebounceHandler._is_after_cutoff when file doesn't exist."""
         import time
 
-        from actions.dev.watch import _DebounceHandler
+        from arcadeactions.dev.watch import _DebounceHandler
 
         handler = _DebounceHandler(callback=lambda files: None, debounce_seconds=0.1)
         handler._cutoff_time = time.time()
@@ -147,7 +147,7 @@ class TestFileWatcher:
 
     def test_debounce_handler_matches_pattern(self, tmp_path):
         """Test _DebounceHandler._matches_pattern."""
-        from actions.dev.watch import _DebounceHandler
+        from arcadeactions.dev.watch import _DebounceHandler
 
         handler = _DebounceHandler(callback=lambda files: None, debounce_seconds=0.1, patterns=["*.py", "*.txt"])
 
@@ -162,7 +162,7 @@ class TestFileWatcher:
     def test_debounce_handler_on_modified_ignores_directories(self, tmp_path):
         """Test _DebounceHandler.on_modified ignores directory events."""
 
-        from actions.dev.watch import _DebounceHandler
+        from arcadeactions.dev.watch import _DebounceHandler
 
         callback_called = []
 
@@ -185,7 +185,7 @@ class TestFileWatcher:
         """Test _DebounceHandler.on_modified filters files by pattern."""
         import time
 
-        from actions.dev.watch import _DebounceHandler
+        from arcadeactions.dev.watch import _DebounceHandler
 
         callback_called = []
 
@@ -209,7 +209,7 @@ class TestFileWatcher:
         """Test _DebounceHandler.on_modified filters files by cutoff time."""
         import time
 
-        from actions.dev.watch import _DebounceHandler
+        from arcadeactions.dev.watch import _DebounceHandler
 
         callback_called = []
 
@@ -237,7 +237,7 @@ class TestFileWatcher:
         """Test _DebounceHandler.stop() clears pending files."""
         import time
 
-        from actions.dev.watch import _DebounceHandler
+        from arcadeactions.dev.watch import _DebounceHandler
 
         callback_called = []
 
@@ -309,7 +309,7 @@ class TestFileWatcher:
         import threading
         import time
 
-        from actions.dev.watch import _DebounceHandler
+        from arcadeactions.dev.watch import _DebounceHandler
 
         callback_called = []
         callback_lock = threading.Lock()
@@ -353,7 +353,7 @@ class TestFileWatcher:
         """Test _DebounceHandler.stop() joins the debounce thread."""
         import time
 
-        from actions.dev.watch import _DebounceHandler
+        from arcadeactions.dev.watch import _DebounceHandler
 
         def callback(files):
             pass
@@ -416,7 +416,7 @@ class TestFileWatcher:
         """
         import time
 
-        from actions.dev.watch import _DebounceHandler
+        from arcadeactions.dev.watch import _DebounceHandler
 
         callback_called = []
 

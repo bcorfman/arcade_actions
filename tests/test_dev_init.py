@@ -1,9 +1,9 @@
-"""Tests for actions.dev.__init__.py - enable_dev_mode and auto_enable_from_env functions."""
+"""Tests for arcadeactions.dev.__init__.py - enable_dev_mode and auto_enable_from_env functions."""
 
 import os
 
-from actions.dev import auto_enable_from_env, enable_dev_mode
-from actions.dev.reload import ReloadManager
+from arcadeactions.dev import auto_enable_from_env, enable_dev_mode
+from arcadeactions.dev.reload import ReloadManager
 
 
 class TestEnableDevMode:

@@ -1,4 +1,4 @@
-Scope: unit/integration tests for actions.
+Scope: unit/integration tests for arcadeactions.
 
 Testing:
 - Follow `docs/testing_guide.md` for fixtures and patterns.

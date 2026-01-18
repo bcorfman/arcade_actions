@@ -7,8 +7,8 @@ debug store following dependency injection patterns.
 
 import arcade
 
-from actions.base import Action
-from actions.visualizer.instrumentation import DebugDataStore
+from arcadeactions.base import Action
+from arcadeactions.visualizer.instrumentation import DebugDataStore
 
 
 class MockAction(Action):

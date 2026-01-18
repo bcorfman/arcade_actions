@@ -6,7 +6,7 @@ instead of wall-clock timing (BlinkUntil, CallbackUntil, TweenUntil, DelayUntil,
 
 import arcade
 
-from actions import Action
+from arcadeactions import Action
 from tests.conftest import ActionTestBase
 
 
@@ -15,8 +15,8 @@ class TestBlinkUntilFrames(ActionTestBase):
 
     def test_blink_until_frames_basic(self, test_sprite):
         """Test BlinkUntil with frame-based timing."""
-        from actions import blink_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import blink_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.visible = True
@@ -61,8 +61,8 @@ class TestBlinkUntilFrames(ActionTestBase):
 
     def test_blink_until_frames_with_callbacks(self, test_sprite):
         """Test BlinkUntil frame-based timing with enter/exit callbacks."""
-        from actions import blink_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import blink_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.visible = True
@@ -98,8 +98,8 @@ class TestBlinkUntilFrames(ActionTestBase):
 
     def test_blink_until_frames_sprite_list(self, test_sprite_list):
         """Test BlinkUntil with frame timing on SpriteList."""
-        from actions import blink_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import blink_until
+        from arcadeactions.frame_timing import after_frames
 
         sprites = test_sprite_list
         for sprite in sprites:
@@ -126,8 +126,8 @@ class TestCallbackUntilFrames(ActionTestBase):
 
     def test_callback_until_every_frame(self, test_sprite):
         """Test CallbackUntil that fires every frame."""
-        from actions import callback_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import callback_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         call_frames = []
@@ -147,8 +147,8 @@ class TestCallbackUntilFrames(ActionTestBase):
 
     def test_callback_until_frame_interval(self, test_sprite):
         """Test CallbackUntil with frame-based interval."""
-        from actions import callback_until
-        from actions.frame_timing import after_frames, every_frames
+        from arcadeactions import callback_until
+        from arcadeactions.frame_timing import after_frames, every_frames
 
         sprite = test_sprite
         call_frames = []
@@ -173,8 +173,8 @@ class TestCallbackUntilFrames(ActionTestBase):
 
     def test_callback_until_with_target_parameter(self, test_sprite):
         """Test CallbackUntil callback receives target parameter."""
-        from actions import callback_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import callback_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         received_targets = []
@@ -200,8 +200,8 @@ class TestDelayUntilFrames(ActionTestBase):
 
     def test_delay_until_frames(self, test_sprite):
         """Test DelayUntil with frame-based condition."""
-        from actions import DelayUntil
-        from actions.frame_timing import after_frames
+        from arcadeactions import DelayUntil
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
 
@@ -229,8 +229,8 @@ class TestDelayUntilFrames(ActionTestBase):
 
     def test_delay_until_in_sequence(self, test_sprite):
         """Test DelayUntil with frames in a sequence."""
-        from actions import DelayUntil, MoveUntil, sequence
-        from actions.frame_timing import after_frames
+        from arcadeactions import DelayUntil, MoveUntil, sequence
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 100
@@ -264,8 +264,8 @@ class TestTweenUntilFrames(ActionTestBase):
 
     def test_tween_until_frames_basic(self, test_sprite):
         """Test TweenUntil with frame-based duration."""
-        from actions import tween_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import tween_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 0
@@ -297,8 +297,8 @@ class TestTweenUntilFrames(ActionTestBase):
         """Test TweenUntil with frame-based duration and easing."""
         from arcade import easing
 
-        from actions import tween_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import tween_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 0
@@ -323,8 +323,8 @@ class TestTweenUntilFrames(ActionTestBase):
 
     def test_tween_until_frames_deterministic(self, test_sprite):
         """Test that TweenUntil is deterministic with varying delta_time."""
-        from actions import tween_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import tween_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 0
@@ -356,13 +356,13 @@ class TestEaseFrames(ActionTestBase):
         """Test Ease wrapper with frame-based duration."""
         from arcade import easing
 
-        from actions import MoveUntil, ease
+        from arcadeactions import MoveUntil, ease
 
         sprite = test_sprite
         sprite.center_x = 100
 
         # Create move action that runs indefinitely
-        from actions.conditional import infinite
+        from arcadeactions.conditional import infinite
 
         move = MoveUntil(velocity=(10, 0), condition=infinite)
 
@@ -389,8 +389,8 @@ class TestEaseFrames(ActionTestBase):
         """Test Ease wrapper completion callback with frames."""
         from arcade import easing
 
-        from actions import MoveUntil, ease
-        from actions.conditional import infinite
+        from arcadeactions import MoveUntil, ease
+        from arcadeactions.conditional import infinite
 
         sprite = test_sprite
 
@@ -421,8 +421,8 @@ class TestCycleTexturesFrames(ActionTestBase):
 
     def test_cycle_textures_frames_basic(self, test_sprite):
         """Test CycleTexturesUntil with frame-based timing."""
-        from actions import cycle_textures_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import cycle_textures_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
 
@@ -466,8 +466,8 @@ class TestCycleTexturesFrames(ActionTestBase):
 
     def test_cycle_textures_frames_deterministic(self, test_sprite):
         """Test that texture cycling is deterministic regardless of delta_time."""
-        from actions import cycle_textures_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import cycle_textures_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
 
@@ -499,8 +499,8 @@ class TestFrameBasedPatterns(ActionTestBase):
 
     def test_zigzag_pattern_frames(self, test_sprite):
         """Test zigzag pattern with frame-based timing."""
-        from actions.frame_timing import after_frames
-        from actions.pattern import create_zigzag_pattern
+        from arcadeactions.frame_timing import after_frames
+        from arcadeactions.pattern import create_zigzag_pattern
 
         sprite = test_sprite
         sprite.center_x = 100
@@ -526,7 +526,7 @@ class TestFrameBasedPatterns(ActionTestBase):
 
     def test_bounce_pattern_frames(self, test_sprite):
         """Test bounce pattern with frame-based boundary detection."""
-        from actions.pattern import create_bounce_pattern
+        from arcadeactions.pattern import create_bounce_pattern
 
         sprite = test_sprite
         sprite.center_x = 100
@@ -564,8 +564,8 @@ class TestFrameTimingEdgeCases(ActionTestBase):
 
     def test_zero_frame_condition(self, test_sprite):
         """Test action with zero-frame condition completes immediately."""
-        from actions import move_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import move_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
 
@@ -577,8 +577,8 @@ class TestFrameTimingEdgeCases(ActionTestBase):
 
     def test_negative_frame_condition(self, test_sprite):
         """Test action with negative frame condition completes immediately."""
-        from actions import move_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import move_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
 
@@ -590,8 +590,8 @@ class TestFrameTimingEdgeCases(ActionTestBase):
 
     def test_very_large_frame_count(self, test_sprite):
         """Test action with very large frame count."""
-        from actions import move_until
-        from actions.frame_timing import after_frames
+        from arcadeactions import move_until
+        from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
 

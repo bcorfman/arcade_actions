@@ -10,9 +10,9 @@ from threading import Thread
 
 import arcade
 
-from actions import Action
-from actions.conditional import MoveUntil, infinite
-from actions.dev.reload import ReloadIndicator, ReloadManager
+from arcadeactions import Action
+from arcadeactions.conditional import MoveUntil, infinite
+from arcadeactions.dev.reload import ReloadIndicator, ReloadManager
 
 
 class TestReloadManager:

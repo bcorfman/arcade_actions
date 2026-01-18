@@ -3,14 +3,14 @@
 import arcade
 import pytest
 
-from actions.base import Action
-from actions.conditional import (
+from arcadeactions.base import Action
+from arcadeactions.conditional import (
     MoveUntil,
     ParametricMotionUntil,
     TweenUntil,
     infinite,
 )
-from actions.frame_timing import after_frames, seconds_to_frames
+from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 
 class TestMoveUntilCoverage:

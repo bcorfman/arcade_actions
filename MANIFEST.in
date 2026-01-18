@@ -4,7 +4,7 @@ include CHANGELOG.md
 include setup_dev.py
 recursive-include docs *.md
 recursive-include examples *.py
-recursive-include actions *.py
+recursive-include arcadeactions *.py
 include pyproject.toml
 exclude *.pyc
 recursive-exclude * __pycache__

@@ -13,7 +13,7 @@ pytest.importorskip("statemachine")
 
 from statemachine import State, StateMachine
 
-from actions import Action, CallbackUntil
+from arcadeactions import Action, CallbackUntil
 
 
 class GameFlowStateMachine(StateMachine):

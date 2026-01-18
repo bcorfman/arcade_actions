@@ -2,7 +2,7 @@
 
 import pytest
 
-from actions.display import _SDL_Rect, _WindowProto, center_window
+from arcadeactions.display import _SDL_Rect, _WindowProto, center_window
 
 
 class MockWindow:
@@ -55,14 +55,14 @@ class TestCenterWindow:
         window = MockWindow(800, 600)
 
         # Mock both SDL2 and screeninfo to avoid environment dependencies
-        with patch("actions.display._load_sdl2", return_value=None):
-            with patch("actions.display._center_with_screeninfo", return_value=True):
+        with patch("arcadeactions.display._load_sdl2", return_value=None):
+            with patch("arcadeactions.display._center_with_screeninfo", return_value=True):
                 result = center_window(window)
                 assert result is True
 
         # Test the fallback case where both methods fail
-        with patch("actions.display._load_sdl2", return_value=None):
-            with patch("actions.display._center_with_screeninfo", return_value=False):
+        with patch("arcadeactions.display._load_sdl2", return_value=None):
+            with patch("arcadeactions.display._center_with_screeninfo", return_value=False):
                 result = center_window(window)
                 assert result is False
 
@@ -76,8 +76,8 @@ class TestCenterWindow:
             window = arcade.Window(800, 600, visible=False)
 
             # Mock both SDL2 and screeninfo to avoid environment dependencies
-            with patch("actions.display._load_sdl2", return_value=None):
-                with patch("actions.display._center_with_screeninfo", return_value=True):
+            with patch("arcadeactions.display._load_sdl2", return_value=None):
+                with patch("arcadeactions.display._center_with_screeninfo", return_value=True):
                     result = center_window(window)
                     assert result is True
 
@@ -121,18 +121,18 @@ class TestDisplayPlatformSpecific:
         window = MockWindow(800, 600)
 
         # Test with different platform strings to cover missing lines
-        with patch.object(sys, "platform", "win32"), patch("actions.display._load_sdl2", return_value=None):
-            with patch("actions.display._center_with_screeninfo", return_value=True):
+        with patch.object(sys, "platform", "win32"), patch("arcadeactions.display._load_sdl2", return_value=None):
+            with patch("arcadeactions.display._center_with_screeninfo", return_value=True):
                 result = center_window(window)
                 assert result is True
 
-        with patch.object(sys, "platform", "darwin"), patch("actions.display._load_sdl2", return_value=None):
-            with patch("actions.display._center_with_screeninfo", return_value=False):
+        with patch.object(sys, "platform", "darwin"), patch("arcadeactions.display._load_sdl2", return_value=None):
+            with patch("arcadeactions.display._center_with_screeninfo", return_value=False):
                 result = center_window(window)
                 assert result is False
 
-        with patch.object(sys, "platform", "linux"), patch("actions.display._load_sdl2", return_value=None):
-            with patch("actions.display._center_with_screeninfo", return_value=True):
+        with patch.object(sys, "platform", "linux"), patch("arcadeactions.display._load_sdl2", return_value=None):
+            with patch("arcadeactions.display._center_with_screeninfo", return_value=True):
                 result = center_window(window)
                 assert result is True
 
@@ -140,11 +140,11 @@ class TestDisplayPlatformSpecific:
         """Test SDL2 loading OSError handling (lines 72-74)."""
         from unittest.mock import patch
 
-        from actions.display import _load_sdl2
+        from arcadeactions.display import _load_sdl2
 
         # Test OSError handling when CDLL fails to load libraries
         with patch("ctypes.util.find_library", return_value="fake_sdl2"):
-            with patch("actions.display.CDLL", side_effect=OSError("Library not found")):
+            with patch("arcadeactions.display.CDLL", side_effect=OSError("Library not found")):
                 result = _load_sdl2()
                 assert result is None
 
@@ -152,7 +152,7 @@ class TestDisplayPlatformSpecific:
         """Test SDL centering with various error conditions."""
         from unittest.mock import MagicMock, patch
 
-        from actions.display import _center_with_sdl
+        from arcadeactions.display import _center_with_sdl
 
         window = MockWindow(800, 600)
 
@@ -160,7 +160,7 @@ class TestDisplayPlatformSpecific:
         mock_sdl = MagicMock()
         mock_sdl.SDL_Init.return_value = -1  # Failure
 
-        with patch("actions.display._load_sdl2", return_value=mock_sdl):
+        with patch("arcadeactions.display._load_sdl2", return_value=mock_sdl):
             result = _center_with_sdl(window)
             assert result is False
 
@@ -168,7 +168,7 @@ class TestDisplayPlatformSpecific:
         mock_sdl.SDL_Init.return_value = 0  # Success
         mock_sdl.SDL_GetNumVideoDisplays.return_value = 0  # No displays
 
-        with patch("actions.display._load_sdl2", return_value=mock_sdl):
+        with patch("arcadeactions.display._load_sdl2", return_value=mock_sdl):
             result = _center_with_sdl(window)
             assert result is False
 
@@ -176,13 +176,13 @@ class TestDisplayPlatformSpecific:
         mock_sdl.SDL_GetNumVideoDisplays.return_value = 1  # One display
         mock_sdl.SDL_GetDisplayBounds.return_value = -1  # Failure
 
-        with patch("actions.display._load_sdl2", return_value=mock_sdl):
+        with patch("arcadeactions.display._load_sdl2", return_value=mock_sdl):
             result = _center_with_sdl(window)
             assert result is False
 
     def test_sdl_rect_ellipsis_method(self):
         """Test _SDL_Rect ellipsis method (line 40)."""
-        from actions.display import _WindowProto
+        from arcadeactions.display import _WindowProto
 
         # Create a test implementation that uses the ellipsis method
         class TestRect(_WindowProto):

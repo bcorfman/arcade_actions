@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.snapshot import SnapshotExporter
+from arcadeactions.visualizer.instrumentation import DebugDataStore
+from arcadeactions.visualizer.snapshot import SnapshotExporter
 
 
 @pytest.fixture

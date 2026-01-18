@@ -12,8 +12,8 @@ import random
 
 import arcade
 
-from actions import Action, arrange_grid, center_window, move_until
-from actions.helpers import move_to
+from arcadeactions import Action, arrange_grid, center_window, move_until
+from arcadeactions.helpers import move_to
 
 SPRITE_SCALING_PLAYER = 0.75
 SPRITE_SCALING_ENEMY = 0.75
@@ -179,7 +179,7 @@ class GameView(arcade.View):
         firing frequency matches the original time-based version from a85b5af,
         while still going through the Actions system for proper pause/step.
         """
-        from actions import CallbackUntil, infinite
+        from arcadeactions import CallbackUntil, infinite
 
         firing_action = CallbackUntil(callback=self.allow_enemies_to_fire, condition=infinite)
         firing_action.apply(self.enemy_list, tag="enemy_firing")

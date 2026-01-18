@@ -8,10 +8,10 @@ with keyword parameters and return the appropriate axis-specific actions.
 import arcade
 import pytest
 
-from actions.axis_move import MoveXUntil, MoveYUntil
-from actions.base import Action
-from actions.conditional import infinite
-from actions.helpers import move_x_until, move_y_until
+from arcadeactions.axis_move import MoveXUntil, MoveYUntil
+from arcadeactions.base import Action
+from arcadeactions.conditional import infinite
+from arcadeactions.helpers import move_x_until, move_y_until
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -360,7 +360,7 @@ class TestAxisHelperIntegration:
 
     def test_axis_helpers_with_parallel_composition(self, test_sprite):
         """Test composing axis helpers with parallel actions."""
-        from actions.composite import parallel
+        from arcadeactions.composite import parallel
 
         test_sprite.change_x = 0
         test_sprite.change_y = 0
@@ -382,7 +382,7 @@ class TestAxisHelperIntegration:
 
         Sprite is 128x128, so bounds must be at least 128px wide/tall.
         """
-        from actions.composite import parallel
+        from arcadeactions.composite import parallel
 
         test_sprite.change_x = 0
         test_sprite.change_y = 0
@@ -421,7 +421,7 @@ class TestAxisHelperIntegration:
 
     def test_axis_helpers_with_sprite_list(self, test_sprite_list):
         """Test axis helpers with sprite lists."""
-        from actions.composite import parallel
+        from arcadeactions.composite import parallel
 
         # Set initial velocities
         for sprite in test_sprite_list:
@@ -443,7 +443,7 @@ class TestAxisHelperIntegration:
 
     def test_axis_helpers_example_usage(self, test_sprite):
         """Test the example usage pattern from the prompt."""
-        from actions.composite import parallel
+        from arcadeactions.composite import parallel
 
         test_sprite.change_x = 0
         test_sprite.change_y = 0
@@ -474,7 +474,7 @@ class TestAxisHelperIntegration:
 
     def test_axis_helpers_with_velocity_providers(self, test_sprite):
         """Test axis helpers with velocity providers."""
-        from actions.composite import parallel
+        from arcadeactions.composite import parallel
 
         test_sprite.change_x = 0
         test_sprite.change_y = 0

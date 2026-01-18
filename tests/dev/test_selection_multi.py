@@ -6,7 +6,7 @@ Tests click-to-select, shift-click, and marquee selection.
 import arcade
 import pytest
 
-from actions.dev.selection import SelectionManager
+from arcadeactions.dev.selection import SelectionManager
 from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.integration

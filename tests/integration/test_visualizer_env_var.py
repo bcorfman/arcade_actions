@@ -21,8 +21,8 @@ def test_visualizer_env_var_triggers_auto_attach():
         assert os.environ.get("ARCADEACTIONS_VISUALIZER") == "1"
 
         # Import should succeed and auto-attach should run without raising.
-        import actions  # noqa: F401
-        from actions import visualizer  # noqa: F401
+        import arcadeactions  # noqa: F401
+        from arcadeactions import visualizer  # noqa: F401
         """
     )
 

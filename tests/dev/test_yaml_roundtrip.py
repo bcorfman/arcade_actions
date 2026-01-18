@@ -9,8 +9,8 @@ import tempfile
 import arcade
 import pytest
 
-from actions.dev.prototype_registry import DevContext, get_registry, register_prototype
-from actions.dev.templates import export_template, load_scene_template
+from arcadeactions.dev.prototype_registry import DevContext, get_registry, register_prototype
+from arcadeactions.dev.templates import export_template, load_scene_template
 from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.integration
@@ -100,12 +100,12 @@ class TestYAMLRoundtrip(ActionTestBase):
             sprite._prototype_id = "roundtrip_sprite"
             return sprite
 
-        from actions.dev.presets import register_preset
+        from arcadeactions.dev.presets import register_preset
 
         @register_preset("roundtrip_preset", category="Movement", params={"speed": 7})
         def make_roundtrip_preset(ctx, speed):
-            from actions.conditional import infinite
-            from actions.helpers import move_until
+            from arcadeactions.conditional import infinite
+            from arcadeactions.helpers import move_until
 
             return move_until(None, velocity=(-speed, 0), condition=infinite)
 

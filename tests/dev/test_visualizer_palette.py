@@ -9,7 +9,7 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.dev.visualizer import DevVisualizer
 from tests.conftest import ActionTestBase
 
 pytestmark = pytest.mark.integration
@@ -28,7 +28,7 @@ class TestTogglePalette(ActionTestBase):
         mock_palette_window.toggle_window = mocker.MagicMock()
         mock_palette_window.request_main_window_focus = mocker.MagicMock()
 
-        mocker.patch("actions.dev.visualizer.PaletteWindow", return_value=mock_palette_window)
+        mocker.patch("arcadeactions.dev.visualizer.PaletteWindow", return_value=mock_palette_window)
         mocker.patch.object(dev_viz, "_create_palette_window", wraps=dev_viz._create_palette_window)
         mocker.patch.object(dev_viz, "update_main_window_position", return_value=True)
         mocker.patch.object(dev_viz, "_position_palette_window")
@@ -175,7 +175,7 @@ class TestPositionPaletteWindow(ActionTestBase):
         dev_viz.palette_window = mock_palette_window
 
         # Mock dependencies
-        mocker.patch("actions.dev.visualizer._get_primary_monitor_rect", return_value=(0, 0, 1920, 1080))
+        mocker.patch("arcadeactions.dev.visualizer._get_primary_monitor_rect", return_value=(0, 0, 1920, 1080))
         mocker.patch.object(dev_viz, "_get_window_location", return_value=(100, 200))
         mocker.patch.object(mock_palette_window, "set_location")
 
@@ -192,7 +192,7 @@ class TestPositionPaletteWindow(ActionTestBase):
         mock_palette_window.visible = False
         dev_viz.palette_window = mock_palette_window
 
-        mocker.patch("actions.dev.visualizer._get_primary_monitor_rect", return_value=(0, 0, 1920, 1080))
+        mocker.patch("arcadeactions.dev.visualizer._get_primary_monitor_rect", return_value=(0, 0, 1920, 1080))
         mocker.patch("arcade.get_window", return_value=None)
         mock_print = mocker.patch("builtins.print")
 
@@ -211,7 +211,7 @@ class TestPositionPaletteWindow(ActionTestBase):
         dev_viz.palette_window = mock_palette_window
 
         # Mock dependencies
-        mocker.patch("actions.dev.visualizer._get_primary_monitor_rect", return_value=(0, 0, 1920, 1080))
+        mocker.patch("arcadeactions.dev.visualizer._get_primary_monitor_rect", return_value=(0, 0, 1920, 1080))
         mocker.patch.object(dev_viz, "_get_window_location", return_value=(100, 200))
 
         result = dev_viz._position_palette_window()
@@ -233,7 +233,7 @@ class TestPositionPaletteWindow(ActionTestBase):
         new_window.get_location.return_value = (200, 300)
 
         mocker.patch("arcade.get_window", return_value=new_window)
-        mocker.patch("actions.dev.visualizer._get_primary_monitor_rect", return_value=(0, 0, 1920, 1080))
+        mocker.patch("arcadeactions.dev.visualizer._get_primary_monitor_rect", return_value=(0, 0, 1920, 1080))
         mocker.patch.object(dev_viz, "_get_tracked_window_position", return_value=None)
         mocker.patch.object(dev_viz, "_get_window_location", return_value=(200, 300))
         mocker.patch.object(mock_palette_window, "set_location")
@@ -346,11 +346,11 @@ class TestCreatePaletteWindow(ActionTestBase):
         """Test that _create_palette_window creates palette window."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
 
-        mock_palette_window_class = mocker.patch("actions.dev.visualizer.PaletteWindow")
+        mock_palette_window_class = mocker.patch("arcadeactions.dev.visualizer.PaletteWindow")
         mock_palette_instance = mocker.MagicMock()
         mock_palette_window_class.return_value = mock_palette_instance
 
-        mocker.patch("actions.dev.visualizer.get_registry")
+        mocker.patch("arcadeactions.dev.visualizer.get_registry")
 
         dev_viz._create_palette_window()
 
@@ -363,11 +363,11 @@ class TestCreatePaletteWindow(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz._is_detaching = False
 
-        mock_palette_window_class = mocker.patch("actions.dev.visualizer.PaletteWindow")
+        mock_palette_window_class = mocker.patch("arcadeactions.dev.visualizer.PaletteWindow")
         mock_palette_instance = mocker.MagicMock()
         mock_palette_window_class.return_value = mock_palette_instance
 
-        mocker.patch("actions.dev.visualizer.get_registry")
+        mocker.patch("arcadeactions.dev.visualizer.get_registry")
 
         dev_viz._create_palette_window()
 
@@ -388,11 +388,11 @@ class TestCreatePaletteWindow(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz._is_detaching = True
 
-        mock_palette_window_class = mocker.patch("actions.dev.visualizer.PaletteWindow")
+        mock_palette_window_class = mocker.patch("arcadeactions.dev.visualizer.PaletteWindow")
         mock_palette_instance = mocker.MagicMock()
         mock_palette_window_class.return_value = mock_palette_instance
 
-        mocker.patch("actions.dev.visualizer.get_registry")
+        mocker.patch("arcadeactions.dev.visualizer.get_registry")
 
         dev_viz._create_palette_window()
 
@@ -412,11 +412,11 @@ class TestCreatePaletteWindow(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
 
-        mock_palette_window_class = mocker.patch("actions.dev.visualizer.PaletteWindow")
+        mock_palette_window_class = mocker.patch("arcadeactions.dev.visualizer.PaletteWindow")
         mock_palette_instance = mocker.MagicMock()
         mock_palette_window_class.return_value = mock_palette_instance
 
-        mocker.patch("actions.dev.visualizer.get_registry")
+        mocker.patch("arcadeactions.dev.visualizer.get_registry")
         mock_handle_key = mocker.patch.object(dev_viz, "handle_key_press", return_value=True)
 
         dev_viz._create_palette_window()
@@ -437,11 +437,11 @@ class TestCreatePaletteWindow(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = False
 
-        mock_palette_window_class = mocker.patch("actions.dev.visualizer.PaletteWindow")
+        mock_palette_window_class = mocker.patch("arcadeactions.dev.visualizer.PaletteWindow")
         mock_palette_instance = mocker.MagicMock()
         mock_palette_window_class.return_value = mock_palette_instance
 
-        mocker.patch("actions.dev.visualizer.get_registry")
+        mocker.patch("arcadeactions.dev.visualizer.get_registry")
 
         dev_viz._create_palette_window()
 
@@ -459,11 +459,11 @@ class TestCreatePaletteWindow(ActionTestBase):
         """Test that _create_palette_window passes main window reference."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
 
-        mock_palette_window_class = mocker.patch("actions.dev.visualizer.PaletteWindow")
+        mock_palette_window_class = mocker.patch("arcadeactions.dev.visualizer.PaletteWindow")
         mock_palette_instance = mocker.MagicMock()
         mock_palette_window_class.return_value = mock_palette_instance
 
-        mocker.patch("actions.dev.visualizer.get_registry")
+        mocker.patch("arcadeactions.dev.visualizer.get_registry")
 
         dev_viz._create_palette_window()
 

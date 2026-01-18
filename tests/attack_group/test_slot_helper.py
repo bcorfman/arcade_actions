@@ -3,7 +3,7 @@
 import arcade
 import pytest
 
-from actions.formation import arrange_grid, arrange_line, arrange_triangle, get_slot_coordinates
+from arcadeactions.formation import arrange_grid, arrange_line, arrange_triangle, get_slot_coordinates
 from tests.conftest import ActionTestBase
 
 

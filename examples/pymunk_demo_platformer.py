@@ -18,9 +18,9 @@ from dataclasses import dataclass
 import arcade
 from statemachine import State, StateMachine
 
-from actions import Action
-from actions.conditional import infinite
-from actions.helpers import cycle_textures_until, move_until
+from arcadeactions import Action
+from arcadeactions.conditional import infinite
+from arcadeactions.helpers import cycle_textures_until, move_until
 
 # Window settings
 SCREEN_TITLE = "PyMunk Platformer with ArcadeActions and python-statemachine"

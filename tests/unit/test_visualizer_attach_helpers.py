@@ -5,8 +5,8 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.base import Action
-from actions.visualizer.attach import (
+from arcadeactions.base import Action
+from arcadeactions.visualizer.attach import (
     VisualizerSession,
     _collect_sprite_positions,
     _collect_sprite_sizes_and_ids,
@@ -19,12 +19,12 @@ from actions.visualizer.attach import (
 @pytest.fixture(autouse=True)
 def reset_session():
     """Reset visualizer session before each test."""
-    from actions.visualizer.attach import detach_visualizer
+    from arcadeactions.visualizer.attach import detach_visualizer
 
     yield
     detach_visualizer()
     # Clear module-level state
-    import actions.visualizer.attach as attach_module
+    import arcadeactions.visualizer.attach as attach_module
 
     attach_module._VISUALIZER_SESSION = None
 
@@ -360,7 +360,7 @@ class TestCollectTargetNamesFromView:
 
     def test_finds_targets_from_actions(self, monkeypatch):
         sprite = arcade.Sprite(":resources:images/items/star.png")
-        from actions.conditional import MoveUntil
+        from arcadeactions.conditional import MoveUntil
 
         action = MoveUntil(velocity=(1, 0), condition=lambda: False)
         action.apply(sprite)
@@ -382,12 +382,12 @@ class TestVisualizerSession:
     def test_keyboard_handler_property(self):
         from pathlib import Path
 
-        from actions.visualizer.condition_panel import ConditionDebugger
-        from actions.visualizer.controls import DebugControlManager
-        from actions.visualizer.guides import GuideManager
-        from actions.visualizer.instrumentation import DebugDataStore
-        from actions.visualizer.overlay import InspectorOverlay
-        from actions.visualizer.timeline import TimelineStrip
+        from arcadeactions.visualizer.condition_panel import ConditionDebugger
+        from arcadeactions.visualizer.controls import DebugControlManager
+        from arcadeactions.visualizer.guides import GuideManager
+        from arcadeactions.visualizer.instrumentation import DebugDataStore
+        from arcadeactions.visualizer.overlay import InspectorOverlay
+        from arcadeactions.visualizer.timeline import TimelineStrip
 
         debug_store = DebugDataStore()
         overlay = InspectorOverlay(debug_store)
@@ -458,9 +458,9 @@ class TestVisualizerSession:
         assert session.keyboard_handler is None
 
     def test_draw_handler_property(self):
-        from actions.visualizer.instrumentation import DebugDataStore
-        from actions.visualizer.overlay import InspectorOverlay
-        from actions.visualizer.renderer import OverlayRenderer
+        from arcadeactions.visualizer.instrumentation import DebugDataStore
+        from arcadeactions.visualizer.overlay import InspectorOverlay
+        from arcadeactions.visualizer.renderer import OverlayRenderer
 
         debug_store = DebugDataStore()
         overlay = InspectorOverlay(debug_store)
@@ -511,14 +511,14 @@ class TestVisualizerSession:
 
 class TestSessionHelpers:
     def test_get_visualizer_session_not_attached(self):
-        from actions.visualizer.attach import detach_visualizer
+        from arcadeactions.visualizer.attach import detach_visualizer
 
         detach_visualizer()
         session = get_visualizer_session()
         assert session is None
 
     def test_is_visualizer_attached_false(self):
-        from actions.visualizer.attach import detach_visualizer
+        from arcadeactions.visualizer.attach import detach_visualizer
 
         detach_visualizer()
         assert is_visualizer_attached() is False

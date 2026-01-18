@@ -8,8 +8,8 @@ from types import SimpleNamespace
 import arcade
 import pytest
 
-from actions import Action
-from actions.pattern import (
+from arcadeactions import Action
+from arcadeactions.pattern import (
     _calculate_velocity_to_target,
     _clone_formation_sprites,
     _create_precision_condition_and_callback,
@@ -263,7 +263,7 @@ def test_min_conflicts_assignment_returns_mapping(monkeypatch):
 
 
 def test_create_formation_entry_from_sprites_uses_helper_monkeypatched(monkeypatch):
-    import actions.pattern as pattern_module
+    import arcadeactions.pattern as pattern_module
 
     target = arcade.SpriteList()
     for x in (100, 200):

@@ -1,9 +1,9 @@
-"""Tests for actions.dev.selection module."""
+"""Tests for arcadeactions.dev.selection module."""
 
 import arcade
 import pytest
 
-from actions.dev import selection
+from arcadeactions.dev import selection
 
 
 @pytest.fixture
@@ -227,7 +227,7 @@ class TestSelectionManager:
         mocker.patch("arcade.get_sprites_at_point", return_value=[sprite_list[0]])
         manager.handle_mouse_press(100, 100, shift=False)
 
-        mock_draw_outline = mocker.patch("actions.dev.selection._draw_centered_rectangle_outline")
+        mock_draw_outline = mocker.patch("arcadeactions.dev.selection._draw_centered_rectangle_outline")
 
         manager.draw()
 
@@ -245,8 +245,8 @@ class TestSelectionManager:
         manager.handle_mouse_press(50, 50, shift=False)
         manager.handle_mouse_drag(150, 150)
 
-        mock_draw_outline = mocker.patch("actions.dev.selection._draw_centered_rectangle_outline")
-        mock_draw_filled = mocker.patch("actions.dev.selection._draw_centered_rectangle_filled")
+        mock_draw_outline = mocker.patch("arcadeactions.dev.selection._draw_centered_rectangle_outline")
+        mock_draw_filled = mocker.patch("arcadeactions.dev.selection._draw_centered_rectangle_filled")
 
         manager.draw()
 
@@ -258,8 +258,8 @@ class TestSelectionManager:
         """Test draw doesn't draw marquee when not dragging."""
         manager = selection.SelectionManager(sprite_list)
 
-        mock_draw_outline = mocker.patch("actions.dev.selection._draw_centered_rectangle_outline")
-        mock_draw_filled = mocker.patch("actions.dev.selection._draw_centered_rectangle_filled")
+        mock_draw_outline = mocker.patch("arcadeactions.dev.selection._draw_centered_rectangle_outline")
+        mock_draw_filled = mocker.patch("arcadeactions.dev.selection._draw_centered_rectangle_filled")
 
         manager.draw()
 

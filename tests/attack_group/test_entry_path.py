@@ -2,9 +2,9 @@
 
 import arcade
 
-from actions.base import Action
-from actions.formation import arrange_line
-from actions.group import AttackGroup
+from arcadeactions.base import Action
+from arcadeactions.formation import arrange_line
+from arcadeactions.group import AttackGroup
 from tests.conftest import ActionTestBase
 
 
@@ -79,7 +79,7 @@ class TestEntryPath(ActionTestBase):
 
     def test_loop_the_loop_creates_path(self):
         """Test that loop_the_loop creates a valid entry path (backward compatibility)."""
-        from actions.presets.entry_paths import loop_the_loop
+        from arcadeactions.presets.entry_paths import loop_the_loop
 
         # Create a loop path
         start_x, start_y = 400, -100
@@ -96,7 +96,7 @@ class TestEntryPath(ActionTestBase):
 
     def test_entry_path_with_exact_loop(self):
         """Test that entry_path works with loop_the_loop_exact helper."""
-        from actions.presets.entry_paths import loop_the_loop_exact
+        from arcadeactions.presets.entry_paths import loop_the_loop_exact
 
         sprites = arcade.SpriteList()
         for _ in range(5):

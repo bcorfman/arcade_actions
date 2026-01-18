@@ -5,9 +5,9 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions import Action, move_until
-from actions.conditional import infinite
-from actions.visualizer import detach_visualizer, get_visualizer_session
+from arcadeactions import Action, move_until
+from arcadeactions.conditional import infinite
+from arcadeactions.visualizer import detach_visualizer, get_visualizer_session
 from tests.conftest import ActionTestBase
 
 
@@ -134,7 +134,7 @@ class TestStepMovesSprites(ActionTestBase):
             arcade.set_window(window)
 
             # Attach visualizer
-            from actions.visualizer import attach as visualizer_attach
+            from arcadeactions.visualizer import attach as visualizer_attach
 
             visualizer_attach._AUTO_ATTACH_ATTEMPTED = False
             visualizer_attach.auto_attach_from_env(force=True)

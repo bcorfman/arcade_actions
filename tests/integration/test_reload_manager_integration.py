@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from actions import Action
-from actions.dev.reload import ReloadManager
+from arcadeactions import Action
+from arcadeactions.dev.reload import ReloadManager
 
 pytestmark = pytest.mark.slow
 
@@ -146,7 +146,7 @@ class GameState:
         """
         import os
 
-        from actions.dev import enable_dev_mode
+        from arcadeactions.dev import enable_dev_mode
 
         # Create a file structure
         src_dir = tmp_path / "src" / "game"

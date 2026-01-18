@@ -22,8 +22,8 @@ import time
 import arcade
 import pytest
 
-from actions import Action
-from actions.dev.reload import ReloadManager
+from arcadeactions import Action
+from arcadeactions.dev.reload import ReloadManager
 
 
 class TestHotReloadExitCriteria:
@@ -184,7 +184,7 @@ VALUE = {i + 1}
 
         import arcade
 
-        from actions.visualizer import attach_visualizer, detach_visualizer, is_visualizer_attached
+        from arcadeactions.visualizer import attach_visualizer, detach_visualizer, is_visualizer_attached
 
         try:
             # Setup window (same pattern as visualizer integration tests)

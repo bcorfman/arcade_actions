@@ -2,8 +2,8 @@
 
 import pytest
 
-from actions import Action
-from actions.instant import MoveBy, MoveTo
+from arcadeactions import Action
+from arcadeactions.instant import MoveBy, MoveTo
 from tests.conftest import ActionTestBase
 
 
@@ -245,8 +245,8 @@ class TestInstantActionsPauseBehavior(ActionTestBase):
         sprite.center_y = 100
 
         # Create and pause another action
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
         Action.pause_all()
@@ -269,8 +269,8 @@ class TestInstantActionsPauseBehavior(ActionTestBase):
         sprite.center_y = 100
 
         # Create and pause another action
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
         Action.pause_all()
@@ -299,8 +299,8 @@ class TestInstantActionsPauseBehavior(ActionTestBase):
         sprite.center_y = 100
 
         # Create and pause another action
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
         Action.pause_all()
@@ -322,8 +322,8 @@ class TestInstantActionsPauseBehavior(ActionTestBase):
         sprite.center_y = 100
 
         # Create and pause another action
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
         Action.pause_all()
@@ -385,8 +385,8 @@ class TestInstantActionsPauseBehavior(ActionTestBase):
             callback_called = True
 
         # Create and pause another action
-        from actions import move_until
-        from actions.conditional import infinite
+        from arcadeactions import move_until
+        from arcadeactions.conditional import infinite
 
         other_action = move_until(sprite, velocity=(2, 0), condition=infinite)
         Action.pause_all()

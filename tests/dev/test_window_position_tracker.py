@@ -5,7 +5,7 @@ Tests the WindowPositionTracker class extracted from visualizer.py.
 
 from __future__ import annotations
 
-from actions.dev.window_position_tracker import WindowPositionTracker
+from arcadeactions.dev.window_position_tracker import WindowPositionTracker
 from tests.conftest import HeadlessWindow
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer, SpriteWithSourceMarkers
+from arcadeactions.dev.visualizer import DevVisualizer, SpriteWithSourceMarkers
 
 
 @pytest.fixture

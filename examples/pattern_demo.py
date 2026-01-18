@@ -8,7 +8,7 @@ running in parallel in a 800x600 window with appropriate labels.
 import arcade
 import arcade.gui
 
-from actions import (
+from arcadeactions import (
     Action,
     MoveBy,
     center_window,

@@ -9,8 +9,8 @@ import os
 import arcade
 import pytest
 
-from actions.dev.prototype_registry import register_prototype
-from actions.dev.visualizer import (
+from arcadeactions.dev.prototype_registry import register_prototype
+from arcadeactions.dev.visualizer import (
     DevVisualizer,
     auto_enable_dev_visualizer_from_env,
     enable_dev_visualizer,
@@ -38,13 +38,13 @@ def mock_arcade_text(mocker):
         return mock_text
 
     # Patch Text in the visualizer module where it's used
-    mocker.patch("actions.dev.visualizer.arcade.Text", side_effect=create_mock_text)
+    mocker.patch("arcadeactions.dev.visualizer.arcade.Text", side_effect=create_mock_text)
 
 
 @pytest.fixture(autouse=True)
 def cleanup_global_dev_visualizer():
     """Clean up global DevVisualizer instance between tests."""
-    import actions.dev.visualizer as viz_module
+    import arcadeactions.dev.visualizer as viz_module
 
     yield
     # Cleanup after test
@@ -59,7 +59,7 @@ def cleanup_global_dev_visualizer():
         viz_module._original_set_window = None
     # Restore update_all hook if installed
     if viz_module._update_all_attach_hook_installed:
-        from actions import Action
+        from arcadeactions import Action
 
         if viz_module._previous_update_all_func is not None:
             Action.update_all = classmethod(viz_module._previous_update_all_func)  # type: ignore[method-assign]
@@ -324,7 +324,7 @@ class TestDevVisualizerManager(ActionTestBase):
     @pytest.mark.integration
     def test_auto_attach_via_update_all_hook(self, monkeypatch):
         """Test DevVisualizer can auto-attach via Action.update_all, like the debug visualizer."""
-        from actions import Action
+        from arcadeactions import Action
 
         # Start with no window
         def raise_no_window():
@@ -361,7 +361,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
     @pytest.mark.integration
     def test_actions_paused_when_visible(self, window):
         """Test that actions are paused when DevVisualizer becomes visible."""
-        from actions import Action, infinite, move_until
+        from arcadeactions import Action, infinite, move_until
 
         # Create sprite with action
         sprite = arcade.Sprite()
@@ -379,7 +379,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
     @pytest.mark.integration
     def test_actions_resumed_when_hidden(self, window):
         """Test that actions are resumed when DevVisualizer becomes hidden."""
-        from actions import Action, infinite, move_until
+        from arcadeactions import Action, infinite, move_until
 
         # Create sprite with action
         sprite = arcade.Sprite()
@@ -398,7 +398,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
     @pytest.mark.integration
     def test_toggle_pauses_and_resumes(self, window):
         """Test that toggle() pauses/resumes actions."""
-        from actions import Action, infinite, move_until
+        from arcadeactions import Action, infinite, move_until
 
         # Create sprite with action first
         sprite = arcade.Sprite()
@@ -421,7 +421,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
     @pytest.mark.integration
     def test_sprites_dont_move_when_paused(self, window):
         """Test that sprites don't move when actions are paused."""
-        from actions import Action, infinite, move_until
+        from arcadeactions import Action, infinite, move_until
 
         # Create sprite with action
         sprite = arcade.Sprite()
@@ -442,7 +442,7 @@ class TestDevVisualizerPauseResume(ActionTestBase):
     @pytest.mark.integration
     def test_sprites_move_when_resumed(self, window):
         """Test that sprites move again when actions are resumed."""
-        from actions import Action, infinite, move_until
+        from arcadeactions import Action, infinite, move_until
 
         # Create sprite with action
         sprite = arcade.Sprite()
@@ -653,7 +653,7 @@ class TestDevVisualizerEditMode(ActionTestBase):
         def fail_apply(*args, **kwargs):
             raise AssertionError("Action.apply should not run in edit mode")
 
-        monkeypatch.setattr("actions.base.Action.apply", fail_apply)
+        monkeypatch.setattr("arcadeactions.base.Action.apply", fail_apply)
 
         dev_viz.attach_preset_to_selected("test_preset", params={"speed": 3}, tag="movement")
 
@@ -662,7 +662,7 @@ class TestDevVisualizerEditMode(ActionTestBase):
 
     def test_apply_metadata_actions_to_runtime(self, window):
         """Test converting metadata actions to runtime actions."""
-        from actions import Action
+        from arcadeactions import Action
 
         sprite = arcade.Sprite()
         sprite.center_x = 100
@@ -702,7 +702,7 @@ class TestDevVisualizerEditMode(ActionTestBase):
 
     def test_export_includes_action_metadata(self, window):
         """Test that YAML export includes action metadata."""
-        from actions.dev import export_template
+        from arcadeactions.dev import export_template
 
         sprite = arcade.Sprite()
         sprite._prototype_id = "test_sprite"

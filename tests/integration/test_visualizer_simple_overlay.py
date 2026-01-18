@@ -5,8 +5,8 @@ Tests the minimal inspector overlay that only shows action count
 and cycles through corner positions.
 """
 
-from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.overlay import InspectorOverlay
+from arcadeactions.visualizer.instrumentation import DebugDataStore
+from arcadeactions.visualizer.overlay import InspectorOverlay
 
 
 class TestSimplifiedOverlay:

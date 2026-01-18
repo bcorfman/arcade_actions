@@ -3,11 +3,11 @@ import os
 import re
 from pathlib import Path
 
-# Import actions to get its location
-import actions
+# Import arcadeactions to get its location
+import arcadeactions
 
-actions_path = Path(actions.__file__).parent.parent
-print(f"Scanning: {actions_path}")
+arcadeactions_path = Path(arcadeactions.__file__).parent.parent
+print(f"Scanning: {arcadeactions_path}")
 
 # Common C extensions that might need explicit inclusion
 potential_c_extensions = {
@@ -53,11 +53,11 @@ def scan_file(filepath):
             class ImportCollector(ast.NodeVisitor):
                 def visit_Import(self, node):
                     for alias in node.names:
-                        if alias.name not in {"arcade", "pyglet", "actions", "__main__"}:
+                        if alias.name not in {"arcade", "pyglet", "arcadeactions", "__main__"}:
                             found_modules.add(alias.name)
 
                 def visit_ImportFrom(self, node):
-                    if node.module and node.module not in {"arcade", "pyglet", "actions", "__main__"}:
+                    if node.module and node.module not in {"arcade", "pyglet", "arcadeactions", "__main__"}:
                         found_modules.add(node.module)
 
             ImportCollector().visit(tree)
@@ -65,14 +65,14 @@ def scan_file(filepath):
             # Fallback to regex if AST parsing fails
             for line in content.split("\n"):
                 match = re.match(r"^\s*(import|from)\s+(\w+)", line)
-                if match and match.group(2) not in {"arcade", "pyglet", "actions", "__main__"}:
+                if match and match.group(2) not in {"arcade", "pyglet", "arcadeactions", "__main__"}:
                     found_modules.add(match.group(2))
     except Exception:
         pass
 
 
-# Scan all Python files in actions package
-for root, dirs, files in os.walk(actions_path):
+# Scan all Python files in arcadeactions package
+for root, dirs, files in os.walk(arcadeactions_path):
     # Skip __pycache__ and other hidden dirs
     dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__"]
 

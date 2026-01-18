@@ -5,7 +5,7 @@ Tests the debug data store and instrumentation hooks that capture
 action lifecycle events and condition evaluations.
 """
 
-from actions.visualizer.instrumentation import (
+from arcadeactions.visualizer.instrumentation import (
     DebugDataStore,
 )
 
@@ -422,9 +422,9 @@ class TestFrameCounterIntegration:
         """Test that DebugDataStore receives frame numbers from Action frame counter."""
         import arcade
 
-        from actions import Action
-        from actions.conditional import MoveUntil
-        from actions.frame_timing import after_frames
+        from arcadeactions import Action
+        from arcadeactions.conditional import MoveUntil
+        from arcadeactions.frame_timing import after_frames
 
         store = DebugDataStore()
         Action.set_debug_store(store)
@@ -465,9 +465,9 @@ class TestFrameCounterIntegration:
         """Test that snapshots reflect pause state when actions are paused."""
         import arcade
 
-        from actions import Action
-        from actions.conditional import MoveUntil
-        from actions.frame_timing import after_frames
+        from arcadeactions import Action
+        from arcadeactions.conditional import MoveUntil
+        from arcadeactions.frame_timing import after_frames
 
         store = DebugDataStore()
         Action.set_debug_store(store)
@@ -519,10 +519,10 @@ class TestTimelinePruning:
         """Test that timeline shows only active actions to match the overlay."""
         import arcade
 
-        from actions import Action
-        from actions.conditional import MoveUntil
-        from actions.frame_timing import after_frames
-        from actions.visualizer.timeline import TimelineStrip
+        from arcadeactions import Action
+        from arcadeactions.conditional import MoveUntil
+        from arcadeactions.frame_timing import after_frames
+        from arcadeactions.visualizer.timeline import TimelineStrip
 
         store = DebugDataStore()
         Action.set_debug_store(store)
@@ -575,10 +575,10 @@ class TestTimelinePruning:
         """Test that inactive entries are removed from cache immediately."""
         import arcade
 
-        from actions import Action
-        from actions.conditional import MoveUntil
-        from actions.frame_timing import after_frames
-        from actions.visualizer.timeline import TimelineStrip
+        from arcadeactions import Action
+        from arcadeactions.conditional import MoveUntil
+        from arcadeactions.frame_timing import after_frames
+        from arcadeactions.visualizer.timeline import TimelineStrip
 
         store = DebugDataStore()
         Action.set_debug_store(store)

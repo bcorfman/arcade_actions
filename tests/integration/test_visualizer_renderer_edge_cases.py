@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from actions.visualizer.instrumentation import DebugDataStore
-from actions.visualizer.overlay import InspectorOverlay
-from actions.visualizer.renderer import (
+from arcadeactions.visualizer.instrumentation import DebugDataStore
+from arcadeactions.visualizer.overlay import InspectorOverlay
+from arcadeactions.visualizer.renderer import (
     ConditionPanelRenderer,
     GuideRenderer,
     OverlayRenderer,
@@ -140,7 +140,7 @@ class TestConditionPanelRendererEdgeCases:
 
     def test_condition_panel_renderer_empty_debugger(self, mocker):
         """Test ConditionPanelRenderer with empty condition debugger."""
-        from actions.visualizer.condition_panel import ConditionDebugger
+        from arcadeactions.visualizer.condition_panel import ConditionDebugger
 
         store = DebugDataStore()
         debugger = ConditionDebugger(store)
@@ -156,7 +156,7 @@ class TestTimelineRendererEdgeCases:
 
     def test_timeline_renderer_empty_timeline(self, mocker):
         """Test TimelineRenderer with empty timeline."""
-        from actions.visualizer.timeline import TimelineStrip
+        from arcadeactions.visualizer.timeline import TimelineStrip
 
         store = DebugDataStore()
         timeline = TimelineStrip(store)
@@ -172,7 +172,7 @@ class TestGuideRendererEdgeCases:
 
     def test_guide_renderer_empty_guides(self, mocker):
         """Test GuideRenderer with empty guide manager."""
-        from actions.visualizer.guides import GuideManager
+        from arcadeactions.visualizer.guides import GuideManager
 
         store = DebugDataStore()
         guides = GuideManager(store)

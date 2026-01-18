@@ -7,7 +7,7 @@ import os
 import arcade
 import pytest
 
-from actions.dev.visualizer import DevVisualizer
+from arcadeactions.dev.visualizer import DevVisualizer
 
 
 @pytest.fixture(autouse=True)
@@ -15,7 +15,7 @@ def prevent_window_showing_in_ci(monkeypatch):
     """Prevent palette windows from showing when CI=true."""
     if os.environ.get("CI") == "true":
         # Mock set_visible to prevent windows from actually showing in CI
-        from actions.dev.palette_window import PaletteWindow
+        from arcadeactions.dev.palette_window import PaletteWindow
 
         original_set_visible = PaletteWindow.set_visible
 
@@ -89,7 +89,7 @@ class TestPaletteWindowPositioning:
     def test_position_palette_window_relative_to_main(self, dev_visualizer, mocker):
         """Test palette positioning relative to main window."""
         # Mock monitor detection
-        mock_monitor_rect = mocker.patch("actions.dev.visualizer._get_primary_monitor_rect")
+        mock_monitor_rect = mocker.patch("arcadeactions.dev.visualizer._get_primary_monitor_rect")
         mock_monitor_rect.return_value = (0, 0, 1920, 1080)
 
         # Mock window location
@@ -111,7 +111,7 @@ class TestPaletteWindowPositioning:
     def test_position_palette_window_with_monitor_detection(self, dev_visualizer, mocker):
         """Test positioning with monitor detection."""
         # Mock monitor detection to return valid rect
-        mock_monitor_rect = mocker.patch("actions.dev.visualizer._get_primary_monitor_rect")
+        mock_monitor_rect = mocker.patch("arcadeactions.dev.visualizer._get_primary_monitor_rect")
         mock_monitor_rect.return_value = (0, 0, 1920, 1080)
 
         # Mock window location
@@ -138,7 +138,7 @@ class TestPaletteWindowPositioning:
 
     def test_position_palette_window_returns_false_when_no_monitor(self, dev_visualizer, mocker):
         """Test positioning returns False when monitor detection fails."""
-        mock_monitor_rect = mocker.patch("actions.dev.visualizer._get_primary_monitor_rect")
+        mock_monitor_rect = mocker.patch("arcadeactions.dev.visualizer._get_primary_monitor_rect")
         mock_monitor_rect.return_value = None
 
         dev_visualizer._create_palette_window()
