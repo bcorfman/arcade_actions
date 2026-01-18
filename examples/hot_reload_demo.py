@@ -28,7 +28,14 @@ class HotReloadDemo(arcade.Window):
 
     def __init__(self):
         # Create hidden window so we can center before showing.
-        super().__init__(800, 600, "Hot-Reload Demo - Edit waves/demo_wave.py", visible=False)
+        super().__init__(
+            800,
+            600,
+            "Hot-Reload Demo - Edit waves/demo_wave.py",
+            visible=False,
+            draw_rate=1 / 30,
+            vsync=True,
+        )
         center_window(self)
         self.set_visible(True)
 

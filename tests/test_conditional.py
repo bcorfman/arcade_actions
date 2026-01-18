@@ -997,6 +997,23 @@ class TestTweenUntilCoverage(ActionTestBase):
         assert sprite_c.center_x == 42
         assert zero_calls["count"] == 1
 
+    def test_on_stop_fires_on_natural_completion(self):
+        """on_stop should fire when tween completes by reaching its duration."""
+        sprite = create_test_sprite()
+        calls = {"count": 0}
+
+        def on_stop():
+            calls["count"] += 1
+
+        action = TweenUntil(0, 10, "center_x", condition=after_frames(3), on_stop=on_stop)
+        action.apply(sprite, tag="tween_on_stop")
+
+        for _ in range(3):
+            Action.update_all(0.016)
+
+        assert action.done
+        assert calls["count"] == 1
+
     def test_set_factor_and_remove_effect_reset_coverage(self):
         """set_factor should reapply velocity immediately and remove_effect resets start."""
         sprite = create_test_sprite()

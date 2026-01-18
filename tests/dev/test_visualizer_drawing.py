@@ -556,7 +556,9 @@ class TestDrawSourceMarkers(ActionTestBase):
         mocker.patch.object(dev_viz.selection_manager, "draw")
         # Make drawing raise an exception
         mocker.patch(
-            "arcadeactions.dev.visualizer.arcade.draw_rectangle_filled", side_effect=Exception("Draw failed"), create=True
+            "arcadeactions.dev.visualizer.arcade.draw_rectangle_filled",
+            side_effect=Exception("Draw failed"),
+            create=True,
         )
 
         # Should not raise, should continue

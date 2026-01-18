@@ -394,7 +394,9 @@ class TestExportSpritesPositionAssignments(ActionTestBase):
         dev_viz.scene_sprites.append(test_sprite)
 
         # Make sync raise an exception
-        mock_update = mocker.patch("arcadeactions.dev.sync.update_position_assignment", side_effect=Exception("Sync failed"))
+        mock_update = mocker.patch(
+            "arcadeactions.dev.sync.update_position_assignment", side_effect=Exception("Sync failed")
+        )
 
         # Should not raise, should continue
         dev_viz.export_sprites()
