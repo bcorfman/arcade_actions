@@ -97,6 +97,20 @@ class TestAction:
         assert action._is_active
         assert action in Action._active_actions
 
+    def test_action_apply_sprite_subclass(self):
+        """Test applying action to sprite subclasses uses adapters."""
+
+        class CustomSprite(arcade.SpriteSolidColor):
+            pass
+
+        sprite = CustomSprite(width=32, height=32, color=arcade.color.WHITE)
+        action = MockAction(condition=lambda: False)
+
+        action.apply(sprite)
+
+        assert action.target == sprite
+        assert action._is_active
+
     def test_action_global_update(self):
         """Test global action update system."""
         sprite = create_test_sprite()
@@ -513,7 +527,7 @@ class TestAction:
         """Test for_each_sprite with single sprite target."""
         sprite = create_test_sprite()
         action = MockAction(condition=lambda: False)
-        action.target = sprite
+        action.apply(sprite)
 
         visited = []
 
@@ -533,7 +547,7 @@ class TestAction:
             sprite_list.append(sprite)
 
         action = MockAction(condition=lambda: False)
-        action.target = sprite_list
+        action.apply(sprite_list)
 
         visited = []
 
@@ -616,6 +630,23 @@ class TestAction:
                 for sprite_list in self.sprite_lists:
                     for sprite in sprite_list:
                         yield sprite
+
+        from arcadeactions._action_targets import TargetAdapter, register_target_adapter
+
+        class SceneLikeAdapter(TargetAdapter):
+            def __init__(self, target: SceneLike):
+                self.target = target
+
+            def iter_sprites(self):
+                return iter(self.target)
+
+            def iter_sprite_lists(self):
+                return self.target.sprite_lists
+
+            def describe_target(self) -> str:
+                return type(self.target).__name__
+
+        register_target_adapter(SceneLike, SceneLikeAdapter)
 
         scene = SceneLike([sprite_list])
         visited = []
@@ -706,7 +737,6 @@ class TestAction:
         sprite_list.name = "test_list"
 
         result = Action._get_sprite_list_name(sprite_list)
-        # The method should return the name from __dict__ if available
         assert "test_list" in result or "SpriteList" in result
 
     def test_get_sprite_list_name_without_dict(self):
@@ -887,7 +917,7 @@ class TestBonusCoverage_UpdateAllPhaseLogic:
 
 
 class TestBonusCoverage_GetSpriteListNameAttributeError:
-    """Test _get_sprite_list_name with AttributeError handling - covers line 303-306 in base.py."""
+    """Test _get_sprite_list_name handles list objects without __dict__."""
 
     def teardown_method(self):
         """Clean up after each test."""
@@ -896,12 +926,7 @@ class TestBonusCoverage_GetSpriteListNameAttributeError:
         Action.debug_all = False
 
     def test_get_sprite_list_name_with_attribute_error(self):
-        """Test _get_sprite_list_name handles objects without __dict__ - line 303-306."""
-        # Enable debug mode so _get_sprite_list_name gets called
-        Action.debug_level = 2
-        Action.debug_all = True
-
-        # Create a mock sprite list without __dict__
+        """Test _get_sprite_list_name handles objects without __dict__."""
         class MockSpriteList:
             __slots__ = ["_items"]  # No __dict__ attribute
 
@@ -916,10 +941,8 @@ class TestBonusCoverage_GetSpriteListNameAttributeError:
 
         sprite_list = MockSpriteList()
 
-        # Call _get_sprite_list_name - should handle AttributeError
         result = Action._get_sprite_list_name(sprite_list)
 
-        # Should fall back to simple description
         assert "SpriteList(len=0)" in result
 
 
@@ -943,6 +966,15 @@ class TestInstrumentationConditionDocstring:
         class RecordingStore:
             def __init__(self):
                 self.condition_str = None
+
+            def record_event(self, **_kwargs):
+                return None
+
+            def update_snapshot(self, **_kwargs):
+                return None
+
+            def update_frame(self, *_args, **_kwargs):
+                return None
 
             def record_condition_evaluation(self, *, condition_str, **_kwargs):
                 self.condition_str = condition_str
