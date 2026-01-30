@@ -1,4 +1,4 @@
-PACKAGE := arcade_actions
+PACKAGE := arcadeactions
 PACKAGE_DIR := src/${PACKAGE}
 SHELL := env PYTHON_VERSION=3.10 /bin/bash
 .SILENT: install devinstall tools test run lint format
