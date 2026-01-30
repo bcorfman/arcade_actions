@@ -927,6 +927,7 @@ class TestBonusCoverage_GetSpriteListNameAttributeError:
 
     def test_get_sprite_list_name_with_attribute_error(self):
         """Test _get_sprite_list_name handles objects without __dict__."""
+
         class MockSpriteList:
             __slots__ = ["_items"]  # No __dict__ attribute
 
