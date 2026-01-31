@@ -195,6 +195,126 @@ class TestBreakawayManager(ActionTestBase):
                     f"Sprite at {sprite.center_x} should start dive from its original position {original_x}"
                 )
 
+    def test_breakaway_trigger_callback(self):
+        """Test breakaway triggered by callback condition."""
+        sprites = arcade.SpriteList()
+        for _ in range(2):
+            sprites.append(arcade.Sprite(":resources:images/items/star.png"))
+
+        group = AttackGroup(sprites, group_id="test_group")
+        group.place(arrange_line, start_x=100, start_y=200, spacing=50)
+
+        manager = BreakawayManager(group)
+        manager.setup_breakaway(trigger="callback", count=1, callback=lambda: True)
+
+        manager.update(1.0 / 60.0)
+
+        assert manager.stage == GroupStage.BREAKAWAY
+        assert len(manager.breakaway_sprites) == 1
+
+    def test_breakaway_trigger_spatial(self):
+        """Test breakaway triggered by spatial condition."""
+        sprites = arcade.SpriteList()
+        for _ in range(2):
+            sprites.append(arcade.Sprite(":resources:images/items/star.png"))
+
+        group = AttackGroup(sprites, group_id="test_group")
+        group.place(arrange_line, start_x=100, start_y=200, spacing=50)
+
+        manager = BreakawayManager(group)
+        manager.setup_breakaway(trigger="spatial", count=1, condition=lambda: True)
+
+        manager.update(1.0 / 60.0)
+
+        assert manager.stage == GroupStage.BREAKAWAY
+        assert len(manager.breakaway_sprites) == 1
+
+    def test_breakaway_trigger_health_noop(self):
+        """Health trigger should not fire (placeholder behavior)."""
+        sprites = arcade.SpriteList()
+        for _ in range(1):
+            sprites.append(arcade.Sprite(":resources:images/items/star.png"))
+
+        group = AttackGroup(sprites, group_id="test_group")
+        group.place(arrange_line, start_x=100, start_y=200, spacing=50)
+
+        manager = BreakawayManager(group)
+        manager.setup_breakaway(trigger="health", count=1, threshold=0.5)
+
+        manager.update(1.0 / 60.0)
+
+        assert manager.stage == GroupStage.IN_FORMATION
+
+    def test_breakaway_rejoin_clears_groups(self):
+        """Rejoining last sprite should reset stage and remove groups."""
+        sprite = arcade.Sprite(":resources:images/items/star.png")
+        sprites = arcade.SpriteList()
+        sprites.append(sprite)
+        group = AttackGroup(sprites, group_id="test_group")
+        group.place(arrange_line, start_x=100, start_y=200, spacing=50)
+
+        manager = BreakawayManager(group)
+        manager.stage = GroupStage.BREAKAWAY
+        manager.breakaway_sprites.add(sprite)
+        breakaway_list = arcade.SpriteList()
+        breakaway_list.append(sprite)
+        manager.breakaway_groups.append(AttackGroup(breakaway_list, group_id="breakaway"))
+
+        manager.rejoin(sprite)
+
+        assert manager.stage == GroupStage.IN_FORMATION
+        assert sprite not in manager.breakaway_sprites
+        assert manager.breakaway_groups == []
+
+    def test_setup_breakaway_unknown_strategy(self):
+        """Unknown strategy should raise ValueError."""
+        sprites = arcade.SpriteList()
+        sprites.append(arcade.Sprite(":resources:images/items/star.png"))
+        group = AttackGroup(sprites, group_id="test_group")
+
+        manager = BreakawayManager(group)
+        with pytest.raises(ValueError, match="Unknown breakaway strategy"):
+            manager.setup_breakaway(trigger="timer", strategy="unknown")
+
+    def test_setup_breakaway_unknown_trigger(self):
+        """Unknown trigger should raise ValueError."""
+        sprites = arcade.SpriteList()
+        sprites.append(arcade.Sprite(":resources:images/items/star.png"))
+        group = AttackGroup(sprites, group_id="test_group")
+
+        manager = BreakawayManager(group)
+        with pytest.raises(ValueError, match="Unknown trigger type"):
+            manager.setup_breakaway(trigger="unknown")
+
+
+class TestBreakawayDebug(ActionTestBase):
+    """Test debug logging behavior for breakaway manager."""
+
+    def test_breakaway_event_logging(self, mocker):
+        """_log_breakaway_event should emit when debug level allows."""
+        from arcadeactions.base import Action
+        from arcadeactions.group_state import _log_breakaway_event
+
+        sprites = arcade.SpriteList()
+        sprites.append(arcade.Sprite(":resources:images/items/star.png"))
+        group = AttackGroup(sprites, group_id="test_group")
+        manager = BreakawayManager(group)
+        manager.breakaway_sprites.add(sprites[0])
+
+        prev_debug_level = Action.debug_level
+        prev_debug_all = Action.debug_all
+        try:
+            Action.debug_level = 2
+            Action.debug_all = True
+            mock_print = mocker.patch("builtins.print")
+
+            _log_breakaway_event(manager, "triggered")
+
+            mock_print.assert_called_once()
+        finally:
+            Action.debug_level = prev_debug_level
+            Action.debug_all = prev_debug_all
+
 
 class TestBreakawayStrategy(ActionTestBase):
     """Test suite for BreakawayStrategy interface."""

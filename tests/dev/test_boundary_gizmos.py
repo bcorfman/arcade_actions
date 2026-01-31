@@ -167,3 +167,48 @@ class TestBoundaryGizmos(ActionTestBase):
         # Metadata bounds should be updated
         new_top = sprite._action_configs[0]["bounds"][3]
         assert new_top == original_top + 30
+
+    def test_calculate_bounds_sorts_edges(self):
+        """Test handle bounds sorting when handles cross."""
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
+        sprite._action_configs = [
+            {
+                "action_type": "MoveUntil",
+                "velocity": (3, 0),
+                "bounds": (50, 50, 200, 200),
+                "boundary_behavior": "limit",
+            }
+        ]
+        gizmo = BoundaryGizmo(sprite)
+        # Force left/right and bottom/top to be inverted
+        gizmo._handles = [
+            BoundaryHandle(300, 300, "bottom_left"),
+            BoundaryHandle(100, 300, "bottom_right"),
+            BoundaryHandle(300, 100, "top_left"),
+            BoundaryHandle(100, 100, "top_right"),
+        ]
+
+        bounds = gizmo._calculate_bounds_from_handles()
+
+        assert bounds == (100, 100, 300, 300)
+
+    def test_draw_renders_bounds_and_handles(self, mocker):
+        """Test draw renders rectangle and handles when bounds exist."""
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.RED)
+        sprite._action_configs = [
+            {
+                "action_type": "MoveUntil",
+                "velocity": (3, 0),
+                "bounds": (50, 50, 200, 200),
+                "boundary_behavior": "limit",
+            }
+        ]
+        gizmo = BoundaryGizmo(sprite)
+
+        mock_outline = mocker.patch("arcadeactions.dev.boundary_overlay._draw_centered_rectangle_outline")
+        mock_filled = mocker.patch("arcadeactions.dev.boundary_overlay._draw_centered_rectangle_filled")
+
+        gizmo.draw()
+
+        assert mock_outline.called
+        assert mock_filled.called

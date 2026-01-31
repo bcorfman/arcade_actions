@@ -29,6 +29,16 @@ class TestAttackGroup(ActionTestBase):
         assert group.formation_type is None
         assert len(group._home_slots) == 0
 
+    def test_attack_group_creation_from_list(self):
+        """Test creating an AttackGroup from a list of sprites."""
+        from arcadeactions.group import AttackGroup
+
+        sprites = [arcade.Sprite(":resources:images/items/star.png") for _ in range(2)]
+        group = AttackGroup(sprites, group_id="test_group")
+
+        assert len(group.sprites) == 2
+        assert group.sprites is not sprites
+
     def test_attack_group_place_formation(self):
         """Test placing sprites in a formation."""
         from arcadeactions.group import AttackGroup
@@ -184,3 +194,52 @@ class TestAttackGroup(ActionTestBase):
         for i, sprite in enumerate(sprites):
             expected_slot = (100 + i * 50, 200)
             assert group._home_slots[id(sprite)] == expected_slot
+
+    def test_attack_group_get_home_slot_missing(self):
+        """Test get_home_slot returns None for unknown sprites."""
+        from arcadeactions.group import AttackGroup
+
+        sprites = arcade.SpriteList()
+        sprites.append(arcade.Sprite(":resources:images/items/star.png"))
+        group = AttackGroup(sprites, group_id="test_group")
+        group.place(arrange_line, start_x=100, start_y=200, spacing=50)
+
+        missing_sprite = arcade.Sprite(":resources:images/items/star.png")
+        assert group.get_home_slot(missing_sprite) is None
+
+    def test_attack_group_breakaway_manager_set_get(self):
+        """Test set_breakaway_manager and get_breakaway_manager."""
+        from arcadeactions.group import AttackGroup
+        from arcadeactions.group_state import BreakawayManager
+
+        sprites = arcade.SpriteList()
+        sprites.append(arcade.Sprite(":resources:images/items/star.png"))
+        group = AttackGroup(sprites, group_id="test_group")
+        manager = BreakawayManager(group)
+
+        group.set_breakaway_manager(manager)
+
+        assert group.get_breakaway_manager() is manager
+
+    def test_attack_group_debug_logging(self, mocker):
+        """Test debug logging emits when enabled."""
+        from arcadeactions.group import AttackGroup
+        from arcadeactions.base import Action
+
+        sprites = arcade.SpriteList()
+        sprites.append(arcade.Sprite(":resources:images/items/star.png"))
+        group = AttackGroup(sprites, group_id="test_group")
+
+        prev_debug_level = Action.debug_level
+        prev_debug_all = Action.debug_all
+        try:
+            Action.debug_level = 2
+            Action.debug_all = True
+            mock_print = mocker.patch("builtins.print")
+
+            group.update(1.0 / 60.0)
+
+            mock_print.assert_called_once()
+        finally:
+            Action.debug_level = prev_debug_level
+            Action.debug_all = prev_debug_all
