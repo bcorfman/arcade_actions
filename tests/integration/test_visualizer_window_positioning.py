@@ -42,6 +42,24 @@ class TestWindowPositionTracking:
         assert result is True
         mock_track.assert_called_once_with(window)
 
+    def test_update_main_window_position_records_decoration_deltas(self, dev_visualizer, window, mocker):
+        """Test decoration delta calculation when stored location is available."""
+        mock_track = mocker.patch.object(dev_visualizer._position_tracker, "track_window_position")
+        mock_track.return_value = True
+
+        dev_visualizer._window_decoration_dx = None
+        dev_visualizer._window_decoration_dy = None
+        window._arcadeactions_last_set_location = (100, 200)
+
+        mock_get_location = mocker.patch.object(window, "get_location")
+        mock_get_location.return_value = (120, 220)
+
+        result = dev_visualizer.update_main_window_position()
+
+        assert result is True
+        assert dev_visualizer._window_decoration_dx == 20
+        assert dev_visualizer._window_decoration_dy == 20
+
     def test_get_window_location_fallback_chain(self, dev_visualizer, window, mocker):
         """Test location retrieval fallback chain."""
         # Test get_location() path

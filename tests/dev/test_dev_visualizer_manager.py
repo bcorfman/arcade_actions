@@ -45,6 +45,7 @@ def mock_arcade_text(mocker):
 def cleanup_global_dev_visualizer():
     """Clean up global DevVisualizer instance between tests."""
     import arcadeactions.dev.visualizer as viz_module
+    from arcadeactions.dev import window_hooks
 
     yield
     # Cleanup after test
@@ -52,19 +53,19 @@ def cleanup_global_dev_visualizer():
         viz_module._global_dev_visualizer.detach_from_window()
     viz_module._global_dev_visualizer = None
     # Restore window hook if installed
-    if viz_module._window_attach_hook_installed:
-        if viz_module.window_commands_module is not None and viz_module._original_set_window is not None:
-            viz_module.window_commands_module.set_window = viz_module._original_set_window  # type: ignore[assignment]
-        viz_module._window_attach_hook_installed = False
-        viz_module._original_set_window = None
+    if window_hooks._window_attach_hook_installed:
+        if window_hooks.window_commands_module is not None and window_hooks._original_set_window is not None:
+            window_hooks.window_commands_module.set_window = window_hooks._original_set_window  # type: ignore[assignment]
+        window_hooks._window_attach_hook_installed = False
+        window_hooks._original_set_window = None
     # Restore update_all hook if installed
-    if viz_module._update_all_attach_hook_installed:
+    if window_hooks._update_all_attach_hook_installed:
         from arcadeactions import Action
 
-        if viz_module._previous_update_all_func is not None:
-            Action.update_all = classmethod(viz_module._previous_update_all_func)  # type: ignore[method-assign]
-        viz_module._update_all_attach_hook_installed = False
-        viz_module._previous_update_all_func = None
+        if window_hooks._previous_update_all_func is not None:
+            Action.update_all = classmethod(window_hooks._previous_update_all_func)  # type: ignore[method-assign]
+        window_hooks._update_all_attach_hook_installed = False
+        window_hooks._previous_update_all_func = None
 
 
 @pytest.mark.integration

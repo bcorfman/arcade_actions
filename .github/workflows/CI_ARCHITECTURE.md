@@ -17,7 +17,7 @@ The CI workflow has been split into two jobs to ensure proper testing of both co
 **Why this matters**:
 - Ensures the core library doesn't accidentally depend on optional packages
 - Tests across all supported platforms and Python versions
-- Provides confidence that users installing `pip install arcade-actions` get a working package
+- Provides confidence that users installing `pip install arcadeactions` get a working package
 
 **Test count**: 571 core tests
 

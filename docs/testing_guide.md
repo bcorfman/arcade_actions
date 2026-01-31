@@ -1,4 +1,4 @@
-"""Testing Guide for arcade_actions
+"""Testing Guide for arcadeactions
 
 This guide describes how to exercise the frame-driven ArcadeActions test suite.
 """

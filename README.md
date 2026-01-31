@@ -20,9 +20,9 @@
 ---
 
 # ArcadeActions extension library for Arcade 3.x
-[![codecov](https://codecov.io/gh/bcorfman/arcade_actions/graph/badge.svg?token=9AIZD1GLND)](https://codecov.io/gh/bcorfman/arcade_actions)
+[![codecov](https://codecov.io/gh/bcorfman/arcadeactions/graph/badge.svg?token=9AIZD1GLND)](https://codecov.io/gh/bcorfman/arcadeactions)
 
-Documentation here: [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bcorfman/arcade_actions)
+Documentation here: [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bcorfman/arcadeactions)
 
 ## 🚀 Quick Appeal
 
@@ -104,19 +104,19 @@ import arcadeactions as actions
 **For Library Users:**
 ```bash
 # Basic installation for most games; adjust the commands below depending on your Python package manager. 
-pip install arcade-actions
+pip install arcadeactions
 
 # With optional state machine support (platformers/character action games)
-pip install arcade-actions[statemachine]
+pip install arcadeactions[statemachine]
 
 # With state machine diagram generation 
-pip install arcade-actions[statemachine_diagrams]
+pip install arcadeactions[statemachine_diagrams]
 ```
 **For Contributors:**
 ```bash
 # Clone the repository
-git clone https://github.com/bcorfman/arcade_actions.git
-cd arcade_actions
+git clone https://github.com/bcorfman/arcadeactions.git
+cd arcadeactions
 
 # Install for development (includes all optional dependencies and dev tools)
 make devinstall
@@ -140,7 +140,7 @@ Simple Arcade Games (no physics):
 4. **Build up to sequences** for complex behaviors
 
 Platformers / Physics Games:
-1. **Install with state machine support**: `uv add arcade-actions[statemachine]` (see Installation section above)
+1. **Install with state machine support**: `uv add arcadeactions[statemachine]` (see Installation section above)
 2. **Start with** `examples/pymunk_demo_platformer.py` - reference implementation
 3. **Study the patterns**:
    - InputState with @dataclass

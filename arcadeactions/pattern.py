@@ -1048,21 +1048,57 @@ def _min_conflicts_sprite_assignment(
     if len(target_formation) == 0 or len(spawn_positions) == 0:
         return {}
 
-    num_sprites = len(target_formation)
-    num_spawns = len(spawn_positions)
-
-    # Ensure we have enough spawn positions
-    if num_sprites > num_spawns:
-        # Use only the first num_spawns sprites
-        num_sprites = num_spawns
-
+    num_sprites = min(len(target_formation), len(spawn_positions))
     start_time = time.time()
 
-    # Step 1: Create initial assignment (greedy nearest-neighbor)
-    assignments = {}  # sprite_idx -> spawn_idx
-    used_spawns = set()
+    assignments = _initial_sprite_assignment(target_formation, spawn_positions, num_sprites)
+    current_conflicts = _count_conflicts(assignments, target_formation, spawn_positions)
+    iteration = 0
 
-    # Sort sprites by distance from formation center for better initial assignment
+    while current_conflicts > 0 and iteration < max_iterations:
+        if time.time() - start_time > time_limit:
+            break
+
+        conflicting_pairs = _get_conflicting_pairs(assignments, target_formation, spawn_positions)
+        if not conflicting_pairs:
+            break
+
+        improved, assignments, current_conflicts = _try_improving_swaps(
+            assignments,
+            conflicting_pairs,
+            current_conflicts,
+            target_formation,
+            spawn_positions,
+            start_time,
+            time_limit,
+        )
+
+        if not improved:
+            improved, assignments, current_conflicts = _try_random_swaps(
+                assignments,
+                conflicting_pairs,
+                current_conflicts,
+                target_formation,
+                spawn_positions,
+                start_time,
+                time_limit,
+            )
+
+        if not improved:
+            break
+
+        iteration += 1
+
+    return assignments
+
+
+def _initial_sprite_assignment(
+    target_formation: arcade.SpriteList,
+    spawn_positions: list[tuple[float, float]],
+    num_sprites: int,
+) -> dict[int, int]:
+    assignments: dict[int, int] = {}
+    used_spawns: set[int] = set()
     center_x = sum(sprite.center_x for sprite in target_formation) / len(target_formation)
     center_y = sum(sprite.center_y for sprite in target_formation) / len(target_formation)
 
@@ -1073,7 +1109,6 @@ def _min_conflicts_sprite_assignment(
         )
     )
 
-    # Assign each sprite to its nearest available spawn
     for sprite_idx in sprite_order:
         target_pos = (target_formation[sprite_idx].center_x, target_formation[sprite_idx].center_y)
         best_spawn = None
@@ -1091,111 +1126,95 @@ def _min_conflicts_sprite_assignment(
             assignments[sprite_idx] = best_spawn
             used_spawns.add(best_spawn)
 
-    def count_conflicts(assignments_dict: dict[int, int]) -> int:
-        """Count the number of path conflicts in the current assignment."""
-        conflicts = 0
-        sprite_indices = list(assignments_dict.keys())
+    return assignments
 
-        for i in range(len(sprite_indices)):
-            for j in range(i + 1, len(sprite_indices)):
-                sprite1_idx = sprite_indices[i]
-                sprite2_idx = sprite_indices[j]
 
-                if _sprites_would_collide_during_movement_with_assignments(
-                    sprite1_idx, sprite2_idx, target_formation, spawn_positions, assignments_dict
-                ):
-                    conflicts += 1
+def _count_conflicts(
+    assignments: dict[int, int],
+    target_formation: arcade.SpriteList,
+    spawn_positions: list[tuple[float, float]],
+) -> int:
+    conflicts = 0
+    sprite_indices = list(assignments.keys())
 
-        return conflicts
+    for i in range(len(sprite_indices)):
+        for j in range(i + 1, len(sprite_indices)):
+            sprite1_idx = sprite_indices[i]
+            sprite2_idx = sprite_indices[j]
+            if _sprites_would_collide_during_movement_with_assignments(
+                sprite1_idx, sprite2_idx, target_formation, spawn_positions, assignments
+            ):
+                conflicts += 1
 
-    def get_conflicting_pairs(assignments_dict: dict[int, int]) -> list[tuple[int, int]]:
-        """Get all pairs of sprites that have path conflicts."""
-        conflicts = []
-        sprite_indices = list(assignments_dict.keys())
+    return conflicts
 
-        for i in range(len(sprite_indices)):
-            for j in range(i + 1, len(sprite_indices)):
-                sprite1_idx = sprite_indices[i]
-                sprite2_idx = sprite_indices[j]
 
-                if _sprites_would_collide_during_movement_with_assignments(
-                    sprite1_idx, sprite2_idx, target_formation, spawn_positions, assignments_dict
-                ):
-                    conflicts.append((sprite1_idx, sprite2_idx))
+def _get_conflicting_pairs(
+    assignments: dict[int, int],
+    target_formation: arcade.SpriteList,
+    spawn_positions: list[tuple[float, float]],
+) -> list[tuple[int, int]]:
+    conflicts: list[tuple[int, int]] = []
+    sprite_indices = list(assignments.keys())
 
-        return conflicts
+    for i in range(len(sprite_indices)):
+        for j in range(i + 1, len(sprite_indices)):
+            sprite1_idx = sprite_indices[i]
+            sprite2_idx = sprite_indices[j]
+            if _sprites_would_collide_during_movement_with_assignments(
+                sprite1_idx, sprite2_idx, target_formation, spawn_positions, assignments
+            ):
+                conflicts.append((sprite1_idx, sprite2_idx))
 
-    # Step 2: Iteratively resolve conflicts
-    current_conflicts = count_conflicts(assignments)
-    iteration = 0
+    return conflicts
 
-    while current_conflicts > 0 and iteration < max_iterations:
+
+def _try_improving_swaps(
+    assignments: dict[int, int],
+    conflicting_pairs: list[tuple[int, int]],
+    current_conflicts: int,
+    target_formation: arcade.SpriteList,
+    spawn_positions: list[tuple[float, float]],
+    start_time: float,
+    time_limit: float,
+) -> tuple[bool, dict[int, int], int]:
+    for sprite1_idx, sprite2_idx in conflicting_pairs:
         if time.time() - start_time > time_limit:
             break
+        temp_assignments = _swap_assignments(assignments, sprite1_idx, sprite2_idx)
+        new_conflicts = _count_conflicts(temp_assignments, target_formation, spawn_positions)
+        if new_conflicts < current_conflicts:
+            return True, temp_assignments, new_conflicts
+    return False, assignments, current_conflicts
 
-        # Get all conflicting pairs
-        conflicting_pairs = get_conflicting_pairs(assignments)
-        if not conflicting_pairs:
+
+def _try_random_swaps(
+    assignments: dict[int, int],
+    conflicting_pairs: list[tuple[int, int]],
+    current_conflicts: int,
+    target_formation: arcade.SpriteList,
+    spawn_positions: list[tuple[float, float]],
+    start_time: float,
+    time_limit: float,
+) -> tuple[bool, dict[int, int], int]:
+    for _ in range(min(10, len(conflicting_pairs))):
+        if time.time() - start_time > time_limit:
             break
+        sprite1_idx, sprite2_idx = random.choice(conflicting_pairs)
+        temp_assignments = _swap_assignments(assignments, sprite1_idx, sprite2_idx)
+        new_conflicts = _count_conflicts(temp_assignments, target_formation, spawn_positions)
+        if new_conflicts <= current_conflicts + 1:
+            return True, temp_assignments, new_conflicts
+    return False, assignments, current_conflicts
 
-        # Try to resolve conflicts by swapping assignments
-        improved = False
 
-        for sprite1_idx, sprite2_idx in conflicting_pairs:
-            if time.time() - start_time > time_limit:
-                break
-
-            # Try swapping the spawn assignments
-            spawn1 = assignments[sprite1_idx]
-            spawn2 = assignments[sprite2_idx]
-
-            # Create temporary assignment with swap
-            temp_assignments = assignments.copy()
-            temp_assignments[sprite1_idx] = spawn2
-            temp_assignments[sprite2_idx] = spawn1
-
-            # Check if this reduces conflicts
-            new_conflicts = count_conflicts(temp_assignments)
-
-            if new_conflicts < current_conflicts:
-                assignments = temp_assignments
-                current_conflicts = new_conflicts
-                improved = True
-                break
-
-        if not improved:
-            # If no single swap helps, try random swaps to escape local optima
-            for _ in range(min(10, len(conflicting_pairs))):
-                if time.time() - start_time > time_limit:
-                    break
-
-                # Pick a random conflicting pair
-                sprite1_idx, sprite2_idx = random.choice(conflicting_pairs)
-
-                # Try swapping
-                spawn1 = assignments[sprite1_idx]
-                spawn2 = assignments[sprite2_idx]
-
-                temp_assignments = assignments.copy()
-                temp_assignments[sprite1_idx] = spawn2
-                temp_assignments[sprite2_idx] = spawn1
-
-                new_conflicts = count_conflicts(temp_assignments)
-
-                # Accept swap if it doesn't increase conflicts too much (allows some exploration)
-                if new_conflicts <= current_conflicts + 1:
-                    assignments = temp_assignments
-                    current_conflicts = new_conflicts
-                    improved = True
-                    break
-
-        if not improved:
-            break
-
-        iteration += 1
-
-    elapsed_time = time.time() - start_time
-    return assignments
+def _swap_assignments(assignments: dict[int, int], sprite1_idx: int, sprite2_idx: int) -> dict[int, int]:
+    spawn1 = assignments[sprite1_idx]
+    spawn2 = assignments[sprite2_idx]
+    temp_assignments = assignments.copy()
+    temp_assignments[sprite1_idx] = spawn2
+    temp_assignments[sprite2_idx] = spawn1
+    return temp_assignments
 
 
 def _sprites_would_collide_during_movement_with_assignments(

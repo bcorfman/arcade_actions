@@ -12,6 +12,8 @@ import pytest
 from arcadeactions.visualizer.attach import (
     detach_visualizer,
 )
+from arcadeactions.visualizer.attach import attach_visualizer, get_visualizer_session
+from arcadeactions.base import Action
 
 
 class StubOverlay:
@@ -99,6 +101,11 @@ class StubControlManager:
     def handle_key_press(self, symbol: int, modifiers: int) -> bool:
         return False
 
+    def get_target_names(self) -> dict[int, str]:
+        if self.target_names_provider is None:
+            return {}
+        return self.target_names_provider() or {}
+
 
 @pytest.fixture(autouse=True)
 def auto_detach():
@@ -135,3 +142,20 @@ class TestCollectTargetNames:
         names = _collect_target_names_from_view()
 
         assert isinstance(names, dict)
+
+
+class TestAttachUpdateAllWrapping:
+    def test_attach_is_idempotent_for_update_all(self, tmp_path):
+        """Ensure attach_visualizer does not wrap Action.update_all multiple times."""
+        original_update = Action.update_all
+        session = attach_visualizer(**stub_attach_kwargs(tmp_path))
+        wrapped_update = Action.update_all
+
+        session_again = attach_visualizer(**stub_attach_kwargs(tmp_path))
+
+        assert session_again is session
+        assert getattr(Action.update_all, "__func__", Action.update_all) is getattr(
+            wrapped_update, "__func__", wrapped_update
+        )
+        original_func = getattr(original_update, "__func__", original_update)
+        assert session.previous_update_all is original_func

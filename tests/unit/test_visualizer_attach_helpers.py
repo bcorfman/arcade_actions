@@ -11,6 +11,9 @@ from arcadeactions.visualizer.attach import (
     _collect_sprite_positions,
     _collect_sprite_sizes_and_ids,
     _collect_target_names_from_view,
+    _open_event_window,
+    attach_visualizer,
+    detach_visualizer,
     get_visualizer_session,
     is_visualizer_attached,
 )
@@ -19,8 +22,6 @@ from arcadeactions.visualizer.attach import (
 @pytest.fixture(autouse=True)
 def reset_session():
     """Reset visualizer session before each test."""
-    from arcadeactions.visualizer.attach import detach_visualizer
-
     yield
     detach_visualizer()
     # Clear module-level state
@@ -177,6 +178,125 @@ class TestCollectSpritePositions:
             assert isinstance(positions, dict)
         finally:
             Action._active_actions[:] = original_actions
+
+
+class TestWindowHandlerWrapping:
+    def test_attach_wraps_and_detach_restores_window_handlers(self, monkeypatch, tmp_path):
+        class StubOverlay:
+            def __init__(self, debug_store):
+                self.debug_store = debug_store
+                self.visible = True
+                self.position = "upper_left"
+                self.highlighted_target_id = None
+
+            def update(self) -> None:
+                return None
+
+        class StubRenderer:
+            def __init__(self, overlay):
+                self.overlay = overlay
+
+            def update(self) -> None:
+                return None
+
+            def draw(self) -> None:
+                return None
+
+        class StubGuides:
+            def __init__(self, initial_enabled: bool = False):
+                return None
+
+            def update(self, *args, **kwargs) -> None:
+                return None
+
+            def any_enabled(self) -> bool:
+                return False
+
+        class StubConditionDebugger:
+            def __init__(self, debug_store, max_entries: int = 50):
+                self.debug_store = debug_store
+
+            def update(self) -> None:
+                return None
+
+            def clear(self) -> None:
+                return None
+
+        class StubTimeline:
+            def __init__(self, debug_store, max_entries: int = 100):
+                self.debug_store = debug_store
+
+            def update(self) -> None:
+                return None
+
+        class StubControlManager:
+            def __init__(
+                self, overlay, guides, condition_debugger, timeline, snapshot_directory, action_controller, **_
+            ):
+                self.overlay = overlay
+                self.guides = guides
+                self.condition_debugger = condition_debugger
+                self.timeline = timeline
+
+            def update(self, sprite_positions=None) -> None:
+                return None
+
+            def handle_key_press(self, symbol: int, modifiers: int) -> bool:
+                return False
+
+            def get_target_names(self) -> dict[int, str]:
+                return {}
+
+        class StubGuideRenderer:
+            def __init__(self, guides):
+                self.guides = guides
+
+            def update(self) -> None:
+                return None
+
+            def draw(self) -> None:
+                return None
+
+        class StubWindow:
+            def __init__(self) -> None:
+                self.on_draw = lambda: "draw"
+                self.on_key_press = lambda symbol, modifiers: False
+                self.on_close = lambda: "close"
+
+            def switch_to(self) -> None:
+                return None
+
+        window = StubWindow()
+        original_on_draw = window.on_draw
+        original_on_key_press = window.on_key_press
+        original_on_close = window.on_close
+
+        monkeypatch.setattr(arcade, "get_window", lambda: window)
+        monkeypatch.setattr(arcade.window_commands, "get_window", lambda: window)
+        monkeypatch.setattr(arcade.window_commands, "set_window", lambda value: None)
+
+        session = attach_visualizer(
+            snapshot_directory=tmp_path,
+            overlay_cls=StubOverlay,
+            renderer_cls=StubRenderer,
+            guide_manager_cls=StubGuides,
+            condition_debugger_cls=StubConditionDebugger,
+            timeline_cls=StubTimeline,
+            controls_cls=StubControlManager,
+            guide_renderer_cls=StubGuideRenderer,
+            event_window_cls=lambda *args, **kwargs: None,
+        )
+
+        assert session is not None
+        assert getattr(window.on_draw, "__visualizer_overlay__", False)
+        assert getattr(window.on_key_press, "__visualizer_key__", False)
+        assert getattr(window.on_close, "__visualizer_close__", False)
+
+        detach_visualizer()
+
+        assert window.on_draw is original_on_draw
+        assert window.on_key_press is original_on_key_press
+        assert window.on_close is original_on_close
 
 
 class TestCollectSpriteSizesAndIds:
@@ -511,14 +631,59 @@ class TestVisualizerSession:
 
 class TestSessionHelpers:
     def test_get_visualizer_session_not_attached(self):
-        from arcadeactions.visualizer.attach import detach_visualizer
-
         detach_visualizer()
         session = get_visualizer_session()
         assert session is None
 
     def test_is_visualizer_attached_false(self):
-        from arcadeactions.visualizer.attach import detach_visualizer
-
         detach_visualizer()
         assert is_visualizer_attached() is False
+
+
+class TestEventWindowOpening:
+    def test_open_event_window_headless_skips_visibility(self, monkeypatch, tmp_path):
+        class StubOverlay:
+            highlighted_target_id = None
+
+        class StubEventWindow:
+            def __init__(self, *args, **kwargs):
+                self.visible_calls = []
+                self.focus_calls = 0
+
+            def set_visible(self, value: bool) -> None:
+                self.visible_calls.append(value)
+
+            def request_main_window_focus(self) -> None:
+                self.focus_calls += 1
+
+        session = VisualizerSession(
+            debug_store=object(),
+            overlay=StubOverlay(),
+            renderer=None,
+            guides=None,
+            condition_debugger=None,
+            timeline=None,
+            control_manager=None,
+            guide_renderer=None,
+            event_window=None,
+            snapshot_directory=tmp_path,
+            sprite_positions_provider=None,
+            target_names_provider=None,
+            wrapped_update_all=lambda *args: None,
+            previous_update_all=lambda *args: None,
+            previous_debug_store=None,
+            previous_enable_flag=False,
+            window=None,
+        )
+
+        monkeypatch.setenv("CI", "true")
+        monkeypatch.setattr(
+            "arcadeactions.visualizer.attach.move_to_primary_monitor",
+            lambda *args, **kwargs: True,
+        )
+
+        _open_event_window(session, None, StubEventWindow, lambda: None)
+
+        assert session.event_window is not None
+        assert session.event_window.visible_calls == []
+        assert session.event_window.focus_calls == 0
