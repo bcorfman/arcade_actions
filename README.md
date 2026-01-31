@@ -20,15 +20,13 @@
 ---
 
 # ArcadeActions extension library for Arcade 3.x
-[![Tests](https://github.com/bcorfman/arcadeactions/actions/workflows/test.yml/badge.svg)](https://github.com/bcorfman/arcadeactions/actions/workflows/test.yml)
+[![Tests](https://github.com/bcorfman/arcadeactions/actions/workflows/test.yml/badge.svg)](https://github.com/bcorfman/arcadeactions/actions/workflows/test.yml) [![codecov](https://codecov.io/gh/bcorfman/arcadeactions/graph/badge.svg?token=9AIZD1GLND)](https://codecov.io/gh/bcorfman/arcadeactions)
 
-[![codecov](https://codecov.io/gh/bcorfman/arcadeactions/graph/badge.svg?token=9AIZD1GLND)](https://codecov.io/gh/bcorfman/arcadeactions)
-
-Documentation here: [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bcorfman/arcadeactions)
+Project docs: [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bcorfman/arcadeactions)
 
 ## 🚀 Quick Appeal
 
-So much of building an arcade game is a cluttered way of saying "animate this sprite until something happens", like colliding with another sprite, reaching a boundary, or an event response. Most of us manage this complexity in the game loop, using low-level movement of game objects and complex chains of `if`-statements. But what if you could write a concise command like "keep moving this sprite, wrap it the other side of the window if it hits a boundary, and raise an event when it collides with another sprite"? 
+ArcadeActions provides a structured way to orchestrate how objects move and respond over time, replacing scattered update code with clear, condition‑driven instructions. Instead of relying on fixed timers, it lets behaviors continue until meaningful conditions are met, which keeps logic aligned with what’s actually happening in the project. Its main contribution is turning complex, multi‑step behavior into concise, readable sequences that remain manageable as the project grows.
 
 ```python 
 import arcade
@@ -80,24 +78,16 @@ class AsteroidDemoView(arcade.View):
         self.player.draw()
         self.asteroids.draw()
 ```
-This example shows how animation actions can be logically separated from collision responses, making your code simple and appealing. 
+This simple Asteroids example shows how animation actions can be logically separated from collision responses, making your code simple and appealing. 
 If writing high-level game code appeals to you ... it's why you chose Python in the first place ... read on!
-
-### Import Paths
-By default, import from `actions`. If that conflicts with another dependency, use the compatibility package instead:
-```python
-from arcadeactions import MoveUntil, Action
-# or
-import arcadeactions as actions
-```
 
 ## 📚 Documentation Overview
 
 ### Essential Reading
-1. **[API Usage Guide](docs/api_usage_guide.md)** - **START HERE** - Complete guide to using the framework
-2. **[Testing Guide](docs/testing_guide.md)** - **Testing patterns and best practices**
-3. **[PRD](docs/prd.md)** - Project requirements and architecture decisions
-
+1. **[API Usage Guide](docs/api_usage_guide.md)** - Summary API guide to using the framework
+2. **[DeepWiki](https://deepwiki.com/bcorfman/arcadeactions)** - Complete end-to-end API guide
+3. **[Testing Guide](docs/testing_guide.md)** - Testing patterns and best practices
+4. **[PRD](docs/prd.md)** - Project requirements and architecture decisions
 
 ## 🚀 Getting Started
 
@@ -125,12 +115,6 @@ make devinstall
 
 # Run tests
 make test
-
-# Run linter
-make lint
-
-# Format code
-make format
 ```
 
 ### Quick Start by Game Type
@@ -150,16 +134,6 @@ Platformers / Physics Games:
    - Centralized physics in state machine
    - `cycle_textures_until` for animations
 4. **Follow the architecture guide** (see Decision Matrix below)
-
-## 📖 Documentation Structure
-
-```
-docs/
-├── README.md                # This file - overview and quick start
-├── api_usage_guide.md       # Complete API usage patterns (START HERE)
-├── testing_guide.md         # Testing patterns and fixtures
-└── prd.md                   # Requirements and architecture
-```
 
 ## 🔧 Core Components
 
