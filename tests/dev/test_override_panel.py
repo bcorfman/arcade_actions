@@ -556,6 +556,30 @@ class TestOverridePanelDrawing:
         mock_draw_rect.assert_not_called()
         mock_draw_text.assert_not_called()
 
+    def test_draw_visible_renders_rows_and_edit_state(self, window, mock_inspector, mock_window, mocker):
+        """Test draw renders rows and edit buffer when panel is visible."""
+        mock_draw_rect = mocker.patch("arcade.draw_rect_filled", create=True)
+        mock_draw_text = mocker.patch("arcade.draw_text", create=True)
+        mock_color = mocker.patch("arcade.color_from_hex_string", return_value=(34, 40, 42), create=True)
+
+        dev_viz = DevVisualizer()
+        dev_viz.window = mock_window
+        panel = dev_viz.overrides_panel
+        panel.inspector = mock_inspector
+        panel.visible = True
+        panel._selected_index = 0
+        panel.editing = True
+        panel._editing_field = "x"
+        panel._input_buffer = "123,456"
+
+        panel.draw()
+
+        assert mock_draw_rect.called
+        assert mock_draw_text.called
+        draw_calls = [call.args[0] for call in mock_draw_text.call_args_list if call.args]
+        assert "Overrides" in draw_calls[0]
+        assert any("Edit:" in text for text in draw_calls)
+
 
 @pytest.mark.integration
 class TestOverridePanelKeyboard:
