@@ -20,6 +20,8 @@
 ---
 
 # ArcadeActions extension library for Arcade 3.x
+[![Tests](https://github.com/bcorfman/arcadeactions/actions/workflows/test.yml/badge.svg)](https://github.com/bcorfman/arcadeactions/actions/workflows/test.yml)
+
 [![codecov](https://codecov.io/gh/bcorfman/arcadeactions/graph/badge.svg?token=9AIZD1GLND)](https://codecov.io/gh/bcorfman/arcadeactions)
 
 Documentation here: [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bcorfman/arcadeactions)
