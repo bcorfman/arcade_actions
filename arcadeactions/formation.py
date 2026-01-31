@@ -317,9 +317,7 @@ def arrange_v_formation(
         return sprites
 
     # Validate direction
-    valid_directions = ["up", "down", "left", "right"]
-    if direction not in valid_directions:
-        raise ValueError(f"direction must be one of {valid_directions}, got '{direction}'")
+    _validate_v_direction(direction)
 
     # Define V angle (45 degrees for a nice V shape)
     v_angle = 45.0
@@ -332,8 +330,7 @@ def arrange_v_formation(
 
     # Set rotation for apex sprite if needed
     if rotate_with_direction:
-        rotation_map = {"up": 0, "down": 180, "left": 90, "right": 270}
-        sprites[0].angle = rotation_map[direction]
+        sprites[0].angle = _direction_base_angle(direction)
 
     for i in range(1, count):
         side = 1 if i % 2 == 1 else -1
@@ -344,18 +341,7 @@ def arrange_v_formation(
         base_offset_y = math.sin(angle_rad) * distance
 
         # Apply direction transformation
-        if direction == "up":
-            offset_x = base_offset_x
-            offset_y = base_offset_y
-        elif direction == "down":
-            offset_x = base_offset_x
-            offset_y = -base_offset_y
-        elif direction == "left":
-            offset_x = -base_offset_y
-            offset_y = base_offset_x
-        else:  # direction == "right"
-            offset_x = base_offset_y
-            offset_y = base_offset_x
+        offset_x, offset_y = _compute_v_offsets(direction, base_offset_x, base_offset_y)
 
         sprites[i].center_x = apex_x + offset_x
         sprites[i].center_y = apex_y + offset_y
@@ -363,14 +349,7 @@ def arrange_v_formation(
 
         # Set rotation for wing sprites if needed
         if rotate_with_direction:
-            if direction == "up":
-                sprite_angle = 0
-            elif direction == "down":
-                sprite_angle = 180
-            elif direction == "left":
-                sprite_angle = 90
-            else:  # direction == "right"
-                sprite_angle = 270
+            sprite_angle = _direction_base_angle(direction)
 
             # Add slight angle variation for wing sprites to face outward
             if side == 1:  # Right wing
@@ -381,6 +360,27 @@ def arrange_v_formation(
             sprites[i].angle = sprite_angle
 
     return sprites
+
+
+def _validate_v_direction(direction: str) -> None:
+    valid_directions = ["up", "down", "left", "right"]
+    if direction not in valid_directions:
+        raise ValueError(f"direction must be one of {valid_directions}, got '{direction}'")
+
+
+def _compute_v_offsets(direction: str, base_offset_x: float, base_offset_y: float) -> tuple[float, float]:
+    if direction == "up":
+        return base_offset_x, base_offset_y
+    if direction == "down":
+        return base_offset_x, -base_offset_y
+    if direction == "left":
+        return -base_offset_y, base_offset_x
+    return base_offset_y, base_offset_x
+
+
+def _direction_base_angle(direction: str) -> float:
+    rotation_map = {"up": 0, "down": 180, "left": 90, "right": 270}
+    return rotation_map[direction]
 
 
 def arrange_diamond(
@@ -646,147 +646,129 @@ def get_slot_coordinates(
         # Returns (100, 340)
     """
     fn_name = formation_fn.__name__
-
-    if fn_name == "arrange_line":
-        count = kwargs.get("count")
-        if count is None:
-            raise ValueError("arrange_line requires 'count' parameter")
-        if index < 0 or index >= count:
-            raise IndexError(f"Index {index} out of bounds for count {count}")
-
-        start_x = kwargs.get("start_x", 0)
-        start_y = kwargs.get("start_y", 0)
-        spacing = kwargs.get("spacing", 50.0)
-
-        x = start_x + index * spacing
-        y = start_y
-        return (x, y)
-
-    elif fn_name == "arrange_grid":
-        rows = kwargs.get("rows", 5)
-        cols = kwargs.get("cols", 10)
-        total_count = rows * cols
-
-        if index < 0 or index >= total_count:
-            raise IndexError(f"Index {index} out of bounds for grid {rows}x{cols} (total {total_count})")
-
-        start_x = kwargs.get("start_x", 100)
-        start_y = kwargs.get("start_y", 500)
-        spacing_x = kwargs.get("spacing_x", 60.0)
-        spacing_y = kwargs.get("spacing_y", 50.0)
-
-        row = index // cols
-        col = index % cols
-        x = start_x + col * spacing_x
-        y = start_y + row * spacing_y
-        return (x, y)
-
-    elif fn_name == "arrange_circle":
-        count = kwargs.get("count")
-        if count is None:
-            raise ValueError("arrange_circle requires 'count' parameter")
-        if index < 0 or index >= count:
-            raise IndexError(f"Index {index} out of bounds for count {count}")
-
-        center_x = kwargs.get("center_x", 400)
-        center_y = kwargs.get("center_y", 300)
-        radius = kwargs.get("radius", 100.0)
-
-        angle_step = 2 * math.pi / count
-        # Start at π/2 (top) and go clockwise (negative angle)
-        angle = math.pi / 2 - index * angle_step
-        x = center_x + math.cos(angle) * radius
-        y = center_y + math.sin(angle) * radius
-        return (x, y)
-
-    elif fn_name == "arrange_v_formation":
-        count = kwargs.get("count")
-        if count is None:
-            raise ValueError("arrange_v_formation requires 'count' parameter")
-        if index < 0 or index >= count:
-            raise IndexError(f"Index {index} out of bounds for count {count}")
-
-        apex_x = kwargs.get("apex_x", 400)
-        apex_y = kwargs.get("apex_y", 500)
-        spacing = kwargs.get("spacing", 50.0)
-        direction = kwargs.get("direction", "up")
-
-        if index == 0:
-            # Apex sprite
-            return (apex_x, apex_y)
-
-        # V formation logic
-        v_angle = 45.0
-        angle_rad = math.radians(v_angle)
-        side = 1 if index % 2 == 1 else -1
-        distance = (index + 1) // 2 * spacing
-
-        base_offset_x = side * math.cos(angle_rad) * distance
-        base_offset_y = math.sin(angle_rad) * distance
-
-        if direction == "up":
-            offset_x = base_offset_x
-            offset_y = base_offset_y
-        elif direction == "down":
-            offset_x = base_offset_x
-            offset_y = -base_offset_y
-        elif direction == "left":
-            offset_x = -base_offset_y
-            offset_y = base_offset_x
-        else:  # direction == "right"
-            offset_x = base_offset_y
-            offset_y = base_offset_x
-
-        x = apex_x + offset_x
-        y = apex_y + offset_y
-        return (x, y)
-
-    elif fn_name == "arrange_triangle":
-        count = kwargs.get("count")
-        if count is None:
-            raise ValueError("arrange_triangle requires 'count' parameter")
-        if index < 0 or index >= count:
-            raise IndexError(f"Index {index} out of bounds for count {count}")
-
-        apex_x = kwargs.get("apex_x", 400)
-        apex_y = kwargs.get("apex_y", 500)
-        row_spacing = kwargs.get("row_spacing", 50.0)
-        lateral_spacing = kwargs.get("lateral_spacing", 60.0)
-        invert = kwargs.get("invert", False)
-
-        # Find which row this index belongs to
-        sprite_index = 0
-        row = 0
-        while sprite_index < count:
-            sprites_in_row = row + 1
-            if sprite_index + sprites_in_row > index:
-                # This sprite is in this row
-                col = index - sprite_index
-                break
-            sprite_index += sprites_in_row
-            row += 1
-        else:
-            raise IndexError(f"Index {index} out of bounds for count {count}")
-
-        # Calculate actual sprites in this row (may be less than theoretical max for incomplete rows)
-        sprites_to_place = min(sprites_in_row, count - sprite_index)
-
-        # Calculate Y position for this row
-        y_pos = apex_y + row * row_spacing if invert else apex_y - row * row_spacing
-
-        # Calculate starting X position to center the row (using actual sprites, not theoretical)
-        if sprites_to_place == 1:
-            start_x = apex_x
-        else:
-            total_width = (sprites_to_place - 1) * lateral_spacing
-            start_x = apex_x - total_width / 2
-
-        x = start_x + col * lateral_spacing
-        y = y_pos
-        return (x, y)
-
-    else:
+    slot_handlers = {
+        "arrange_line": _get_line_slot,
+        "arrange_grid": _get_grid_slot,
+        "arrange_circle": _get_circle_slot,
+        "arrange_v_formation": _get_v_slot,
+        "arrange_triangle": _get_triangle_slot,
+    }
+    handler = slot_handlers.get(fn_name)
+    if handler is None:
         raise ValueError(f"Unsupported formation function: {fn_name}")
+    return handler(index, **kwargs)
+
+
+def _require_count(name: str, kwargs: dict[str, Any]) -> int:
+    count = kwargs.get("count")
+    if count is None:
+        raise ValueError(f"{name} requires 'count' parameter")
+    return count
+
+
+def _validate_index(index: int, count: int) -> None:
+    if index < 0 or index >= count:
+        raise IndexError(f"Index {index} out of bounds for count {count}")
+
+
+def _get_line_slot(index: int, **kwargs: Any) -> tuple[float, float]:
+    count = _require_count("arrange_line", kwargs)
+    _validate_index(index, count)
+
+    start_x = kwargs.get("start_x", 0)
+    start_y = kwargs.get("start_y", 0)
+    spacing = kwargs.get("spacing", 50.0)
+    return (start_x + index * spacing, start_y)
+
+
+def _get_grid_slot(index: int, **kwargs: Any) -> tuple[float, float]:
+    rows = kwargs.get("rows", 5)
+    cols = kwargs.get("cols", 10)
+    total_count = rows * cols
+    if index < 0 or index >= total_count:
+        raise IndexError(f"Index {index} out of bounds for grid {rows}x{cols} (total {total_count})")
+
+    start_x = kwargs.get("start_x", 100)
+    start_y = kwargs.get("start_y", 500)
+    spacing_x = kwargs.get("spacing_x", 60.0)
+    spacing_y = kwargs.get("spacing_y", 50.0)
+    row = index // cols
+    col = index % cols
+    x = start_x + col * spacing_x
+    y = start_y + row * spacing_y
+    return (x, y)
+
+
+def _get_circle_slot(index: int, **kwargs: Any) -> tuple[float, float]:
+    count = _require_count("arrange_circle", kwargs)
+    _validate_index(index, count)
+
+    center_x = kwargs.get("center_x", 400)
+    center_y = kwargs.get("center_y", 300)
+    radius = kwargs.get("radius", 100.0)
+    angle_step = 2 * math.pi / count
+    angle = math.pi / 2 - index * angle_step
+    x = center_x + math.cos(angle) * radius
+    y = center_y + math.sin(angle) * radius
+    return (x, y)
+
+
+def _get_v_slot(index: int, **kwargs: Any) -> tuple[float, float]:
+    count = _require_count("arrange_v_formation", kwargs)
+    _validate_index(index, count)
+
+    apex_x = kwargs.get("apex_x", 400)
+    apex_y = kwargs.get("apex_y", 500)
+    spacing = kwargs.get("spacing", 50.0)
+    direction = kwargs.get("direction", "up")
+
+    if index == 0:
+        return (apex_x, apex_y)
+
+    v_angle = 45.0
+    angle_rad = math.radians(v_angle)
+    side = 1 if index % 2 == 1 else -1
+    distance = (index + 1) // 2 * spacing
+    base_offset_x = side * math.cos(angle_rad) * distance
+    base_offset_y = math.sin(angle_rad) * distance
+    offset_x, offset_y = _compute_v_offsets(direction, base_offset_x, base_offset_y)
+    return (apex_x + offset_x, apex_y + offset_y)
+
+
+def _get_triangle_slot(index: int, **kwargs: Any) -> tuple[float, float]:
+    count = _require_count("arrange_triangle", kwargs)
+    _validate_index(index, count)
+
+    apex_x = kwargs.get("apex_x", 400)
+    apex_y = kwargs.get("apex_y", 500)
+    row_spacing = kwargs.get("row_spacing", 50.0)
+    lateral_spacing = kwargs.get("lateral_spacing", 60.0)
+    invert = kwargs.get("invert", False)
+
+    sprite_index = 0
+    row = 0
+    while sprite_index < count:
+        sprites_in_row = row + 1
+        if sprite_index + sprites_in_row > index:
+            col = index - sprite_index
+            break
+        sprite_index += sprites_in_row
+        row += 1
+    else:
+        raise IndexError(f"Index {index} out of bounds for count {count}")
+
+    sprites_to_place = min(sprites_in_row, count - sprite_index)
+    y_pos = apex_y + row * row_spacing if invert else apex_y - row * row_spacing
+
+    if sprites_to_place == 1:
+        start_x = apex_x
+    else:
+        total_width = (sprites_to_place - 1) * lateral_spacing
+        start_x = apex_x - total_width / 2
+
+    x = start_x + col * lateral_spacing
+    y = y_pos
+    return (x, y)
 
 
 def arrange_hexagonal_grid(

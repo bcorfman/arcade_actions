@@ -76,46 +76,23 @@ class EventInspectorWindow(arcade.Window):
 
     # ------------------------------------------------------------------ Events
     def on_draw(self) -> None:
-        if not self._should_draw:
-            return
-        if not self._has_active_context():
+        if self._should_skip_draw():
             return
 
-        restore_window = None
+        ready, restore_window = self._prepare_draw_context()
+        if not ready:
+            return
         try:
-            try:
-                current_window = window_commands.get_window()
-            except RuntimeError:
-                current_window = None
-
-            if current_window is not self:
-                restore_window = current_window
-                window_commands.set_window(self)
-
-            try:
-                self.switch_to()
-            except Exception:
-                return
-
             self.clear()
 
             self._timeline.update()
-            # Update timeline renderer with current window dimensions
-            # Account for title (font_size + 2) and legend (font_size + 4) at top, plus spacing
-            title_height = self._font_size + 2  # Title font size
-            legend_height = self._font_size + 4  # Legend font size + spacing
-            title_and_legend_height = title_height + legend_height + self.MARGIN
-            self._timeline_renderer.width = self.width - 2 * self.MARGIN
-            self._timeline_renderer.height = self.height - 2 * self.MARGIN - title_and_legend_height
+            self._update_timeline_renderer_geometry()
             self._timeline_renderer.update()
 
             self._draw_background()
             self._draw_timeline()
         finally:
-            if restore_window is not None:
-                window_commands.set_window(restore_window)
-            else:
-                window_commands.set_window(None)
+            self._restore_draw_context(restore_window)
 
     def on_update(self, delta_time: float) -> None:  # noqa: ARG002
         # No per-frame state accumulation; draw pulls current data.
@@ -163,14 +140,8 @@ class EventInspectorWindow(arcade.Window):
         # Only handle F4 to close the window
         # All other keys should be forwarded to the main game window
         if symbol == arcade.key.F4:
-            if self._forward_key_handler is not None:
-                handled = False
-                try:
-                    handled = bool(self._forward_key_handler(symbol, modifiers))
-                except Exception:
-                    handled = False
-                if handled:
-                    return
+            if self._forward_debug_key(symbol, modifiers):
+                return
             self.close()
         else:
             self._forward_to_main_window("on_key_press", symbol, modifiers)
@@ -181,13 +152,8 @@ class EventInspectorWindow(arcade.Window):
 
     def _forward_to_main_window(self, handler_name: str, symbol: int, modifiers: int) -> None:
         # First try the debug handler (for function keys)
-        if self._forward_key_handler is not None and handler_name == "on_key_press":
-            try:
-                handled = bool(self._forward_key_handler(symbol, modifiers))
-                if handled:
-                    return
-            except Exception:
-                pass
+        if handler_name == "on_key_press" and self._forward_debug_key(symbol, modifiers):
+            return
 
         if self._main_window is None:
             return
@@ -218,12 +184,8 @@ class EventInspectorWindow(arcade.Window):
             self._update_font_size_for_window(self._base_width, self._base_height)
 
     def on_resize(self, width: int, height: int) -> None:
-        if width < self._base_width or height < self._base_height:
-            super().on_resize(self._base_width, self._base_height)
-            self.set_size(self._base_width, self._base_height)
-            self._update_font_size_for_window(self._base_width, self._base_height)
+        if self._enforce_minimum_size(width, height):
             return
-
         super().on_resize(width, height)
         self._update_font_size_for_window(width, height)
 
@@ -279,6 +241,56 @@ class EventInspectorWindow(arcade.Window):
 
     def _has_active_context(self) -> bool:
         return getattr(self, "_context", None) is not None
+
+    def _should_skip_draw(self) -> bool:
+        return not self._should_draw or not self._has_active_context()
+
+    def _prepare_draw_context(self) -> tuple[bool, arcade.Window | None]:
+        restore_window = None
+        try:
+            current_window = window_commands.get_window()
+        except RuntimeError:
+            current_window = None
+
+        if current_window is not self:
+            restore_window = current_window
+            window_commands.set_window(self)
+
+        try:
+            self.switch_to()
+        except Exception:
+            return False, restore_window
+        return True, restore_window
+
+    def _restore_draw_context(self, restore_window: arcade.Window | None) -> None:
+        if restore_window is not None:
+            window_commands.set_window(restore_window)
+        else:
+            window_commands.set_window(None)
+
+    def _update_timeline_renderer_geometry(self) -> None:
+        # Account for title (font_size + 2) and legend (font_size + 4) at top, plus spacing.
+        title_height = self._font_size + 2
+        legend_height = self._font_size + 4
+        title_and_legend_height = title_height + legend_height + self.MARGIN
+        self._timeline_renderer.width = self.width - 2 * self.MARGIN
+        self._timeline_renderer.height = self.height - 2 * self.MARGIN - title_and_legend_height
+
+    def _forward_debug_key(self, symbol: int, modifiers: int) -> bool:
+        if self._forward_key_handler is None:
+            return False
+        try:
+            return bool(self._forward_key_handler(symbol, modifiers))
+        except Exception:
+            return False
+
+    def _enforce_minimum_size(self, width: int, height: int) -> bool:
+        if width >= self._base_width and height >= self._base_height:
+            return False
+        super().on_resize(self._base_width, self._base_height)
+        self.set_size(self._base_width, self._base_height)
+        self._update_font_size_for_window(self._base_width, self._base_height)
+        return True
 
     def _build_text_elements(self) -> None:
         self._timeline_label = arcade.Text(

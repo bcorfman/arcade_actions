@@ -219,6 +219,17 @@ class HeadlessWindow:
         return None
 
 
+class HeadlessText:
+    """Text stub for headless OpenGL environments."""
+
+    def __init__(self, text: str, *args, **kwargs) -> None:  # noqa: ANN001
+        self.text = text
+        self.content_width = max(1, len(text)) * 6
+
+    def draw(self) -> None:
+        return None
+
+
 # Global window instance (created lazily, shared across all tests)
 _global_test_window = None
 _original_window_class = None
@@ -228,6 +239,7 @@ _original_get_window_sprite_list = None
 _original_spritelist_init = None
 _original_ctx_property_global = None
 _original_getattribute = None
+_original_arcade_text = None
 _headless_mode = False
 
 
@@ -250,6 +262,7 @@ def _ensure_window_context():
     global _original_get_window_sprite_list
     global _original_spritelist_init
     global _headless_mode
+    global _original_arcade_text
 
     if _global_test_window is not None:
         yield
@@ -276,6 +289,9 @@ def _ensure_window_context():
         if _original_window_class is None:
             _original_window_class = arcade.Window
         arcade.Window = HeadlessWindow
+        if _original_arcade_text is None:
+            _original_arcade_text = arcade.Text
+        arcade.Text = HeadlessText
 
         # Headless get_window implementation
         def headless_get_window():
@@ -365,8 +381,19 @@ def _ensure_window_context():
         if _original_window_class is not None:
             arcade.Window = _original_window_class
             _original_window_class = None
+        if _original_arcade_text is not None:
+            arcade.Text = _original_arcade_text
+            _original_arcade_text = None
 
     _headless_mode = False
+
+
+@pytest.fixture
+def require_opengl():
+    """Skip tests that need a real OpenGL context in headless CI."""
+    if _headless_mode:
+        pytest.skip("OpenGL context not available (headless CI mode)")
+    return True
 
 
 @pytest.fixture(scope="function")

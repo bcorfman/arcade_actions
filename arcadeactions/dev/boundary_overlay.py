@@ -203,16 +203,19 @@ class BoundaryGizmo:
         if self._bounded_action is None and self._metadata_config is None:
             return
 
-        # Update handle position
         handle.x += dx
         handle.y += dy
+        self._sync_handle_edges(handle)
 
-        # Update all handles that share the same edge
-        # Corner handles affect two edges
+        bounds = self._calculate_bounds_from_handles()
+        if bounds is None:
+            return
+        self._apply_bounds(bounds)
+
+    def _sync_handle_edges(self, handle: BoundaryHandle) -> None:
         for h in self._handles:
             if h == handle:
                 continue
-            # If handle shares the same edge, update it too
             if "left" in handle.handle_type and "left" in h.handle_type:
                 h.x = handle.x
             if "right" in handle.handle_type and "right" in h.handle_type:
@@ -222,35 +225,37 @@ class BoundaryGizmo:
             if "top" in handle.handle_type and "top" in h.handle_type:
                 h.y = handle.y
 
-        # Recalculate bounds from handle positions
-        if len(self._handles) == 4:
-            left_handles = [h for h in self._handles if "left" in h.handle_type]
-            right_handles = [h for h in self._handles if "right" in h.handle_type]
-            bottom_handles = [h for h in self._handles if "bottom" in h.handle_type]
-            top_handles = [h for h in self._handles if "top" in h.handle_type]
+    def _calculate_bounds_from_handles(self) -> tuple[float, float, float, float] | None:
+        if len(self._handles) != 4:
+            return None
 
-            left = min(h.x for h in left_handles)
-            right = max(h.x for h in right_handles)
-            bottom = min(h.y for h in bottom_handles)
-            top = max(h.y for h in top_handles)
+        left_handles = [h for h in self._handles if "left" in h.handle_type]
+        right_handles = [h for h in self._handles if "right" in h.handle_type]
+        bottom_handles = [h for h in self._handles if "bottom" in h.handle_type]
+        top_handles = [h for h in self._handles if "top" in h.handle_type]
 
-            # Validate bounds: ensure left <= right and bottom <= top
-            # If handles are dragged past each other, swap them to maintain valid bounds
-            if left > right:
-                left, right = right, left
-            if bottom > top:
-                bottom, top = top, bottom
+        left = min(h.x for h in left_handles)
+        right = max(h.x for h in right_handles)
+        bottom = min(h.y for h in bottom_handles)
+        top = max(h.y for h in top_handles)
 
-            # Update runtime action bounds if present, otherwise update metadata
-            if self._bounded_action is not None:
-                self._bounded_action.set_bounds((left, bottom, right, top))
-            elif self._metadata_config is not None:
-                # Store updated bounds back into the metadata config (edit mode)
-                try:
-                    self._metadata_config["bounds"] = (left, bottom, right, top)
-                except Exception:
-                    # Silently ignore if metadata is not writable
-                    pass
+        if left > right:
+            left, right = right, left
+        if bottom > top:
+            bottom, top = top, bottom
+
+        return (left, bottom, right, top)
+
+    def _apply_bounds(self, bounds: tuple[float, float, float, float]) -> None:
+        if self._bounded_action is not None:
+            self._bounded_action.set_bounds(bounds)
+            return
+        if self._metadata_config is None:
+            return
+        try:
+            self._metadata_config["bounds"] = bounds
+        except Exception:
+            pass
 
     def draw(self) -> None:
         """Draw the boundary gizmo (rectangle and handles)."""

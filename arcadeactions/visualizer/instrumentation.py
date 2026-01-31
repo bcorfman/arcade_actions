@@ -148,6 +148,24 @@ class ActionSnapshot:
         self.metadata = metadata or {}
 
 
+_SNAPSHOT_FIELDS = {
+    "action_type",
+    "target_id",
+    "target_type",
+    "tag",
+    "is_active",
+    "is_paused",
+    "factor",
+    "elapsed",
+    "progress",
+    "velocity",
+    "bounds",
+    "boundary_state",
+    "last_condition_result",
+    "condition_str",
+}
+
+
 class DebugDataStore:
     """
     Centralized storage for debug instrumentation data.
@@ -200,48 +218,24 @@ class DebugDataStore:
         **details,
     ) -> None:
         """Record an action lifecycle event."""
-        event = ActionEvent(
-            frame=self.current_frame,
-            timestamp=self.current_time,
-            event_type=event_type,
-            action_id=action_id,
-            action_type=action_type,
-            target_id=target_id,
-            target_type=target_type,
-            tag=tag,
-            details=details,
+        self.events.append(
+            ActionEvent(
+                frame=self.current_frame,
+                timestamp=self.current_time,
+                event_type=event_type,
+                action_id=action_id,
+                action_type=action_type,
+                target_id=target_id,
+                target_type=target_type,
+                tag=tag,
+                details=details,
+            )
         )
-        self.events.append(event)
 
         if event_type == "created":
-            self.total_actions_created += 1
-
-            # Update indices
-            if target_id not in self.actions_by_target:
-                self.actions_by_target[target_id] = []
-            self.actions_by_target[target_id].append(action_id)
-
-            if tag:
-                if tag not in self.actions_by_tag:
-                    self.actions_by_tag[tag] = []
-                self.actions_by_tag[tag].append(action_id)
-
+            self._record_created_event(action_id, target_id, tag)
         elif event_type == "removed":
-            # Clean up indices
-            if target_id in self.actions_by_target:
-                try:
-                    self.actions_by_target[target_id].remove(action_id)
-                except ValueError:
-                    pass
-
-            if tag and tag in self.actions_by_tag:
-                try:
-                    self.actions_by_tag[tag].remove(action_id)
-                except ValueError:
-                    pass
-
-            # Remove snapshot
-            self.active_snapshots.pop(action_id, None)
+            self._record_removed_event(action_id, target_id, tag)
 
     def record_condition_evaluation(
         self,
@@ -274,31 +268,9 @@ class DebugDataStore:
         """Update or create a snapshot for an action."""
         if action_id in self.active_snapshots:
             snapshot = self.active_snapshots[action_id]
-            for key, value in kwargs.items():
-                if key == "metadata" and isinstance(value, dict):
-                    snapshot.metadata.update(value)
-                    continue
-                if hasattr(snapshot, key):
-                    setattr(snapshot, key, value)
+            self._apply_snapshot_updates(snapshot, kwargs)
         else:
-            # Create new snapshot with required fields
-            snapshot = ActionSnapshot(
-                action_id=action_id,
-                action_type=kwargs.get("action_type", "Unknown"),
-                target_id=kwargs.get("target_id", 0),
-                target_type=kwargs.get("target_type", "Unknown"),
-                tag=kwargs.get("tag"),
-                is_active=kwargs.get("is_active", False),
-                is_paused=kwargs.get("is_paused", False),
-                factor=kwargs.get("factor", 1.0),
-                elapsed=kwargs.get("elapsed", 0.0),
-                progress=kwargs.get("progress"),
-                velocity=kwargs.get("velocity"),
-                bounds=kwargs.get("bounds"),
-                boundary_state=kwargs.get("boundary_state"),
-                metadata=kwargs.get("metadata", {}),
-            )
-            self.active_snapshots[action_id] = snapshot
+            self.active_snapshots[action_id] = self._build_snapshot(action_id, kwargs)
 
     def get_events_for_action(self, action_id: int, limit: int = 50) -> list[ActionEvent]:
         """Get recent events for a specific action."""
@@ -353,3 +325,49 @@ class DebugDataStore:
             "events_buffered": len(self.events),
             "evaluations_buffered": len(self.evaluations),
         }
+
+    def _record_created_event(self, action_id: int, target_id: int, tag: str | None) -> None:
+        self.total_actions_created += 1
+        self.actions_by_target.setdefault(target_id, []).append(action_id)
+        if tag:
+            self.actions_by_tag.setdefault(tag, []).append(action_id)
+
+    def _record_removed_event(self, action_id: int, target_id: int, tag: str | None) -> None:
+        self._remove_action_id(self.actions_by_target.get(target_id), action_id)
+        if tag:
+            self._remove_action_id(self.actions_by_tag.get(tag), action_id)
+        self.active_snapshots.pop(action_id, None)
+
+    def _remove_action_id(self, action_ids: list[int] | None, action_id: int) -> None:
+        if not action_ids:
+            return
+        try:
+            action_ids.remove(action_id)
+        except ValueError:
+            return
+
+    def _apply_snapshot_updates(self, snapshot: ActionSnapshot, updates: dict[str, Any]) -> None:
+        metadata = updates.get("metadata")
+        if isinstance(metadata, dict):
+            snapshot.metadata.update(metadata)
+        for key in _SNAPSHOT_FIELDS:
+            if key in updates:
+                setattr(snapshot, key, updates[key])
+
+    def _build_snapshot(self, action_id: int, updates: dict[str, Any]) -> ActionSnapshot:
+        return ActionSnapshot(
+            action_id=action_id,
+            action_type=updates.get("action_type", "Unknown"),
+            target_id=updates.get("target_id", 0),
+            target_type=updates.get("target_type", "Unknown"),
+            tag=updates.get("tag"),
+            is_active=updates.get("is_active", False),
+            is_paused=updates.get("is_paused", False),
+            factor=updates.get("factor", 1.0),
+            elapsed=updates.get("elapsed", 0.0),
+            progress=updates.get("progress"),
+            velocity=updates.get("velocity"),
+            bounds=updates.get("bounds"),
+            boundary_state=updates.get("boundary_state"),
+            metadata=updates.get("metadata", {}),
+        )

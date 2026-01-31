@@ -55,6 +55,27 @@ class TestSyncTextObjects:
 
         assert len(existing_objects) == 2
 
+    def test_sync_text_objects_skips_rebuild_when_specs_unchanged(self, mocker):
+        created = []
+
+        class DummyText:
+            def __init__(self, text, x, y, color, font_size, bold=False):
+                created.append(text)
+                self.text = text
+
+        mocker.patch("arcade.Text", DummyText)
+
+        existing_objects = []
+        last_specs = []
+        specs = [
+            _TextSpec(text="Line 1", x=10, y=100, color=(255, 255, 255), font_size=12),
+        ]
+
+        _sync_text_objects(existing_objects, specs, last_specs)
+        _sync_text_objects(existing_objects, specs, last_specs)
+
+        assert created == ["Line 1"]
+
     def test_sync_text_objects_reuses_existing_objects(self, mocker):
         """Test _sync_text_objects rebuilds when specs change."""
         existing_objects = []
@@ -94,6 +115,15 @@ class TestSyncTextObjects:
 
 class TestOverlayRendererEdgeCases:
     """Test OverlayRenderer edge cases."""
+
+    def test_overlay_renderer_update_clears_when_hidden(self, mocker):
+        store = DebugDataStore()
+        overlay = InspectorOverlay(debug_store=store)
+        overlay.visible = False
+        renderer = OverlayRenderer(overlay)
+        renderer.text_objects = [object()]
+        renderer.update()
+        assert renderer.text_objects == []
 
     def test_overlay_renderer_update_with_empty_overlay(self, mocker):
         """Test OverlayRenderer.update with empty overlay."""

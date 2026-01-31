@@ -83,7 +83,7 @@ for root, dirs, files in os.walk(arcadeactions_path):
 # Find C extensions that might need inclusion
 c_extensions_found = found_modules & potential_c_extensions
 
-print("\n=== Standard library C extensions found in arcade-actions ===")
+print("\n=== Standard library C extensions found in arcadeactions ===")
 if c_extensions_found:
     for mod in sorted(c_extensions_found):
         print(f"  - {mod}")

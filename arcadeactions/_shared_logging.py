@@ -13,7 +13,7 @@ def _agent_debug_log(*, hypothesis_id: str, location: str, message: str, data: d
         "timestamp": time.time(),
     }
     try:
-        with open("/home/bcorfman/dev/arcade_actions/.cursor/debug.log", "a", encoding="utf-8") as log_file:
+        with open("/home/bcorfman/dev/arcadeactions/.cursor/debug.log", "a", encoding="utf-8") as log_file:
             log_file.write(json.dumps(payload) + "\n")
     except Exception:
         pass

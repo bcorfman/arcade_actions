@@ -19,6 +19,79 @@ class UpdateResult:
         self.backup = backup
 
 
+def _get_call_name(func: cst.BaseExpression) -> str | None:
+    if isinstance(func, cst.Name):
+        return func.value
+    if isinstance(func, cst.Attribute) and isinstance(func.attr, cst.Name):
+        return func.attr.value
+    return None
+
+
+def _get_node_position(transformer: cst.CSTTransformer, node: cst.CSTNode):
+    try:
+        return transformer.get_metadata(PositionProvider, node)
+    except Exception:
+        return None
+
+
+def _is_target_arrange_call(
+    transformer: cst.CSTTransformer,
+    original_node: cst.Call,
+    updated_node: cst.Call,
+    lineno: int,
+) -> bool:
+    if _get_call_name(updated_node.func) != "arrange_grid":
+        return False
+    pos = _get_node_position(transformer, original_node)
+    return pos is not None and pos.start.line == lineno
+
+
+def _parse_int_value(node: cst.BaseExpression) -> int | None:
+    if isinstance(node, cst.Integer):
+        try:
+            return int(node.value)
+        except Exception:
+            return None
+    try:
+        return int(str(node))
+    except Exception:
+        return None
+
+
+def _get_dict_int_value(node: cst.Dict, key_name: str) -> int | None:
+    for elem in node.elements:
+        key = elem.key
+        if not isinstance(key, cst.SimpleString):
+            continue
+        if key.value.strip("\"'") != key_name:
+            continue
+        return _parse_int_value(elem.value)
+    return None
+
+
+def _dict_matches_row_col(node: cst.Dict, row: int, col: int) -> bool:
+    r = _get_dict_int_value(node, "row")
+    c = _get_dict_int_value(node, "col")
+    return r == row and c == col
+
+
+def _collect_override_entries(val: cst.BaseExpression) -> list[dict]:
+    entries: list[dict] = []
+    nodes: list[cst.Dict] = []
+    if isinstance(val, cst.List):
+        for elem in val.elements:
+            if isinstance(elem.value, cst.Dict):
+                nodes.append(elem.value)
+    elif isinstance(val, cst.Dict):
+        nodes.append(val)
+
+    for node in nodes:
+        entry = {"row": None, "col": None, "x": None, "y": None}
+        for key_name in entry:
+            entry[key_name] = _get_dict_int_value(node, key_name)
+        entries.append(entry)
+    return entries
+
 class _ArrangeCallTransformer(cst.CSTTransformer):
     METADATA_DEPENDENCIES = (PositionProvider,)
 
@@ -29,23 +102,7 @@ class _ArrangeCallTransformer(cst.CSTTransformer):
         self.made_change = False
 
     def leave_Call(self, original_node: cst.Call, updated_node: cst.Call) -> cst.Call:
-        # Check function name
-        func = updated_node.func
-        func_name = None
-        if isinstance(func, cst.Name):
-            func_name = func.value
-        elif isinstance(func, cst.Attribute) and isinstance(func.attr, cst.Name):
-            func_name = func.attr.value
-
-        if func_name != "arrange_grid":
-            return updated_node
-
-        # Check position
-        try:
-            pos = self.get_metadata(PositionProvider, original_node)
-        except Exception:
-            pos = None
-        if pos is None or pos.start.line != self.lineno:
+        if not _is_target_arrange_call(self, original_node, updated_node, self.lineno):
             return updated_node
 
         # Replace keyword arg if present
@@ -182,23 +239,7 @@ class _ArrangeCellTransformer(cst.CSTTransformer):
         self.made_change = False
 
     def leave_Call(self, original_node: cst.Call, updated_node: cst.Call) -> cst.Call:
-        # Check function name
-        func = updated_node.func
-        func_name = None
-        if isinstance(func, cst.Name):
-            func_name = func.value
-        elif isinstance(func, cst.Attribute) and isinstance(func.attr, cst.Name):
-            func_name = func.attr.value
-
-        if func_name != "arrange_grid":
-            return updated_node
-
-        # Check position
-        try:
-            pos = self.get_metadata(PositionProvider, original_node)
-        except Exception:
-            pos = None
-        if pos is None or pos.start.line != self.lineno:
+        if not _is_target_arrange_call(self, original_node, updated_node, self.lineno):
             return updated_node
 
         # Build a Dict node for the new override
@@ -220,39 +261,15 @@ class _ArrangeCellTransformer(cst.CSTTransformer):
                 val = arg.value
                 if isinstance(val, cst.List):
                     # Deduplicate or update existing override for same (row, col)
-                    elements = list(val.elements)  # type: ignore[attr-defined]
-                    replaced = False
-                    new_elements: list[cst.Element] = []
-                    for el in elements:
-                        node = el.value
-                        if isinstance(node, cst.Dict):
-                            # Try to find 'row' and 'col' entries
-                            r = None
-                            c = None
-                            for de in node.elements:
-                                key = de.key
-                                valnode = de.value
-                                if isinstance(key, cst.SimpleString) and (key.value.strip("\"'") == "row"):
-                                    if isinstance(valnode, cst.Integer):
-                                        try:
-                                            r = int(valnode.value)
-                                        except Exception:
-                                            r = None
-                                if isinstance(key, cst.SimpleString) and (key.value.strip("\"'") == "col"):
-                                    if isinstance(valnode, cst.Integer):
-                                        try:
-                                            c = int(valnode.value)
-                                        except Exception:
-                                            c = None
-                            if r == self.row and c == self.col:
-                                # replace this element with the new dict
-                                new_elements.append(cst.Element(new_dict))
-                                replaced = True
-                                self.made_change = True
-                                continue
-                        # default: keep existing element
-                        new_elements.append(el)
-                    if not replaced:
+                    new_elements, replaced = _replace_or_append_override(
+                        list(val.elements),
+                        new_dict,
+                        self.row,
+                        self.col,
+                    )
+                    if replaced:
+                        self.made_change = True
+                    else:
                         new_elements.append(cst.Element(new_dict))
                         self.made_change = True
                     new_val = val.with_changes(elements=new_elements)
@@ -272,6 +289,24 @@ class _ArrangeCellTransformer(cst.CSTTransformer):
         if self.made_change:
             return updated_node.with_changes(args=new_args)
         return updated_node
+
+
+def _replace_or_append_override(
+    elements: list[cst.Element],
+    new_dict: cst.Dict,
+    row: int,
+    col: int,
+) -> tuple[list[cst.Element], bool]:
+    replaced = False
+    new_elements: list[cst.Element] = []
+    for el in elements:
+        node = el.value
+        if isinstance(node, cst.Dict) and _dict_matches_row_col(node, row, col):
+            new_elements.append(cst.Element(new_dict))
+            replaced = True
+            continue
+        new_elements.append(el)
+    return new_elements, replaced
 
 
 def update_arrange_cell(file_path: str | Path, lineno: int, row: int, col: int, x: int, y: int) -> UpdateResult:
@@ -312,61 +347,21 @@ class _ArrangeCellRemoveTransformer(cst.CSTTransformer):
         self.made_change = False
 
     def leave_Call(self, original_node: cst.Call, updated_node: cst.Call) -> cst.Call:
-        # Check function name
-        func = updated_node.func
-        func_name = None
-        if isinstance(func, cst.Name):
-            func_name = func.value
-        elif isinstance(func, cst.Attribute) and isinstance(func.attr, cst.Name):
-            func_name = func.attr.value
-
-        if func_name != "arrange_grid":
-            return updated_node
-
-        # Check position
-        try:
-            pos = self.get_metadata(PositionProvider, original_node)
-        except Exception:
-            pos = None
-        if pos is None or pos.start.line != self.lineno:
+        if not _is_target_arrange_call(self, original_node, updated_node, self.lineno):
             return updated_node
 
         new_args = []
-        removed = False
         for arg in updated_node.args:
             if arg.keyword and arg.keyword.value == "overrides":
                 val = arg.value
                 if isinstance(val, cst.List):
-                    elements = list(val.elements)  # type: ignore[attr-defined]
-                    new_elements: list[cst.Element] = []
-                    for el in elements:
-                        node = el.value
-                        keep = True
-                        if isinstance(node, cst.Dict):
-                            r = None
-                            c = None
-                            for de in node.elements:
-                                key = de.key
-                                valnode = de.value
-                                if isinstance(key, cst.SimpleString) and (key.value.strip("\"'") == "row"):
-                                    if isinstance(valnode, cst.Integer):
-                                        try:
-                                            r = int(valnode.value)
-                                        except Exception:
-                                            r = None
-                                if isinstance(key, cst.SimpleString) and (key.value.strip("\"'") == "col"):
-                                    if isinstance(valnode, cst.Integer):
-                                        try:
-                                            c = int(valnode.value)
-                                        except Exception:
-                                            c = None
-                            if r == self.row and c == self.col:
-                                # drop this element
-                                keep = False
-                                removed = True
-                                self.made_change = True
-                        if keep:
-                            new_elements.append(el)
+                    new_elements, removed = _remove_overrides_from_list(
+                        list(val.elements),
+                        self.row,
+                        self.col,
+                    )
+                    if removed:
+                        self.made_change = True
                     if new_elements:
                         new_val = val.with_changes(elements=new_elements)
                         new_args.append(arg.with_changes(value=new_val))
@@ -375,31 +370,9 @@ class _ArrangeCellRemoveTransformer(cst.CSTTransformer):
                         pass
                 else:
                     # if single value and matches target, remove arg
-                    node = val
-                    removed_single = False
-                    if isinstance(node, cst.Dict):
-                        r = None
-                        c = None
-                        for de in node.elements:
-                            key = de.key
-                            valnode = de.value
-                            if isinstance(key, cst.SimpleString) and (key.value.strip("\"'") == "row"):
-                                if isinstance(valnode, cst.Integer):
-                                    try:
-                                        r = int(valnode.value)
-                                    except Exception:
-                                        r = None
-                            if isinstance(key, cst.SimpleString) and (key.value.strip("\"'") == "col"):
-                                if isinstance(valnode, cst.Integer):
-                                    try:
-                                        c = int(valnode.value)
-                                    except Exception:
-                                        c = None
-                        if r == self.row and c == self.col:
-                            removed_single = True
-                            removed = True
-                            self.made_change = True
-                    if not removed_single:
+                    if isinstance(val, cst.Dict) and _dict_matches_row_col(val, self.row, self.col):
+                        self.made_change = True
+                    else:
                         new_args.append(arg)
             else:
                 new_args.append(arg)
@@ -469,53 +442,27 @@ def list_arrange_overrides(file_path: str | Path, lineno: int) -> list[dict]:
                 return
             for arg in node.args:
                 if arg.keyword and arg.keyword.value == "overrides":
-                    val = arg.value
-                    if isinstance(val, cst.List):
-                        for el in val.elements:
-                            node = el.value
-                            if isinstance(node, cst.Dict):
-                                entry = {"row": None, "col": None, "x": None, "y": None}
-                                for de in node.elements:
-                                    key = de.key
-                                    valnode = de.value
-                                    if isinstance(key, cst.SimpleString):
-                                        k = key.value.strip("\"'")
-                                        if isinstance(valnode, cst.Integer):
-                                            try:
-                                                entry[k] = int(valnode.value)
-                                            except Exception:
-                                                entry[k] = None
-                                        else:
-                                            # try to parse literal
-                                            try:
-                                                entry[k] = int(str(valnode))
-                                            except Exception:
-                                                entry[k] = None
-                                overrides.append(entry)
-                    else:
-                        node = val
-                        if isinstance(node, cst.Dict):
-                            entry = {"row": None, "col": None, "x": None, "y": None}
-                            for de in node.elements:
-                                key = de.key
-                                valnode = de.value
-                                if isinstance(key, cst.SimpleString):
-                                    k = key.value.strip("\"'")
-                                    if isinstance(valnode, cst.Integer):
-                                        try:
-                                            entry[k] = int(valnode.value)
-                                        except Exception:
-                                            entry[k] = None
-                                    else:
-                                        try:
-                                            entry[k] = int(str(valnode))
-                                        except Exception:
-                                            entry[k] = None
-                            overrides.append(entry)
+                    overrides.extend(_collect_override_entries(arg.value))
 
     visitor = _Visitor()
     wrapper.visit(visitor)
     return overrides
+
+
+def _remove_overrides_from_list(
+    elements: list[cst.Element],
+    row: int,
+    col: int,
+) -> tuple[list[cst.Element], bool]:
+    removed = False
+    new_elements: list[cst.Element] = []
+    for el in elements:
+        node = el.value
+        if isinstance(node, cst.Dict) and _dict_matches_row_col(node, row, col):
+            removed = True
+            continue
+        new_elements.append(el)
+    return new_elements, removed
 
 
 __all__ = [

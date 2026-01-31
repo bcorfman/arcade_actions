@@ -45,7 +45,7 @@ jobs:
               release_id: context.payload.release.id
             });
             
-            const packageName = 'arcade-actions';
+            const packageName = 'arcadeactions';
             const pypiUrl = `https://pypi.org/project/${packageName}/`;
             const pypiVersionUrl = `https://pypi.org/project/${packageName}/${release.tag_name}/`;
             

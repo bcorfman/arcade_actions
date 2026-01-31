@@ -98,6 +98,39 @@ class TestDebugControlManager:
         assert result is True
         assert control_manager.condition_panel_visible is False
 
+    def test_handle_key_press_f4_calls_toggle_event_window(
+        self, tmp_path, overlay, guides, condition_debugger, timeline
+    ):
+        calls: list[bool] = []
+
+        class StubController:
+            def pause_all(self):
+                pass
+
+            def resume_all(self):
+                pass
+
+            def step_all(self, delta_time):
+                pass
+
+        def toggle_event_window(open_state):
+            calls.append(bool(open_state))
+
+        manager = DebugControlManager(
+            overlay=overlay,
+            guides=guides,
+            condition_debugger=condition_debugger,
+            timeline=timeline,
+            snapshot_directory=tmp_path,
+            action_controller=StubController(),
+            toggle_event_window=toggle_event_window,
+        )
+
+        manager.handle_key_press(arcade.key.F4)
+        manager.handle_key_press(arcade.key.F4)
+
+        assert calls == [True, False]
+
     def test_handle_key_press_f5(self, control_manager):
         # F5 toggles guides
         initial_state = control_manager.guides.velocity_guide.enabled
@@ -114,6 +147,34 @@ class TestDebugControlManager:
         result = control_manager.handle_key_press(arcade.key.F6)
         assert result is True
         assert control_manager.is_paused is False
+
+    def test_handle_key_press_f6_calls_action_controller(self, tmp_path, overlay, guides, condition_debugger, timeline):
+        calls: list[str] = []
+
+        class StubController:
+            def pause_all(self):
+                calls.append("pause")
+
+            def resume_all(self):
+                calls.append("resume")
+
+            def step_all(self, delta_time):
+                calls.append(f"step:{delta_time}")
+
+        manager = DebugControlManager(
+            overlay=overlay,
+            guides=guides,
+            condition_debugger=condition_debugger,
+            timeline=timeline,
+            snapshot_directory=tmp_path,
+            action_controller=StubController(),
+            toggle_event_window=lambda _: None,
+        )
+
+        manager.handle_key_press(arcade.key.F6)
+        manager.handle_key_press(arcade.key.F6)
+
+        assert calls == ["pause", "resume"]
 
     def test_handle_key_press_f7_when_paused(self, control_manager):
         # F7 steps when paused

@@ -26,7 +26,7 @@ def _find_override_coords(src: str, row: int, col: int):
     return None, None
 
 
-def test_collision_last_export_wins(tmp_path):
+def _write_scene_file(tmp_path):
     p = tmp_path / "scene.py"
     p.write_text(
         textwrap.dedent("""
@@ -34,40 +34,25 @@ def test_collision_last_export_wins(tmp_path):
         arrange_grid(sprites, rows=2, cols=2, start_x=100, start_y=100, spacing_x=50, spacing_y=50)
     """)
     )
+    return p
 
-    # Two runtime sprites tag and scene edits map to same cell (col=1,row=0)
-    s1 = arcade.Sprite()
-    position_tag.tag_sprite(s1, "sprites")
-    s1.center_x = 150
-    s1.center_y = 100
 
-    s2 = arcade.Sprite()
-    position_tag.tag_sprite(s2, "sprites")
-    # Slightly different coords but same computed cell
-    s2.center_x = 160
-    s2.center_y = 105
+def _make_tagged_sprite(x: float, y: float) -> arcade.Sprite:
+    sprite = arcade.Sprite()
+    position_tag.tag_sprite(sprite, "sprites")
+    sprite.center_x = x
+    sprite.center_y = y
+    return sprite
 
-    viz = DevVisualizer(scene_sprites=arcade.SpriteList())
-    # Append in order s1 then s2 - s2 should win
-    viz.scene_sprites.append(s1)
-    viz.scene_sprites.append(s2)
 
-    viz.on_reload([p], saved_state={})
+def _get_arrange_marker(sprite: arcade.Sprite):
+    assert hasattr(sprite, "_source_markers")
+    markers = sprite._source_markers
+    assert any(m.get("type") == "arrange" for m in markers)
+    return next(m for m in markers if m.get("type") == "arrange")
 
-    # Ensure arrange markers were attached
-    assert hasattr(s1, "_source_markers") and any(m.get("type") == "arrange" for m in s1._source_markers)
-    assert hasattr(s2, "_source_markers") and any(m.get("type") == "arrange" for m in s2._source_markers)
 
-    # Inspect attached kwargs and ensure numeric parsing will succeed
-    m1 = next(m for m in s1._source_markers if m.get("type") == "arrange")
-    kwargs = m1.get("kwargs")
-    assert kwargs.get("rows") == "2" or kwargs.get("rows") == "2"
-    assert kwargs.get("cols") == "2"
-    assert "spacing_x" in kwargs or "spacing" in kwargs
-    assert kwargs.get("start_x") == "100"
-    assert kwargs.get("start_y") == "100"
-
-    # Replicate parsing logic from visualizer to ensure we can compute row/col
+def _parse_arrange_kwargs(kwargs):
     rows = int(float(kwargs.get("rows", "0"))) if kwargs.get("rows") else None
     cols = int(float(kwargs.get("cols", "0"))) if kwargs.get("cols") else None
     spacing_x = (
@@ -82,10 +67,43 @@ def test_collision_last_export_wins(tmp_path):
     )
     start_x = float(kwargs.get("start_x")) if kwargs.get("start_x") else None
     start_y = float(kwargs.get("start_y")) if kwargs.get("start_y") else None
+    return rows, cols, spacing_x, spacing_y, start_x, start_y
+
+
+def _arrange_line_number(path) -> int:
+    return next(i for i, line in enumerate(path.read_text().splitlines(), start=1) if "arrange_grid" in line)
+
+
+def test_collision_last_export_wins(tmp_path):
+    p = _write_scene_file(tmp_path)
+
+    # Two runtime sprites tag and scene edits map to same cell (col=1,row=0)
+    s1 = _make_tagged_sprite(150, 100)
+    # Slightly different coords but same computed cell
+    s2 = _make_tagged_sprite(160, 105)
+
+    viz = DevVisualizer(scene_sprites=arcade.SpriteList())
+    # Append in order s1 then s2 - s2 should win
+    viz.scene_sprites.append(s1)
+    viz.scene_sprites.append(s2)
+
+    viz.on_reload([p], saved_state={})
+
+    # Ensure arrange markers were attached
+    m1 = _get_arrange_marker(s1)
+    _get_arrange_marker(s2)
+
+    kwargs = m1.get("kwargs")
+    assert kwargs.get("rows") == "2" or kwargs.get("rows") == "2"
+    assert kwargs.get("cols") == "2"
+    assert "spacing_x" in kwargs or "spacing" in kwargs
+    assert kwargs.get("start_x") == "100"
+    assert kwargs.get("start_y") == "100"
+
+    rows, cols, spacing_x, spacing_y, start_x, start_y = _parse_arrange_kwargs(kwargs)
 
     # Ensure the marker lineno matches the file arrange_grid line
-    arrange_line = next(i for i, l in enumerate(p.read_text().splitlines(), start=1) if "arrange_grid" in l)
-    assert m1.get("lineno") == arrange_line
+    assert m1.get("lineno") == _arrange_line_number(p)
 
     assert rows and cols and spacing_x and spacing_y and start_x is not None and start_y is not None
 
@@ -110,13 +128,7 @@ def test_collision_last_export_wins(tmp_path):
 
 
 def test_collision_first_export_wins_when_order_reversed(tmp_path):
-    p = tmp_path / "scene.py"
-    p.write_text(
-        textwrap.dedent("""
-        sprites = [a, b, c, d]
-        arrange_grid(sprites, rows=2, cols=2, start_x=100, start_y=100, spacing_x=50, spacing_y=50)
-    """)
-    )
+    p = _write_scene_file(tmp_path)
 
     s1 = arcade.Sprite()
     position_tag.tag_sprite(s1, "sprites")

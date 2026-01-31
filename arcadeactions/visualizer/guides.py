@@ -56,32 +56,51 @@ class VelocityGuide:
             return
 
         for snapshot in snapshots:
-            if snapshot.velocity is None:
+            velocity = snapshot.velocity
+            if velocity is None:
                 continue
 
-            # Get sprite position
-            target_id = snapshot.target_id
-            vx, vy = snapshot.velocity
-
-            metadata = snapshot.metadata or {}
-            sprite_ids = metadata.get("sprite_ids")
-
-            def add_arrow(position: tuple[float, float]) -> None:
-                x, y = position
-                end_x = x + vx * 10
-                end_y = y + vy * 10
-                self.arrows.append((x, y, end_x, end_y))
-
+            sprite_ids = self._get_sprite_ids(snapshot)
             if sprite_ids:
-                for sprite_id in sprite_ids:
-                    position = sprite_positions.get(sprite_id)
-                    if position is not None:
-                        add_arrow(position)
+                self._add_arrows_for_sprite_ids(velocity, sprite_ids, sprite_positions)
                 continue
 
-            position = sprite_positions.get(target_id)
+            self._add_arrow_for_target(snapshot.target_id, velocity, sprite_positions)
+
+    def _get_sprite_ids(self, snapshot: ActionSnapshot) -> list[int] | None:
+        metadata = snapshot.metadata or {}
+        sprite_ids = metadata.get("sprite_ids")
+        if sprite_ids:
+            return list(sprite_ids)
+        return None
+
+    def _add_arrows_for_sprite_ids(
+        self,
+        velocity: tuple[float, float],
+        sprite_ids: list[int],
+        sprite_positions: dict[int, tuple[float, float]],
+    ) -> None:
+        for sprite_id in sprite_ids:
+            position = sprite_positions.get(sprite_id)
             if position is not None:
-                add_arrow(position)
+                self._add_arrow(position, velocity)
+
+    def _add_arrow_for_target(
+        self,
+        target_id: int,
+        velocity: tuple[float, float],
+        sprite_positions: dict[int, tuple[float, float]],
+    ) -> None:
+        position = sprite_positions.get(target_id)
+        if position is not None:
+            self._add_arrow(position, velocity)
+
+    def _add_arrow(self, position: tuple[float, float], velocity: tuple[float, float]) -> None:
+        x, y = position
+        vx, vy = velocity
+        end_x = x + vx * 10
+        end_y = y + vy * 10
+        self.arrows.append((x, y, end_x, end_y))
 
 
 class BoundsGuide:
@@ -215,33 +234,40 @@ class HighlightGuide:
         if not self.enabled or highlighted_target_id is None:
             return
 
-        # Get the sprite IDs to highlight
-        sprite_ids_to_highlight = []
+        sprite_ids = self._resolve_sprite_ids(highlighted_target_id, sprite_ids_in_target)
+        for sprite_id in sprite_ids:
+            rectangle = self._build_rectangle(sprite_id, sprite_positions, sprite_sizes)
+            if rectangle is not None:
+                self.rectangles.append(rectangle)
 
+    def _resolve_sprite_ids(
+        self,
+        highlighted_target_id: int,
+        sprite_ids_in_target: dict[int, list[int]] | None,
+    ) -> list[int]:
         if sprite_ids_in_target and highlighted_target_id in sprite_ids_in_target:
-            # Target is a SpriteList - highlight all sprites in it
-            sprite_ids_to_highlight = sprite_ids_in_target[highlighted_target_id]
-        else:
-            # Target is a single sprite
-            sprite_ids_to_highlight = [highlighted_target_id]
+            return list(sprite_ids_in_target[highlighted_target_id])
+        return [highlighted_target_id]
 
-        # Create bounding boxes for each sprite
-        for sprite_id in sprite_ids_to_highlight:
-            position = sprite_positions.get(sprite_id)
-            size = sprite_sizes.get(sprite_id)
-
-            if position and size:
-                center_x, center_y = position
-                width, height = size
-                half_width = width / 2
-                half_height = height / 2
-
-                left = center_x - half_width
-                right = center_x + half_width
-                bottom = center_y - half_height
-                top = center_y + half_height
-
-                self.rectangles.append((left, bottom, right, top))
+    def _build_rectangle(
+        self,
+        sprite_id: int,
+        sprite_positions: dict[int, tuple[float, float]],
+        sprite_sizes: dict[int, tuple[float, float]],
+    ) -> tuple[float, float, float, float] | None:
+        position = sprite_positions.get(sprite_id)
+        size = sprite_sizes.get(sprite_id)
+        if not position or not size:
+            return None
+        center_x, center_y = position
+        width, height = size
+        half_width = width / 2
+        half_height = height / 2
+        left = center_x - half_width
+        right = center_x + half_width
+        bottom = center_y - half_height
+        top = center_y + half_height
+        return (left, bottom, right, top)
 
 
 class GuideManager:

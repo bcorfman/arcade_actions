@@ -1,0 +1,329 @@
+"""Window/view event handler wrapping for DevVisualizer."""
+
+from __future__ import annotations
+
+import types
+from collections.abc import Callable
+from typing import Any, Protocol
+
+import arcade
+
+from arcadeactions.dev import overrides_input
+from arcadeactions.dev import window_hooks as _window_hooks
+
+
+class EventHandlerHost(Protocol):
+    """Protocol for the DevVisualizer event handler host."""
+
+    visible: bool
+    window: arcade.Window | None
+    palette_window: Any | None
+    scene_sprites: arcade.SpriteList
+    _is_detaching: bool
+    _position_tracker: Any
+
+    _original_on_draw: Callable[..., Any] | None
+    _original_on_key_press: Callable[..., Any] | None
+    _original_on_mouse_press: Callable[..., Any] | None
+    _original_on_mouse_drag: Callable[..., Any] | None
+    _original_on_mouse_release: Callable[..., Any] | None
+    _original_on_close: Callable[..., Any] | None
+    _original_show_view: Callable[..., Any] | None
+    _original_set_location: Callable[..., Any] | None
+
+    def toggle(self) -> None: ...
+
+    def toggle_palette(self) -> None: ...
+
+    def handle_key_press(self, key: int, modifiers: int) -> bool: ...
+
+    def handle_mouse_press(self, x: int, y: int, button: int, modifiers: int) -> bool: ...
+
+    def handle_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int) -> bool: ...
+
+    def handle_mouse_release(self, x: int, y: int, button: int, modifiers: int) -> bool: ...
+
+    def draw(self) -> None: ...
+
+    def hide(self) -> None: ...
+
+    def _wrap_view_on_draw(self, view: arcade.View) -> None: ...
+
+    overrides_panel: overrides_input.OverridesPanelInput | None
+
+
+def wrap_window_handlers(
+    host: EventHandlerHost,
+    window: arcade.Window,
+    *,
+    has_window_context: Callable[[Any], bool],
+) -> None:
+    """Wrap a window's event handlers to integrate DevVisualizer."""
+    host._original_on_draw = window.on_draw
+    host._original_on_key_press = getattr(window, "on_key_press", None)
+    host._original_on_mouse_press = getattr(window, "on_mouse_press", None)
+    host._original_on_mouse_drag = getattr(window, "on_mouse_drag", None)
+    host._original_on_mouse_release = getattr(window, "on_mouse_release", None)
+    host._original_on_close = getattr(window, "on_close", None)
+
+    def wrapped_on_draw():
+        restore_window = None
+        try:
+            if not has_window_context(window):
+                return
+
+            if _window_hooks.window_commands_module is not None:
+                try:
+                    current_window = _window_hooks.window_commands_module.get_window()
+                except RuntimeError:
+                    current_window = None
+
+                if current_window is not window:
+                    restore_window = current_window
+                    _window_hooks.window_commands_module.set_window(window)
+                    try:
+                        window.switch_to()
+                    except Exception:
+                        return
+
+            if not has_window_context(window):
+                return
+
+            if host._original_on_draw:
+                host._original_on_draw()
+
+            host.scene_sprites.draw()
+
+            if host.visible:
+                try:
+                    if has_window_context(window):
+                        if _window_hooks.window_commands_module is not None:
+                            try:
+                                active_window = _window_hooks.window_commands_module.get_window()
+                                if active_window is not window:
+                                    return
+                            except RuntimeError:
+                                pass
+                        host.draw()
+                except Exception as draw_error:
+                    import sys
+
+                    print(f"[DevVisualizer] Draw error (skipping): {draw_error!r}", file=sys.stderr)
+        except Exception as e:
+            import sys
+
+            print(f"[DevVisualizer] Error in draw (context issue?): {e!r}", file=sys.stderr)
+            return
+        finally:
+            if restore_window is not None and _window_hooks.window_commands_module is not None:
+                try:
+                    _window_hooks.window_commands_module.set_window(restore_window)
+                except Exception:
+                    pass
+
+    window.on_draw = wrapped_on_draw
+
+    def wrapped_on_key_press(key: int, modifiers: int):
+        if key == arcade.key.F12:
+            host.toggle()
+            return
+
+        if key == arcade.key.F11:
+            host.toggle_palette()
+            return
+
+        if key == arcade.key.ESCAPE:
+            if host.visible:
+                if host.palette_window:
+                    try:
+                        if not host.palette_window.closed:
+                            host.palette_window.close()
+                    except Exception:
+                        pass
+                    host.palette_window = None
+                else:
+                    if window is not None:
+                        try:
+                            if not window.closed:
+                                window.close()
+                        except Exception:
+                            pass
+                return
+            if host._original_on_key_press:
+                host._original_on_key_press(key, modifiers)
+                return
+
+        if host.visible and host.handle_key_press(key, modifiers):
+            return
+
+        if host._original_on_key_press:
+            host._original_on_key_press(key, modifiers)
+
+    window.on_key_press = wrapped_on_key_press
+
+    def wrapped_on_mouse_press(x: int, y: int, button: int, modifiers: int):
+        if host.visible and host.handle_mouse_press(x, y, button, modifiers):
+            return
+        if host._original_on_mouse_press:
+            host._original_on_mouse_press(x, y, button, modifiers)
+
+    def wrapped_on_mouse_drag(x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
+        if host.visible and host.handle_mouse_drag(x, y, dx, dy, buttons, modifiers):
+            return
+        if host._original_on_mouse_drag:
+            host._original_on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+
+    def wrapped_on_mouse_release(x: int, y: int, button: int, modifiers: int):
+        if host.visible and host.handle_mouse_release(x, y, button, modifiers):
+            return
+        if host._original_on_mouse_release:
+            host._original_on_mouse_release(x, y, button, modifiers)
+
+    window.on_mouse_press = wrapped_on_mouse_press
+    window.on_mouse_drag = wrapped_on_mouse_drag
+    window.on_mouse_release = wrapped_on_mouse_release
+
+    def wrapped_on_close():
+        if host.visible:
+            host.hide()
+        if host.palette_window:
+            host._is_detaching = True
+            try:
+                if not host.palette_window.closed:
+                    host.palette_window.close()
+            except Exception:
+                try:
+                    host.palette_window.set_visible(False)
+                except Exception:
+                    pass
+            finally:
+                host._is_detaching = False
+            host.palette_window = None
+        if host._original_on_close:
+            host._original_on_close()
+
+    window.on_close = wrapped_on_close
+
+    host._original_show_view = getattr(window, "show_view", None)
+    host._original_set_location = getattr(window, "set_location", None)
+
+    if host._original_set_location is not None:
+        original_set_location = host._original_set_location
+
+        def wrapped_set_location(this: arcade.Window, x: int, y: int, *args: Any, **kwargs: Any) -> None:
+            original_set_location(x, y, *args, **kwargs)
+            try:
+                host._position_tracker.track_known_position(window, int(x), int(y))
+            except Exception as hook_error:
+                print(f"[DevVisualizer] set_location hook failed: {hook_error}")
+
+        window.set_location = types.MethodType(wrapped_set_location, window)
+
+    def wrapped_show_view(view: arcade.View) -> None:
+        if host._original_show_view:
+            host._original_show_view(view)
+        host._wrap_view_on_draw(view)
+
+    if host._original_show_view:
+        window.show_view = wrapped_show_view  # type: ignore[assignment]
+
+    current_view = getattr(window, "current_view", None)
+    if current_view is not None:
+        host._wrap_view_on_draw(current_view)
+
+
+def wrap_view_handlers(host: EventHandlerHost, view: arcade.View) -> None:
+    """Wrap a View's on_draw and event handlers to integrate DevVisualizer."""
+    if not hasattr(view, "_dev_viz_original_on_draw"):
+        view._dev_viz_original_on_draw = view.on_draw
+        view._dev_viz_original_on_key_press = getattr(view, "on_key_press", None)
+        view._dev_viz_original_on_mouse_press = getattr(view, "on_mouse_press", None)
+        view._dev_viz_original_on_mouse_drag = getattr(view, "on_mouse_drag", None)
+        view._dev_viz_original_on_mouse_release = getattr(view, "on_mouse_release", None)
+
+    original_on_draw = view._dev_viz_original_on_draw
+
+    def wrapped_view_on_draw():
+        if original_on_draw:
+            original_on_draw()
+        host.scene_sprites.draw()
+        if host.visible:
+            host.draw()
+
+    view.on_draw = wrapped_view_on_draw  # type: ignore[assignment]
+
+    original_on_key_press = view._dev_viz_original_on_key_press
+
+    def wrapped_view_on_key_press(key: int, modifiers: int):
+        if key == arcade.key.F12:
+            host.toggle()
+            return
+
+        if key == arcade.key.F11:
+            host.toggle_palette()
+            return
+
+        if key == arcade.key.ESCAPE:
+            if host.visible:
+                if host.palette_window:
+                    try:
+                        if not host.palette_window.closed:
+                            host.palette_window.close()
+                    except Exception:
+                        pass
+                    host.palette_window = None
+                else:
+                    if host.window is not None:
+                        try:
+                            if not host.window.closed:
+                                host.window.close()
+                        except Exception:
+                            pass
+                return
+            if original_on_key_press:
+                original_on_key_press(key, modifiers)
+                return
+
+        if host.visible and host.handle_key_press(key, modifiers):
+            return
+
+        if original_on_key_press:
+            original_on_key_press(key, modifiers)
+
+    view.on_key_press = wrapped_view_on_key_press  # type: ignore[assignment]
+
+    original_on_mouse_press = view._dev_viz_original_on_mouse_press
+    original_on_mouse_drag = view._dev_viz_original_on_mouse_drag
+    original_on_mouse_release = view._dev_viz_original_on_mouse_release
+
+    original_on_text = getattr(view, "on_text", None)
+
+    def wrapped_view_on_text(text: str):
+        if overrides_input.handle_overrides_panel_text(host.overrides_panel, text):
+            return
+        if original_on_text:
+            original_on_text(text)
+
+    view.on_text = wrapped_view_on_text  # type: ignore[assignment]
+
+    def wrapped_view_on_mouse_press(x: int, y: int, button: int, modifiers: int):
+        if host.visible and host.handle_mouse_press(x, y, button, modifiers):
+            return
+        if original_on_mouse_press:
+            original_on_mouse_press(x, y, button, modifiers)
+
+    def wrapped_view_on_mouse_drag(x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
+        if host.visible and host.handle_mouse_drag(x, y, dx, dy, buttons, modifiers):
+            return
+        if original_on_mouse_drag:
+            original_on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+
+    def wrapped_view_on_mouse_release(x: int, y: int, button: int, modifiers: int):
+        if host.visible and host.handle_mouse_release(x, y, button, modifiers):
+            return
+        if original_on_mouse_release:
+            original_on_mouse_release(x, y, button, modifiers)
+
+    view.on_mouse_press = wrapped_view_on_mouse_press  # type: ignore[assignment]
+    view.on_mouse_drag = wrapped_view_on_mouse_drag  # type: ignore[assignment]
+    view.on_mouse_release = wrapped_view_on_mouse_release  # type: ignore[assignment]
