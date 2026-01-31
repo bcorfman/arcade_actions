@@ -48,7 +48,7 @@ class StubWindow:
 
 
 @pytest.fixture
-def window() -> EventInspectorWindow:
+def window(require_opengl) -> EventInspectorWindow:
     window = EventInspectorWindow(
         debug_store=object(),
         timeline_cls=StubTimeline,

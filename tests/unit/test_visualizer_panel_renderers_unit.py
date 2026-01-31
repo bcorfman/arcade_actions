@@ -52,6 +52,7 @@ class StubTimeline:
         self.debug_store = StubSnapshotStore(current_frame)
 
 
+
 def test_condition_panel_hidden_clears_text() -> None:
     renderer = ConditionPanelRenderer(StubDebugger(entries=[]))
     renderer.update(visible=False)
@@ -180,11 +181,11 @@ def test_timeline_draw_resyncs_on_gl_exception(monkeypatch) -> None:
     monkeypatch.setattr(arcade, "draw_lrbt_rectangle_outline", lambda *_args, **_kwargs: None)
     renderer.update()
 
-    class StubText:
+    class GlFailText:
         def draw(self) -> None:
             raise GLException()
 
-    renderer.text_objects = [StubText()]
+    renderer.text_objects = [GlFailText()]
     monkeypatch.setattr(
         "arcadeactions.visualizer.panel_renderers._sync_text_objects",
         lambda *_args, **_kwargs: None,

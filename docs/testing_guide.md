@@ -438,6 +438,14 @@ from arcadeactions.frame_timing import after_frames
 
 ## Testing Shader and Particle Actions
 
+## OpenGL and Headless CI
+
+Some tests require a real OpenGL context (e.g., windowed rendering). On Windows/macOS CI,
+the suite runs in headless mode and stubs `arcade.Window`/`arcade.Text` to avoid GL calls.
+Use the shared `require_opengl` fixture (defined in `tests/conftest.py`) to skip tests that
+must create real windows or call OpenGL APIs. For OpenGL draw paths in integration tests,
+wrap the draw with `_try_opengl_draw` (see `tests/integration/test_visualizer_renderer.py`).
+
 ### Testing GlowUntil with Fake Shadertoy
 
 Test shader effects without OpenGL dependencies using fakes:
@@ -1325,4 +1333,3 @@ uv run python -m pytest tests/test_frame_timing.py -k after_frames
 The suite must remain deterministic under debugger pause/step. When adding new tests,
 verify they complete successfully when breakpoints interrupt `Action.update_all()` so
 the frame-based API remains intuitive during debugging.
-
