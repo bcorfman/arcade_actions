@@ -19,120 +19,119 @@ class TestTogglePalette(ActionTestBase):
     """Test suite for toggle_palette method."""
 
     def test_toggle_palette_creates_window_if_none(self, window, test_sprite_list, mocker):
-        """Test that toggle_palette creates palette window if it doesn't exist."""
+        """Test that toggle_palette creates palette window when showing."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
 
         # Mock PaletteWindow
         mock_palette_window = mocker.MagicMock()
         mock_palette_window.visible = False
-        mock_palette_window.toggle_window = mocker.MagicMock()
-        mock_palette_window.request_main_window_focus = mocker.MagicMock()
+        mock_palette_window.show_window = mocker.MagicMock()
 
         mocker.patch("arcadeactions.dev.visualizer.PaletteWindow", return_value=mock_palette_window)
         mocker.patch.object(dev_viz, "_create_palette_window", wraps=dev_viz._create_palette_window)
+        mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=True)
         mocker.patch.object(dev_viz, "update_main_window_position", return_value=True)
-        mocker.patch.object(dev_viz, "_position_palette_window")
+        mocker.patch.object(dev_viz, "_position_palette_window", return_value=True)
 
         dev_viz.toggle_palette()
 
-        # Should create palette window
+        # Should create and show palette window
         assert dev_viz.palette_window is not None
+        mock_palette_window.show_window.assert_called_once()
 
     def test_toggle_palette_toggles_visibility(self, window, test_sprite_list, mocker):
-        """Test that toggle_palette toggles window visibility."""
+        """Test that toggle_palette hides a visible palette window."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
+        dev_viz._palette_desired_visible = True
 
         # Create mock palette window
         mock_palette_window = mocker.MagicMock()
-        mock_palette_window.visible = False
-        mock_palette_window.toggle_window = mocker.MagicMock()
-        mock_palette_window.request_main_window_focus = mocker.MagicMock()
+        mock_palette_window.visible = True
+        mock_palette_window.hide_window = mocker.MagicMock()
         dev_viz.palette_window = mock_palette_window
 
-        mocker.patch.object(dev_viz, "update_main_window_position", return_value=True)
-        mocker.patch.object(dev_viz, "_position_palette_window")
+        mock_cache = mocker.patch.object(dev_viz, "_cache_palette_desired_location")
 
         dev_viz.toggle_palette()
 
-        # Should call toggle_window
-        mock_palette_window.toggle_window.assert_called_once()
+        # Should cache and hide
+        mock_cache.assert_called_once()
+        mock_palette_window.hide_window.assert_called_once()
 
     def test_toggle_palette_positions_before_showing(self, window, test_sprite_list, mocker):
         """Test that toggle_palette positions window before making it visible."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
+        dev_viz._palette_desired_visible = False
 
         mock_palette_window = mocker.MagicMock()
         mock_palette_window.visible = False
-        mock_palette_window.toggle_window = mocker.MagicMock()
-        mock_palette_window.request_main_window_focus = mocker.MagicMock()
+        mock_palette_window.show_window = mocker.MagicMock()
         dev_viz.palette_window = mock_palette_window
 
+        mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=True)
         mock_update_pos = mocker.patch.object(dev_viz, "update_main_window_position", return_value=True)
-        mock_position = mocker.patch.object(dev_viz, "_position_palette_window")
+        mock_position = mocker.patch.object(dev_viz, "_position_palette_window", return_value=True)
 
         dev_viz.toggle_palette()
 
-        # Should position before toggling
+        # Should position before showing
         mock_update_pos.assert_called_once()
         mock_position.assert_called_once()
+        mock_palette_window.show_window.assert_called_once()
 
     def test_toggle_palette_deferred_positioning_if_not_tracked(self, window, test_sprite_list, mocker):
-        """Test that toggle_palette defers positioning if window position not tracked."""
+        """Test that toggle_palette schedules a poll when main location is not ready."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
+        dev_viz._palette_desired_visible = False
 
         mock_palette_window = mocker.MagicMock()
         mock_palette_window.visible = False
-        mock_palette_window.toggle_window = mocker.MagicMock()
         dev_viz.palette_window = mock_palette_window
 
-        # Window position not tracked
-        mocker.patch.object(dev_viz, "update_main_window_position", return_value=False)
-        mock_position = mocker.patch.object(dev_viz, "_position_palette_window")
-        mock_print = mocker.patch("builtins.print")
+        mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=False)
+        mock_schedule = mocker.patch("arcade.schedule_once")
+        mock_position = mocker.patch.object(dev_viz, "_position_palette_window", return_value=True)
 
         dev_viz.toggle_palette()
 
-        # Should not position, should print deferral message
+        # Should schedule poll and skip positioning for now
         mock_position.assert_not_called()
-        mock_print.assert_called()
+        mock_schedule.assert_called()
 
     def test_toggle_palette_requests_focus_when_showing(self, window, test_sprite_list, mocker):
-        """Test that toggle_palette requests main window focus when showing palette."""
+        """Test that toggle_palette activates main window after showing."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
+        dev_viz._palette_desired_visible = False
 
         mock_palette_window = mocker.MagicMock()
         mock_palette_window.visible = False
-
-        # After toggle, window becomes visible
-        def toggle_side_effect():
-            mock_palette_window.visible = True
-
-        mock_palette_window.toggle_window.side_effect = toggle_side_effect
-        mock_palette_window.request_main_window_focus = mocker.MagicMock()
+        mock_palette_window.show_window = mocker.MagicMock()
         dev_viz.palette_window = mock_palette_window
 
+        mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=True)
         mocker.patch.object(dev_viz, "update_main_window_position", return_value=True)
-        mocker.patch.object(dev_viz, "_position_palette_window")
+        mocker.patch.object(dev_viz, "_position_palette_window", return_value=True)
+        mock_activate = mocker.patch.object(dev_viz, "_activate_main_window")
 
         dev_viz.toggle_palette()
 
-        # Should request focus when showing
-        mock_palette_window.request_main_window_focus.assert_called_once()
+        mock_activate.assert_called_once()
 
     def test_toggle_palette_skips_positioning_if_already_visible(self, window, test_sprite_list, mocker):
-        """Test that toggle_palette skips positioning if window is already visible."""
+        """Test that hiding the palette does not reposition it."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
+        dev_viz._palette_desired_visible = True
 
         mock_palette_window = mocker.MagicMock()
         mock_palette_window.visible = True  # Already visible
-        mock_palette_window.toggle_window = mocker.MagicMock()
+        mock_palette_window.hide_window = mocker.MagicMock()
         dev_viz.palette_window = mock_palette_window
 
         mock_position = mocker.patch.object(dev_viz, "_position_palette_window")
 
         dev_viz.toggle_palette()
 
-        # Should not position if already visible
+        # Hiding should not trigger reposition
         mock_position.assert_not_called()
 
 
@@ -144,12 +143,9 @@ class TestPositionPaletteWindow(ActionTestBase):
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.palette_window = None
 
-        mock_print = mocker.patch("builtins.print")
-
         result = dev_viz._position_palette_window()
 
         assert result is False
-        mock_print.assert_called()
 
     def test_position_palette_window_skips_if_visible_and_not_forced(self, window, test_sprite_list, mocker):
         """Test that _position_palette_window skips if window is visible and not forced."""
@@ -159,12 +155,9 @@ class TestPositionPaletteWindow(ActionTestBase):
         mock_palette_window.visible = True
         dev_viz.palette_window = mock_palette_window
 
-        mock_print = mocker.patch("builtins.print")
-
         result = dev_viz._position_palette_window(force=False)
 
         assert result is False
-        mock_print.assert_called()
 
     def test_position_palette_window_repositions_if_forced(self, window, test_sprite_list, mocker):
         """Test that _position_palette_window repositions if forced even when visible."""
@@ -193,13 +186,10 @@ class TestPositionPaletteWindow(ActionTestBase):
         dev_viz.palette_window = mock_palette_window
 
         mocker.patch("arcadeactions.dev.visualizer._get_primary_monitor_rect", return_value=(0, 0, 1920, 1080))
-        mocker.patch("arcade.get_window", return_value=None)
-        mock_print = mocker.patch("builtins.print")
 
         result = dev_viz._position_palette_window()
 
         assert result is False
-        mock_print.assert_called()
 
     def test_position_palette_window_uses_tracked_location(self, window, test_sprite_list, mocker):
         """Test that _position_palette_window uses tracked window location."""
@@ -220,38 +210,14 @@ class TestPositionPaletteWindow(ActionTestBase):
         assert result is True
         mock_palette_window.set_location.assert_called_once()
 
-    def test_position_palette_window_adopts_new_window_if_valid(self, window, test_sprite_list, mocker):
-        """Test that _position_palette_window adopts new window if it has valid location."""
-        dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
-
-        mock_palette_window = mocker.MagicMock()
-        mock_palette_window.visible = False
-        dev_viz.palette_window = mock_palette_window
-
-        # Create new window with valid location
-        new_window = mocker.MagicMock()
-        new_window.get_location.return_value = (200, 300)
-
-        mocker.patch("arcade.get_window", return_value=new_window)
-        mocker.patch("arcadeactions.dev.visualizer._get_primary_monitor_rect", return_value=(0, 0, 1920, 1080))
-        mocker.patch.object(dev_viz, "_get_tracked_window_position", return_value=None)
-        mocker.patch.object(dev_viz, "_get_window_location", return_value=(200, 300))
-        mocker.patch.object(mock_palette_window, "set_location")
-
-        result = dev_viz._position_palette_window()
-
-        # Should adopt new window
-        assert result is True
-        assert dev_viz.window == new_window
-
 
 class TestPollShowPalette(ActionTestBase):
     """Test suite for _poll_show_palette method."""
 
     def test_poll_show_palette_returns_early_if_not_visible(self, window, test_sprite_list, mocker):
-        """Test that _poll_show_palette returns early if visualizer is not visible."""
+        """Test that _poll_show_palette cancels pending show when palette is not desired."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
-        dev_viz.visible = False
+        dev_viz._palette_desired_visible = False
         dev_viz._palette_show_pending = True
 
         mock_schedule = mocker.patch("arcade.schedule_once")
@@ -265,7 +231,8 @@ class TestPollShowPalette(ActionTestBase):
     def test_poll_show_palette_schedules_retry_if_no_window(self, window, test_sprite_list, mocker):
         """Test that _poll_show_palette schedules retry if window is None."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=None)
-        dev_viz.visible = True
+        dev_viz._palette_desired_visible = True
+        dev_viz._palette_show_pending = True
 
         mocker.patch("arcade.get_window", return_value=None)
         mock_schedule = mocker.patch("arcade.schedule_once")
@@ -278,7 +245,8 @@ class TestPollShowPalette(ActionTestBase):
     def test_poll_show_palette_schedules_retry_if_location_invalid(self, window, test_sprite_list, mocker):
         """Test that _poll_show_palette schedules retry if window location is invalid."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
-        dev_viz.visible = True
+        dev_viz._palette_desired_visible = True
+        dev_viz._palette_show_pending = True
 
         # Window returns invalid location (0, 0)
         window.get_location = mocker.MagicMock(return_value=(0, 0))
@@ -292,7 +260,8 @@ class TestPollShowPalette(ActionTestBase):
     def test_poll_show_palette_positions_and_shows_when_ready(self, window, test_sprite_list, mocker):
         """Test that _poll_show_palette positions and shows palette when window is ready."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
-        dev_viz.visible = True
+        dev_viz._palette_desired_visible = True
+        dev_viz._palette_show_pending = True
 
         # Window has valid location
         window.get_location = mocker.MagicMock(return_value=(100, 200))
@@ -303,6 +272,7 @@ class TestPollShowPalette(ActionTestBase):
         mock_position = mocker.patch.object(dev_viz, "_position_palette_window", return_value=True)
         mock_update_pos = mocker.patch.object(dev_viz, "update_main_window_position")
         mock_show = mocker.patch.object(mock_palette_window, "show_window")
+        mocker.patch.object(dev_viz, "_activate_main_window")
         mock_schedule = mocker.patch("arcade.schedule_once")
 
         dev_viz._poll_show_palette()
@@ -319,7 +289,8 @@ class TestPollShowPalette(ActionTestBase):
     def test_poll_show_palette_measures_decoration_deltas(self, window, test_sprite_list, mocker):
         """Test that _poll_show_palette measures window decoration deltas."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
-        dev_viz.visible = True
+        dev_viz._palette_desired_visible = True
+        dev_viz._palette_show_pending = True
         dev_viz._window_decoration_dx = None
         dev_viz._window_decoration_dy = None
 
@@ -330,7 +301,7 @@ class TestPollShowPalette(ActionTestBase):
         dev_viz.palette_window = mock_palette_window
 
         mocker.patch.object(dev_viz, "_position_palette_window", return_value=True)
-        mocker.patch.object(mock_palette_window, "show")
+        mocker.patch.object(mock_palette_window, "show_window")
 
         dev_viz._poll_show_palette()
 

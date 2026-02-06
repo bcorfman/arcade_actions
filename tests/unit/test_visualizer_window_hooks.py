@@ -106,9 +106,7 @@ def test_install_wraps_on_draw_and_renders(monkeypatch) -> None:
     set_calls: list[arcade.Window | None] = []
 
     monkeypatch.setattr(arcade, "get_window", lambda: window)
-    monkeypatch.setattr(
-        "arcadeactions.visualizer._window_hooks.window_commands.get_window", lambda: None
-    )
+    monkeypatch.setattr("arcadeactions.visualizer._window_hooks.window_commands.get_window", lambda: None)
     monkeypatch.setattr(
         "arcadeactions.visualizer._window_hooks.window_commands.set_window",
         lambda win: set_calls.append(win),

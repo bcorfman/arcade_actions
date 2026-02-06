@@ -176,33 +176,52 @@ class PaletteWindow(arcade.Window):
         if getattr(self, "_is_headless", False) or self._title_text is None:
             return
 
-        self.clear()
+        prior_window: arcade.Window | None = None
+        try:
+            prior_window = window_commands.get_window()
+        except RuntimeError:
+            prior_window = None
 
-        # Draw title
-        self._title_text.y = self.height - self.MARGIN - 20
-        self._title_text.draw()
+        if prior_window is not self:
+            try:
+                window_commands.set_window(self)
+            except Exception:
+                prior_window = None
 
-        # Rebuild text cache if prototype list changed
-        self._rebuild_text_cache()
+        try:
+            self.clear()
 
-        # Update cached text Y positions based on current window height
-        # (needed when window is resized, since cache only rebuilds on prototype list changes)
-        start_y = self.height - self.MARGIN - 60
-        for i, text in enumerate(self._text_cache):
-            text.y = start_y - i * self.ITEM_HEIGHT
+            # Draw title
+            self._title_text.y = self.height - self.MARGIN - 20
+            self._title_text.draw()
 
-        # Draw prototype items
-        for text in self._text_cache:
-            # Draw background for each item
-            item_y = text.y - 5
-            self._draw_centered_rect(
-                self.width / 2,
-                item_y,
-                self.width - 2 * self.MARGIN,
-                self.ITEM_HEIGHT - 10,
-                (50, 50, 60),
-            )
-            text.draw()
+            # Rebuild text cache if prototype list changed
+            self._rebuild_text_cache()
+
+            # Update cached text Y positions based on current window height
+            # (needed when window is resized, since cache only rebuilds on prototype list changes)
+            start_y = self.height - self.MARGIN - 60
+            for i, text in enumerate(self._text_cache):
+                text.y = start_y - i * self.ITEM_HEIGHT
+
+            # Draw prototype items
+            for text in self._text_cache:
+                # Draw background for each item
+                item_y = text.y - 5
+                self._draw_centered_rect(
+                    self.width / 2,
+                    item_y,
+                    self.width - 2 * self.MARGIN,
+                    self.ITEM_HEIGHT - 10,
+                    (50, 50, 60),
+                )
+                text.draw()
+        finally:
+            if prior_window is not None and prior_window is not self:
+                try:
+                    window_commands.set_window(prior_window)
+                except Exception:
+                    pass
 
     def on_mouse_press(self, x: int, y: int, button: int, modifiers: int) -> None:
         """Handle mouse press - click to spawn sprite in main window."""
@@ -320,11 +339,16 @@ class PaletteWindow(arcade.Window):
 
     def set_visible(self, visible: bool) -> None:
         """Set window visibility with error handling."""
+        was_visible = bool(getattr(self, "_is_visible", False))
+        becoming_visible = bool(visible) and not was_visible
+
         # In headless mode, just update our tracked state
         if getattr(self, "_is_headless", False):
             self._is_visible = bool(visible)
             # Don't try to set self.visible directly - it's a property
             # In headless mode, we only track _is_visible
+            if becoming_visible:
+                self.request_main_window_focus()
             return
 
         try:
@@ -336,11 +360,7 @@ class PaletteWindow(arcade.Window):
             # Swallow errors during visibility changes (e.g., during context switches)
             # but still update our tracked state based on what we tried to set
             self._is_visible = bool(visible)
-
-        # When window becomes visible, immediately request focus return to main window
-        # This ensures keystrokes are always handled by the main window handler,
-        # matching the behavior of the ACE debugger's timeline window
-        if visible:
+        if becoming_visible:
             self.request_main_window_focus()
 
     def show_window(self) -> None:
@@ -371,12 +391,8 @@ class PaletteWindow(arcade.Window):
             return
 
         def _activate_main_window(_dt: float) -> None:
-            if self._main_window is None or window_commands is None:
+            if self._main_window is None:
                 return
-            try:
-                window_commands.set_window(self._main_window)
-            except Exception:
-                pass
             try:
                 self._main_window.activate()
             except Exception:
@@ -385,15 +401,9 @@ class PaletteWindow(arcade.Window):
         arcade.schedule_once(_activate_main_window, delay)
 
     def request_main_window_focus(self) -> None:
-        """Schedule multiple attempts to restore focus to the main window.
-
-        This ensures that when the palette window becomes visible, focus
-        is immediately returned to the main window so keystrokes are always
-        handled by the main window handler, matching ACE debugger behavior.
-        """
+        """Schedule multiple attempts to restore focus to the main window."""
         if self._main_window is None:
             return
-        # Schedule multiple attempts with increasing delays to handle timing issues
         for delay in (0.0, 0.01, 0.05):
             self._schedule_focus_restore(delay)
 

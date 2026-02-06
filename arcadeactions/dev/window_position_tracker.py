@@ -49,8 +49,8 @@ class WindowPositionTracker:
             if location and location != (0, 0):
                 self._track_position(window, location[0], location[1])
                 return True
-        except Exception as e:
-            print(f"[WindowPositionTracker] Failed to track window position: {e}")
+        except Exception:
+            return False
         return False
 
     def _track_position(self, window: arcade.Window | Any, x: int, y: int) -> None:

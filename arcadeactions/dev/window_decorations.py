@@ -21,7 +21,6 @@ def measure_window_decoration_deltas(window: arcade.Window) -> tuple[int | None,
         calc_dy = deco_y - stored[1]
         if calc_dx or calc_dy:
             return calc_dx, calc_dy
-        print("[DevVisualizer] Decoration deltas zero on first check – will retry next frame")
         return None, None
 
     client_x = getattr(window, "_x", None)
@@ -37,8 +36,6 @@ def measure_window_decoration_deltas(window: arcade.Window) -> tuple[int | None,
         calc_dy = deco_y - client_y
         if calc_dx or calc_dy:
             return calc_dx, calc_dy
-        print("[DevVisualizer] Decoration deltas zero on first check – will retry next frame")
         return None, None
 
-    print("[DevVisualizer] Could not find client area coordinates, leaving deltas as None")
     return None, None

@@ -199,4 +199,3 @@ class TestViewNames:
         attributes = list(_iter_view_attributes(DummyView()))
 
         assert attributes == []
-

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from arcadeactions.dev.palette_window import PaletteWindow
@@ -9,6 +11,14 @@ from arcadeactions.dev.prototype_registry import DevContext, get_registry
 from tests.conftest import ActionTestBase
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
+
+
+@pytest.fixture(autouse=True)
+def prevent_palette_window_showing_in_ci(monkeypatch):
+    """Prevent PaletteWindow from popping up when running locally with CI=true."""
+    if os.environ.get("CI") == "true":
+        monkeypatch.setattr(PaletteWindow.__bases__[0], "set_visible", lambda *_args, **_kwargs: None)
+    yield
 
 
 class TestPaletteWindowMethods(ActionTestBase):

@@ -1,4 +1,10 @@
-"""Helper functions for DevVisualizer palette lifecycle and positioning."""
+"""Helper functions for DevVisualizer palette lifecycle and positioning.
+
+These helpers intentionally avoid relying on Arcade's global "current window"
+state. With multiple windows (main + palette), `arcade.get_window()` can return
+the palette window depending on focus, which can cause incorrect anchoring and
+positional drift.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +21,7 @@ class PaletteHost(Protocol):
     window: arcade.Window | None
     palette_window: Any | None
     _palette_show_pending: bool
+    _palette_desired_visible: bool
     _window_decoration_dx: int | None
     _window_decoration_dy: int | None
     _EXTRA_FRAME_PAD: int
@@ -32,6 +39,10 @@ class PaletteHost(Protocol):
 
     def _position_palette_window(self, *, force: bool = False) -> bool: ...
 
+    def _restore_palette_location_after_show(self) -> None: ...
+
+    def _activate_main_window(self) -> None: ...
+
 
 def poll_show_palette(
     host: PaletteHost,
@@ -41,8 +52,12 @@ def poll_show_palette(
     registry_provider: Callable[[], Any],
 ) -> None:
     """Wait until main window has a real location, then position & show palette."""
-    if not host.visible:
+    # Only show if the palette is desired and a show poll is pending. This avoids
+    # unexpected palette opens from stale scheduled callbacks.
+    if not host._palette_desired_visible:
         host._palette_show_pending = False
+        return
+    if not host._palette_show_pending:
         return
     if not _ensure_window(host):
         _schedule_poll(host, get_primary_monitor_rect, palette_window_cls, registry_provider)
@@ -51,9 +66,6 @@ def poll_show_palette(
         _schedule_poll(host, get_primary_monitor_rect, palette_window_cls, registry_provider)
         return
     _update_window_decorations(host)
-    if not host.visible:
-        host._palette_show_pending = False
-        return
     _show_palette_window(host, palette_window_cls, registry_provider)
 
 
@@ -63,21 +75,18 @@ def _schedule_poll(
     palette_window_cls: Callable[..., Any],
     registry_provider: Callable[[], Any],
 ) -> None:
-    arcade.schedule_once(lambda dt: poll_show_palette(  # noqa: B023
-        host,
-        get_primary_monitor_rect=get_primary_monitor_rect,
-        palette_window_cls=palette_window_cls,
-        registry_provider=registry_provider,
-    ), 0.05)
+    arcade.schedule_once(
+        lambda dt: poll_show_palette(  # noqa: B023
+            host,
+            get_primary_monitor_rect=get_primary_monitor_rect,
+            palette_window_cls=palette_window_cls,
+            registry_provider=registry_provider,
+        ),
+        0.05,
+    )
 
 
 def _ensure_window(host: PaletteHost) -> bool:
-    if host.window is not None:
-        return True
-    try:
-        host.window = arcade.get_window()
-    except RuntimeError:
-        pass
     return host.window is not None
 
 
@@ -101,11 +110,9 @@ def _update_window_decorations(host: PaletteHost) -> None:
         if calc_dx is not None or calc_dy is not None:
             host._window_decoration_dx = calc_dx
             host._window_decoration_dy = calc_dy
-    except Exception as exc:
-        print(f"[DevVisualizer] _poll_show_palette: Exception measuring decorations: {exc}")
-        import traceback
-
-        traceback.print_exc()
+    except Exception:
+        # Decoration measurement is best-effort; positioning still works without it.
+        return
 
 
 def _show_palette_window(
@@ -116,12 +123,13 @@ def _show_palette_window(
     if host.palette_window is None:
         host._create_palette_window()
     if host.palette_window is None:
-        print("[DevVisualizer] Failed to create palette window, deferring show")
         host._palette_show_pending = False
         return
     host.update_main_window_position()
     host._position_palette_window(force=True)
     host.palette_window.show_window()
+    host._restore_palette_location_after_show()
+    host._activate_main_window()
     host._palette_show_pending = False
 
 
@@ -160,27 +168,16 @@ def get_window_location(host: PaletteHost, window: Any) -> tuple[int, int] | Non
     """Safely get window location, using tracked positions when available."""
     if window is None:
         return None
-
-    if hasattr(window, "get_location"):
-        try:
-            location = window.get_location()
-            if location and location != (0, 0) and location[0] > -32000 and location[1] > -32000:
-                return (int(location[0]), int(location[1]))
-        except Exception:
-            pass
+    try:
+        location = window.get_location()
+        if location and location != (0, 0) and location[0] > -32000 and location[1] > -32000:
+            return (int(location[0]), int(location[1]))
+    except Exception:
+        location = None
 
     tracked_pos = host._get_tracked_window_position(window)
-    if tracked_pos and tracked_pos != (0, 0):
+    if tracked_pos and tracked_pos != (0, 0) and tracked_pos[0] > -32000 and tracked_pos[1] > -32000:
         return tracked_pos
-
-    stored = getattr(window, "_arcadeactions_last_set_location", None)
-    if stored and stored != (0, 0):
-        return stored
-
-    if hasattr(window, "location"):
-        loc = window.location
-        if isinstance(loc, tuple) and len(loc) == 2:
-            return (int(loc[0]), int(loc[1]))
 
     return None
 
@@ -193,17 +190,13 @@ def position_palette_window(
 ) -> bool:
     """Position palette window relative to main window."""
     if host.palette_window is None:
-        print("[DevVisualizer] No palette window, returning False")
         return False
 
     if host.palette_window.visible and not force:
-        print("[DevVisualizer] Palette window is visible, not repositioning")
         return False
 
-    anchor_window = _select_anchor_window(host)
-
+    anchor_window = host.window
     if anchor_window is None:
-        print("[DevVisualizer] Anchor window is None")
         return False
 
     primary_rect = _get_primary_rect(get_primary_monitor_rect)
@@ -213,26 +206,6 @@ def position_palette_window(
     main_x, main_y = _resolve_main_location(host, anchor_window, primary_rect)
     palette_x, palette_y = _compute_palette_position(host, main_x, main_y, primary_rect)
     return _set_palette_position(host, palette_x, palette_y)
-
-
-def _select_anchor_window(host: PaletteHost) -> arcade.Window | None:
-    anchor_window = host.window
-    try:
-        current_window = arcade.get_window()
-    except RuntimeError:
-        return anchor_window
-    if current_window is None or host.window == current_window:
-        return anchor_window
-    test_loc = host._get_tracked_window_position(current_window)
-    if test_loc is None and hasattr(current_window, "get_location"):
-        try:
-            test_loc = current_window.get_location()
-        except Exception:
-            test_loc = None
-    if test_loc and test_loc != (0, 0) and test_loc[0] > -32000 and test_loc[1] > -32000:
-        host.window = current_window
-        return current_window
-    return anchor_window
 
 
 def _get_primary_rect(
@@ -261,16 +234,25 @@ def _compute_palette_position(
     main_y: int,
     primary_rect: tuple[int, int, int, int],
 ) -> tuple[int, int]:
+    """Compute palette window location given the main window's location.
+
+    We intentionally avoid applying decoration deltas here.
+
+    `Window.set_location()` and `Window.get_location()` are not consistent across
+    platforms/WMs about whether the coordinate refers to the client area or the
+    decorated frame. Applying a measured decoration delta can cause the palette
+    to drift on show/hide (map/unmap) cycles.
+
+    Instead, we place the palette relative to the main window's reported
+    location and cache the palette's OS-reported location after the first
+    successful placement (see DevVisualizer), so subsequent toggles can reuse a
+    stable absolute position.
+    """
     primary_x, primary_y, _primary_w, _primary_h = primary_rect
     main_offset_x = main_x - primary_x
-    deco_dx = host._window_decoration_dx or 0
-    deco_dy = host._window_decoration_dy or 0
     palette_width = host.palette_window.width
-    palette_right_border = deco_dx if deco_dx > 0 else 0
-    palette_x = int(
-        primary_x + main_offset_x - palette_width - deco_dx - palette_right_border - host._EXTRA_FRAME_PAD
-    )
-    palette_y = int(main_y - deco_dy)
+    palette_x = int(primary_x + main_offset_x - palette_width - host._EXTRA_FRAME_PAD)
+    palette_y = int(main_y)
     return palette_x, palette_y
 
 
@@ -279,8 +261,7 @@ def _set_palette_position(host: PaletteHost, palette_x: int, palette_y: int) -> 
         host.palette_window.set_location(palette_x, palette_y)
         host._position_tracker.track_known_position(host.palette_window, palette_x, palette_y)
         return True
-    except Exception as exc:
-        print(f"[DevVisualizer] Failed to position palette window: {exc}")
+    except Exception:
         return False
 
 
@@ -300,8 +281,4 @@ def toggle_palette(
             tracked = host.update_main_window_position()
             if tracked:
                 host._position_palette_window(force=False)
-            else:
-                print("[DevVisualizer] Deferring palette positioning until window location is known (toggle)")
         host.palette_window.toggle_window()
-        if not was_visible and host.palette_window.visible:
-            host.palette_window.request_main_window_focus()

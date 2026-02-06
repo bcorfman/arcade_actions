@@ -44,6 +44,7 @@ from arcadeactions.dev.window_position_tracker import WindowPositionTracker
 
 _MISSING_GIZMO_REFRESH_SECONDS = 0.25
 
+
 def _install_window_attach_hook() -> None:
     """Install hook on set_window to attach DevVisualizer when a window becomes available."""
     _window_hooks.install_window_attach_hook(get_dev_visualizer)
@@ -98,6 +99,17 @@ class DevVisualizer:
         # Initialize components
         # Palette is now in a separate window
         self.palette_window: PaletteWindow | None = None
+        # The palette is a UI affordance for dev mode; default to hidden until edit mode is shown (F12)
+        # or the user explicitly toggles it (F11).
+        self._palette_desired_visible: bool = False
+        # Track main-window location used when the palette was last positioned.
+        self._palette_position_anchor: tuple[int, int] | None = None
+        # Cached "good" palette window location. Some window managers adjust a hidden
+        # window's position on map/unmap; we re-assert this stable location on show.
+        self._palette_desired_location: tuple[int, int] | None = None
+        # Some window managers adjust a window's position after mapping/unmapping. We
+        # re-assert the desired location after show to converge without oscillation.
+        self._palette_last_visible_location: tuple[int, int] | None = None
 
         self.selection_manager = SelectionManager(scene_sprites)
 
@@ -156,6 +168,25 @@ class DevVisualizer:
         """Get the tracked position for a window."""
         return self._position_tracker.get_tracked_position(window)
 
+    def reset_scene(self, scene_sprites: arcade.SpriteList) -> None:
+        """Reset DevVisualizer state to use a new SpriteList.
+
+        This is used to keep enable_dev_visualizer() idempotent when a caller
+        provides a new SpriteList while a global DevVisualizer already exists.
+        """
+        self.scene_sprites = scene_sprites
+        self.ctx = DevContext(scene_sprites=scene_sprites)
+        self.selection_manager = SelectionManager(scene_sprites)
+        from arcadeactions.dev.override_panel import OverridesPanel
+
+        self.overrides_panel = OverridesPanel(self)
+        self._dragging_gizmo_handle = None
+        self._dragging_sprites = None
+        self._gizmos = WeakKeyDictionary()
+        self._gizmo_miss_refresh_at = WeakKeyDictionary()
+        if self.palette_window is not None:
+            self.palette_window.dev_context = self.ctx
+
     def update_main_window_position(self) -> bool:
         """Update the tracked position of the main window.
 
@@ -191,7 +222,13 @@ class DevVisualizer:
             if self.window != window:
                 self.window = window
             # Reposition palette immediately whenever we capture a non-(0,0) position
-            if tracked and self.palette_window is not None and not self._palette_show_pending:
+            if (
+                tracked
+                and self.palette_window is not None
+                and self.palette_window.visible
+                and not self._palette_show_pending
+                and self._palette_needs_reposition()
+            ):
                 self._position_palette_window(force=True)
             return tracked
         return False
@@ -318,22 +355,27 @@ class DevVisualizer:
             palette_window_cls=PaletteWindow,
             registry_provider=get_registry,
         )
+        self._log_palette_positions("poll-show")
 
     def show(self) -> None:
         """Show DevVisualizer and pause all actions (enter edit mode)."""
         self.visible = True
-        if not self._palette_show_pending:
-            self._palette_show_pending = True
-            arcade.schedule_once(self._poll_show_palette, 0.0)
+        # Entering edit mode always shows the palette by default (docs/README contract).
+        self._palette_desired_visible = True
+        self._apply_palette_visibility()
         Action.pause_all()
 
     def hide(self) -> None:
         """Hide DevVisualizer and resume all actions (exit edit mode)."""
         self.visible = False
+        # Leaving edit mode hides the palette by default, but it can be re-opened
+        # independently via F11 while DevVisualizer is hidden.
+        self._palette_desired_visible = False
         # Cancel any pending palette show operation
         self._palette_show_pending = False
         # Hide palette window
         if self.palette_window:
+            self._cache_palette_desired_location()
             self.palette_window.hide_window()
         # Reset all drag states to prevent stale drag when hidden during drag operation
         # This ensures that if F12 is pressed during a drag, all drag states are cleaned up
@@ -371,20 +413,240 @@ class DevVisualizer:
         Returns:
             True if positioning succeeded, False otherwise.
         """
-        return palette_helpers.position_palette_window(
+        positioned = palette_helpers.position_palette_window(
             self,
             get_primary_monitor_rect=_get_primary_monitor_rect,
             force=force,
         )
+        if positioned:
+            self._palette_position_anchor = self._get_window_location(self.window)
+            # Use the tracked position we *set* as the stable desired location.
+            #
+            # On some platforms, `get_location()` does not round-trip with `set_location()`
+            # due to decoration/frame coordinate differences (it can drift by a constant
+            # offset on each hide/show cycle if we feed `get_location()` back into
+            # `set_location()`).
+            if self.palette_window is not None:
+                tracked = self._position_tracker.get_tracked_position(self.palette_window)
+                if tracked is not None:
+                    self._palette_desired_location = tracked
+        return positioned
 
     def toggle_palette(self) -> None:
         """Toggle palette window visibility."""
-        palette_helpers.toggle_palette(
-            self,
-            get_primary_monitor_rect=_get_primary_monitor_rect,
-            palette_window_cls=PaletteWindow,
-            registry_provider=get_registry,
+        self._palette_desired_visible = not self._palette_desired_visible
+        self._apply_palette_visibility()
+
+    def _activate_main_window(self) -> None:
+        """Best-effort focus restoration after palette show/hide.
+
+        On some window managers, hiding a focused window can leave focus in an
+        indeterminate state, which makes rapid key toggles appear "swallowed".
+        """
+        window = self.window
+        if window is None:
+            return
+
+        def _try_activate(_dt: float) -> None:
+            try:
+                if not window.closed:
+                    window.activate()
+            except Exception:
+                return
+
+        # Some platforms only apply focus changes after the event loop ticks.
+        arcade.schedule_once(_try_activate, 0.0)
+        arcade.schedule_once(_try_activate, 0.05)
+
+    def _apply_palette_visibility(self) -> None:
+        """Apply the desired palette visibility, scheduling positioning as needed."""
+        repositioned = False
+        if not self.visible:
+            # DevVisualizer is hidden. Still honor explicit palette toggles (F11)
+            # so the palette can be shown/hidden independently of edit mode.
+            if not self._palette_desired_visible:
+                if self.palette_window is not None:
+                    self._cache_palette_desired_location()
+                    self.palette_window.hide_window()
+                self._log_palette_positions("apply(hidden-devviz/hide)", repositioned=repositioned)
+                return
+
+            # Show palette even while edit mode is off.
+            self._apply_palette_visibility_when_devviz_hidden()
+            return
+
+        if not self._palette_desired_visible:
+            # Cancel any pending show and hide the existing palette window.
+            self._palette_show_pending = False
+            if self.palette_window is not None:
+                self._cache_palette_desired_location()
+                self.palette_window.hide_window()
+            self._activate_main_window()
+            self._log_palette_positions("apply(hide)", repositioned=repositioned)
+            return
+
+        if self.palette_window is None:
+            self._create_palette_window()
+        if self.palette_window is None:
+            self._log_palette_positions("apply(show-failed-create)", repositioned=repositioned)
+            return
+
+        # If we don't yet have a valid main-window location, use the existing poll logic.
+        if self.window is None or not self._main_window_has_valid_location():
+            if not self._palette_show_pending:
+                self._palette_show_pending = True
+                arcade.schedule_once(self._poll_show_palette, 0.0)
+            self._log_palette_positions("apply(show-pending-location)", repositioned=repositioned)
+            return
+
+        # If the main window hasn't moved since we last positioned the palette,
+        # avoid recomputing a new position. Recomputing can introduce drift on
+        # some WMs due to decoration/coordinate inconsistencies across map/unmap.
+        self.update_main_window_position()
+        if self._palette_desired_location is not None and not self._palette_needs_reposition():
+            self._set_palette_location(self._palette_desired_location)
+        else:
+            repositioned = bool(self._position_palette_window(force=True))
+        self.palette_window.show_window()
+        self._restore_palette_location_after_show()
+        self._palette_show_pending = False
+        self._activate_main_window()
+        self._log_palette_positions("apply(show)", repositioned=repositioned)
+
+    def _apply_palette_visibility_when_devviz_hidden(self) -> None:
+        """Show/hide palette while DevVisualizer edit mode is off."""
+        repositioned = False
+        if self.palette_window is None:
+            self._create_palette_window()
+        if self.palette_window is None:
+            self._log_palette_positions("apply(hidden-devviz/show-failed-create)", repositioned=repositioned)
+            return
+
+        if self.window is None or not self._main_window_has_valid_location():
+            if not self._palette_show_pending:
+                self._palette_show_pending = True
+                arcade.schedule_once(self._poll_show_palette, 0.0)
+            self._log_palette_positions("apply(hidden-devviz/show-pending-location)", repositioned=repositioned)
+            return
+
+        self.update_main_window_position()
+        if self._palette_desired_location is not None and not self._palette_needs_reposition():
+            self._set_palette_location(self._palette_desired_location)
+        else:
+            repositioned = bool(self._position_palette_window(force=True))
+
+        self.palette_window.show_window()
+        self._restore_palette_location_after_show()
+        self._activate_main_window()
+        self._log_palette_positions("apply(hidden-devviz/show)", repositioned=repositioned)
+
+    def _main_window_has_valid_location(self) -> bool:
+        window = self.window
+        if window is None:
+            return False
+        try:
+            x, y = window.get_location()
+        except Exception:
+            return False
+        return (x, y) != (0, 0) and x > -32000 and y > -32000
+
+    def _palette_needs_reposition(self) -> bool:
+        """Return True if the palette should be repositioned relative to the main window."""
+        if self.window is None or self.palette_window is None:
+            return True
+        main_location = self._get_window_location(self.window)
+        if main_location is None:
+            return True
+        if self._palette_position_anchor != main_location:
+            return True
+        return False
+
+    def _cache_palette_desired_location(self) -> None:
+        """Cache the palette's current OS-reported location (best-effort).
+
+        This is used to keep the palette stable across hide/show toggles without
+        recomputing a new position (which can drift on some window managers).
+        """
+        if self.palette_window is None:
+            return
+        tracked = self._position_tracker.get_tracked_position(self.palette_window)
+        if tracked is not None:
+            self._palette_desired_location = tracked
+        self._palette_position_anchor = self._get_window_location(self.window)
+
+    def _restore_palette_location_after_show(self) -> None:
+        """Re-apply the cached palette location after showing (best-effort).
+
+        Some window managers adjust a window's position during map/unmap. Also,
+        some platforms ignore `set_location()` while the window is hidden. We
+        therefore set the location again immediately after `show_window()`, and
+        then once more on the next tick.
+        """
+        if self.palette_window is None or self._palette_desired_location is None:
+            return
+
+        desired = self._palette_desired_location
+        self._set_palette_location(desired)
+        self._position_tracker.track_known_position(self.palette_window, desired[0], desired[1])
+
+        def _reassert(_dt: float) -> None:
+            if self.palette_window is None:
+                return
+            if not self._palette_desired_visible or not self.palette_window.visible:
+                return
+            self._set_palette_location(desired)
+            self._position_tracker.track_known_position(self.palette_window, desired[0], desired[1])
+            self._log_palette_positions("reassert(after-show)", repositioned=True)
+
+        arcade.schedule_once(_reassert, 0.0)
+
+    def _set_palette_location(self, loc: tuple[int, int]) -> None:
+        if self.palette_window is None:
+            return
+        try:
+            self.palette_window.set_location(int(loc[0]), int(loc[1]))
+        except Exception:
+            return
+
+    def _log_palette_positions(self, tag: str, *, repositioned: bool | None = None) -> None:
+        """Log main + palette window positions (debug only).
+
+        Enable with `ARCADEACTIONS_DEVVIZ_POS_LOG=1`.
+        """
+        if os.environ.get("ARCADEACTIONS_DEVVIZ_POS_LOG") != "1":
+            return
+
+        main_loc = self._safe_window_location(self.window)
+        palette_loc = self._safe_window_location(self.palette_window)
+        desired = self._palette_desired_visible
+        visible = None
+        if self.palette_window is not None:
+            visible = self.palette_window.visible
+        palette_id = None
+        if self.palette_window is not None:
+            palette_id = id(self.palette_window)
+
+        extra = ""
+        if repositioned is not None:
+            extra = f" repositioned={int(repositioned)}"
+        print(
+            f"[DevVisualizer] palette-pos {tag}{extra} desired={int(desired)} visible={visible} "
+            f"main_loc={main_loc} palette_loc={palette_loc} anchor={self._palette_position_anchor} "
+            f"palette_id={palette_id} desired_loc={self._palette_desired_location}"
         )
+
+    @staticmethod
+    def _safe_window_location(window: arcade.Window | Any | None) -> tuple[int, int] | None:
+        if window is None:
+            return None
+        try:
+            loc = window.get_location()
+        except Exception:
+            return None
+        try:
+            return (int(loc[0]), int(loc[1]))
+        except Exception:
+            return None
 
     def handle_key_press(self, key: int, modifiers: int) -> bool:
         """
@@ -847,9 +1109,20 @@ def enable_dev_visualizer(
     """
     global _global_dev_visualizer
 
-    # Detach existing DevVisualizer to prevent wrapper chain and zombie instances
     if _global_dev_visualizer is not None:
-        _global_dev_visualizer.detach_from_window()
+        dev_viz = _global_dev_visualizer
+        if scene_sprites is not None and dev_viz.scene_sprites is not scene_sprites:
+            dev_viz.reset_scene(scene_sprites)
+        if window is not None and dev_viz.window is not window:
+            if dev_viz._attached:
+                dev_viz.detach_from_window()
+            dev_viz.window = window
+        if auto_attach and not dev_viz._attached:
+            attached = dev_viz.attach_to_window(window)
+            if not attached:
+                _install_window_attach_hook()
+                _install_update_all_attach_hook()
+        return dev_viz
 
     _global_dev_visualizer = DevVisualizer(scene_sprites=scene_sprites, window=window)
 

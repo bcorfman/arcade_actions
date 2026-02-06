@@ -20,10 +20,11 @@ def dev_visualizer(window):
 class TestWindowPositionTracking:
     """Test window position tracking methods."""
 
-    def test_track_window_position(self, dev_visualizer, window):
+    def test_track_window_position(self, dev_visualizer, window, mocker):
         """Test window position tracking."""
-        # Set window location
-        window.set_location(100, 200)
+        # In CI/unmapped windows, get_location() can return (0, 0) regardless of set_location().
+        # Simulate OS-reported coordinates so the tracker path is deterministic.
+        mocker.patch.object(window, "get_location", return_value=(100, 200))
 
         result = dev_visualizer.track_window_position(window)
 
@@ -70,22 +71,21 @@ class TestWindowPositionTracking:
 
         assert location == (100, 200)
 
-        # Test tracked position fallback
+        # Test tracked position fallback (via the position tracker)
         mock_get_location.return_value = None
-        mock_tracked = mocker.patch.object(dev_visualizer, "_get_tracked_window_position")
-        mock_tracked.return_value = (150, 250)
+        dev_visualizer._position_tracker.track_known_position(window, 150, 250)
 
         location = dev_visualizer._get_window_location(window)
 
         assert location == (150, 250)
 
-        # Test stored position fallback
-        mock_tracked.return_value = None
-        window._arcadeactions_last_set_location = (200, 300)
-
-        location = dev_visualizer._get_window_location(window)
-
-        assert location == (200, 300)
+        # Test stored position fallback via track_window_position().
+        # The stored attribute is consulted by WindowPositionTracker, not by _get_window_location directly.
+        stored_window = mocker.MagicMock()
+        stored_window.get_location.return_value = None
+        stored_window._arcadeactions_last_set_location = (200, 300)
+        assert dev_visualizer.track_window_position(stored_window) is True
+        assert dev_visualizer._get_window_location(stored_window) == (200, 300)
 
     def test_get_window_location_handles_wayland(self, dev_visualizer, window, mocker):
         """Test handling of Wayland (0,0) coordinates."""
