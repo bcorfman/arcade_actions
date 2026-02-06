@@ -71,16 +71,15 @@ class TestPaletteWindowCreation:
         dev_visualizer.toggle_palette()
         assert dev_visualizer.palette_window is not None
 
-        # Mock toggle_window to track calls
-        was_visible = dev_visualizer.palette_window.visible if dev_visualizer.palette_window else False
-
-        mock_toggle_window = mocker.patch.object(
-            dev_visualizer.palette_window, "toggle_window", wraps=dev_visualizer.palette_window.toggle_window
+        # The current toggle behavior is implemented in DevVisualizer (desired-visible state)
+        # and uses show_window()/hide_window() rather than PaletteWindow.toggle_window().
+        mock_hide = mocker.patch.object(
+            dev_visualizer.palette_window, "hide_window", wraps=dev_visualizer.palette_window.hide_window
         )
 
         dev_visualizer.toggle_palette()
 
-        mock_toggle_window.assert_called_once()
+        mock_hide.assert_called_once()
 
 
 class TestPaletteWindowPositioning:
