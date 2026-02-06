@@ -339,11 +339,16 @@ class PaletteWindow(arcade.Window):
 
     def set_visible(self, visible: bool) -> None:
         """Set window visibility with error handling."""
+        was_visible = bool(getattr(self, "_is_visible", False))
+        becoming_visible = bool(visible) and not was_visible
+
         # In headless mode, just update our tracked state
         if getattr(self, "_is_headless", False):
             self._is_visible = bool(visible)
             # Don't try to set self.visible directly - it's a property
             # In headless mode, we only track _is_visible
+            if becoming_visible:
+                self.request_main_window_focus()
             return
 
         try:
@@ -355,6 +360,8 @@ class PaletteWindow(arcade.Window):
             # Swallow errors during visibility changes (e.g., during context switches)
             # but still update our tracked state based on what we tried to set
             self._is_visible = bool(visible)
+        if becoming_visible:
+            self.request_main_window_focus()
 
     def show_window(self) -> None:
         """Show the palette window."""

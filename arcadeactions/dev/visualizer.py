@@ -99,8 +99,9 @@ class DevVisualizer:
         # Initialize components
         # Palette is now in a separate window
         self.palette_window: PaletteWindow | None = None
-        # The palette is a UI affordance for dev mode; default to visible when devviz is shown.
-        self._palette_desired_visible: bool = True
+        # The palette is a UI affordance for dev mode; default to hidden until edit mode is shown (F12)
+        # or the user explicitly toggles it (F11).
+        self._palette_desired_visible: bool = False
         # Track main-window location used when the palette was last positioned.
         self._palette_position_anchor: tuple[int, int] | None = None
         # Cached "good" palette window location. Some window managers adjust a hidden
@@ -359,12 +360,17 @@ class DevVisualizer:
     def show(self) -> None:
         """Show DevVisualizer and pause all actions (enter edit mode)."""
         self.visible = True
+        # Entering edit mode always shows the palette by default (docs/README contract).
+        self._palette_desired_visible = True
         self._apply_palette_visibility()
         Action.pause_all()
 
     def hide(self) -> None:
         """Hide DevVisualizer and resume all actions (exit edit mode)."""
         self.visible = False
+        # Leaving edit mode hides the palette by default, but it can be re-opened
+        # independently via F11 while DevVisualizer is hidden.
+        self._palette_desired_visible = False
         # Cancel any pending palette show operation
         self._palette_show_pending = False
         # Hide palette window

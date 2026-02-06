@@ -39,6 +39,10 @@ class PaletteHost(Protocol):
 
     def _position_palette_window(self, *, force: bool = False) -> bool: ...
 
+    def _restore_palette_location_after_show(self) -> None: ...
+
+    def _activate_main_window(self) -> None: ...
+
 
 def poll_show_palette(
     host: PaletteHost,
@@ -124,6 +128,8 @@ def _show_palette_window(
     host.update_main_window_position()
     host._position_palette_window(force=True)
     host.palette_window.show_window()
+    host._restore_palette_location_after_show()
+    host._activate_main_window()
     host._palette_show_pending = False
 
 
