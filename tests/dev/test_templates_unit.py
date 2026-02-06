@@ -87,6 +87,7 @@ class TestTemplateEdgeCases:
 
     def test_load_scene_template_reconstructs_attack_groups(self, tmp_path):
         """load_scene_template should rebuild sprites and attach attack groups."""
+
         @register_prototype("unit_template_sprite")
         def make_template_sprite(ctx):
             sprite = arcade.SpriteSolidColor(width=16, height=16, color=arcade.color.RED)

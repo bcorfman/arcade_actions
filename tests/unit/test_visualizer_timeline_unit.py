@@ -141,9 +141,7 @@ def test_fallback_start_frames() -> None:
     store = StubStore()
     store.current_frame = 5
     store.current_time = 0.5
-    store._snapshots = [
-        StubSnapshot(action_id=3, action_type="Move", target_id=1, target_type="Sprite", tag=None)
-    ]
+    store._snapshots = [StubSnapshot(action_id=3, action_type="Move", target_id=1, target_type="Sprite", tag=None)]
     timeline = TimelineStrip(store)
 
     timeline.update()

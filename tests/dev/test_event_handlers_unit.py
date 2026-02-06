@@ -80,9 +80,31 @@ def test_wrap_window_handlers_draws_scene(monkeypatch):
     window = types.SimpleNamespace()
     draw_calls: list[str] = []
 
+    class StubScreen:
+        def use(self) -> None:
+            return None
+
+    class StubCamera:
+        def __init__(self) -> None:
+            self.viewport = arcade.types.LBWH(0, 0, 1280, 720)
+
+        def use(self) -> None:
+            return None
+
+    class StubCtx:
+        def __init__(self) -> None:
+            self.screen = StubScreen()
+            self.scissor = None
+            self.current_camera = None
+
     def original_draw():
         draw_calls.append("original")
 
+    window.ctx = StubCtx()
+    window.default_camera = StubCamera()
+    window.current_camera = window.default_camera
+    window.width = 1280
+    window.height = 720
     window.on_draw = original_draw
     window.on_key_press = lambda *_args: None
     window.on_mouse_press = lambda *_args: None

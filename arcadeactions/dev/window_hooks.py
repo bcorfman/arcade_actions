@@ -72,4 +72,3 @@ def install_update_all_attach_hook(get_dev_visualizer: Callable[[], Any]) -> Non
 
     Action.update_all = classmethod(wrapped_update_all)  # type: ignore[method-assign]
     _update_all_attach_hook_installed = True
-

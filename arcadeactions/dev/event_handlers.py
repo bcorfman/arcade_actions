@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 import arcade
+from arcade.types import LBWH
 
 from arcadeactions.dev import overrides_input
 from arcadeactions.dev import window_hooks as _window_hooks
@@ -52,6 +53,42 @@ class EventHandlerHost(Protocol):
     overrides_panel: overrides_input.OverridesPanelInput | None
 
 
+def _prepare_main_window_render_state(window: arcade.Window) -> None:
+    """Normalize shared GL state that can be corrupted by other windows.
+
+    Arcade palette windows can share an OpenGL context with the main window.
+    If a secondary window changes viewport/scissor, the main window can render
+    into a clipped region (often the bottom-left). Reset to full-window before
+    running any user draw code.
+    """
+    window.ctx.screen.use()
+    # Secondary windows can enable scissoring; ensure the main window isn't clipped.
+    window.ctx.scissor = None
+
+    # Normalize viewport + projection. With multiple windows (palette + main),
+    # the *shared* GL context can end up with a camera/projector configured for
+    # the palette's small viewport, which makes the main scene appear zoomed.
+    #
+    # Restore the window viewport, then ensure the active camera's viewport
+    # matches the window size before calling .use() (which applies matrices).
+    window.viewport = (0, 0, window.width, window.height)
+
+    active_camera = window.current_camera
+    cam_viewport = active_camera.viewport
+    if int(cam_viewport.width) != int(window.width) or int(cam_viewport.height) != int(window.height):
+        # Defensive: DefaultProjector can "learn" the wrong viewport when it sees ctx.viewport.
+        # Other projectors can also get stuck with the palette viewport. Overwrite to window size.
+        active_camera.viewport = LBWH(0, 0, window.width, window.height)
+
+    # Arcade's DefaultProjector has an early-return optimization that assumes the
+    # underlying GPU state already matches ctx.viewport/current_camera. With multiple
+    # windows sharing an OpenGL context, that assumption can be false (the palette draw
+    # can change GPU state without updating this window's ctx bookkeeping). Force a
+    # refresh by temporarily setting current_camera to a sentinel before calling use().
+    window.ctx.current_camera = object()  # type: ignore[assignment]
+    active_camera.use()
+
+
 def wrap_window_handlers(
     host: EventHandlerHost,
     window: arcade.Window,
@@ -67,11 +104,14 @@ def wrap_window_handlers(
     host._original_on_close = getattr(window, "on_close", None)
 
     def wrapped_on_draw():
-        restore_window = None
         try:
             if not has_window_context(window):
                 return
 
+            # Ensure arcade.get_window() and other window_commands-based APIs refer to the
+            # window currently being drawn. We intentionally do NOT restore to a prior
+            # window after drawing: other windows (like the palette) should set themselves
+            # current during their draw. This avoids timing-based "global window" churn.
             if _window_hooks.window_commands_module is not None:
                 try:
                     current_window = _window_hooks.window_commands_module.get_window()
@@ -79,7 +119,6 @@ def wrap_window_handlers(
                     current_window = None
 
                 if current_window is not window:
-                    restore_window = current_window
                     _window_hooks.window_commands_module.set_window(window)
                     try:
                         window.switch_to()
@@ -88,6 +127,8 @@ def wrap_window_handlers(
 
             if not has_window_context(window):
                 return
+
+            _prepare_main_window_render_state(window)
 
             if host._original_on_draw:
                 host._original_on_draw()
@@ -114,12 +155,6 @@ def wrap_window_handlers(
 
             print(f"[DevVisualizer] Error in draw (context issue?): {e!r}", file=sys.stderr)
             return
-        finally:
-            if restore_window is not None and _window_hooks.window_commands_module is not None:
-                try:
-                    _window_hooks.window_commands_module.set_window(restore_window)
-                except Exception:
-                    pass
 
     window.on_draw = wrapped_on_draw
 
@@ -214,8 +249,8 @@ def wrap_window_handlers(
             original_set_location(x, y, *args, **kwargs)
             try:
                 host._position_tracker.track_known_position(window, int(x), int(y))
-            except Exception as hook_error:
-                print(f"[DevVisualizer] set_location hook failed: {hook_error}")
+            except Exception:
+                return
 
         window.set_location = types.MethodType(wrapped_set_location, window)
 

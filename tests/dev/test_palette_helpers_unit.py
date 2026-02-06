@@ -31,4 +31,3 @@ def test_get_window_location_falls_back_to_tracked():
     window.get_location = lambda: (0, 0)
 
     assert palette_helpers.get_window_location(host, window) == (50, 60)
-

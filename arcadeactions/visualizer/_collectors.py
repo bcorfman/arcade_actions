@@ -11,6 +11,7 @@ from arcadeactions._action_targets import TargetAdapter, adapt_target
 SpritePositionsProvider = Callable[[], dict[int, tuple[float, float]]]
 TargetNamesProvider = Callable[[], dict[int, str]]
 
+
 class PositionSprite(Protocol):
     center_x: float
     center_y: float

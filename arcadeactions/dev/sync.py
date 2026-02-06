@@ -92,6 +92,7 @@ def _collect_override_entries(val: cst.BaseExpression) -> list[dict]:
         entries.append(entry)
     return entries
 
+
 class _ArrangeCallTransformer(cst.CSTTransformer):
     METADATA_DEPENDENCIES = (PositionProvider,)
 

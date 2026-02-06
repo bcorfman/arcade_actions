@@ -310,7 +310,12 @@ class DevVizSpeedLabView(arcade.View):
     def _validate_scene(self) -> None:
         offscreen = []
         for sprite in self.scene_sprites:
-            if sprite.center_x < 0 or sprite.center_x > WINDOW_WIDTH or sprite.center_y < 0 or sprite.center_y > WINDOW_HEIGHT:
+            if (
+                sprite.center_x < 0
+                or sprite.center_x > WINDOW_WIDTH
+                or sprite.center_y < 0
+                or sprite.center_y > WINDOW_HEIGHT
+            ):
                 offscreen.append(sprite._prototype_id)
         if offscreen:
             print(f"Scene validator: offscreen sprites -> {offscreen}")

@@ -52,7 +52,6 @@ class StubTimeline:
         self.debug_store = StubSnapshotStore(current_frame)
 
 
-
 def test_condition_panel_hidden_clears_text() -> None:
     renderer = ConditionPanelRenderer(StubDebugger(entries=[]))
     renderer.update(visible=False)
