@@ -175,6 +175,36 @@ def test_wrap_window_handlers_wraps_show_view_and_set_location(monkeypatch):
     assert host._position_tracker.calls == [(10, 20)]
 
 
+def test_wrap_window_handlers_set_location_ignores_tracker_errors():
+    """wrapped set_location should swallow tracker errors."""
+    host = StubHost()
+
+    class ExplodingTracker:
+        def track_known_position(self, _window, _x: int, _y: int) -> None:
+            raise RuntimeError("boom")
+
+    host._position_tracker = ExplodingTracker()
+
+    window = types.SimpleNamespace()
+    window.on_draw = lambda: None
+    window.on_key_press = lambda *_args: None
+    window.on_mouse_press = lambda *_args: None
+    window.on_mouse_drag = lambda *_args: None
+    window.on_mouse_release = lambda *_args: None
+    window.on_close = lambda: None
+    window.switch_to = lambda: None
+
+    def original_set_location(_x, _y, *_args, **_kwargs):
+        return None
+
+    window.set_location = original_set_location
+
+    event_handlers.wrap_window_handlers(host, window, has_window_context=lambda _w: False)
+
+    # Should not raise even though tracker explodes.
+    window.set_location(10, 20)
+
+
 def test_wrap_view_handlers_text_input_routes_to_overrides_panel():
     """Wrapped on_text should route input to overrides panel when editing."""
     host = StubHost()

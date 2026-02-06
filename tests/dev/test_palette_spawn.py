@@ -3,6 +3,8 @@
 Tests click-to-spawn prototype spawning from palette window into scene.
 """
 
+import os
+
 import arcade
 import pytest
 
@@ -10,6 +12,14 @@ from arcadeactions.dev.palette import PaletteSidebar
 from arcadeactions.dev.palette_window import PaletteWindow
 from arcadeactions.dev.prototype_registry import DevContext, SpritePrototypeRegistry, get_registry, register_prototype
 from tests.conftest import ActionTestBase
+
+
+@pytest.fixture(autouse=True)
+def prevent_palette_window_showing_in_ci(monkeypatch):
+    """Prevent PaletteWindow from popping up when running locally with CI=true."""
+    if os.environ.get("CI") == "true":
+        monkeypatch.setattr(PaletteWindow.__bases__[0], "set_visible", lambda *_args, **_kwargs: None)
+    yield
 
 
 class TestPaletteSpawn(ActionTestBase):

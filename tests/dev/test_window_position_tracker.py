@@ -103,6 +103,27 @@ class TestWindowPositionTracker:
         assert result is False
         assert tracker.get_tracked_position(window) is None
 
+    def test_track_window_position_handles_unexpected_attribute_error(self):
+        """Return False when the window object raises during attribute access.
+
+        This exercises the outer exception handler, which can trigger when
+        reading a stored location raises unexpectedly.
+        """
+        tracker = WindowPositionTracker()
+
+        class ExplodingStoredLocation:
+            def get_location(self):
+                return None
+
+            def __getattribute__(self, name: str):
+                if name == "_arcadeactions_last_set_location":
+                    raise RuntimeError("boom")
+                return object.__getattribute__(self, name)
+
+        window = ExplodingStoredLocation()
+        assert tracker.track_window_position(window) is False
+        assert tracker.get_tracked_position(window) is None
+
     def test_track_multiple_windows(self):
         """Test tracking multiple windows independently."""
         tracker = WindowPositionTracker()

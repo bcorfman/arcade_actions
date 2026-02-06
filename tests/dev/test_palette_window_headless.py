@@ -115,6 +115,27 @@ class TestHeadlessMode:
 
         assert not window.visible
 
+    def test_headless_set_visible_requests_focus_restore(self, registry, mocker):
+        """set_visible(True) requests focus restore on transition to visible."""
+        ctx = DevContext()
+        window = PaletteWindow(
+            registry=registry,
+            ctx=ctx,
+            on_close_callback=lambda: None,
+            forward_key_handler=lambda k, m: False,
+        )
+        window._is_headless = True
+        window._main_window = mocker.MagicMock()
+
+        mock_request_focus = mocker.patch.object(window, "request_main_window_focus")
+
+        window.set_visible(True)
+        mock_request_focus.assert_called_once()
+
+        # Setting visible again should not re-request focus.
+        window.set_visible(True)
+        mock_request_focus.assert_called_once()
+
     def test_headless_clear(self, registry):
         """Test clear method in headless mode."""
         ctx = DevContext()
