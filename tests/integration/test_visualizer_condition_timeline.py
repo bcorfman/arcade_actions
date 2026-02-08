@@ -63,7 +63,7 @@ class TestConditionDebugger:
         self._create_snapshot(2, tag="visual")
 
         self.store.record_condition_evaluation(1, "MoveUntil", False)
-        self.store.record_condition_evaluation(2, "FadeUntil", True)
+        self.store.record_condition_evaluation(2, "FadeTo", True)
 
         debugger = ConditionDebugger(debug_store=self.store, filter_tag="movement")
         debugger.update()

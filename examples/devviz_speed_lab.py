@@ -4,7 +4,7 @@ DevVisualizer Speed Lab - Combined editor/runtime example.
 Priorities:
 - Dev Speed Boost features (command palette, animation inspector, snap-to-grid,
   template browser, grid overlay, scene validator) with safe fallbacks.
-- Missing ArcadeActions features: RotateUntil, ScaleUntil, FadeUntil,
+- Missing ArcadeActions features: RotateUntil, ScaleUntil,
   GlowUntil, EmitParticlesUntil.
 
 Usage:
@@ -28,7 +28,7 @@ from arcade.experimental.shadertoy import Shadertoy
 from arcadeactions import (
     Action,
     EmitParticlesUntil,
-    FadeUntil,
+    FadeTo,
     GlowUntil,
     MoveUntil,
     RotateUntil,
@@ -137,15 +137,12 @@ class DevVizSpeedLabView(arcade.View):
             if speed_abs == 0:
                 speed_abs = 2.0
 
-            fade_out = FadeUntil(
-                fade_velocity=-speed_abs,
-                condition=lambda: fade_out.all_sprites(lambda sprite: sprite.alpha <= 0),
+            return repeat(
+                sequence(
+                    FadeTo(target_alpha=0, speed=speed_abs),
+                    FadeTo(target_alpha=255, speed=speed_abs),
+                )
             )
-            fade_in = FadeUntil(
-                fade_velocity=speed_abs,
-                condition=lambda: fade_in.all_sprites(lambda sprite: sprite.alpha >= 255),
-            )
-            return repeat(sequence(fade_out, fade_in))
 
         @register_preset("glow_gate", category="Effects")
         def preset_glow_gate(ctx: DevContext) -> GlowUntil:

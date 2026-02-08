@@ -40,16 +40,16 @@ cycle_textures_until(power_up_sprite, textures=power_up_textures, frames_per_tex
 For complex, multi-step sequences, use direct action classes with the `sequence()` and `parallel()` functions:
 
 ```python
-from arcadeactions import Action, DelayUntil, FadeUntil, MoveUntil, RotateUntil, sequence, parallel
+from arcadeactions import Action, DelayFrames, FadeTo, MoveUntil, RotateUntil, sequence, parallel
 from arcadeactions.frame_timing import after_frames
 
 # Complex sequences - use direct classes
 complex_behavior = sequence(
-    DelayUntil(condition=after_frames(60)),
+    DelayFrames(frames=60),
     MoveUntil(velocity=(100, 0), condition=after_frames(120)),
     parallel(
         RotateUntil(angular_velocity=180, condition=after_frames(60)),
-        FadeUntil(fade_velocity=-50, condition=after_frames(90))
+        FadeTo(target_alpha=0, speed=3.0)  # ~1.5s from 255 @ 60 FPS
     )
 )
 complex_behavior.apply(sprite, tag="complex_movement")
@@ -65,7 +65,7 @@ from arcadeactions.frame_timing import after_frames, seconds_to_frames
 # ✅ CORRECT: Direct classes + sequence() with frame-based timing
 # This works perfectly because actions aren't applied until the sequence is
 sequence(
-    DelayUntil(after_frames(60)),  # 1 second at 60 FPS
+    DelayFrames(frames=60),  # 1 second at 60 FPS
     MoveUntil(velocity=(5, 0), condition=after_frames(120))  # 2 seconds at 60 FPS
 ).apply(sprite)
 
@@ -129,7 +129,7 @@ move_until(enemies, velocity=(0, -50), condition=after_frames(180))  # 3 seconds
 Actions run until conditions are met, not for fixed durations:
 
 ```python
-from arcadeactions import move_until, rotate_until, fade_until, follow_path_until
+from arcadeactions import move_until, rotate_until, fade_to, follow_path_until
 
 # Velocity-based movement until condition is met (pixels per frame at 60 FPS)
 move_until(sprite, velocity=(5, -2), condition=lambda: sprite.center_y < 100)
@@ -141,7 +141,7 @@ follow_path_until(
 )
 
 rotate_until(sprite, angular_velocity=1.5, condition=lambda: sprite.angle >= 45)
-fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
+fade_to(sprite, target_alpha=50, speed=4)
 ```
 
 ### 5. Clear Separation of Use Cases
@@ -149,8 +149,8 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 | Use Case | Pattern | Example |
 |----------|---------|---------|
 | **Simple immediate actions** | Helper functions | `move_until(sprite, (5, 0), condition)` |
-| **Complex sequences** | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
-| **Parallel effects** | Direct classes + `parallel()` | `parallel(MoveUntil(...), FadeUntil(...))` |
+| **Complex sequences** | Direct classes + `sequence()` | `sequence(DelayFrames(...), MoveUntil(...))` |
+| **Parallel effects** | Direct classes + `parallel()` | `parallel(MoveUntil(...), FadeTo(...))` |
 
 ## Core Components
 
@@ -161,11 +161,11 @@ fade_until(sprite, fade_velocity=-4, condition=lambda: sprite.alpha <= 50)
 - **FollowPathUntil** - Follow Bezier curve paths with optional sprite rotation to face movement direction
 - **RotateUntil** - Angular velocity rotation
 - **ScaleUntil** - Scale velocity changes
-- **FadeUntil** - Alpha velocity changes
+- **FadeTo** - Fade alpha toward a target value
 - **CycleTexturesUntil** - Cycle through a list of textures at specified frame rate
 - **BlinkUntil** - Toggle sprite visibility with optional enter/exit callbacks
 - **CallbackUntil** - Execute callback functions at specified intervals or every frame
-- **DelayUntil** - Wait for condition
+- **DelayFrames** - Wait for a number of frames (or early-exit condition)
 - **TweenUntil** - Direct property animation from start to end value
 
 #### Composite Actions (arcadeactions/composite.py)
@@ -378,18 +378,18 @@ For multi-step animations and complex game scenarios:
 
 ```python
 from arcadeactions.frame_timing import after_frames, seconds_to_frames
-from arcadeactions import Action, DelayUntil, MoveUntil, RotateUntil, FadeUntil, sequence, parallel
+from arcadeactions import Action, DelayFrames, MoveUntil, RotateUntil, FadeTo, sequence, parallel
 
 # Create complex behavior using direct classes
 def create_enemy_attack_sequence(enemy_sprite):
     attack_sequence = sequence(
-        DelayUntil(seconds_to_frames(1.0)),                               # Wait 1 second
-        MoveUntil(velocity=(0, -100), condition=after_frames(seconds_to_frames(2.0)),  # Move down
-        parallel(                                                # Simultaneously:
-            RotateUntil(angular_velocity=360, condition=after_frames(seconds_to_frames(1.0)),  #   Spin
-            FadeUntil(fade_velocity=-50, condition=after_frames(seconds_to_frames(1.5))  #   Fade out
+        DelayFrames(frames=seconds_to_frames(1.0)),  # Wait 1 second
+        MoveUntil(velocity=(0, -100), condition=after_frames(seconds_to_frames(2.0))),  # Move down
+        parallel(  # Simultaneously:
+            RotateUntil(angular_velocity=360, condition=after_frames(seconds_to_frames(1.0))),  # Spin
+            FadeTo(target_alpha=0, speed=3.0),  # ~1.5s from 255 @ 60 FPS
         ),
-        MoveUntil(velocity=(200, 0), condition=after_frames(seconds_to_frames(1.0))  # Move sideways
+        MoveUntil(velocity=(200, 0), condition=after_frames(seconds_to_frames(1.0))),  # Move sideways
     )
     attack_sequence.apply(enemy_sprite, tag="attack_sequence")
 
@@ -631,7 +631,7 @@ cycle_textures_until(
 )
 
 # Using with sequences for complex animations
-from arcadeactions import sequence, DelayUntil
+from arcadeactions import sequence
 
 animation_sequence = sequence(
     # Phase 1: Spin up animation
@@ -639,21 +639,21 @@ animation_sequence = sequence(
         textures=spin_up_textures,
         frames_per_second=24.0,
         direction=1,
-        condition=after_frames(seconds_to_frames(1.0)
+        condition=after_frames(seconds_to_frames(1.0))
     ),
     # Phase 2: Steady state animation
     CycleTexturesUntil(
         textures=steady_textures,
         frames_per_second=12.0,
         direction=1,
-        condition=after_frames(seconds_to_frames(5.0)
+        condition=after_frames(seconds_to_frames(5.0))
     ),
     # Phase 3: Spin down animation
     CycleTexturesUntil(
         textures=spin_down_textures,
         frames_per_second=24.0,
         direction=1,
-        condition=after_frames(seconds_to_frames(1.0)
+        condition=after_frames(seconds_to_frames(1.0))
     )
 )
 animation_sequence.apply(machinery_sprite, tag="machinery_startup")
@@ -819,13 +819,13 @@ blink_until(
 - **BlinkUntil** - `on_blink_enter/exit` for visibility state changes
 
 **Good candidates for future addition:**
-- **FadeUntil** - `on_transparent_enter/exit` for alpha threshold crossings (0/255)
+- **FadeTo** - `on_transparent_enter/exit` for alpha threshold crossings (0/255)
 - **ScaleUntil** (with bounds) - `on_scale_min_enter/on_scale_max_enter` for scale limits
 - **RotateUntil** (with angle limits) - `on_angle_min_enter/on_angle_max_enter` for angle constraints
 
 **Avoid for:**
 - **FollowPathUntil** - Continuous path following without clear state edges
-- **DelayUntil** - Simple waiting without state transitions
+- **DelayFrames** - Simple waiting without state transitions
 - **CycleTexturesUntil** - Texture cycling is continuous, not binary
 
 **Use composition instead for non-binary states:**
@@ -1562,7 +1562,7 @@ Details: bad_callback() takes 0 positional arguments but 1 was given
 
 ```python
 import arcade
-from arcadeactions import Action, DelayUntil, MoveUntil, arrange_grid, sequence
+from arcadeactions import Action, DelayFrames, MoveUntil, arrange_grid, sequence
 from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 class SpaceInvadersGame(arcade.Window):
@@ -1587,7 +1587,7 @@ class SpaceInvadersGame(arcade.Window):
     def _setup_formation_movement(self):
         # Create complex sequence using direct classes
         initial_sequence = sequence(
-            DelayUntil(after_frames(seconds_to_frames(2.0))),  # Wait 2 seconds
+            DelayFrames(frames=seconds_to_frames(2.0)),  # Wait 2 seconds
             MoveUntil(velocity=(50, 0), condition=after_frames(seconds_to_frames(4.0))),  # Move right
         )
         initial_sequence.apply(self.enemies, tag="initial_movement")
@@ -1627,14 +1627,14 @@ move_until(sprite, velocity=(100, 0), condition=after_frames(seconds_to_frames(2
 
 # ✅ Good: Direct classes + sequence() for complex behaviors
 complex_behavior = sequence(
-    DelayUntil(after_frames(seconds_to_frames(1.0))),
+    DelayFrames(frames=seconds_to_frames(1.0)),
     MoveUntil(velocity=(100, 0), condition=after_frames(seconds_to_frames(2.0))),
     RotateUntil(angular_velocity=180, condition=after_frames(seconds_to_frames(1.0))),
 )
 complex_behavior.apply(sprite)
 
 # ❌ Avoid: Mixing helper functions with operators
-# (delay_until(sprite, after_frames(seconds_to_frames(1.0))) + move_until(sprite, (100, 0), condition=after_frames(seconds_to_frames(2.0))))
+# (delay_frames(sprite, frames=seconds_to_frames(1.0)) + move_until(sprite, (100, 0), condition=after_frames(seconds_to_frames(2.0))))
 ```
 
 ### 2. Prefer Declarative Conditions (or Frame Helpers)
@@ -1678,7 +1678,7 @@ move_action = move_until(sprite, velocity=(200, 0), condition=infinite)
 ease(sprite, move_action, frames=seconds_to_frames(1.5))
 
 # Good: Use TweenUntil for precise property changes
-tween_until(sprite, start_value=0, end_value=100, property_name="center_x", condition=after_frames(seconds_to_frames(1.0))
+tween_until(sprite, start_value=0, end_value=100, property_name="center_x", condition=after_frames(seconds_to_frames(1.0)))
 
 # Avoid: Using the wrong approach for the use case
 # Don't use TweenUntil for complex path following
@@ -1689,10 +1689,10 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 
 | Use Case | Pattern | Example |
 |----------|---------|---------|
-| Simple sprite actions | Helper functions | `move_until(sprite, velociy=(5, 0), condition=cond)` |
+| Simple sprite actions | Helper functions | `move_until(sprite, velocity=(5, 0), condition=cond)` |
 | Sprite group actions | Helper functions on SpriteList | `move_until(sprite_list, velocity=(5, 0), condition=cond)` |
-| Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
-| Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), FadeUntil(...))` |
+| Complex sequences | Direct classes + `sequence()` | `sequence(DelayFrames(...), MoveUntil(...))` |
+| Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), FadeTo(...))` |
 | State machine integration | `python-statemachine` library | See [amazon-warriors](https://github.com/bcorfman/amazon-warriors) example |
 | Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
 | Triangle formations | `arrange_triangle` | `arrange_triangle(count=10, apex_x=400, apex_y=500)` |
@@ -1709,7 +1709,7 @@ tween_until(sprite, start_value=0, end_value=100, property_name="center_x", cond
 | Periodic callbacks | `callback_until` helper | `callback_until(sprite, callback=update_fn, condition=cond, seconds_between_calls=0.1)` |
 | Shader/particle effects | `callback_until` for temporal control | `callback_until(sprite, lambda: emitter.update(), condition=cond)` |
 | Boundary detection | `move_until` with bounds | `move_until(sprite, velocity=vel, condition=cond, bounds=b)` |
-| Delayed execution | Direct classes in sequences | `sequence(DelayUntil(seconds_to_frames(1.0)), action)` |
+| Delayed execution | Direct classes in sequences | `sequence(DelayFrames(frames=seconds_to_frames(1.0)), action)` |
 | Smooth acceleration | `ease` helper | `ease(sprite, action, frames=seconds_to_frames(2.0))` |
 | Property animation | `tween_until` helper | `tween_until(sprite, start_val=start, end_val=end, "prop", seconds_to_frames(1.0))` |
 

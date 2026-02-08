@@ -456,7 +456,7 @@ def _group_sprites_by_wave(entry_actions):
 
 def _extract_delay_from_action(action):
     """Extract delay from action."""
-    # Check if action is a DelayUntil action with _duration set
+    # Check if action is a delay-like action with _duration set
     if action._duration is not None:
         return action._duration
 

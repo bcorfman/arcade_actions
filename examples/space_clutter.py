@@ -20,7 +20,7 @@ import arcade
 from arcadeactions import (
     Action,
     BlinkUntil,
-    DelayUntil,
+    DelayFrames,
     MoveUntil,
     arrange_grid,
     center_window,
@@ -509,7 +509,7 @@ class StarfieldView(arcade.View):
 
             action.apply(sprite, tag="enemy_formation_entry")
 
-        # Create a DelayUntil action that waits for all formation entry actions to complete,
+        # Create a DelayFrames action that waits for all formation entry actions to complete,
         # then starts a wave pattern motion for the entire enemy formation
         def all_enemies_arrived() -> bool:
             """Return True after the entire grid has been motionless for ~0.5 s."""
@@ -559,8 +559,8 @@ class StarfieldView(arcade.View):
             # Apply to the whole enemy list (grid moves as one unit)
             repeating_wave.apply(self.enemy_list, tag="enemy_wave")
 
-        # Create and apply the DelayUntil action
-        delay_action = DelayUntil(condition=all_enemies_arrived, on_stop=start_wave_motion)
+        # Create and apply the DelayFrames action (no frame limit; ends via condition)
+        delay_action = DelayFrames(condition=all_enemies_arrived, on_stop=start_wave_motion)
 
         # Apply the delay action to any sprite (it just waits, doesn't move anything)
         # We'll use the first enemy sprite as the target, but it could be any sprite

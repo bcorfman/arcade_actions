@@ -186,7 +186,7 @@ class TestEase(ActionTestBase):
 Test sequences and parallel actions using the current API:
 
 ```python
-from arcadeactions import Action, sequence, parallel, DelayUntil, MoveUntil, RotateUntil
+from arcadeactions import Action, sequence, parallel, DelayFrames, MoveUntil, RotateUntil
 from arcadeactions.frame_timing import after_frames, seconds_to_frames
 
 class TestSequenceFunction:
@@ -200,7 +200,7 @@ class TestSequenceFunction:
         """Test that sequence executes actions in order."""
         sprite = test_sprite
         
-        action1 = DelayUntil(after_frames(seconds_to_frames(0.1)))
+        action1 = DelayFrames(frames=seconds_to_frames(0.1))
         action2 = MoveUntil((100, 0), condition=after_frames(seconds_to_frames(0.1)))
         seq = sequence(action1, action2)
         
@@ -211,7 +211,7 @@ class TestSequenceFunction:
         assert seq.current_action == action1
         
         # After first action completes, second should start
-        Action.update_all(0.11)  # Complete first action
+        Action.update_all(0.11)  # Complete first action (frame-driven)
         Action.update_all(0.016) # Start second action
         
         assert seq.current_index == 1
@@ -1001,7 +1001,7 @@ def test_invalid_parameters(self, test_sprite):
         Ease(MoveUntil((5, 0), infinite), frames=0)
 ```
 
-- `tests/test_frame_actions.py` covers `BlinkUntil`, `CallbackUntil`, `DelayUntil`,
+- `tests/test_frame_actions.py` covers `BlinkUntil`, `CallbackUntil`, `DelayFrames`,
   `Ease`, `TweenUntil`, and `CycleTexturesUntil` using explicit frame counts.
 - `tests/test_frame_timing.py` exercises the primitives themselves along with
   `Action.current_frame()` semantics, including pause behavior.

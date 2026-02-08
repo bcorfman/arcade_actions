@@ -708,19 +708,20 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         assert hasattr(action, "_textures")
         assert action._frames_per_texture == 2
 
-    def test_apply_metadata_actions_creates_fadeuntil_and_blinkuntil(self, window):
-        """Test that FadeUntil and BlinkUntil metadata create actions with proper params."""
+    def test_apply_metadata_actions_creates_fadeto_and_blinkuntil(self, window):
+        """Test that FadeTo and BlinkUntil metadata create actions with proper params."""
         dev_viz = DevVisualizer()
 
-        # FadeUntil
+        # FadeTo
         sprite1 = arcade.Sprite()
         sprite1.center_x = 100
         sprite1.center_y = 100
         sprite1._action_configs = [
             {
-                "action_type": "FadeUntil",
-                "fade_velocity": -10.0,
-                "condition": "after_frames:1",
+                "action_type": "FadeTo",
+                "target_alpha": 0,
+                "speed": 10.0,
+                "condition": "infinite",
             }
         ]
 
@@ -745,7 +746,8 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         actions2 = Action.get_actions_for_target(sprite2)
         assert len(actions1) == 1
         assert len(actions2) == 1
-        assert actions1[0].target_fade_velocity == -10.0
+        assert actions1[0].target_alpha == 0
+        assert actions1[0].target_speed == 10.0
         assert actions2[0].target_frames_until_change == 3
 
     def test_apply_metadata_actions_creates_rotate_and_tween(self, window):
@@ -796,7 +798,7 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         assert sprite_t.center_x != 10
 
     def test_apply_metadata_actions_creates_emit_and_glow_and_scale_and_callbacks(self, window):
-        """Test that EmitParticlesUntil, GlowUntil, ScaleUntil, CallbackUntil and DelayUntil are created from metadata."""
+        """Test that EmitParticlesUntil, GlowUntil, ScaleUntil, CallbackUntil and DelayFrames are created from metadata."""
         dev_viz = DevVisualizer()
 
         # EmitParticlesUntil
@@ -893,12 +895,13 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
             }
         ]
 
-        # DelayUntil
+        # DelayFrames
         sprite_d = arcade.Sprite()
         sprite_d._action_configs = [
             {
-                "action_type": "DelayUntil",
-                "condition": "after_frames:1",
+                "action_type": "DelayFrames",
+                "frames": 1,
+                "condition": "infinite",
             }
         ]
 
@@ -927,6 +930,6 @@ class TestDevVisualizerApplyMetadataActions(ActionTestBase):
         # Callback should have been called at least once
         assert called["count"] >= 1
 
-        # DelayUntil should have completed and been removed
+        # DelayFrames should have completed and been removed
         actions_d = Action.get_actions_for_target(sprite_d)
         assert len(actions_d) == 0

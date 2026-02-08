@@ -611,36 +611,37 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
 
         mock_cycle.assert_not_called()
 
-    def test_apply_fade_until(self, window, test_sprite, mocker):
-        """Test applying FadeUntil action."""
+    def test_apply_fade_to(self, window, test_sprite, mocker):
+        """Test applying FadeTo action."""
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_fade = mocker.patch("arcadeactions.fade_until")
+        mock_fade = mocker.patch("arcadeactions.fade_to")
 
         test_sprite._action_configs = [
-            {"action_type": "FadeUntil", "fade_velocity": -5, "condition": "after_frames:60"}
+            {"action_type": "FadeTo", "target_alpha": 0, "speed": 5, "condition": "after_frames:60"}
         ]
 
         dev_viz.apply_metadata_actions(test_sprite)
 
         mock_fade.assert_called_once()
         call_kwargs = mock_fade.call_args[1]
-        assert call_kwargs["velocity"] == -5
+        assert call_kwargs["target_alpha"] == 0
+        assert call_kwargs["speed"] == 5
         assert callable(call_kwargs["condition"])
 
-    def test_apply_fade_until_skipped_if_no_fade_velocity(self, window, test_sprite, mocker):
-        """Test that FadeUntil is skipped if fade_velocity is missing."""
+    def test_apply_fade_to_skipped_if_missing_params(self, window, test_sprite, mocker):
+        """Test that FadeTo is skipped if required params are missing."""
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_fade = mocker.patch("arcadeactions.fade_until")
+        mock_fade = mocker.patch("arcadeactions.fade_to")
 
         test_sprite._action_configs = [
             {
-                "action_type": "FadeUntil",
+                "action_type": "FadeTo",
                 "condition": "after_frames:60",
-                # Missing fade_velocity
+                # Missing target_alpha and speed
             }
         ]
 
@@ -862,24 +863,25 @@ class TestApplyMetadataActionsDirectActionTypes(ActionTestBase):
 
         mock_callback.assert_not_called()
 
-    def test_apply_delay_until(self, window, test_sprite, mocker):
-        """Test applying DelayUntil action."""
+    def test_apply_delay_frames(self, window, test_sprite, mocker):
+        """Test applying DelayFrames action."""
         dev_viz = DevVisualizer()
         dev_viz.ctx = mocker.MagicMock()
 
-        mock_delay = mocker.patch("arcadeactions.delay_until")
+        mock_delay = mocker.patch("arcadeactions.delay_frames")
 
         def on_stop():
             pass
 
         test_sprite._action_configs = [
-            {"action_type": "DelayUntil", "condition": "after_frames:60", "tag": "delay", "on_stop": on_stop}
+            {"action_type": "DelayFrames", "frames": 60, "condition": "infinite", "tag": "delay", "on_stop": on_stop}
         ]
 
         dev_viz.apply_metadata_actions(test_sprite)
 
         mock_delay.assert_called_once()
         call_kwargs = mock_delay.call_args[1]
+        assert call_kwargs["frames"] == 60
         assert callable(call_kwargs["condition"])
         assert call_kwargs["tag"] == "delay"
         assert call_kwargs["on_stop"] is on_stop

@@ -5,57 +5,62 @@ from typing import Any
 
 from arcadeactions._shared_logging import _debug_log
 from arcadeactions.base import Action as _Action
-from arcadeactions.frame_conditions import _clone_condition
+from arcadeactions.frame_conditions import _clone_condition, infinite
 
 
-class DelayUntil(_Action):
-    """Wait/delay until a condition is satisfied.
+class DelayFrames(_Action):
+    """Wait/delay for a number of frames, or until a condition is satisfied.
 
-    This action does nothing but wait for the condition to be met.
-    Useful in sequences to create conditional pauses.
+    This action does nothing but wait. It can stop in two ways:
+    - Primary: the configured frame count elapses (when frames is provided)
+    - Secondary: the provided condition returns truthy (early-exit)
 
     Args:
-        condition: Function that returns truthy value when delay should end
+        frames: Number of frames to wait. If None, waits until condition triggers.
+        condition: Optional early-exit condition. Defaults to infinite (never).
         on_stop: Optional callback called when condition is satisfied
     """
 
     def __init__(
         self,
-        condition: Callable[[], Any],
+        frames: int | None = None,
+        condition: Callable[[], Any] = infinite,
         on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
     ):
-        super().__init__(condition, on_stop)
-        self._elapsed = 0.0
-        self._duration = None
+        if frames is not None and frames < 0:
+            raise ValueError("frames must be non-negative or None")
+        self.frames = frames
+        self._frames_elapsed = 0
+        self._user_condition = condition
+
+        def combined_condition() -> Any:
+            user_result = self._user_condition()
+            if user_result:
+                return user_result
+            if self.frames is None:
+                return False
+            self._frames_elapsed += 1
+            if self._frames_elapsed >= self.frames:
+                return {"reason": "frames", "frames": self.frames}
+            return False
+
+        super().__init__(combined_condition, on_stop)
 
     def apply_effect(self) -> None:
         """Initialize delay timing."""
-        # Legacy wall-clock helpers are no longer supported; rely on frame-based conditions directly
-        self._duration = None
-        self._elapsed = 0.0
+        self._frames_elapsed = 0
 
     def update_effect(self, delta_time: float) -> None:
-        """Update delay timing using simulation time."""
-        if self._duration is not None:
-            # Use simulation time for duration-based delays
-            self._elapsed += delta_time
-
-            # Check if duration has elapsed
-            if self._elapsed >= self._duration:
-                # Mark as complete by setting the condition as met
-                self._condition_met = True
-                self.done = True
-                if self.on_stop:
-                    self.on_stop()
+        """No-op; DelayFrames completes via its condition."""
+        return
 
     def reset(self) -> None:
         """Reset the action to its initial state."""
-        self._elapsed = 0.0
-        self._duration = None
+        self._frames_elapsed = 0
 
-    def clone(self) -> DelayUntil:
+    def clone(self) -> DelayFrames:
         """Create a copy of this action."""
-        return DelayUntil(_clone_condition(self.condition), self.on_stop)
+        return DelayFrames(self.frames, _clone_condition(self._user_condition), self.on_stop)
 
 
 class CallbackUntil(_Action):

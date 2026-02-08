@@ -13,7 +13,7 @@ from collections.abc import Callable
 
 import arcade
 
-from arcadeactions import DelayUntil, FollowPathUntil, MoveUntil, sequence
+from arcadeactions import DelayFrames, FollowPathUntil, MoveUntil, sequence
 from arcadeactions.conditional import ParametricMotionUntil
 from arcadeactions.frame_timing import after_frames
 
@@ -872,7 +872,7 @@ def create_formation_entry_from_sprites(
             )
 
             if wave_delay_frames > 0:  # Add delay for waves after the first
-                delay_action = DelayUntil(after_frames(wave_delay_frames))
+                delay_action = DelayFrames(wave_delay_frames)
                 combined_action = sequence(delay_action, movement_action)
             else:
                 combined_action = movement_action

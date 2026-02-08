@@ -27,7 +27,7 @@ class TestEntryPath(ActionTestBase):
 
         # Verify actions are applied
         # Leader (first sprite) should have FollowPathUntil
-        # Followers should have DelayUntil + FollowPathUntil sequences
+        # Followers should have DelayFrames + FollowPathUntil sequences
         assert len(Action._active_actions) > 0
 
     def test_entry_path_follower_spacing(self):

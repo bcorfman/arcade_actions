@@ -4,7 +4,7 @@ import arcade
 
 from arcadeactions.base import Action
 from arcadeactions.composite import parallel, repeat, sequence
-from arcadeactions.conditional import CycleTexturesUntil, DelayUntil, MoveUntil, infinite
+from arcadeactions.conditional import CycleTexturesUntil, DelayFrames, MoveUntil, infinite
 from arcadeactions.frame_timing import after_frames
 
 
@@ -55,8 +55,8 @@ class TestSequenceFunction:
     def test_sequence_with_actions_initialization(self):
         """Test sequence initialization with actions."""
 
-        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action1 = DelayFrames(6)  # 0.1 seconds at 60 FPS
+        action2 = DelayFrames(6)  # 0.1 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         assert len(seq.actions) == 2
@@ -78,8 +78,8 @@ class TestSequenceFunction:
         """Test that sequence starts the first action."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action1 = DelayFrames(6)  # 0.1 seconds at 60 FPS
+        action2 = DelayFrames(6)  # 0.1 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         seq.target = sprite
@@ -92,8 +92,8 @@ class TestSequenceFunction:
         """Test that sequence advances to next action when current completes."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(3)  # 0.05 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         seq.target = sprite
@@ -110,8 +110,8 @@ class TestSequenceFunction:
         """Test that sequence completes when all actions are done."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(3)  # 0.05 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         seq.target = sprite
@@ -130,8 +130,8 @@ class TestSequenceFunction:
         """Test that stopping sequence stops the current action."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(60))  # 1 second at 60 FPS  # Long duration so it won't complete
-        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action1 = DelayFrames(60)  # 1 second at 60 FPS  # Long duration so it won't complete
+        action2 = DelayFrames(6)  # 0.1 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         seq.target = sprite
@@ -143,8 +143,8 @@ class TestSequenceFunction:
     def test_sequence_clone(self):
         """Test sequence cloning."""
 
-        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action1 = DelayFrames(6)  # 0.1 seconds at 60 FPS
+        action2 = DelayFrames(6)  # 0.1 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         cloned = seq.clone()
@@ -170,8 +170,8 @@ class TestParallelFunction:
     def test_parallel_with_actions_initialization(self):
         """Test parallel initialization with actions."""
 
-        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action1 = DelayFrames(6)  # 0.1 seconds at 60 FPS
+        action2 = DelayFrames(6)  # 0.1 seconds at 60 FPS
         par = parallel(action1, action2)
 
         assert len(par.actions) == 2
@@ -191,8 +191,8 @@ class TestParallelFunction:
         """Test that parallel starts all actions simultaneously."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action1 = DelayFrames(6)  # 0.1 seconds at 60 FPS
+        action2 = DelayFrames(6)  # 0.1 seconds at 60 FPS
         par = parallel(action1, action2)
 
         par.target = sprite
@@ -205,8 +205,8 @@ class TestParallelFunction:
         """Test that parallel completes when all actions are done."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS  # Longer duration
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(6)  # 0.1 seconds at 60 FPS  # Longer duration
         par = parallel(action1, action2)
 
         par.target = sprite
@@ -226,8 +226,8 @@ class TestParallelFunction:
         """Test that stopping parallel stops all actions."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(60))  # 1 second at 60 FPS  # Long duration
-        action2 = DelayUntil(after_frames(60))  # 1 second at 60 FPS  # Long duration
+        action1 = DelayFrames(60)  # 1 second at 60 FPS  # Long duration
+        action2 = DelayFrames(60)  # 1 second at 60 FPS  # Long duration
         par = parallel(action1, action2)
 
         par.target = sprite
@@ -240,8 +240,8 @@ class TestParallelFunction:
     def test_parallel_clone(self):
         """Test parallel cloning."""
 
-        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action1 = DelayFrames(6)  # 0.1 seconds at 60 FPS
+        action2 = DelayFrames(6)  # 0.1 seconds at 60 FPS
         par = parallel(action1, action2)
 
         cloned = par.clone()
@@ -263,8 +263,8 @@ class TestOperatorOverloading:
         """Test that the '+' operator creates a sequential action."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(1))
-        action2 = DelayUntil(after_frames(1))
+        action1 = DelayFrames(1)
+        action2 = DelayFrames(1)
 
         # Use + operator to create sequence
         sequence_action = action1 + action2
@@ -281,8 +281,8 @@ class TestOperatorOverloading:
         """Test that the '|' operator creates a parallel action."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS  # Different duration
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(6)  # 0.1 seconds at 60 FPS  # Different duration
 
         # Use | operator to create parallel
         parallel_action = action1 | action2
@@ -300,9 +300,9 @@ class TestOperatorOverloading:
         """Test mixing + and | operators for complex compositions."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action3 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action3 = DelayFrames(3)  # 0.05 seconds at 60 FPS
 
         # Create a sequence where the second step is parallel actions
         complex_action = action1 + (action2 | action3)
@@ -321,9 +321,9 @@ class TestOperatorOverloading:
         """Test operator precedence with explicit parentheses."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action3 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action3 = DelayFrames(3)  # 0.05 seconds at 60 FPS
 
         # Test a + (b | c) - explicit parentheses
         composed = action1 + (action2 | action3)
@@ -350,10 +350,10 @@ class TestNestedComposites:
         """Test sequence containing parallel actions using operators."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action3 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action4 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action3 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action4 = DelayFrames(3)  # 0.05 seconds at 60 FPS
 
         # Create sequence of parallels using operators
         composed = (action1 | action2) + (action3 | action4)
@@ -373,10 +373,10 @@ class TestNestedComposites:
         """Test parallel containing sequence actions using operators."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action3 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action4 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action3 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action4 = DelayFrames(3)  # 0.05 seconds at 60 FPS
 
         # Create parallel of sequences using operators
         composed = (action1 + action2) | (action3 + action4)
@@ -399,14 +399,14 @@ class TestNestedComposites:
         sprite2 = create_test_sprite()
 
         # Traditional function approach
-        action1_func = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2_func = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1_func = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2_func = DelayFrames(3)  # 0.05 seconds at 60 FPS
         traditional = sequence(action1_func, action2_func)
         traditional.apply(sprite1)
 
         # Operator approach
-        action1_op = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2_op = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1_op = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2_op = DelayFrames(3)  # 0.05 seconds at 60 FPS
         operator_based = action1_op + action2_op
         operator_based.apply(sprite2)
 
@@ -429,7 +429,7 @@ class TestRepeatFunction:
     def test_repeat_initialization(self):
         """Test repeat initialization."""
 
-        action = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action = DelayFrames(6)  # 0.1 seconds at 60 FPS
         rep = repeat(action)
 
         assert rep.action == action
@@ -440,7 +440,7 @@ class TestRepeatFunction:
         """Test that repeat starts the first iteration of the action."""
 
         sprite = create_test_sprite()
-        action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action = DelayFrames(3)  # 0.05 seconds at 60 FPS
         rep = repeat(action)
 
         rep.target = sprite
@@ -454,7 +454,7 @@ class TestRepeatFunction:
         """Test that repeat restarts the action when it completes."""
 
         sprite = create_test_sprite()
-        action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action = DelayFrames(3)  # 0.05 seconds at 60 FPS
         rep = repeat(action)
 
         rep.target = sprite
@@ -475,7 +475,7 @@ class TestRepeatFunction:
         """Test that repeat continues indefinitely."""
 
         sprite = create_test_sprite()
-        action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action = DelayFrames(3)  # 0.05 seconds at 60 FPS
         rep = repeat(action)
 
         rep.target = sprite
@@ -500,7 +500,7 @@ class TestRepeatFunction:
         """Test that stopping repeat stops the current action."""
 
         sprite = create_test_sprite()
-        action = DelayUntil(after_frames(60))  # 1 second at 60 FPS  # Long duration
+        action = DelayFrames(60)  # 1 second at 60 FPS  # Long duration
         rep = repeat(action)
 
         rep.target = sprite
@@ -513,7 +513,7 @@ class TestRepeatFunction:
     def test_repeat_clone(self):
         """Test repeat cloning."""
 
-        action = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action = DelayFrames(6)  # 0.1 seconds at 60 FPS
         rep = repeat(action)
 
         cloned = rep.clone()
@@ -536,8 +536,8 @@ class TestRepeatFunction:
         """Test repeat with a composite action (sequence)."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(3)  # 0.05 seconds at 60 FPS
         seq = sequence(action1, action2)
         rep = repeat(seq)
 
@@ -598,8 +598,8 @@ class TestRepeatIntegration:
         """Test repeat action used within a sequence."""
 
         sprite = create_test_sprite()
-        setup_action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        repeating_action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        setup_action = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        repeating_action = DelayFrames(3)  # 0.05 seconds at 60 FPS
 
         # Create sequence: setup action + repeating action
         rep = repeat(repeating_action)
@@ -623,8 +623,8 @@ class TestRepeatIntegration:
         """Test repeat action used within a parallel."""
 
         sprite = create_test_sprite()
-        finite_action = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
-        repeating_action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        finite_action = DelayFrames(6)  # 0.1 seconds at 60 FPS
+        repeating_action = DelayFrames(3)  # 0.05 seconds at 60 FPS
 
         # Create parallel: finite action + repeating action
         rep = repeat(repeating_action)
@@ -644,8 +644,8 @@ class TestRepeatIntegration:
         """Test that repeat works with operator overloading (+, |)."""
 
         sprite = create_test_sprite()
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(3)  # 0.05 seconds at 60 FPS
 
         # Create complex composition using operators
         rep = repeat(action1)
@@ -680,7 +680,7 @@ class TestVelocityForwarding:
 
         # Test 1: Parallel forwarding
         move_action1 = MoveUntil((5, 0), infinite)
-        delay_action1 = DelayUntil(after_frames(60))  # 1 second at 60 FPS
+        delay_action1 = DelayFrames(60)  # 1 second at 60 FPS
 
         par = parallel(move_action1, delay_action1)
         par.apply(sprite, tag="velocity_test")
@@ -696,7 +696,7 @@ class TestVelocityForwarding:
 
         # Test 2: Sequence forwarding (should forward to current action)
         move_action2 = MoveUntil((7, 1), infinite)
-        delay_action2 = DelayUntil(after_frames(60))  # 1 second at 60 FPS
+        delay_action2 = DelayFrames(60)  # 1 second at 60 FPS
 
         seq = sequence(move_action2, delay_action2)
         seq.apply(sprite, tag="sequence_velocity_test")
@@ -736,16 +736,16 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_with_noop_velocity(self):
         """Test velocity forwarding gracefully handles actions using the default no-op setter."""
-        from arcadeactions.conditional import DelayUntil, MoveUntil, infinite
+        from arcadeactions.conditional import DelayFrames, MoveUntil, infinite
 
         sprite = create_test_sprite()
 
         # Create a custom action that doesn't support velocity control
-        class CustomAction(DelayUntil):
+        class CustomAction(DelayFrames):
             """A custom action that explicitly doesn't have set_current_velocity."""
 
             def __init__(self):
-                super().__init__(after_frames(60))
+                super().__init__(60)
 
         move_action = MoveUntil((3, 4), infinite)
         custom_action = CustomAction()
@@ -762,12 +762,12 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_sequence_no_current_action(self):
         """Test sequence velocity forwarding when there's no current action."""
-        from arcadeactions.conditional import DelayUntil
+        from arcadeactions.conditional import DelayFrames
 
         sprite = create_test_sprite()
 
         # Create a sequence but don't start it
-        seq = sequence(DelayUntil(after_frames(6)))  # 0.1 seconds at 60 FPS
+        seq = sequence(DelayFrames(6))  # 0.1 seconds at 60 FPS
         # Don't apply it to a sprite so current_action remains None
 
         # This should not raise an error
@@ -778,12 +778,12 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_repeat_no_current_action(self):
         """Test repeat velocity forwarding when there's no current action."""
-        from arcadeactions.conditional import DelayUntil
+        from arcadeactions.conditional import DelayFrames
 
         sprite = create_test_sprite()
 
         # Create a repeat but don't start it
-        rep = repeat(DelayUntil(after_frames(6)))  # 0.1 seconds at 60 FPS
+        rep = repeat(DelayFrames(6))  # 0.1 seconds at 60 FPS
         # Don't apply it to a sprite so current_action remains None
 
         # This should not raise an error
@@ -808,14 +808,14 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_sequence_noop(self):
         """Test sequence velocity forwarding with actions relying on the default no-op setter."""
-        from arcadeactions.conditional import DelayUntil
+        from arcadeactions.conditional import DelayFrames
 
         sprite = create_test_sprite()
 
         # Create a custom action that raises AttributeError when set_current_velocity is called
-        class ActionWithoutVelocity(DelayUntil):
+        class ActionWithoutVelocity(DelayFrames):
             def __init__(self):
-                super().__init__(after_frames(6))
+                super().__init__(6)
 
         action_without_velocity = ActionWithoutVelocity()
         seq = sequence(action_without_velocity)
@@ -829,14 +829,14 @@ class TestVelocityForwarding:
 
     def test_velocity_forwarding_repeat_noop(self):
         """Test repeat velocity forwarding with actions relying on the default no-op setter."""
-        from arcadeactions.conditional import DelayUntil
+        from arcadeactions.conditional import DelayFrames
 
         sprite = create_test_sprite()
 
         # Create a custom action that raises AttributeError
-        class ActionWithoutVelocity(DelayUntil):
+        class ActionWithoutVelocity(DelayFrames):
             def __init__(self):
-                super().__init__(after_frames(6))
+                super().__init__(6)
 
         action_without_velocity = ActionWithoutVelocity()
         rep = repeat(action_without_velocity)
@@ -1002,7 +1002,7 @@ class TestCompositeReset:
         """Test that repeat.reset() resets state and child action."""
         sprite = create_test_sprite()
 
-        action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action = DelayFrames(3)  # 0.05 seconds at 60 FPS
         rep = repeat(action)
 
         rep.apply(sprite, tag="test_repeat_reset")
@@ -1155,8 +1155,8 @@ class TestPriority1_EmptyCompositeRepresentation:
 
     def test_sequence_repr(self):
         """Test sequence __repr__ method - covers line 108-109 in composite.py."""
-        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(12))  # 0.2 seconds at 60 FPS
+        action1 = DelayFrames(6)  # 0.1 seconds at 60 FPS
+        action2 = DelayFrames(12)  # 0.2 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         repr_str = repr(seq)
@@ -1165,8 +1165,8 @@ class TestPriority1_EmptyCompositeRepresentation:
 
     def test_parallel_repr(self):
         """Test parallel __repr__ method - covers line 189-190 in composite.py."""
-        action1 = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(12))  # 0.2 seconds at 60 FPS
+        action1 = DelayFrames(6)  # 0.1 seconds at 60 FPS
+        action2 = DelayFrames(12)  # 0.2 seconds at 60 FPS
         par = parallel(action1, action2)
 
         repr_str = repr(par)
@@ -1175,7 +1175,7 @@ class TestPriority1_EmptyCompositeRepresentation:
 
     def test_repeat_repr(self):
         """Test repeat __repr__ method - covers line 287 in composite.py."""
-        action = DelayUntil(after_frames(6))  # 0.1 seconds at 60 FPS
+        action = DelayFrames(6)  # 0.1 seconds at 60 FPS
         rep = repeat(action)
 
         repr_str = repr(rep)
@@ -1194,12 +1194,12 @@ class TestPriority4_AttributeErrorHandling:
         """Test sequence handles AttributeError when action doesn't support velocity - line 103-105."""
         sprite = create_test_sprite()
 
-        # DelayUntil doesn't support velocity control in meaningful way
-        action = DelayUntil(after_frames(60))  # 1 second at 60 FPS
+        # DelayFrames doesn't support velocity control in meaningful way
+        action = DelayFrames(60)  # 1 second at 60 FPS
         seq = sequence(action)
         seq.apply(sprite, tag="test")
 
-        # This should not raise an error even though DelayUntil's set_current_velocity is a no-op
+        # This should not raise an error even though DelayFrames's set_current_velocity is a no-op
         seq.set_current_velocity((10, 20))
 
         # Should complete without error
@@ -1209,8 +1209,8 @@ class TestPriority4_AttributeErrorHandling:
         """Test repeat handles AttributeError when action doesn't support velocity - line 282-284."""
         sprite = create_test_sprite()
 
-        # DelayUntil doesn't support velocity control
-        action = DelayUntil(after_frames(60))  # 1 second at 60 FPS
+        # DelayFrames doesn't support velocity control
+        action = DelayFrames(60)  # 1 second at 60 FPS
         rep = repeat(action)
         rep.apply(sprite, tag="test")
 
@@ -1246,8 +1246,8 @@ class TestPriority2_SequenceEdgeCases:
         """Test sequence starts next action when current is None - lines 56-58."""
         sprite = create_test_sprite()
 
-        action1 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
-        action2 = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action1 = DelayFrames(3)  # 0.05 seconds at 60 FPS
+        action2 = DelayFrames(3)  # 0.05 seconds at 60 FPS
         seq = sequence(action1, action2)
 
         seq.target = sprite
@@ -1303,7 +1303,7 @@ class TestPriority4_RepeatEdgeCases:
         """Test repeat starts clone when current_action is None - lines 253-255."""
         sprite = create_test_sprite()
 
-        action = DelayUntil(after_frames(3))  # 0.05 seconds at 60 FPS
+        action = DelayFrames(3)  # 0.05 seconds at 60 FPS
         rep = repeat(action)
 
         rep.target = sprite

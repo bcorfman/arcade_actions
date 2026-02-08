@@ -554,7 +554,7 @@ class MockOptimizedStarfieldView:
         self.wave_count += 1
 
         # Stop all existing enemy actions for both sprite list and individual sprites
-        from arcadeactions import Action, DelayUntil, MoveUntil, repeat, sequence
+        from arcadeactions import Action, DelayFrames, MoveUntil, repeat, sequence
         from arcadeactions.pattern import create_wave_pattern
 
         Action.stop_actions_for_target(self.enemy_list, tag="enemy_formation_entry")
@@ -621,7 +621,7 @@ class MockOptimizedStarfieldView:
             repeating_wave = sequence(quarter_wave, repeat(full_wave))
             repeating_wave.apply(self.enemy_list, tag="enemy_wave")
 
-        delay_action = DelayUntil(condition=all_enemies_arrived, on_stop=start_wave_motion)
+        delay_action = DelayFrames(condition=all_enemies_arrived, on_stop=start_wave_motion)
         if self.enemy_list:
             delay_action.apply(self.enemy_list[0], tag="formation_completion_watcher")
 

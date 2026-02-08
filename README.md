@@ -159,11 +159,11 @@ Platformers / Physics Games:
 - **FollowPathUntil** - Follow Bezier curve paths with optional automatic sprite rotation (optional PyMunk physics steering with `use_physics=True`)
 - **RotateUntil** - Angular velocity rotation (optional PyMunk physics integration)
 - **ScaleUntil** - Scale velocity changes  
-- **FadeUntil** - Alpha velocity changes
+- **FadeTo** - Fade alpha toward a target value
 - **CycleTexturesUntil** - Cycle through a list of textures at a specific frame rate with simulation time duration support
 - **BlinkUntil** - Toggle sprite visibility with optional enter/exit callbacks for collision management
 - **CallbackUntil** - Execute callback functions at specified intervals or every frame until condition is met
-- **DelayUntil** - Wait for condition to be met
+- **DelayFrames** - Wait for a number of frames (or early-exit condition)
 - **TweenUntil** - Direct property animation from start to end value
 - **GlowUntil** - Render full-screen Shadertoy effects with camera offset support
 - **EmitParticlesUntil** - Manage per-sprite particle emitters with anchor and rotation following
@@ -369,7 +369,7 @@ See `.cursor/rules/project.mdc` for detailed DevVisualizer architecture and usag
 |----------|-----|---------|
 | Simple sprite actions | Helper functions | `move_until(sprite, ..., tag="move")` |
 | Sprite group actions | Helper functions on SpriteList | `move_until(enemies, ..., tag="formation")` |
-| Complex sequences | Direct classes + `sequence()` | `sequence(DelayUntil(...), MoveUntil(...))` |
+| Complex sequences | Direct classes + `sequence()` | `sequence(DelayFrames(...), MoveUntil(...))` |
 | Parallel behaviors | Direct classes + `parallel()` | `parallel(MoveUntil(...), RotateUntil(...))` |
 | Formation positioning | Formation functions | `arrange_grid(enemies, rows=3, cols=5)` |
 | Curved path movement | `follow_path_until` helper | `follow_path_until(sprite, points, ...)` |

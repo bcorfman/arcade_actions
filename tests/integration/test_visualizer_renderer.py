@@ -200,7 +200,7 @@ def test_timeline_renderer_displays_various_action_types(monkeypatch):
         "MoveUntil",
         "RotateUntil",
         "GlowUntil",
-        "FadeUntil",
+        "FadeTo",
         "CycleTexturesUntil",
     ]
 

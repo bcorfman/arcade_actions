@@ -48,19 +48,21 @@ Actions calculate velocity-based changes and apply them directly:
 Unlike duration-based actions, ArcadeActions uses **condition-based actions**:
 - **MoveUntil** - Move until condition is met
 - **RotateUntil** - Rotate until condition is met
-- **FadeUntil** - Fade until condition is met
-- **DelayUntil** - Wait until condition is met
+- **FadeTo** - Fade until a target alpha is reached
+- **DelayFrames** - Wait for a number of frames (or early-exit condition)
 
 This enables more flexible, game-state-driven behaviors.
 
 ### Pattern 2: Operator-Based Composition
 ```python
-from arcadeactions import move_until, rotate_until, fade_until, infinite
+from arcadeactions import DelayFrames, FadeTo, MoveUntil, RotateUntil, infinite
 
 # Clean declarative syntax with operators
 # Unbound actions can be created by passing `None` as the target
-move = move_until(None, velocity=(100, 0), condition=infinite)
-rotate = rotate_until(None, velocity=1.5, condition=infinite)
+move = MoveUntil(velocity=(100, 0), condition=infinite)
+rotate = RotateUntil(angular_velocity=1.5, condition=infinite)
+delay = DelayFrames(frames=60, condition=infinite)
+fade = FadeTo(target_alpha=0, speed=3.0, condition=infinite)
 
 seq = move + rotate
 par = move | rotate
@@ -82,7 +84,7 @@ def on_update(self, delta_time):
 ## 🔍 In-Scope Items
 
 - High-level declarative action API over Arcade 3.x
-- Core conditional actions: MoveUntil, FollowPathUntil, RotateUntil, ScaleUntil, FadeUntil
+- Core conditional actions: MoveUntil, FollowPathUntil, RotateUntil, ScaleUntil, FadeTo
 - Path following with automatic sprite rotation for smooth curved movement
 - Easing wrapper for smooth acceleration/deceleration effects on any conditional action
 - Composite actions (sequential, parallel) with composition helpers

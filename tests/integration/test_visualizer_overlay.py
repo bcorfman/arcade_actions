@@ -318,7 +318,7 @@ class TestInspectorOverlay:
         )
         store.update_snapshot(
             action_id=2,
-            action_type="FadeUntil",
+            action_type="FadeTo",
             target_id=100,
             target_type="Sprite",
             tag="visual",

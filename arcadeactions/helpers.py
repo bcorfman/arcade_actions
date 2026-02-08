@@ -30,9 +30,10 @@ from arcadeactions import (
     BlinkUntil,
     CallbackUntil,
     CycleTexturesUntil,
-    DelayUntil,
+    DelayFrames,
     Ease,
     EmitParticlesUntil,
+    FadeTo,
     FadeUntil,
     FollowPathUntil,
     GlowUntil,
@@ -40,6 +41,7 @@ from arcadeactions import (
     RotateUntil,
     ScaleUntil,
     TweenUntil,
+    infinite,
 )
 from arcadeactions.axis_move import MoveXUntil, MoveYUntil
 
@@ -263,15 +265,16 @@ def blink_until(
     return action
 
 
-def delay_until(
+def delay_frames(
     target: arcade.Sprite | arcade.SpriteList,
+    frames: int | None = None,
     *,
-    condition: Callable[[], Any],
+    condition: Callable[[], Any] = infinite,
     on_stop: Callable = None,
     tag: str | None = None,
-) -> DelayUntil:
-    """Creates and applies a DelayUntil action."""
-    action = DelayUntil(condition=condition, on_stop=on_stop)
+) -> DelayFrames:
+    """Creates and applies a DelayFrames action."""
+    action = DelayFrames(frames=frames, condition=condition, on_stop=on_stop)
     action.apply(target, tag=tag)
     return action
 
@@ -324,6 +327,21 @@ def fade_until(
 ) -> FadeUntil:
     """Creates and applies a FadeUntil action."""
     action = FadeUntil(fade_velocity=velocity, condition=condition, on_stop=on_stop)
+    action.apply(target, tag=tag)
+    return action
+
+
+def fade_to(
+    target: arcade.Sprite | arcade.SpriteList,
+    *,
+    target_alpha: float,
+    speed: float,
+    condition: Callable[[], Any] = infinite,
+    on_stop: Callable = None,
+    tag: str | None = None,
+) -> FadeTo:
+    """Creates and applies a FadeTo action."""
+    action = FadeTo(target_alpha=target_alpha, speed=speed, condition=condition, on_stop=on_stop)
     action.apply(target, tag=tag)
     return action
 

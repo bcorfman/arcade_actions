@@ -481,14 +481,14 @@ class TestFrameTimingIntegration(ActionTestBase):
 
     def test_frame_timing_with_sequences(self, test_sprite):
         """Test frame timing works correctly in sequences."""
-        from arcadeactions import DelayUntil, MoveUntil, sequence
+        from arcadeactions import DelayFrames, MoveUntil, sequence
         from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 100
 
         # Sequence: delay 3 frames, then move for 5 frames
-        seq = sequence(DelayUntil(condition=after_frames(3)), MoveUntil(velocity=(10, 0), condition=after_frames(5)))
+        seq = sequence(DelayFrames(3), MoveUntil(velocity=(10, 0), condition=after_frames(5)))
         seq.apply(sprite, tag="test_sequence")
 
         # Run for 3 frames (delay)

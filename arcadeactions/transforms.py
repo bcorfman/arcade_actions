@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from arcadeactions.base import Action as _Action
-from arcadeactions.frame_conditions import _clone_condition
+from arcadeactions.frame_conditions import _clone_condition, infinite
 
 
 class ScaleUntil(_Action):
@@ -107,7 +107,8 @@ class FadeUntil(_Action):
 
     def update_effect(self, delta_time: float) -> None:
         """Apply fading based on velocity."""
-        alpha_delta = self.current_fade_velocity * delta_time
+        # Alpha velocity is frame-driven (like Arcade's change_x/change_angle).
+        alpha_delta = self.current_fade_velocity
 
         def apply_fade(sprite):
             new_alpha = sprite.alpha + alpha_delta
@@ -118,6 +119,67 @@ class FadeUntil(_Action):
     def clone(self) -> FadeUntil:
         """Create a copy of this action."""
         return FadeUntil(self.target_fade_velocity, _clone_condition(self.condition), self.on_stop)
+
+
+class FadeTo(_Action):
+    """Fade sprites to a target alpha.
+
+    FadeTo computes fade direction automatically based on the current alpha
+    and the requested target alpha. The action completes when all target
+    sprites reach the target alpha, or earlier if the provided condition
+    returns truthy.
+
+    Args:
+        target_alpha: Alpha value to reach (clamped to [0, 255])
+        speed: Alpha change rate magnitude (direction is derived automatically)
+        condition: Optional early-exit condition. Defaults to infinite (never).
+        on_stop: Optional callback called when stopped. When stopping due to reaching
+            target alpha, on_stop receives a dict with reason metadata.
+    """
+
+    _conflicts_with = ("alpha",)
+
+    def __init__(
+        self,
+        target_alpha: float,
+        speed: float,
+        condition: Callable[[], Any] = infinite,
+        on_stop: Callable[[Any], None] | Callable[[], None] | None = None,
+    ):
+        self._user_condition = condition
+        self.target_alpha = max(0.0, min(255.0, float(target_alpha)))
+        self.target_speed = abs(float(speed))
+        self.current_speed = self.target_speed
+
+        def combined_condition() -> Any:
+            user_result = self._user_condition()
+            if user_result:
+                return user_result
+            if self.all_sprites(lambda sprite: sprite.alpha == self.target_alpha):
+                return {"reason": "target_alpha", "target_alpha": self.target_alpha}
+            return False
+
+        super().__init__(combined_condition, on_stop)
+
+    def set_factor(self, factor: float) -> None:
+        self.current_speed = self.target_speed * abs(factor)
+
+    def update_effect(self, delta_time: float) -> None:
+        # Speed is frame-driven; FadeTo computes direction per sprite.
+        alpha_delta = self.current_speed
+
+        def apply_fade(sprite):
+            if sprite.alpha < self.target_alpha:
+                new_alpha = sprite.alpha + alpha_delta
+                sprite.alpha = min(self.target_alpha, max(0, min(255, new_alpha)))
+            elif sprite.alpha > self.target_alpha:
+                new_alpha = sprite.alpha - alpha_delta
+                sprite.alpha = max(self.target_alpha, max(0, min(255, new_alpha)))
+
+        self.for_each_sprite(apply_fade)
+
+    def clone(self) -> FadeTo:
+        return FadeTo(self.target_alpha, self.target_speed, _clone_condition(self._user_condition), self.on_stop)
 
 
 class TweenUntil(_Action):

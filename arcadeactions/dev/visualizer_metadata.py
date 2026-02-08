@@ -24,9 +24,9 @@ def apply_metadata_actions(
         blink_until,
         callback_until,
         cycle_textures_until,
-        delay_until,
+        delay_frames,
         emit_particles_until,
-        fade_until,
+        fade_to,
         follow_path_until,
         glow_until,
         move_until,
@@ -40,13 +40,13 @@ def apply_metadata_actions(
         "MoveUntil": _apply_move_until,
         "FollowPathUntil": _apply_follow_path_until,
         "CycleTexturesUntil": _apply_cycle_textures_until,
-        "FadeUntil": _apply_fade_until,
+        "FadeTo": _apply_fade_to,
         "BlinkUntil": _apply_blink_until,
         "RotateUntil": _apply_rotate_until,
         "TweenUntil": _apply_tween_until,
         "ScaleUntil": _apply_scale_until,
         "CallbackUntil": _apply_callback_until,
-        "DelayUntil": _apply_delay_until,
+        "DelayFrames": _apply_delay_frames,
         "EmitParticlesUntil": _apply_emit_particles_until,
         "GlowUntil": _apply_glow_until,
     }
@@ -73,13 +73,13 @@ def apply_metadata_actions(
             move_until,
             follow_path_until,
             cycle_textures_until,
-            fade_until,
+            fade_to,
             blink_until,
             rotate_until,
             tween_until,
             scale_until,
             callback_until,
-            delay_until,
+            delay_frames,
             emit_particles_until,
             glow_until,
         )
@@ -254,7 +254,7 @@ def _apply_cycle_textures_until(
         )
 
 
-def _apply_fade_until(
+def _apply_fade_to(
     sprite: arcade.Sprite,
     config: dict[str, Any],
     condition_callable: Callable[[], bool] | None,
@@ -262,16 +262,18 @@ def _apply_fade_until(
     _move_until,
     _follow_path_until,
     _cycle_textures_until,
-    fade_until,
+    fade_to,
     *_args,
 ) -> None:
-    fade_velocity = config.get("fade_velocity")
+    target_alpha = config.get("target_alpha")
+    speed = config.get("speed")
     tag = config.get("tag", None)
     on_stop = resolve_callback(config.get("on_stop", None), resolver)
-    if fade_velocity is not None:
-        fade_until(
+    if target_alpha is not None and speed is not None:
+        fade_to(
             sprite,
-            velocity=fade_velocity,
+            target_alpha=target_alpha,
+            speed=speed,
             condition=condition_callable,
             on_stop=on_stop,
             tag=tag,
@@ -423,7 +425,7 @@ def _apply_callback_until(
         )
 
 
-def _apply_delay_until(
+def _apply_delay_frames(
     sprite: arcade.Sprite,
     config: dict[str, Any],
     condition_callable: Callable[[], bool] | None,
@@ -437,13 +439,15 @@ def _apply_delay_until(
     _tween_until,
     _scale_until,
     _callback_until,
-    delay_until,
+    delay_frames,
     *_args,
 ) -> None:
+    frames = config.get("frames", None)
     tag = config.get("tag", None)
     on_stop = resolve_callback(config.get("on_stop", None), resolver)
-    delay_until(
+    delay_frames(
         sprite,
+        frames=frames,
         condition=condition_callable,
         on_stop=on_stop,
         tag=tag,
