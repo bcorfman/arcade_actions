@@ -36,6 +36,8 @@ from arcadeactions import (
     arrange_grid,
     center_window,
     infinite,
+    repeat,
+    sequence,
 )
 from arcadeactions.dev import (
     DevContext,
@@ -129,9 +131,21 @@ class DevVizSpeedLabView(arcade.View):
         def preset_pulse_pickup(ctx: DevContext, speed: float = 0.01) -> ScaleUntil:
             return ScaleUntil(velocity=speed, condition=infinite)
 
-        @register_preset("fade_gate", category="Effects", params={"speed": -2})
-        def preset_fade_gate(ctx: DevContext, speed: float = -2) -> FadeUntil:
-            return FadeUntil(fade_velocity=speed, condition=infinite)
+        @register_preset("fade_gate", category="Effects", params={"speed": -2.0})
+        def preset_fade_gate(ctx: DevContext, speed: float = -2.0) -> Action:
+            speed_abs = abs(speed)
+            if speed_abs == 0:
+                speed_abs = 2.0
+
+            fade_out = FadeUntil(
+                fade_velocity=-speed_abs,
+                condition=lambda: fade_out.all_sprites(lambda sprite: sprite.alpha <= 0),
+            )
+            fade_in = FadeUntil(
+                fade_velocity=speed_abs,
+                condition=lambda: fade_in.all_sprites(lambda sprite: sprite.alpha >= 255),
+            )
+            return repeat(sequence(fade_out, fade_in))
 
         @register_preset("glow_gate", category="Effects")
         def preset_glow_gate(ctx: DevContext) -> GlowUntil:
@@ -208,7 +222,7 @@ class DevVizSpeedLabView(arcade.View):
         gate.center_y = WINDOW_HEIGHT * 0.6
         gate._action_configs = [
             {"preset": "gate_slide", "params": {"speed": 2.0}},
-            {"preset": "fade_gate", "params": {"speed": -2}},
+            {"preset": "fade_gate", "params": {"speed": -2.0}},
             {"preset": "glow_gate", "params": {}},
         ]
 

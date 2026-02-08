@@ -130,11 +130,14 @@ def export_template(
 
     scene_data = []
 
+    def _export_position(value: float) -> int:
+        return int(round(value))
+
     for sprite in sprites:
         sprite_def: dict[str, Any] = {
             "prototype": getattr(sprite, "_prototype_id", "unknown"),
-            "x": sprite.center_x,
-            "y": sprite.center_y,
+            "x": _export_position(sprite.center_x),
+            "y": _export_position(sprite.center_y),
             "group": getattr(sprite, "_group", ""),
             "actions": [],
         }
@@ -160,6 +163,8 @@ def export_template(
                             _symbolize_value(value[3], axis="y"),  # top -> y-axis
                         ]
                         action_def["params"]["bounds"] = symbolized_bounds
+                    elif key == "speed" and isinstance(value, int):
+                        action_def["params"][key] = float(value)
                     else:
                         action_def["params"][key] = value
 

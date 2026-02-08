@@ -811,7 +811,7 @@ for sprite in ctx.scene_sprites:
     if hasattr(sprite, "_action_configs"):
         for config in sprite._action_configs:
             if config["preset"] == "scroll_left_cleanup":
-                config["params"]["speed"] = 6  # Change speed
+                config["params"]["speed"] = 6.0  # Change speed
 
 # Re-export
 export_template(ctx.scene_sprites, "wave1.yaml", prompt_user=False)
@@ -826,7 +826,7 @@ export_template(ctx.scene_sprites, "wave1.yaml", prompt_user=False)
   actions:
     - preset: "scroll_left_cleanup"
       params:
-        speed: 4
+        speed: 4.0
 - prototype: "power_up"
   x: 500
   y: 300
@@ -1162,4 +1162,3 @@ See [Pattern 12-16 in API Usage Guide](../../docs/api_usage_guide.md#development
 - [Plan: 10× Developer Speed Boost](../../.cursor/plans/) - Full roadmap for development tools
 - [Example: file_watcher_demo.py](../../examples/file_watcher_demo.py) - Live demonstration
 - [Tests: test_file_watcher.py](../../tests/test_file_watcher.py) - Usage examples in tests
-
