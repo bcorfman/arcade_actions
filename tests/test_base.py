@@ -302,6 +302,112 @@ class TestAction:
         assert sprite1 in visited_sprites
         assert sprite2 in visited_sprites
 
+    def test_action_any_sprite_short_circuits(self):
+        """any_sprite should stop iterating once predicate is True."""
+        sprite_list = arcade.SpriteList()
+        sprite1 = create_test_sprite()
+        sprite2 = create_test_sprite()
+        sprite1.alpha = 10
+        sprite2.alpha = 20
+        sprite_list.append(sprite1)
+        sprite_list.append(sprite2)
+
+        action = MockAction(condition=lambda: False)
+        action.target = sprite_list
+
+        calls = 0
+
+        def predicate(sprite: arcade.Sprite) -> bool:
+            nonlocal calls
+            calls += 1
+            return sprite.alpha == 10
+
+        assert action.any_sprite(predicate) is True
+        assert calls == 1
+
+    def test_action_any_sprite_false_checks_all(self):
+        """any_sprite should return False when predicate never matches."""
+        sprite_list = arcade.SpriteList()
+        sprite1 = create_test_sprite()
+        sprite2 = create_test_sprite()
+        sprite1.alpha = 10
+        sprite2.alpha = 20
+        sprite_list.append(sprite1)
+        sprite_list.append(sprite2)
+
+        action = MockAction(condition=lambda: False)
+        action.target = sprite_list
+
+        calls = 0
+
+        def predicate(sprite: arcade.Sprite) -> bool:
+            nonlocal calls
+            calls += 1
+            return sprite.alpha == 99
+
+        assert action.any_sprite(predicate) is False
+        assert calls == 2
+
+    def test_action_all_sprites_true_requires_all(self):
+        """all_sprites should return True only when all sprites match predicate."""
+        sprite_list = arcade.SpriteList()
+        sprite1 = create_test_sprite()
+        sprite2 = create_test_sprite()
+        sprite1.alpha = 10
+        sprite2.alpha = 20
+        sprite_list.append(sprite1)
+        sprite_list.append(sprite2)
+
+        action = MockAction(condition=lambda: False)
+        action.target = sprite_list
+
+        calls = 0
+
+        def predicate(sprite: arcade.Sprite) -> bool:
+            nonlocal calls
+            calls += 1
+            return sprite.alpha > 0
+
+        assert action.all_sprites(predicate) is True
+        assert calls == 2
+
+    def test_action_all_sprites_short_circuits(self):
+        """all_sprites should stop iterating once predicate is False."""
+        sprite_list = arcade.SpriteList()
+        sprite1 = create_test_sprite()
+        sprite2 = create_test_sprite()
+        sprite1.alpha = 0
+        sprite2.alpha = 20
+        sprite_list.append(sprite1)
+        sprite_list.append(sprite2)
+
+        action = MockAction(condition=lambda: False)
+        action.target = sprite_list
+
+        calls = 0
+
+        def predicate(sprite: arcade.Sprite) -> bool:
+            nonlocal calls
+            calls += 1
+            return sprite.alpha > 0
+
+        assert action.all_sprites(predicate) is False
+        assert calls == 1
+
+    def test_action_any_all_sprites_no_target(self):
+        """any_sprite/all_sprites should return False with no target."""
+        action = MockAction(condition=lambda: False)
+        assert action.any_sprite(lambda sprite: True) is False
+        assert action.all_sprites(lambda sprite: True) is False
+
+    def test_action_any_all_sprites_empty_target(self):
+        """any_sprite/all_sprites should return False for an empty target."""
+        sprite_list = arcade.SpriteList()
+        action = MockAction(condition=lambda: False)
+        action.target = sprite_list
+        assert action.any_sprite(lambda sprite: True) is False
+        assert action.all_sprites(lambda sprite: True) is False
+
     def test_action_condition_properties(self):
         """Test action condition properties."""
         action = MockAction(condition=lambda: False)

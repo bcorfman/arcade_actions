@@ -1,6 +1,6 @@
 - prototype: gate
-  x: 640.0
-  y: 432.0
+  x: 640
+  y: 432
   group: ''
   actions:
   - preset: gate_slide
@@ -8,12 +8,12 @@
       speed: 2.0
   - preset: fade_gate
     params:
-      speed: -2
+      speed: -2.0
   - preset: glow_gate
     params: {}
 - prototype: blade
-  x: 256.0
-  y: 396.00000000000006
+  x: 256
+  y: 396
   group: ''
   actions:
   - preset: spin_blade
@@ -23,8 +23,8 @@
     params:
       interval: 0.06
 - prototype: pickup
-  x: 960.0
-  y: 251.99999999999997
+  x: 960
+  y: 252
   group: ''
   actions:
   - preset: pulse_pickup

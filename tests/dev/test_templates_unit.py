@@ -6,6 +6,7 @@ import tempfile
 
 import arcade
 import pytest
+import yaml
 
 from arcadeactions.dev.prototype_registry import DevContext, register_prototype
 from arcadeactions.dev.templates import (
@@ -53,6 +54,42 @@ class TestTemplateHelpers:
 
 class TestTemplateEdgeCases:
     """Test suite for export/load edge cases."""
+
+    def test_export_positions_are_integers(self, tmp_path):
+        """export_template should export x/y as integers."""
+        sprites = arcade.SpriteList()
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.BLUE)
+        sprite._prototype_id = "pos_sprite"
+        sprite.center_x = 10.2
+        sprite.center_y = 19.8
+        sprites.append(sprite)
+
+        out_path = tmp_path / "scene.yaml"
+        export_template(sprites, out_path, prompt_user=False)
+
+        yaml_data = yaml.safe_load(out_path.read_text())
+        assert yaml_data[0]["x"] == 10
+        assert isinstance(yaml_data[0]["x"], int)
+        assert yaml_data[0]["y"] == 20
+        assert isinstance(yaml_data[0]["y"], int)
+
+    def test_export_speed_is_float(self, tmp_path):
+        """export_template should export speed params as float."""
+        sprites = arcade.SpriteList()
+        sprite = arcade.SpriteSolidColor(width=32, height=32, color=arcade.color.BLUE)
+        sprite._prototype_id = "speed_sprite"
+        sprite._action_configs = [
+            {"preset": "move_preset", "params": {"speed": 2}},
+        ]
+        sprites.append(sprite)
+
+        out_path = tmp_path / "scene.yaml"
+        export_template(sprites, out_path, prompt_user=False)
+
+        yaml_data = yaml.safe_load(out_path.read_text())
+        speed = yaml_data[0]["actions"][0]["params"]["speed"]
+        assert speed == 2.0
+        assert isinstance(speed, float)
 
     def test_export_symbolizes_bounds(self, tmp_path):
         """export_template should symbolize bounds using axis preferences."""

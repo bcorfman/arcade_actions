@@ -201,6 +201,28 @@ class Action(ActionManagerMixin, ActionInstrumentationMixin, ActionCallbacksMixi
         for sprite in self._target_adapter.iter_sprites():
             func(sprite)
 
+    def any_sprite(self, predicate: Callable[[Any], bool]) -> bool:
+        if self.target is None:
+            return False
+        if self._target_adapter is None:
+            self._target_adapter = adapt_target(self.target)
+        for sprite in self._target_adapter.iter_sprites():
+            if predicate(sprite):
+                return True
+        return False
+
+    def all_sprites(self, predicate: Callable[[Any], bool]) -> bool:
+        if self.target is None:
+            return False
+        if self._target_adapter is None:
+            self._target_adapter = adapt_target(self.target)
+        seen_any = False
+        for sprite in self._target_adapter.iter_sprites():
+            seen_any = True
+            if not predicate(sprite):
+                return False
+        return seen_any
+
     def set_factor(self, factor: float) -> None:
         self._factor = factor
 
