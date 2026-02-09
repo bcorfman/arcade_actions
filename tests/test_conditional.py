@@ -20,6 +20,8 @@ from arcadeactions import (
 from arcadeactions.conditional import (
     BlinkUntil,
     CallbackUntil,
+    DelayFrames,
+    FadeUntil,
     FollowPathUntil,
     MoveUntil,
     TweenUntil,
@@ -754,6 +756,60 @@ class TestFadeTo(ActionTestBase):
         assert sprite.alpha == 0
         assert action.done
 
+    def test_fade_to_fades_in_and_respects_abs_factor(self, test_sprite):
+        """FadeTo should fade upward when target alpha is higher."""
+        sprite = test_sprite
+        sprite.alpha = 0
+
+        action = fade_to(sprite, target_alpha=255, speed=1000.0, tag="fade_in")
+        action.set_factor(-2.0)  # factor should be treated as magnitude
+
+        Action.update_all(0.016)
+
+        assert sprite.alpha == 255
+        assert action.done
+
+    def test_fade_to_can_stop_early_via_condition(self, test_sprite):
+        """FadeTo should stop early when its condition returns truthy."""
+        sprite = test_sprite
+        sprite.alpha = 200
+
+        condition_met = False
+
+        def condition():
+            nonlocal condition_met
+            if condition_met:
+                return {"reason": "early_exit"}
+            return False
+
+        action = fade_to(sprite, target_alpha=0, speed=1.0, condition=condition, tag="early_exit")
+
+        Action.update_all(0.016)
+        assert action.done is False
+
+        condition_met = True
+        Action.update_all(0.016)
+        assert action.done is True
+        assert action.condition_data == {"reason": "early_exit"}
+
+
+class TestFadeUntilLegacy(ActionTestBase):
+    """Coverage test for legacy FadeUntil delta_time semantics."""
+
+    def test_fade_until_is_frame_driven(self, test_sprite):
+        """FadeUntil should treat fade_velocity as per-frame, not per-second."""
+        sprite = test_sprite
+        sprite.alpha = 100
+
+        # If this were multiplied by delta_time, alpha would change by 0.5 here.
+        action = FadeUntil(fade_velocity=-1, condition=after_frames(1))
+        action.apply(sprite, tag="fade_until_frame_driven")
+
+        Action.update_all(0.5)
+
+        assert sprite.alpha == 99
+        assert action.done
+
 
 class TestBlinkUntil(ActionTestBase):
     """Slimmed-down blink tests covering the new frame-based API."""
@@ -842,6 +898,10 @@ class TestDelayFrames(ActionTestBase):
         condition_met = True
         Action.update_all(0.016)
         assert action.done
+
+    def test_delay_frames_negative_raises(self):
+        with pytest.raises(ValueError, match="frames must be non-negative"):
+            DelayFrames(frames=-1)
 
 
 class TestAfterFrames:

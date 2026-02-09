@@ -810,8 +810,12 @@ def create_formation_entry_from_sprites(
             target_formation, spawn_positions, max_iterations=1000, time_limit=0.1
         )
 
-    # Convert single assignment to wave format for compatibility
-    enemy_waves_with_assignments = [optimal_assignments] if optimal_assignments else []
+    # Convert the assignment(s) into wave format.
+    # Some algorithms may return a single mapping, others may return a list of mappings (waves).
+    if isinstance(optimal_assignments, list):
+        enemy_waves_with_assignments = optimal_assignments
+    else:
+        enemy_waves_with_assignments = [optimal_assignments] if optimal_assignments else []
 
     entry_actions = []
 
