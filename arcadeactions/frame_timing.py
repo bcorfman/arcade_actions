@@ -36,7 +36,7 @@ def after_frames(frame_count: int) -> Callable[[], bool]:
         move_until(sprite, velocity=(5, 0), condition=after_frames(60))
 
         # Delay for 30 frames
-        DelayUntil(condition=after_frames(30))
+        DelayFrames(30)
 
         # Blink for 120 frames
         blink_until(sprite, frames_until_change=15, condition=after_frames(120))

@@ -125,9 +125,9 @@ class DeterministicBreakawayStrategy(BreakawayStrategy):
             return parallel(*actions)
         else:
             # No valid sprites - return a no-op delay
-            from arcadeactions.conditional import DelayUntil
+            from arcadeactions.conditional import DelayFrames
 
-            return DelayUntil(after_frames(1))
+            return DelayFrames(1)
 
 
 class BreakawayManager:

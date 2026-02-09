@@ -268,10 +268,10 @@ class TestDebugDataStore:
         )
 
         # Create action for different target
-        store.record_event("created", 3, "FadeUntil", 200, "Sprite")
+        store.record_event("created", 3, "FadeTo", 200, "Sprite")
         store.update_snapshot(
             3,
-            action_type="FadeUntil",
+            action_type="FadeTo",
             target_id=200,
             target_type="Sprite",
             tag=None,
@@ -292,7 +292,7 @@ class TestDebugDataStore:
 
         store.record_event("created", 1, "MoveUntil", 100, "Sprite", tag="movement")
         store.record_event("created", 2, "RotateUntil", 100, "Sprite", tag="movement")
-        store.record_event("created", 3, "FadeUntil", 100, "Sprite", tag="visual")
+        store.record_event("created", 3, "FadeTo", 100, "Sprite", tag="visual")
 
         store.update_snapshot(
             1,
@@ -320,7 +320,7 @@ class TestDebugDataStore:
         )
         store.update_snapshot(
             3,
-            action_type="FadeUntil",
+            action_type="FadeTo",
             target_id=100,
             target_type="Sprite",
             tag="visual",

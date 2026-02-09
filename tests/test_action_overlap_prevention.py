@@ -10,7 +10,7 @@ import warnings
 import arcade
 
 from arcadeactions import Action
-from arcadeactions.conditional import CycleTexturesUntil, FadeUntil, MoveUntil, RotateUntil, infinite
+from arcadeactions.conditional import CycleTexturesUntil, FadeTo, MoveUntil, RotateUntil, infinite
 
 
 def create_test_sprite() -> arcade.Sprite:
@@ -323,9 +323,9 @@ class TestConflictDeclaration:
         conflicts = RotateUntil._conflicts_with
         assert "angle" in conflicts or "rotation" in conflicts
 
-    def test_fade_until_declares_conflicts(self):
-        """Test that FadeUntil declares alpha conflicts."""
-        conflicts = FadeUntil._conflicts_with
+    def test_fade_to_declares_conflicts(self):
+        """Test that FadeTo declares alpha conflicts."""
+        conflicts = FadeTo._conflicts_with
         assert "alpha" in conflicts
 
     def test_cycle_textures_until_declares_conflicts(self):

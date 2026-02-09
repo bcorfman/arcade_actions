@@ -1,7 +1,7 @@
 """Test suite for frame-based action implementations.
 
 This module tests actions that have been converted to use frame-based timing
-instead of wall-clock timing (BlinkUntil, CallbackUntil, TweenUntil, DelayUntil, etc.).
+instead of wall-clock timing (BlinkUntil, CallbackUntil, TweenUntil, DelayFrames, etc.).
 """
 
 import arcade
@@ -195,23 +195,22 @@ class TestCallbackUntilFrames(ActionTestBase):
         assert all(t is sprite for t in received_targets)
 
 
-class TestDelayUntilFrames(ActionTestBase):
-    """Test suite for frame-based DelayUntil action."""
+class TestDelayFrames(ActionTestBase):
+    """Test suite for DelayFrames action."""
 
-    def test_delay_until_frames(self, test_sprite):
-        """Test DelayUntil with frame-based condition."""
-        from arcadeactions import DelayUntil
-        from arcadeactions.frame_timing import after_frames
+    def test_delay_frames_stops_after_frames(self, test_sprite):
+        """DelayFrames should complete after the configured frame count."""
+        from arcadeactions import DelayFrames
 
         sprite = test_sprite
 
         callback_called = False
 
-        def on_complete():
+        def on_complete(_info=None):
             nonlocal callback_called
             callback_called = True
 
-        action = DelayUntil(condition=after_frames(5), on_stop=on_complete)
+        action = DelayFrames(frames=5, on_stop=on_complete)
         action.apply(sprite, tag="test_delay_frames")
 
         # Run for 4 frames - should not complete
@@ -227,16 +226,16 @@ class TestDelayUntilFrames(ActionTestBase):
         assert action.done
         assert callback_called
 
-    def test_delay_until_in_sequence(self, test_sprite):
-        """Test DelayUntil with frames in a sequence."""
-        from arcadeactions import DelayUntil, MoveUntil, sequence
+    def test_delay_frames_in_sequence(self, test_sprite):
+        """DelayFrames should compose cleanly inside sequence()."""
+        from arcadeactions import DelayFrames, MoveUntil, sequence
         from arcadeactions.frame_timing import after_frames
 
         sprite = test_sprite
         sprite.center_x = 100
 
         # Delay 3 frames, then move for 5 frames
-        seq = sequence(DelayUntil(condition=after_frames(3)), MoveUntil(velocity=(10, 0), condition=after_frames(5)))
+        seq = sequence(DelayFrames(3), MoveUntil(velocity=(10, 0), condition=after_frames(5)))
         seq.apply(sprite, tag="test_delay_sequence")
 
         # After 3 frames, delay completes and move starts

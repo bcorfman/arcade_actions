@@ -8,8 +8,8 @@ import pytest
 from arcadeactions import (
     Action,
     blink_until,
-    delay_until,
-    fade_until,
+    delay_frames,
+    fade_to,
     follow_path_until,
     infinite,
     move_until,
@@ -20,6 +20,8 @@ from arcadeactions import (
 from arcadeactions.conditional import (
     BlinkUntil,
     CallbackUntil,
+    DelayFrames,
+    FadeUntil,
     FollowPathUntil,
     MoveUntil,
     TweenUntil,
@@ -738,30 +740,74 @@ class TestScaleUntil(ActionTestBase):
         assert action.done
 
 
-class TestFadeUntil(ActionTestBase):
-    """Test suite for FadeUntil action."""
+class TestFadeTo(ActionTestBase):
+    """Test suite for FadeTo action."""
 
-    def test_fade_until_basic(self, test_sprite):
-        """Test basic FadeUntil functionality."""
+    def test_fade_to_basic(self, test_sprite):
+        """FadeTo should move alpha toward a target and complete at the bound."""
         sprite = test_sprite
         start_alpha = sprite.alpha
 
-        target_reached = False
+        action = fade_to(sprite, target_alpha=0, speed=100000.0, tag="test_basic")
+
+        Action.update_all(0.016)
+
+        assert sprite.alpha != start_alpha
+        assert sprite.alpha == 0
+        assert action.done
+
+    def test_fade_to_fades_in_and_respects_abs_factor(self, test_sprite):
+        """FadeTo should fade upward when target alpha is higher."""
+        sprite = test_sprite
+        sprite.alpha = 0
+
+        action = fade_to(sprite, target_alpha=255, speed=1000.0, tag="fade_in")
+        action.set_factor(-2.0)  # factor should be treated as magnitude
+
+        Action.update_all(0.016)
+
+        assert sprite.alpha == 255
+        assert action.done
+
+    def test_fade_to_can_stop_early_via_condition(self, test_sprite):
+        """FadeTo should stop early when its condition returns truthy."""
+        sprite = test_sprite
+        sprite.alpha = 200
+
+        condition_met = False
 
         def condition():
-            return target_reached
+            nonlocal condition_met
+            if condition_met:
+                return {"reason": "early_exit"}
+            return False
 
-        action = fade_until(sprite, velocity=-100, condition=condition, tag="test_basic")
+        action = fade_to(sprite, target_alpha=0, speed=1.0, condition=condition, tag="early_exit")
 
         Action.update_all(0.016)
+        assert action.done is False
 
-        # Should be fading
-        assert sprite.alpha != start_alpha
-
-        # Trigger condition
-        target_reached = True
+        condition_met = True
         Action.update_all(0.016)
+        assert action.done is True
+        assert action.condition_data == {"reason": "early_exit"}
 
+
+class TestFadeUntilLegacy(ActionTestBase):
+    """Coverage test for legacy FadeUntil delta_time semantics."""
+
+    def test_fade_until_is_frame_driven(self, test_sprite):
+        """FadeUntil should treat fade_velocity as per-frame, not per-second."""
+        sprite = test_sprite
+        sprite.alpha = 100
+
+        # If this were multiplied by delta_time, alpha would change by 0.5 here.
+        action = FadeUntil(fade_velocity=-1, condition=after_frames(1))
+        action.apply(sprite, tag="fade_until_frame_driven")
+
+        Action.update_all(0.5)
+
+        assert sprite.alpha == 99
         assert action.done
 
 
@@ -830,11 +876,11 @@ class TestBlinkUntil(ActionTestBase):
             blink_until(create_test_sprite(), frames_until_change=0, condition=infinite)
 
 
-class TestDelayUntil(ActionTestBase):
-    """Test suite for DelayUntil action."""
+class TestDelayFrames(ActionTestBase):
+    """Test suite for DelayFrames action."""
 
-    def test_delay_until_basic(self, test_sprite):
-        """Test basic DelayUntil functionality."""
+    def test_delay_frames_condition_only(self, test_sprite):
+        """DelayFrames should support condition-only usage (no frame limit)."""
         sprite = test_sprite
 
         condition_met = False
@@ -843,7 +889,7 @@ class TestDelayUntil(ActionTestBase):
             nonlocal condition_met
             return condition_met
 
-        action = delay_until(sprite, condition=condition, tag="test_basic")
+        action = delay_frames(sprite, condition=condition, tag="test_basic")
 
         Action.update_all(0.016)
         assert not action.done
@@ -852,6 +898,10 @@ class TestDelayUntil(ActionTestBase):
         condition_met = True
         Action.update_all(0.016)
         assert action.done
+
+    def test_delay_frames_negative_raises(self):
+        with pytest.raises(ValueError, match="frames must be non-negative"):
+            DelayFrames(frames=-1)
 
 
 class TestAfterFrames:
@@ -2467,7 +2517,7 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
     def test_callback_until_in_parallel_stop_and_restart_with_tag(self, test_sprite):
         """Test CallbackUntil within parallel composition with stop and restart functionality."""
         from arcadeactions.composite import parallel
-        from arcadeactions.conditional import DelayUntil
+        from arcadeactions.conditional import DelayFrames
 
         sprite = test_sprite
         call_count_first = 0
@@ -2489,7 +2539,7 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
         )
 
         # Create a delay action to run alongside the callback
-        delay_action1 = DelayUntil(after_frames(60))  # 60 frames delay (longer than our test)
+        delay_action1 = DelayFrames(60)  # 60 frames delay (longer than our test)
 
         # Create parallel composition
         parallel_action1 = parallel(callback_action1, delay_action1)
@@ -2540,7 +2590,7 @@ class TestCallbackUntilStopAndRestart(ActionTestBase):
         )
 
         # Create another delay action
-        delay_action2 = DelayUntil(after_frames(60))  # Same delay duration (60 frames)
+        delay_action2 = DelayFrames(60)  # Same delay duration (60 frames)
 
         # Create parallel composition with same tag
         parallel_action2 = parallel(callback_action2, delay_action2)

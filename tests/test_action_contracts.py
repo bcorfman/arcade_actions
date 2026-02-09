@@ -16,8 +16,8 @@ from arcadeactions.conditional import (
     BlinkUntil,
     CallbackUntil,
     CycleTexturesUntil,
-    DelayUntil,
-    FadeUntil,
+    DelayFrames,
+    FadeTo,
     FollowPathUntil,
     MoveUntil,
     ParametricMotionUntil,
@@ -111,12 +111,13 @@ CLONE_CASES: list[pytest.Param] = [
         id="scale_until",
     ),
     pytest.param(
-        lambda: FadeUntil(-25.0, _make_condition_false(), on_stop=_noop),
+        lambda: FadeTo(target_alpha=0, speed=25.0, condition=_make_condition_false(), on_stop=_noop),
         lambda action, cloned: (
-            _assert_equal(cloned.target_fade_velocity, action.target_fade_velocity),
+            _assert_equal(cloned.target_alpha, action.target_alpha),
+            _assert_equal(cloned.target_speed, action.target_speed),
             _assert_equal(cloned.on_stop, action.on_stop),
         ),
-        id="fade_until",
+        id="fade_to",
     ),
     pytest.param(
         lambda: BlinkUntil(
@@ -134,9 +135,12 @@ CLONE_CASES: list[pytest.Param] = [
         id="blink_until",
     ),
     pytest.param(
-        lambda: DelayUntil(after_frames(15)),  # 0.25 seconds at 60 FPS
-        lambda action, cloned: (_assert_equal(cloned.on_stop, action.on_stop),),
-        id="delay_until",
+        lambda: DelayFrames(15),  # 0.25 seconds at 60 FPS
+        lambda action, cloned: (
+            _assert_equal(cloned.frames, action.frames),
+            _assert_equal(cloned.on_stop, action.on_stop),
+        ),
+        id="delay_frames",
     ),
     pytest.param(
         lambda: TweenUntil(
@@ -264,10 +268,10 @@ SET_FACTOR_CASES = [
         id="scale_until",
     ),
     pytest.param(
-        lambda sprite: FadeUntil(-40.0, lambda: False),
-        lambda action: action.current_fade_velocity,
-        {0.0: 0.0, 0.5: -20.0, -1.0: 40.0},
-        id="fade_until",
+        lambda sprite: FadeTo(target_alpha=0, speed=40.0, condition=lambda: False),
+        lambda action: action.current_speed,
+        {0.0: 0.0, 0.5: 20.0, -1.0: 40.0},
+        id="fade_to",
     ),
     pytest.param(
         lambda sprite: FollowPathUntil(

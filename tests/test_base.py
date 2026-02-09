@@ -394,6 +394,38 @@ class TestAction:
         assert action.all_sprites(predicate) is False
         assert calls == 1
 
+    def test_action_any_all_sprites_with_single_sprite_target(self):
+        """any_sprite/all_sprites should work with a single sprite target."""
+        sprite = create_test_sprite()
+        sprite.alpha = 123
+
+        action = MockAction(condition=lambda: False)
+        action.apply(sprite)
+
+        assert action.any_sprite(lambda s: s.alpha == 123) is True
+        assert action.all_sprites(lambda s: s.alpha == 123) is True
+
+    def test_action_any_all_sprites_reuse_cached_adapter(self):
+        """any_sprite/all_sprites should work when the target adapter is already cached."""
+        sprite_list = arcade.SpriteList()
+        sprite1 = create_test_sprite()
+        sprite2 = create_test_sprite()
+        sprite1.alpha = 10
+        sprite2.alpha = 20
+        sprite_list.append(sprite1)
+        sprite_list.append(sprite2)
+
+        action = MockAction(condition=lambda: False)
+        action.apply(sprite_list)
+
+        # First call initializes the adapter via adapt_target().
+        assert action.any_sprite(lambda s: s.alpha == 10) is True
+        assert action.all_sprites(lambda s: s.alpha > 0) is True
+
+        # Second call should use the cached adapter branch.
+        assert action.any_sprite(lambda s: s.alpha == 99) is False
+        assert action.all_sprites(lambda s: s.alpha > 15) is False
+
     def test_action_any_all_sprites_no_target(self):
         """any_sprite/all_sprites should return False with no target."""
         action = MockAction(condition=lambda: False)

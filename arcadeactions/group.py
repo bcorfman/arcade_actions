@@ -237,14 +237,13 @@ class AttackGroup:
             leader_sequence = sequence(leader_path_action, parallel(leader_return_x, leader_return_y))
             leader_sequence.apply(leader, tag=tag or "entry_leader")
 
-        # Follower sprites: DelayUntil + FollowPathUntil + TweenUntil
+        # Follower sprites: DelayFrames + FollowPathUntil + TweenUntil
         for i, follower in enumerate(self.sprites[1:], start=1):
             follower_home = self.get_home_slot(follower)
             if not follower_home:
                 continue
 
             delay_frames = i * spacing_frames
-            delay_action = after_frames(delay_frames)
 
             # Use infinite condition - FollowPathUntil will complete automatically
             follower_path_action = FollowPathUntil(
@@ -268,10 +267,10 @@ class AttackGroup:
             )
 
             # Create sequence: delay -> path -> return
-            from arcadeactions.conditional import DelayUntil
+            from arcadeactions.conditional import DelayFrames
 
             follower_sequence = sequence(
-                DelayUntil(delay_action),
+                DelayFrames(delay_frames),
                 follower_path_action,
                 parallel(follower_return_x, follower_return_y),
             )

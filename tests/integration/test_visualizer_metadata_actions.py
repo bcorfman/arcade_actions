@@ -105,19 +105,18 @@ class TestApplyMetadataActionsActionTypes:
         assert call_kwargs["textures"] == textures
         assert call_kwargs["frames_per_texture"] == 5
 
-    def test_apply_metadata_actions_fade_until(self, dev_visualizer, sprite_with_configs, mocker):
-        """Test FadeUntil action type."""
-        mock_fade = mocker.patch("arcadeactions.fade_until")
+    def test_apply_metadata_actions_fade_to(self, dev_visualizer, sprite_with_configs, mocker):
+        """Test FadeTo action type."""
+        mock_fade = mocker.patch("arcadeactions.fade_to")
 
-        sprite_with_configs._action_configs = [
-            {"action_type": "FadeUntil", "fade_velocity": -10, "condition": "infinite"}
-        ]
+        sprite_with_configs._action_configs = [{"action_type": "FadeTo", "target_alpha": 0, "speed": 10, "condition": "infinite"}]
 
         dev_visualizer.apply_metadata_actions(sprite_with_configs)
 
         mock_fade.assert_called_once()
         call_kwargs = mock_fade.call_args[1]
-        assert call_kwargs["velocity"] == -10
+        assert call_kwargs["target_alpha"] == 0
+        assert call_kwargs["speed"] == 10
 
     def test_apply_metadata_actions_blink_until(self, dev_visualizer, sprite_with_configs, mocker):
         """Test BlinkUntil action type."""
@@ -200,11 +199,11 @@ class TestApplyMetadataActionsActionTypes:
         call_kwargs = mock_callback.call_args[1]
         assert call_kwargs["callback"] == test_callback
 
-    def test_apply_metadata_actions_delay_until(self, dev_visualizer, sprite_with_configs, mocker):
-        """Test DelayUntil action type."""
-        mock_delay = mocker.patch("arcadeactions.delay_until")
+    def test_apply_metadata_actions_delay_frames(self, dev_visualizer, sprite_with_configs, mocker):
+        """Test DelayFrames action type."""
+        mock_delay = mocker.patch("arcadeactions.delay_frames")
 
-        sprite_with_configs._action_configs = [{"action_type": "DelayUntil", "condition": "infinite"}]
+        sprite_with_configs._action_configs = [{"action_type": "DelayFrames", "condition": "infinite"}]
 
         dev_visualizer.apply_metadata_actions(sprite_with_configs)
 

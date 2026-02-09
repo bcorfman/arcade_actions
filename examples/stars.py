@@ -21,7 +21,7 @@ from arcade import easing
 from arcadeactions import (
     Action,
     BlinkUntil,
-    DelayUntil,
+    DelayFrames,
     MoveUntil,
     TweenUntil,
     center_window,
@@ -181,7 +181,7 @@ class StarfieldView(arcade.View):
         )
 
     def _schedule_delay(self, frames: int, next_step: Callable[[], None]) -> None:
-        delay_action = DelayUntil(condition=after_frames(frames), on_stop=next_step)
+        delay_action = DelayFrames(frames=frames, on_stop=lambda _info=None: next_step())
         self._current_phase_action = delay_action.apply(self.star_list, tag=STAR_VELOCITY_TAG)
 
     def _apply_tween(

@@ -6,8 +6,8 @@ import pytest
 from arcadeactions import Action, MoveUntil, RotateUntil, move_until
 from arcadeactions.conditional import (
     BlinkUntil,
-    DelayUntil,
-    FadeUntil,
+    DelayFrames,
+    FadeTo,
     FollowPathUntil,
     ScaleUntil,
     TweenUntil,
@@ -142,23 +142,24 @@ class TestKeywordParameterSupport:
         assert action.target == sprite
         assert action.target_scale_velocity == (0.5, 0.5)
 
-    def test_fade_until_keyword_parameters(self, sprite):
-        """Test fade_until with keyword parameters."""
-        from arcadeactions import fade_until
+    def test_fade_to_keyword_parameters(self, sprite):
+        """Test fade_to with keyword parameters."""
+        from arcadeactions import fade_to
 
-        action = fade_until(sprite, velocity=-50, condition=after_frames(90))
+        action = fade_to(sprite, target_alpha=0, speed=50, condition=after_frames(90))
 
-        assert isinstance(action, FadeUntil)
+        assert isinstance(action, FadeTo)
         assert action.target == sprite
-        assert action.target_fade_velocity == -50
+        assert action.target_alpha == 0
+        assert action.target_speed == 50
 
-    def test_delay_until_keyword_parameters(self, sprite):
-        """Test delay_until with keyword parameters."""
-        from arcadeactions import delay_until
+    def test_delay_frames_keyword_parameters(self, sprite):
+        """Test delay_frames with keyword parameters."""
+        from arcadeactions import delay_frames
 
-        action = delay_until(sprite, condition=after_frames(60))
+        action = delay_frames(sprite, frames=60)
 
-        assert isinstance(action, DelayUntil)
+        assert isinstance(action, DelayFrames)
         assert action.target == sprite
 
     def test_keyword_parameter_error_handling(self, sprite):

@@ -306,3 +306,49 @@ def test_create_formation_entry_from_sprites_uses_helper_monkeypatched(monkeypat
         assert isinstance(sprite, arcade.Sprite)
         assert action is not None
         assert idx in {0, 1}
+
+
+def test_create_formation_entry_from_sprites_supports_multiple_waves_with_delay(monkeypatch):
+    import arcadeactions.pattern as pattern_module
+
+    target = arcade.SpriteList()
+    for x in (100, 200):
+        spr = arcade.Sprite(":resources:images/items/star.png")
+        spr.center_x = x
+        spr.center_y = 300
+        target.append(spr)
+
+    clones = arcade.SpriteList()
+    for _ in range(len(target)):
+        clone = arcade.Sprite(":resources:images/items/star.png")
+        clones.append(clone)
+
+    monkeypatch.setattr(
+        pattern_module,
+        "_validate_entry_kwargs",
+        lambda kwargs: {"window_bounds": (0, 0, 800, 600), "velocity": 5.0, "stagger_delay_frames": 10},
+    )
+    monkeypatch.setattr(pattern_module, "_clone_formation_sprites", lambda tf: clones)
+    monkeypatch.setattr(pattern_module, "_determine_min_spacing", lambda tf: 10.0)
+    monkeypatch.setattr(
+        pattern_module,
+        "_generate_arc_spawn_positions",
+        lambda tf, window_bounds, spacing: [(0, 600), (800, 600)],
+    )
+    monkeypatch.setattr(
+        pattern_module,
+        "_find_nearest",
+        lambda spawn_positions, target_positions: [(10.0, 0, 0), (20.0, 1, 1)],
+    )
+    # Return two waves so wave_idx=1 triggers DelayFrames(...) and sequence(delay, move).
+    monkeypatch.setattr(
+        pattern_module,
+        "_min_conflicts_sprite_assignment",
+        lambda *_, **__: [{0: 0}, {1: 1}],
+    )
+
+    entries = create_formation_entry_from_sprites(target, window_bounds=(0, 0, 800, 600))
+    assert len(entries) == 2
+
+    delayed = [action for _sprite, action, _idx in entries if hasattr(action, "actions")]
+    assert delayed, "Expected at least one sequence action for delayed waves"

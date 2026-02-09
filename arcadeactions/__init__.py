@@ -5,9 +5,9 @@ Actions available:
 - Movement: MoveUntil with built-in boundary checking
 - Rotation: RotateUntil
 - Scaling: ScaleUntil
-- Visual: FadeUntil, BlinkUntil
+- Visual: FadeTo, FadeUntil, BlinkUntil
 - Path: FollowPathUntil
-- Timing: DelayUntil, time_elapsed
+- Timing: DelayFrames, time_elapsed
 - Easing: Ease wrapper for smooth acceleration/deceleration effects
 - Interpolation: TweenUntil for direct property animation from start to end value
 - Composition: sequence() and parallel() functions for combining actions
@@ -36,8 +36,9 @@ from .conditional import (
     BlinkUntil,
     CallbackUntil,
     CycleTexturesUntil,
-    DelayUntil,
+    DelayFrames,
     EmitParticlesUntil,
+    FadeTo,
     FadeUntil,
     FollowPathUntil,
     GlowUntil,
@@ -82,9 +83,10 @@ from .helpers import (
     blink_until,
     callback_until,
     cycle_textures_until,
-    delay_until,
+    delay_frames,
     ease,
     emit_particles_until,
+    fade_to,
     fade_until,
     follow_path_until,
     glow_until,
@@ -153,10 +155,11 @@ __all__ = [
     "MoveYUntil",
     "RotateUntil",
     "ScaleUntil",
+    "FadeTo",
     "FadeUntil",
     "BlinkUntil",
     "CallbackUntil",
-    "DelayUntil",
+    "DelayFrames",
     "FollowPathUntil",
     "TweenUntil",
     "CycleTexturesUntil",
@@ -218,9 +221,10 @@ __all__ = [
     "blink_until",
     "callback_until",
     "emit_particles_until",
-    "delay_until",
+    "delay_frames",
     "tween_until",
     "scale_until",
+    "fade_to",
     "fade_until",
     "cycle_textures_until",
     "ease",
