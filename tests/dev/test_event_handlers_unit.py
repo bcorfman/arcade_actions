@@ -346,6 +346,69 @@ def test_wrap_window_handlers_on_close_hides_and_closes_palette():
 
     assert host.hide_called is True
     assert palette.close_called is True
+
+
+def test_wrap_window_handlers_on_close_closes_command_palette():
+    """on_close should close command palette window when present."""
+    host = StubHost()
+    host.visible = False
+
+    command_palette = types.SimpleNamespace(closed=False)
+    command_palette.close_called = False
+
+    def close_command_palette():
+        command_palette.close_called = True
+
+    command_palette.close = close_command_palette
+    host.command_palette_window = command_palette
+
+    window = types.SimpleNamespace()
+    window.on_draw = lambda: None
+    window.on_key_press = lambda *_args: None
+    window.on_mouse_press = lambda *_args: None
+    window.on_mouse_drag = lambda *_args: None
+    window.on_mouse_release = lambda *_args: None
+    window.on_close = lambda: None
+    window.switch_to = lambda: None
+
+    event_handlers.wrap_window_handlers(host, window, has_window_context=lambda _w: False)
+    window.on_close()
+
+    assert command_palette.close_called is True
+    assert host.command_palette_window is None
+
+
+def test_wrap_window_handlers_on_close_command_palette_fallback_set_visible():
+    """on_close should fallback to set_visible(False) when close fails."""
+    host = StubHost()
+    host.visible = False
+
+    command_palette = types.SimpleNamespace(closed=False)
+    command_palette.set_visible_called = False
+
+    def close_command_palette():
+        raise RuntimeError("boom")
+
+    def set_visible(_value: bool):
+        command_palette.set_visible_called = True
+
+    command_palette.close = close_command_palette
+    command_palette.set_visible = set_visible
+    host.command_palette_window = command_palette
+
+    window = types.SimpleNamespace()
+    window.on_draw = lambda: None
+    window.on_key_press = lambda *_args: None
+    window.on_mouse_press = lambda *_args: None
+    window.on_mouse_drag = lambda *_args: None
+    window.on_mouse_release = lambda *_args: None
+    window.on_close = lambda: None
+    window.switch_to = lambda: None
+
+    event_handlers.wrap_window_handlers(host, window, has_window_context=lambda _w: False)
+    window.on_close()
+
+    assert command_palette.set_visible_called is True
     assert host.palette_window is None
 
 

@@ -75,3 +75,33 @@ def test_enabled_commands_sorted_by_category_then_name(window):
     commands = registry.get_enabled_commands(context)
     assert [c.name for c in commands] == ["Export Scene", "Import Scene", "Show Help"]
 
+
+def test_enabled_check_exception_disables_command(window):
+    """enabled_check exceptions should safely disable commands."""
+    registry = CommandRegistry()
+    context = CommandExecutionContext(window=window, scene_sprites=arcade.SpriteList(), selection=[])
+
+    registry.register_command(
+        key=arcade.key.H,
+        name="Help",
+        category="Other",
+        handler=lambda _ctx: True,
+        enabled_check=lambda _ctx: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    assert registry.get_enabled_commands(context) == []
+
+
+def test_execute_key_returns_false_when_handler_raises(window):
+    """Handler exceptions should be swallowed and report not executed."""
+    registry = CommandRegistry()
+    context = CommandExecutionContext(window=window, scene_sprites=arcade.SpriteList(), selection=[])
+
+    registry.register_command(
+        key=arcade.key.E,
+        name="Export",
+        category="Export/Import",
+        handler=lambda _ctx: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    assert registry.execute_key(arcade.key.E, context) is False

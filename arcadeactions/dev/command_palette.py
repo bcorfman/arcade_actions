@@ -21,6 +21,17 @@ class CommandPaletteWindow(arcade.Window):
     MARGIN = 12
     LINE_HEIGHT = 22
 
+    @staticmethod
+    def _key_label(symbol: int) -> str:
+        """Return a stable display label for a key symbol."""
+        try:
+            symbol_string = getattr(arcade.key, "symbol_string", None)
+            if callable(symbol_string):
+                return str(symbol_string(symbol))
+        except Exception:
+            pass
+        return str(int(symbol))
+
     def __init__(
         self,
         *,
@@ -69,6 +80,24 @@ class CommandPaletteWindow(arcade.Window):
         self._view = None
         self._is_headless = True
 
+    def get_size(self) -> tuple[int, int]:
+        """Return window size, handling unstable/headless backends safely."""
+        if getattr(self, "_is_headless", False):
+            return self._safe_window_size()
+        try:
+            return super().get_size()
+        except Exception:
+            return self._safe_window_size()
+
+    def _safe_window_size(self) -> tuple[int, int]:
+        width = getattr(self, "_headless_width", None)
+        height = getattr(self, "_headless_height", None)
+        if width is None:
+            width = getattr(self, "_width", 400)
+        if height is None:
+            height = getattr(self, "_height", 240)
+        return int(width), int(height)
+
     @property
     def visible(self) -> bool:
         """Return tracked visibility state."""
@@ -111,16 +140,20 @@ class CommandPaletteWindow(arcade.Window):
             return
 
         self.clear()
+        try:
+            width, height = self.get_size()
+        except Exception:
+            width, height = self._safe_window_size()
         if self._title_text is not None:
-            self._title_text.y = self.height - self.MARGIN - 20
+            self._title_text.y = height - self.MARGIN - 20
             self._title_text.draw()
 
         entries = self._registry.get_commands_with_enabled_state(self._context)
-        start_y = self.height - self.MARGIN - 52
+        start_y = height - self.MARGIN - 52
         active_index = 0
         for command, enabled in entries:
             color = arcade.color.WHITE if enabled else arcade.color.GRAY
-            prefix = f"[{arcade.key.symbol_string(command.key)}] "
+            prefix = f"[{self._key_label(command.key)}] "
             text_value = f"{prefix}{command.name} ({command.category})"
             if enabled and active_index == self.selected_index:
                 text_value = f"> {text_value}"
@@ -194,4 +227,3 @@ class CommandPaletteWindow(arcade.Window):
                     self._main_window.on_key_release(symbol, modifiers)
             except Exception:
                 return
-
