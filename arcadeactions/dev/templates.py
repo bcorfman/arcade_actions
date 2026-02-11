@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
+from plyer import filechooser
 
 if TYPE_CHECKING:
     import arcade
@@ -115,7 +116,7 @@ def _resolve_bounds(bounds: Any) -> tuple[float, float, float, float] | None:
 
 def export_template(
     sprites: arcade.SpriteList,
-    path: str | Path,
+    path: str | Path | None = None,
     prompt_user: bool = True,
 ) -> None:
     """
@@ -123,9 +124,15 @@ def export_template(
 
     Args:
         sprites: SpriteList containing sprites to export
-        path: File path to write YAML to
+        path: File path to write YAML to. If omitted, prompts with a file picker.
         prompt_user: If True, prompt before overwriting (not implemented in MVP)
     """
+    if path is None:
+        selected_path = _pick_save_yaml_path()
+        if selected_path is None:
+            return
+        path = selected_path
+
     path = Path(path)
 
     scene_data = []
@@ -200,7 +207,7 @@ def export_template(
             yaml.dump(scene_data, f, default_flow_style=False, sort_keys=False)
 
 
-def load_scene_template(path: str | Path, ctx: DevContext) -> arcade.SpriteList:
+def load_scene_template(path: str | Path | None = None, ctx: DevContext = None) -> arcade.SpriteList:
     """
     Load sprite scene from YAML template.
 
@@ -208,13 +215,26 @@ def load_scene_template(path: str | Path, ctx: DevContext) -> arcade.SpriteList:
     as metadata (_action_configs), not applied (edit mode).
 
     Args:
-        path: File path to read YAML from
+        path: File path to read YAML from. If omitted, prompts with a file picker.
         ctx: DevContext with scene_sprites and registry access
 
     Returns:
         SpriteList with loaded sprites
     """
     from arcadeactions.dev.prototype_registry import get_registry
+
+    if ctx is None:
+        raise ValueError("ctx is required")
+
+    if path is None:
+        selected_path = _pick_open_yaml_path()
+        if selected_path is None:
+            if ctx.scene_sprites is None:
+                import arcade
+
+                ctx.scene_sprites = arcade.SpriteList()
+            return ctx.scene_sprites
+        path = selected_path
 
     path = Path(path)
     registry = get_registry()
@@ -288,6 +308,20 @@ def load_scene_template(path: str | Path, ctx: DevContext) -> arcade.SpriteList:
         _reconstruct_attack_groups(ctx, attack_groups_data)
 
     return ctx.scene_sprites
+
+
+def _pick_save_yaml_path() -> Path | None:
+    selected = filechooser.save_file(filters=[("YAML Files", "*.yaml"), ("All Files", "*.*")])
+    if not selected:
+        return None
+    return Path(selected[0])
+
+
+def _pick_open_yaml_path() -> Path | None:
+    selected = filechooser.open_file(filters=[("YAML Files", "*.yaml"), ("All Files", "*.*")])
+    if not selected:
+        return None
+    return Path(selected[0])
 
 
 def _reconstruct_attack_groups(ctx: DevContext, attack_groups_data: list[dict[str, Any]]) -> None:

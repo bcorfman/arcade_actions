@@ -41,7 +41,7 @@ def _create_palette(*, registry: CommandRegistry, context: CommandExecutionConte
     """Create a CommandPaletteWindow instance without constructing a real window."""
     palette = CommandPaletteWindow.__new__(CommandPaletteWindow)
     palette._registry = registry
-    palette._context = context
+    palette._command_context = context
     palette._main_window = main_window
     palette._on_close_callback = None
     palette._is_headless = True

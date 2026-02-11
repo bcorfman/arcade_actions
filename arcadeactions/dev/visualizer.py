@@ -577,6 +577,8 @@ class DevVisualizer:
         for filename in ["scene.yaml", "examples/boss_level.yaml", "scenes/new_scene.yaml"]:
             if os.path.exists(filename):
                 load_scene_template(filename, self.ctx)
+                for sprite in self.scene_sprites:
+                    self.apply_metadata_actions(sprite)
                 print(f"✓ Imported scene from {filename} ({len(self.scene_sprites)} sprites)")
                 return True
         print("⚠ No scene file found. Try: scene.yaml, examples/boss_level.yaml, or scenes/new_scene.yaml")

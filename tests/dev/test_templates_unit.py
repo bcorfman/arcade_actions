@@ -169,3 +169,70 @@ attack_groups:
         assert sprite._action_configs[0]["preset"] == "move_preset"
         assert sprite._action_configs[0]["params"]["bounds"] == (0, 0, 800, 600)
         assert hasattr(sprite, "_attack_group")
+
+    def test_export_template_prompts_with_save_file_when_path_omitted(self, tmp_path, mocker):
+        """export_template should use file picker when path is omitted."""
+        sprites = arcade.SpriteList()
+        sprite = arcade.SpriteSolidColor(width=16, height=16, color=arcade.color.BLUE)
+        sprite._prototype_id = "picker_export_sprite"
+        sprites.append(sprite)
+
+        out_path = tmp_path / "picked_export.yaml"
+        mock_save = mocker.patch("arcadeactions.dev.templates.filechooser.save_file", return_value=[str(out_path)])
+
+        export_template(sprites, path=None, prompt_user=False)
+
+        mock_save.assert_called_once()
+        assert out_path.exists()
+        yaml_data = yaml.safe_load(out_path.read_text())
+        assert yaml_data[0]["prototype"] == "picker_export_sprite"
+
+    def test_export_template_returns_when_save_file_cancelled(self, mocker):
+        """export_template should no-op when save picker is cancelled."""
+        sprites = arcade.SpriteList()
+        mock_save = mocker.patch("arcadeactions.dev.templates.filechooser.save_file", return_value=[])
+
+        export_template(sprites, path=None, prompt_user=False)
+
+        mock_save.assert_called_once()
+
+    def test_load_scene_template_prompts_with_open_file_when_path_omitted(self, tmp_path, mocker):
+        """load_scene_template should use file picker when path is omitted."""
+
+        @register_prototype("unit_template_picker_sprite")
+        def make_picker_sprite(ctx):
+            sprite = arcade.SpriteSolidColor(width=12, height=12, color=arcade.color.YELLOW)
+            sprite._prototype_id = "unit_template_picker_sprite"
+            return sprite
+
+        yaml_content = """- prototype: "unit_template_picker_sprite"
+  x: 42
+  y: 84
+  group: ""
+  actions: []
+"""
+        yaml_path = tmp_path / "picked_scene.yaml"
+        yaml_path.write_text(yaml_content)
+        mock_open = mocker.patch("arcadeactions.dev.templates.filechooser.open_file", return_value=[str(yaml_path)])
+        ctx = DevContext(scene_sprites=arcade.SpriteList())
+
+        sprites = load_scene_template(path=None, ctx=ctx)
+
+        mock_open.assert_called_once()
+        assert len(sprites) == 1
+        assert sprites[0].center_x == 42
+        assert sprites[0].center_y == 84
+
+    def test_load_scene_template_returns_existing_scene_when_open_file_cancelled(self, mocker):
+        """load_scene_template should keep current scene when open picker is cancelled."""
+        scene = arcade.SpriteList()
+        sprite = arcade.SpriteSolidColor(width=8, height=8, color=arcade.color.WHITE)
+        scene.append(sprite)
+        ctx = DevContext(scene_sprites=scene)
+        mock_open = mocker.patch("arcadeactions.dev.templates.filechooser.open_file", return_value=[])
+
+        result = load_scene_template(path=None, ctx=ctx)
+
+        mock_open.assert_called_once()
+        assert result is scene
+        assert len(result) == 1

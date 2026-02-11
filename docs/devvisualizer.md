@@ -24,11 +24,19 @@
   - Four draggable corner handles for editing bounds
   - Updates action.bounds via set_bounds() method in real-time
 * YAML Templates: Export/import sprite scenes with action configurations
-  - export_template(sprites, path): Export scene to YAML file
-  - load_scene_template(path, ctx): Import scene from YAML (clears and rebuilds)
+  - export_template(sprites, path=None): Export scene to YAML file
+  - load_scene_template(path=None, ctx=...): Import scene from YAML (clears and rebuilds)
+  - If `path` is omitted, prompts with `plyer.filechooser.save_file`/`open_file`
   - Supports symbolic bound expressions (OFFSCREEN_LEFT, SCREEN_RIGHT, etc.)
   - Actions stored as preset recipes, not running instances (edit mode)
   - Round-trip editing: export → modify → reimport → re-export
+* Dev Command Palette Window (F8): Secondary window for development commands
+  - Toggle with F8, close with F8 or ESC
+  - Shows enabled/disabled command list with quick-key labels
+  - Supports arrow-key selection + Enter execution
+  - Unhandled keys forward to the main game window handlers
+  - Import command reloads scene YAML and reapplies sprite action metadata immediately
+  - Uses headless-safe behavior in tests/CI so palette tests do not require a display
 * Edit Mode vs Runtime Mode:
   - Edit Mode: Sprites are static, actions stored as metadata (_action_configs)
   - No action.apply() calls during editing - sprites remain frozen

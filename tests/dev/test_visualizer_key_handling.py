@@ -131,6 +131,27 @@ class TestHandleKeyPressBasic(ActionTestBase):
 
         assert result is False
 
+    def test_o_key_toggles_overrides_panel_for_selected_sprite(self, window, test_sprite, mocker):
+        """O key should attempt to toggle overrides panel for current selection."""
+        dev_viz = DevVisualizer()
+        dev_viz.scene_sprites.append(test_sprite)
+        dev_viz.selection_manager._selected.add(test_sprite)
+        mock_toggle = mocker.patch.object(dev_viz, "toggle_overrides_panel_for_sprite", return_value=True)
+
+        result = dev_viz.handle_key_press(arcade.key.O, 0)
+
+        assert result is True
+        mock_toggle.assert_called_once_with(test_sprite)
+
+    def test_o_key_reports_when_no_arrange_marker_available(self, window, capsys):
+        """O key should report when no arrange-grid marker is available."""
+        dev_viz = DevVisualizer()
+
+        result = dev_viz.handle_key_press(arcade.key.O, 0)
+
+        assert result is True
+        assert "Overrides panel unavailable" in capsys.readouterr().out
+
 
 class TestHandleKeyPressOverridesPanel(ActionTestBase):
     """Test suite for overrides panel key handling in handle_key_press."""

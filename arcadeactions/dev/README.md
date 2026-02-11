@@ -799,10 +799,14 @@ from arcadeactions.dev import export_template, load_scene_template, DevContext
 scene_sprites = arcade.SpriteList()
 # ... populate scene with sprites and action configs ...
 export_template(scene_sprites, "wave1.yaml", prompt_user=False)
+# Or omit path to open a file picker (plyer):
+export_template(scene_sprites, path=None, prompt_user=False)
 
 # Later: Import and modify
 ctx = DevContext(scene_sprites=arcade.SpriteList())
 load_scene_template("wave1.yaml", ctx)
+# Or omit path to open a file picker (plyer):
+load_scene_template(path=None, ctx=ctx)
 
 # Modify sprites (positions, action configs)
 for sprite in ctx.scene_sprites:

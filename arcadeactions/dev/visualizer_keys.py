@@ -49,11 +49,14 @@ def _toggle_overrides_panel(dev_viz: Any) -> bool:
                     sprite_to_open = sprite
                     break
         if sprite_to_open is None:
-            return False
+            print("⚠ Overrides panel unavailable: no arrange-grid source marker found in current scene.")
+            return True
     else:
         sprite_to_open = selected[0]
 
-    dev_viz.toggle_overrides_panel_for_sprite(sprite_to_open)
+    opened = dev_viz.toggle_overrides_panel_for_sprite(sprite_to_open)
+    if not opened:
+        print("⚠ Overrides panel unavailable: selected sprite is not linked to an arrange-grid source marker.")
     return True
 
 

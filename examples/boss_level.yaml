@@ -1,0 +1,80 @@
+- prototype: gate
+  x: 745
+  y: 432
+  group: ''
+  actions:
+  - preset: gate_slide
+    params:
+      speed: 2.0
+  - preset: fade_gate
+    params:
+      speed: -2.0
+  - preset: glow_gate
+    params: {}
+- prototype: blade
+  x: 256
+  y: 396
+  group: ''
+  actions:
+  - preset: spin_blade
+    params:
+      speed: 5.0
+  - preset: sparks_blade
+    params:
+      interval: 0.06
+- prototype: pickup
+  x: 960
+  y: 252
+  group: ''
+  actions:
+  - preset: pulse_pickup
+    params:
+      speed: 0.01
+- prototype: turret
+  x: 160
+  y: 120
+  group: ''
+  actions:
+  - preset: spin_blade
+    params:
+      speed: 1.5
+- prototype: turret
+  x: 320
+  y: 120
+  group: ''
+  actions:
+  - preset: spin_blade
+    params:
+      speed: 1.5
+- prototype: turret
+  x: 480
+  y: 120
+  group: ''
+  actions:
+  - preset: spin_blade
+    params:
+      speed: 1.5
+- prototype: turret
+  x: 640
+  y: 120
+  group: ''
+  actions:
+  - preset: spin_blade
+    params:
+      speed: 1.5
+- prototype: turret
+  x: 800
+  y: 120
+  group: ''
+  actions:
+  - preset: spin_blade
+    params:
+      speed: 1.5
+- prototype: turret
+  x: 960
+  y: 120
+  group: ''
+  actions:
+  - preset: spin_blade
+    params:
+      speed: 1.5

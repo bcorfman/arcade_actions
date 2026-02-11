@@ -204,12 +204,19 @@ def test_command_import_scene_loads_first_existing(mocker):
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_load = mocker.patch("arcadeactions.dev.templates.load_scene_template")
     mocker.patch("arcadeactions.dev.visualizer.os.path.exists", side_effect=lambda path: path == "scene.yaml")
+    apply_mock = mocker.patch.object(dev_viz, "apply_metadata_actions")
+    sprite_a = object()
+    sprite_b = object()
+    dev_viz.scene_sprites = [sprite_a, sprite_b]
 
     result = dev_viz._command_import_scene(CommandExecutionContext(window=window, scene_sprites=dev_viz.scene_sprites, selection=[]))
 
     assert result is True
     mock_load.assert_called_once()
     assert mock_load.call_args.args[0] == "scene.yaml"
+    assert apply_mock.call_count == 2
+    apply_mock.assert_any_call(sprite_a)
+    apply_mock.assert_any_call(sprite_b)
 
 
 def test_command_import_scene_when_missing_files(mocker):
