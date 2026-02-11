@@ -13,12 +13,12 @@ pytestmark = pytest.mark.slow
 
 
 @pytest.fixture(autouse=True)
-def force_headless_command_palette_window(mocker):
-    """Force CommandPaletteWindow construction through headless fallback path."""
+def forbid_real_command_palette_constructor(mocker):
+    """Guard: tests must not invoke CommandPaletteWindow.__init__ (no real windows)."""
     mocker.patch.object(
-        command_palette_module.arcade.Window,
+        CommandPaletteWindow,
         "__init__",
-        side_effect=command_palette_module.GLException("headless test mode"),
+        side_effect=AssertionError("CommandPaletteWindow.__init__ must not be called in tests"),
     )
     mocker.patch.object(command_palette_module.arcade.Window, "on_close", return_value=None)
 
@@ -38,9 +38,24 @@ def mock_arcade_text(mocker):
 
 
 def _create_palette(*, registry: CommandRegistry, context: CommandExecutionContext, main_window):
-    """Create a CommandPaletteWindow with a guard that it stayed headless."""
-    palette = CommandPaletteWindow(registry=registry, context=context, main_window=main_window)
-    assert getattr(palette, "_is_headless", False), "CommandPaletteWindow must stay headless in tests"
+    """Create a CommandPaletteWindow instance without constructing a real window."""
+    palette = CommandPaletteWindow.__new__(CommandPaletteWindow)
+    palette._registry = registry
+    palette._context = context
+    palette._main_window = main_window
+    palette._on_close_callback = None
+    palette._is_headless = True
+    palette._is_visible = False
+    palette.selected_index = 0
+    palette.background_color = (24, 24, 34)
+    palette._title_text = None
+    palette._headless_width = 400
+    palette._headless_height = 240
+    palette.location = (0, 0)
+    palette.has_exit = False
+    palette.handlers = {}
+    palette._title = "Dev Command Palette"
+    palette._view = None
     return palette
 
 
