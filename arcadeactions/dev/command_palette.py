@@ -43,6 +43,10 @@ class CommandPaletteWindow(arcade.Window):
         height: int = 240,
         title: str = "Dev Command Palette",
     ) -> None:
+        # These are read by set_visible(), which some backends call from within
+        # super().__init__ before this constructor continues.
+        self._is_headless = False
+        self._is_visible = False
         try:
             super().__init__(width=width, height=height, title=title, resizable=True, visible=False)
         except (GLException, MissingFunctionException):
@@ -54,7 +58,6 @@ class CommandPaletteWindow(arcade.Window):
         self._context = context
         self._main_window = main_window
         self._on_close_callback = on_close_callback
-        self._is_visible = False
         self.selected_index = 0
         self.background_color = (24, 24, 34)
         self._title_text = None
@@ -106,7 +109,7 @@ class CommandPaletteWindow(arcade.Window):
     def set_visible(self, visible: bool) -> None:
         """Set visibility in both normal and headless mode."""
         self._is_visible = bool(visible)
-        if self._is_headless:
+        if getattr(self, "_is_headless", False):
             return
         try:
             super().set_visible(visible)
