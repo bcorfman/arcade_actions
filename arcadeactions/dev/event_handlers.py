@@ -19,6 +19,7 @@ class EventHandlerHost(Protocol):
     visible: bool
     window: arcade.Window | None
     palette_window: Any | None
+    command_palette_window: Any | None
     scene_sprites: arcade.SpriteList
     _is_detaching: bool
     _position_tracker: Any
@@ -35,6 +36,7 @@ class EventHandlerHost(Protocol):
     def toggle(self) -> None: ...
 
     def toggle_palette(self) -> None: ...
+    def toggle_command_palette(self) -> None: ...
 
     def handle_key_press(self, key: int, modifiers: int) -> bool: ...
 
@@ -167,6 +169,10 @@ def wrap_window_handlers(
             host.toggle_palette()
             return
 
+        if key == arcade.key.F8:
+            host.toggle_command_palette()
+            return
+
         if key == arcade.key.ESCAPE:
             if host.visible:
                 if host.palette_window:
@@ -234,6 +240,16 @@ def wrap_window_handlers(
             finally:
                 host._is_detaching = False
             host.palette_window = None
+        if host.command_palette_window:
+            try:
+                if not host.command_palette_window.closed:
+                    host.command_palette_window.close()
+            except Exception:
+                try:
+                    host.command_palette_window.set_visible(False)
+                except Exception:
+                    pass
+            host.command_palette_window = None
         if host._original_on_close:
             host._original_on_close()
 
@@ -296,6 +312,10 @@ def wrap_view_handlers(host: EventHandlerHost, view: arcade.View) -> None:
 
         if key == arcade.key.F11:
             host.toggle_palette()
+            return
+
+        if key == arcade.key.F8:
+            host.toggle_command_palette()
             return
 
         if key == arcade.key.ESCAPE:

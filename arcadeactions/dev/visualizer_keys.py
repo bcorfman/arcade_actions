@@ -17,6 +17,10 @@ def handle_key_press(dev_viz: Any, key: int, modifiers: int) -> bool:
         return True
 
     if key == arcade.key.F8:
+        dev_viz.toggle_command_palette()
+        return True
+
+    if key == arcade.key.O:
         return _toggle_overrides_panel(dev_viz)
 
     if overrides_input.handle_overrides_panel_key(dev_viz.overrides_panel, key, modifiers):

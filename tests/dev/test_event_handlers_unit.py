@@ -31,6 +31,7 @@ class StubHost:
         self.visible = False
         self.window = None
         self.palette_window = None
+        self.command_palette_window = None
         self.overrides_panel = None
         self.scene_sprites = StubSprites()
         self._is_detaching = False
@@ -45,12 +46,16 @@ class StubHost:
         self._original_set_location = None
         self.toggle_called = False
         self.toggle_palette_called = False
+        self.toggle_command_palette_called = False
 
     def toggle(self) -> None:
         self.toggle_called = True
 
     def toggle_palette(self) -> None:
         self.toggle_palette_called = True
+
+    def toggle_command_palette(self) -> None:
+        self.toggle_command_palette_called = True
 
     def handle_key_press(self, _key: int, _modifiers: int) -> bool:
         return False
@@ -139,6 +144,40 @@ def test_wrap_window_handlers_handles_f12_toggle():
     window.on_key_press(arcade.key.F12, 0)
 
     assert host.toggle_called is True
+
+
+def test_wrap_window_handlers_handles_f8_toggle():
+    """F8 should toggle the command palette window."""
+    host = StubHost()
+    window = types.SimpleNamespace()
+    window.on_draw = lambda: None
+    window.on_key_press = lambda *_args: None
+    window.on_mouse_press = lambda *_args: None
+    window.on_mouse_drag = lambda *_args: None
+    window.on_mouse_release = lambda *_args: None
+    window.on_close = lambda: None
+    window.switch_to = lambda: None
+
+    event_handlers.wrap_window_handlers(host, window, has_window_context=lambda _w: False)
+    window.on_key_press(arcade.key.F8, 0)
+
+    assert host.toggle_command_palette_called is True
+
+
+def test_wrap_view_handlers_handles_f8_toggle():
+    """F8 should toggle command palette from wrapped view key handler."""
+    host = StubHost()
+    view = arcade.View()
+    view.on_draw = lambda: None
+    view.on_key_press = lambda *_args: None
+    view.on_mouse_press = lambda *_args: None
+    view.on_mouse_drag = lambda *_args: None
+    view.on_mouse_release = lambda *_args: None
+
+    event_handlers.wrap_view_handlers(host, view)
+    view.on_key_press(arcade.key.F8, 0)
+
+    assert host.toggle_command_palette_called is True
 
 
 def test_wrap_window_handlers_wraps_show_view_and_set_location(monkeypatch):
@@ -307,6 +346,69 @@ def test_wrap_window_handlers_on_close_hides_and_closes_palette():
 
     assert host.hide_called is True
     assert palette.close_called is True
+
+
+def test_wrap_window_handlers_on_close_closes_command_palette():
+    """on_close should close command palette window when present."""
+    host = StubHost()
+    host.visible = False
+
+    command_palette = types.SimpleNamespace(closed=False)
+    command_palette.close_called = False
+
+    def close_command_palette():
+        command_palette.close_called = True
+
+    command_palette.close = close_command_palette
+    host.command_palette_window = command_palette
+
+    window = types.SimpleNamespace()
+    window.on_draw = lambda: None
+    window.on_key_press = lambda *_args: None
+    window.on_mouse_press = lambda *_args: None
+    window.on_mouse_drag = lambda *_args: None
+    window.on_mouse_release = lambda *_args: None
+    window.on_close = lambda: None
+    window.switch_to = lambda: None
+
+    event_handlers.wrap_window_handlers(host, window, has_window_context=lambda _w: False)
+    window.on_close()
+
+    assert command_palette.close_called is True
+    assert host.command_palette_window is None
+
+
+def test_wrap_window_handlers_on_close_command_palette_fallback_set_visible():
+    """on_close should fallback to set_visible(False) when close fails."""
+    host = StubHost()
+    host.visible = False
+
+    command_palette = types.SimpleNamespace(closed=False)
+    command_palette.set_visible_called = False
+
+    def close_command_palette():
+        raise RuntimeError("boom")
+
+    def set_visible(_value: bool):
+        command_palette.set_visible_called = True
+
+    command_palette.close = close_command_palette
+    command_palette.set_visible = set_visible
+    host.command_palette_window = command_palette
+
+    window = types.SimpleNamespace()
+    window.on_draw = lambda: None
+    window.on_key_press = lambda *_args: None
+    window.on_mouse_press = lambda *_args: None
+    window.on_mouse_drag = lambda *_args: None
+    window.on_mouse_release = lambda *_args: None
+    window.on_close = lambda: None
+    window.switch_to = lambda: None
+
+    event_handlers.wrap_window_handlers(host, window, has_window_context=lambda _w: False)
+    window.on_close()
+
+    assert command_palette.set_visible_called is True
     assert host.palette_window is None
 
 

@@ -1010,14 +1010,15 @@ DevVisualizer supports multiple environment variable names for flexibility:
 When enabled via environment variable, DevVisualizer automatically:
 - Creates a scene SpriteList
 - Attaches to the current window
-- Registers F12 and F11 keyboard handlers
+- Registers F12, F11, and F8 keyboard handlers
 - Shows main overlay and palette window automatically
 
 ### Keyboard Shortcuts
 
 - **F12**: Toggle DevVisualizer main overlay (selection, gizmos, indicator)
 - **F11**: Toggle palette window (separate window with sprite prototypes)
-- **F8**: Toggle overrides panel for selected sprite (arrange_grid per-cell overrides)
+- **F8**: Toggle dev command palette window (secondary command UI)
+- **O**: Toggle overrides panel for selected sprite (arrange_grid per-cell overrides)
 - **E**: Export scene to YAML (saves to scene.yaml or examples/boss_level.yaml)
 - **I**: Import scene from YAML (loads from scene.yaml, examples/boss_level.yaml, or scenes/new_scene.yaml)
 - **ESC**: Close application (in generated level files)
@@ -1100,7 +1101,7 @@ DevVisualizer provides a panel for editing per-cell position overrides in `arran
 
 **Opening the Overrides Panel:**
 1. Select a sprite that was created from an `arrange_grid()` call
-2. Press **F8** to open the overrides panel
+2. Press **O** to open the overrides panel
 3. The panel shows all existing overrides for that grid call
 
 **Using Position Tags:**
@@ -1151,7 +1152,7 @@ for call in arrange_calls:
 9. **Use symbolic bounds**: Makes YAML files more readable and maintainable
 10. **Test round-trip**: Verify export → import → export maintains all data
 11. **Tag sprites for code sync**: Use `@positioned()` decorator or `tag_sprite()` to enable automatic source code updates
-12. **Use overrides panel for fine-tuning**: Press F8 on selected sprites from arrange_grid calls to edit per-cell positions
+12. **Use overrides panel for fine-tuning**: Press O on selected sprites from arrange_grid calls to edit per-cell positions
 
 ### Example
 

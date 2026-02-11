@@ -131,6 +131,21 @@ class TestDrawing:
 
         mock_rebuild.assert_called_once()
 
+    def test_on_draw_uses_safe_size_when_get_size_fails(self, palette_window, mocker):
+        """Test on_draw gracefully handles window backends where get_size fails."""
+        palette_window._is_headless = False
+        mock_title = MagicMock()
+        palette_window._title_text = mock_title
+        mocker.patch.object(mock_title, "draw")
+        mocker.patch.object(palette_window, "clear")
+        mocker.patch.object(palette_window, "_rebuild_text_cache")
+        mocker.patch.object(PaletteWindow, "get_size", side_effect=TypeError("backend size unavailable"))
+        palette_window._headless_width = 250
+        palette_window._headless_height = 400
+
+        # Should not raise; fallback size path should be used.
+        palette_window.on_draw()
+
     def test_draw_centered_rect_headless(self, palette_window, mocker):
         """Test _draw_centered_rect in headless mode."""
         palette_window._is_headless = True

@@ -32,8 +32,8 @@ def test_overrides_panel_overlay_keystrokes(tmp_path):
     res = ins.set_override(0, 1, 160, 105)
     assert res.changed is True
 
-    # Open via F8 key
-    handled = viz.handle_key_press(arcade.key.F8, 0)
+    # Open overrides panel directly
+    handled = viz.open_overrides_panel_for_sprite(s)
     assert handled is True
     assert viz.overrides_panel.is_open() is True
 

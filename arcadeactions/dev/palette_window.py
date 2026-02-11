@@ -137,7 +137,20 @@ class PaletteWindow(arcade.Window):
         """Return window size, handling headless mode safely."""
         if getattr(self, "_is_headless", False):
             return self._headless_width, self._headless_height
-        return super().get_size()
+        try:
+            return super().get_size()
+        except Exception:
+            return self._safe_window_size()
+
+    def _safe_window_size(self) -> tuple[int, int]:
+        """Best-effort window size for unstable CI/window backends."""
+        width = getattr(self, "_headless_width", None)
+        height = getattr(self, "_headless_height", None)
+        if width is None:
+            width = getattr(self, "_width", 250)
+        if height is None:
+            height = getattr(self, "_height", 400)
+        return int(width), int(height)
 
     def set_size(self, width: int, height: int) -> None:
         """Set window size, avoiding GL calls in headless mode."""
@@ -190,9 +203,13 @@ class PaletteWindow(arcade.Window):
 
         try:
             self.clear()
+            try:
+                width, height = self.get_size()
+            except Exception:
+                width, height = self._safe_window_size()
 
             # Draw title
-            self._title_text.y = self.height - self.MARGIN - 20
+            self._title_text.y = height - self.MARGIN - 20
             self._title_text.draw()
 
             # Rebuild text cache if prototype list changed
@@ -200,7 +217,7 @@ class PaletteWindow(arcade.Window):
 
             # Update cached text Y positions based on current window height
             # (needed when window is resized, since cache only rebuilds on prototype list changes)
-            start_y = self.height - self.MARGIN - 60
+            start_y = height - self.MARGIN - 60
             for i, text in enumerate(self._text_cache):
                 text.y = start_y - i * self.ITEM_HEIGHT
 
@@ -209,9 +226,9 @@ class PaletteWindow(arcade.Window):
                 # Draw background for each item
                 item_y = text.y - 5
                 self._draw_centered_rect(
-                    self.width / 2,
+                    width / 2,
                     item_y,
-                    self.width - 2 * self.MARGIN,
+                    width - 2 * self.MARGIN,
                     self.ITEM_HEIGHT - 10,
                     (50, 50, 60),
                 )
@@ -235,7 +252,11 @@ class PaletteWindow(arcade.Window):
 
         # Calculate which item was clicked
         # Items start at y = height - MARGIN - 60 and go down by ITEM_HEIGHT
-        start_y = self.height - self.MARGIN - 60
+        try:
+            _, height = self.get_size()
+        except Exception:
+            _, height = self._safe_window_size()
+        start_y = height - self.MARGIN - 60
         relative_y = start_y - y
         clicked_index = int(relative_y / self.ITEM_HEIGHT)
 

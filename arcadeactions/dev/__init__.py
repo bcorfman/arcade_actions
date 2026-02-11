@@ -31,6 +31,8 @@ from pathlib import Path
 
 from . import code_parser
 from .boundary_overlay import BoundaryGizmo, BoundaryHandle
+from .command_palette import CommandPaletteWindow
+from .command_registry import CommandExecutionContext, CommandRegistry
 from .palette import PaletteSidebar
 from .palette_window import PaletteWindow
 from .presets import (
@@ -77,6 +79,9 @@ __all__ = [
     "SelectionManager",
     "BoundaryGizmo",
     "BoundaryHandle",
+    "CommandRegistry",
+    "CommandExecutionContext",
+    "CommandPaletteWindow",
     "export_template",
     "load_scene_template",
     "SYMBOLIC",

@@ -31,8 +31,8 @@ def test_text_input_hits_buffer_and_backspace(tmp_path):
     res = ins.set_override(0, 1, 160, 105)
     assert res.changed is True
 
-    # Open panel
-    viz.handle_key_press(arcade.key.F8, 0)
+    # Open panel directly
+    viz.open_overrides_panel_for_sprite(s)
     assert viz.overrides_panel.is_open()
 
     # Start editing x via X key
