@@ -3,13 +3,43 @@
 from __future__ import annotations
 
 import arcade
+import pytest
 
 from arcadeactions.dev.command_registry import CommandExecutionContext
 from arcadeactions.dev.visualizer import DevVisualizer
 
 
-def test_build_command_context_uses_current_selection(window, test_sprite_list):
+@pytest.fixture(autouse=True)
+def forbid_real_secondary_windows(mocker):
+    """Guard: these unit tests must not create real secondary windows."""
+    mocker.patch("arcadeactions.dev.visualizer.PaletteWindow", side_effect=AssertionError("PaletteWindow creation forbidden"))
+    mocker.patch(
+        "arcadeactions.dev.visualizer.CommandPaletteWindow",
+        side_effect=AssertionError("CommandPaletteWindow creation forbidden"),
+    )
+
+
+def _make_window_stub(mocker):
+    """Create a minimal window stub for DevVisualizer unit tests."""
+    window = mocker.MagicMock()
+    window.closed = False
+    window.current_view = None
+    window.on_draw = mocker.MagicMock()
+    window.on_key_press = mocker.MagicMock()
+    window.on_mouse_press = mocker.MagicMock()
+    window.on_mouse_drag = mocker.MagicMock()
+    window.on_mouse_release = mocker.MagicMock()
+    window.on_close = mocker.MagicMock()
+    window.get_location = mocker.MagicMock(return_value=(100, 200))
+    window.activate = mocker.MagicMock()
+    window.show_view = mocker.MagicMock()
+    window.set_location = mocker.MagicMock()
+    return window
+
+
+def test_build_command_context_uses_current_selection(mocker, test_sprite_list):
     """Context should include selected sprites and active window."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
     selected_sprite = test_sprite_list[0]
     dev_viz.selection_manager._selected.add(selected_sprite)
@@ -21,8 +51,9 @@ def test_build_command_context_uses_current_selection(window, test_sprite_list):
     assert context.selection == [selected_sprite]
 
 
-def test_toggle_command_palette_creates_and_toggles(window, mocker):
+def test_toggle_command_palette_creates_and_toggles(mocker):
     """toggle_command_palette should create window, refresh context, and toggle visibility."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_palette = mocker.MagicMock()
     mocker.patch.object(dev_viz, "_create_command_palette_window", side_effect=lambda: setattr(dev_viz, "command_palette_window", mock_palette))
@@ -35,8 +66,9 @@ def test_toggle_command_palette_creates_and_toggles(window, mocker):
     mock_palette.toggle_window.assert_called_once()
 
 
-def test_toggle_command_palette_returns_when_creation_fails(window, mocker):
+def test_toggle_command_palette_returns_when_creation_fails(mocker):
     """toggle_command_palette should return quietly when creation fails."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mocker.patch.object(dev_viz, "_create_command_palette_window")
     dev_viz.command_palette_window = None
@@ -46,8 +78,9 @@ def test_toggle_command_palette_returns_when_creation_fails(window, mocker):
     assert dev_viz.command_palette_window is None
 
 
-def test_hide_hides_command_palette(window, mocker):
+def test_hide_hides_command_palette(mocker):
     """hide should hide command palette when present."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     dev_viz.command_palette_window = mocker.MagicMock()
     mock_resume = mocker.patch("arcadeactions.dev.visualizer.Action.resume_all")
@@ -58,8 +91,9 @@ def test_hide_hides_command_palette(window, mocker):
     mock_resume.assert_called_once()
 
 
-def test_detach_closes_command_palette(window, mocker):
+def test_detach_closes_command_palette(mocker):
     """detach_from_window should close and clear command palette window."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     dev_viz._attached = True
     command_palette = mocker.MagicMock()
@@ -79,8 +113,9 @@ def test_detach_closes_command_palette(window, mocker):
     assert dev_viz.command_palette_window is None
 
 
-def test_default_command_registry_contains_expected_keys(window):
+def test_default_command_registry_contains_expected_keys(mocker):
     """Built-in command set should include enabled and disabled command keys."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     context = CommandExecutionContext(window=window, scene_sprites=dev_viz.scene_sprites, selection=[])
     enabled = dev_viz.command_registry.get_enabled_commands(context)
@@ -92,33 +127,36 @@ def test_default_command_registry_contains_expected_keys(window):
     assert arcade.key.G not in enabled_keys
 
 
-def test_create_command_palette_positions_next_to_main_window(window, mocker):
+def test_create_command_palette_positions_next_to_main_window(mocker):
     """Creation should position command palette relative to main window when location is valid."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_palette = mocker.MagicMock()
     mocker.patch("arcadeactions.dev.visualizer.CommandPaletteWindow", return_value=mock_palette)
     mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=True)
-    mocker.patch.object(window, "get_location", return_value=(100, 200))
+    window.get_location = mocker.MagicMock(return_value=(100, 200))
 
     dev_viz._create_command_palette_window()
 
     mock_palette.set_location.assert_called_once_with(120, 220)
 
 
-def test_create_command_palette_ignores_position_errors(window, mocker):
+def test_create_command_palette_ignores_position_errors(mocker):
     """Creation should swallow set_location errors."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_palette = mocker.MagicMock()
     mock_palette.set_location.side_effect = RuntimeError("boom")
     mocker.patch("arcadeactions.dev.visualizer.CommandPaletteWindow", return_value=mock_palette)
     mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=True)
-    mocker.patch.object(window, "get_location", return_value=(1, 2))
+    window.get_location = mocker.MagicMock(return_value=(1, 2))
 
     dev_viz._create_command_palette_window()
 
 
-def test_create_command_palette_noop_when_already_present(window, mocker):
+def test_create_command_palette_noop_when_already_present(mocker):
     """Creation should return early when palette already exists."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     existing = mocker.MagicMock()
     dev_viz.command_palette_window = existing
@@ -130,8 +168,9 @@ def test_create_command_palette_noop_when_already_present(window, mocker):
     assert dev_viz.command_palette_window is existing
 
 
-def test_command_export_scene_prefers_examples_path(window, mocker):
+def test_command_export_scene_prefers_examples_path(mocker):
     """Export command should select examples path when examples directory exists."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_export = mocker.patch("arcadeactions.dev.templates.export_template")
     mocker.patch("arcadeactions.dev.visualizer.os.path.exists", side_effect=lambda path: path == "examples")
@@ -143,8 +182,9 @@ def test_command_export_scene_prefers_examples_path(window, mocker):
     assert mock_export.call_args.args[1] == "examples/boss_level.yaml"
 
 
-def test_command_export_scene_uses_scenes_fallback(window, mocker):
+def test_command_export_scene_uses_scenes_fallback(mocker):
     """Export command should use scenes path when examples path is unavailable."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_export = mocker.patch("arcadeactions.dev.templates.export_template")
     mocker.patch(
@@ -158,8 +198,9 @@ def test_command_export_scene_uses_scenes_fallback(window, mocker):
     assert mock_export.call_args.args[1] == "scenes/new_scene.yaml"
 
 
-def test_command_import_scene_loads_first_existing(window, mocker):
+def test_command_import_scene_loads_first_existing(mocker):
     """Import command should load first existing candidate scene file."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_load = mocker.patch("arcadeactions.dev.templates.load_scene_template")
     mocker.patch("arcadeactions.dev.visualizer.os.path.exists", side_effect=lambda path: path == "scene.yaml")
@@ -171,8 +212,9 @@ def test_command_import_scene_loads_first_existing(window, mocker):
     assert mock_load.call_args.args[0] == "scene.yaml"
 
 
-def test_command_import_scene_when_missing_files(window, mocker):
+def test_command_import_scene_when_missing_files(mocker):
     """Import command should still return True when no candidate files exist."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_load = mocker.patch("arcadeactions.dev.templates.load_scene_template")
     mocker.patch("arcadeactions.dev.visualizer.os.path.exists", return_value=False)
@@ -183,8 +225,9 @@ def test_command_import_scene_when_missing_files(window, mocker):
     mock_load.assert_not_called()
 
 
-def test_command_show_help_prints_message(window, capsys):
+def test_command_show_help_prints_message(mocker, capsys):
     """Help command should print available command summary and succeed."""
+    window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
 
     result = dev_viz._command_show_help(CommandExecutionContext(window=window, scene_sprites=dev_viz.scene_sprites, selection=[]))
@@ -193,8 +236,9 @@ def test_command_show_help_prints_message(window, capsys):
     assert "Dev Commands" in capsys.readouterr().out
 
 
-def test_command_placeholder_helpers_return_false(window):
+def test_command_placeholder_helpers_return_false(mocker):
     """Disabled and placeholder command handlers should return False."""
+    window = _make_window_stub(mocker)
     context = CommandExecutionContext(window=window, scene_sprites=arcade.SpriteList(), selection=[])
     assert DevVisualizer._command_disabled(context) is False
     assert DevVisualizer._command_not_implemented(context) is False
