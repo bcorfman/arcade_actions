@@ -12,12 +12,13 @@ from arcadeactions.dev.command_registry import CommandExecutionContext, CommandR
 def test_constructor_handles_set_visible_called_during_super_init(mocker):
     """Palette constructor should tolerate backends that call set_visible early."""
 
-    def fake_window_init(self, **kwargs):
+    def fake_window_init(self, *args, **kwargs):
         self._width = kwargs.get("width")
         self._height = kwargs.get("height")
         self.set_visible(kwargs.get("visible", True))
 
-    mocker.patch.object(command_palette_module.arcade.Window, "__init__", autospec=True, side_effect=fake_window_init)
+    base_window_cls = CommandPaletteWindow.__mro__[1]
+    mocker.patch.object(base_window_cls, "__init__", autospec=True, side_effect=fake_window_init)
     mocker.patch("arcadeactions.dev.command_palette.arcade.Text")
 
     registry = CommandRegistry()
