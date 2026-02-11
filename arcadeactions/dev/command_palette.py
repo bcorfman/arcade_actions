@@ -88,9 +88,13 @@ class CommandPaletteWindow(arcade.Window):
         if getattr(self, "_is_headless", False):
             return self._safe_window_size()
         try:
-            return super().get_size()
+            size = super().get_size()
         except Exception:
             return self._safe_window_size()
+        normalized = self._normalize_size_tuple(size)
+        if normalized is None:
+            return self._safe_window_size()
+        return normalized
 
     def _safe_window_size(self) -> tuple[int, int]:
         width = getattr(self, "_headless_width", None)
@@ -99,7 +103,25 @@ class CommandPaletteWindow(arcade.Window):
             width = getattr(self, "_width", 400)
         if height is None:
             height = getattr(self, "_height", 240)
-        return int(width), int(height)
+        normalized = self._normalize_size_tuple((width, height))
+        if normalized is None:
+            return (400, 240)
+        return normalized
+
+    @staticmethod
+    def _normalize_size_tuple(size: object) -> tuple[int, int] | None:
+        """Convert arbitrary backend size tuples to sane integer dimensions."""
+        if not isinstance(size, tuple) or len(size) != 2:
+            return None
+        width, height = size
+        try:
+            width_i = int(width)
+            height_i = int(height)
+        except Exception:
+            return None
+        if width_i <= 0 or height_i <= 0:
+            return None
+        return (width_i, height_i)
 
     @property
     def visible(self) -> bool:
