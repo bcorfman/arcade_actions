@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 
 from arcadeactions import Action
 from arcadeactions.dev.boundary_overlay import BoundaryGizmo
+from arcadeactions.dev.command_palette import CommandPaletteWindow
+from arcadeactions.dev.command_registry import CommandExecutionContext, CommandRegistry
 from arcadeactions.dev.palette_window import PaletteWindow
 from arcadeactions.dev.prototype_registry import DevContext, get_registry
 from arcadeactions.dev.selection import SelectionManager
@@ -99,6 +101,8 @@ class DevVisualizer:
         # Initialize components
         # Palette is now in a separate window
         self.palette_window: PaletteWindow | None = None
+        self.command_palette_window: CommandPaletteWindow | None = None
+        self.command_registry = CommandRegistry()
         # The palette is a UI affordance for dev mode; default to hidden until edit mode is shown (F12)
         # or the user explicitly toggles it (F11).
         self._palette_desired_visible: bool = False
@@ -117,6 +121,7 @@ class DevVisualizer:
         from arcadeactions.dev.override_panel import OverridesPanel
 
         self.overrides_panel = OverridesPanel(self)
+        self._register_default_commands()
 
         # State
         self.visible = False
@@ -186,6 +191,8 @@ class DevVisualizer:
         self._gizmo_miss_refresh_at = WeakKeyDictionary()
         if self.palette_window is not None:
             self.palette_window.dev_context = self.ctx
+        if self.command_palette_window is not None:
+            self.command_palette_window.set_context(self._build_command_context())
 
     def update_main_window_position(self) -> bool:
         """Update the tracked position of the main window.
@@ -336,6 +343,12 @@ class DevVisualizer:
             finally:
                 self._is_detaching = False
             self.palette_window = None
+        if self.command_palette_window:
+            try:
+                self.command_palette_window.close()
+            except Exception:
+                pass
+            self.command_palette_window = None
 
         self._original_on_close = None
         self._original_set_location = None
@@ -377,6 +390,8 @@ class DevVisualizer:
         if self.palette_window:
             self._cache_palette_desired_location()
             self.palette_window.hide_window()
+        if self.command_palette_window:
+            self.command_palette_window.hide_window()
         # Reset all drag states to prevent stale drag when hidden during drag operation
         # This ensures that if F12 is pressed during a drag, all drag states are cleaned up
         # since the mouse release event will be skipped when visible=False
@@ -436,6 +451,140 @@ class DevVisualizer:
         """Toggle palette window visibility."""
         self._palette_desired_visible = not self._palette_desired_visible
         self._apply_palette_visibility()
+
+    def _build_command_context(self) -> CommandExecutionContext:
+        """Build execution context for command handlers."""
+        selection = list(self.selection_manager.get_selected())
+        return CommandExecutionContext(
+            window=self.window,
+            scene_sprites=self.scene_sprites,
+            selection=selection,
+        )
+
+    def _create_command_palette_window(self) -> None:
+        """Create command palette window."""
+        if self.command_palette_window is not None:
+            return
+        self.command_palette_window = CommandPaletteWindow(
+            registry=self.command_registry,
+            context=self._build_command_context(),
+            main_window=self.window,
+        )
+        if self.window is not None and self._main_window_has_valid_location():
+            try:
+                main_x, main_y = self.window.get_location()
+                self.command_palette_window.set_location(main_x + 20, main_y + 20)
+            except Exception:
+                pass
+
+    def toggle_command_palette(self) -> None:
+        """Toggle command palette window (F8)."""
+        if self.command_palette_window is None:
+            self._create_command_palette_window()
+        if self.command_palette_window is None:
+            return
+
+        self.command_palette_window.set_context(self._build_command_context())
+        self.command_palette_window.toggle_window()
+
+    def _register_default_commands(self) -> None:
+        """Register built-in command palette commands."""
+        self.command_registry.register_command(
+            key=arcade.key.E,
+            name="Export Scene",
+            category="Export/Import",
+            handler=self._command_export_scene,
+        )
+        self.command_registry.register_command(
+            key=arcade.key.I,
+            name="Import Scene",
+            category="Export/Import",
+            handler=self._command_import_scene,
+        )
+        self.command_registry.register_command(
+            key=arcade.key.S,
+            name="Toggle Snap-to-Grid",
+            category="Positioning",
+            handler=self._command_not_implemented,
+            enabled_check=self._command_disabled,
+        )
+        self.command_registry.register_command(
+            key=arcade.key.G,
+            name="Toggle Grid Overlay",
+            category="Visualization",
+            handler=self._command_not_implemented,
+            enabled_check=self._command_disabled,
+        )
+        self.command_registry.register_command(
+            key=arcade.key.T,
+            name="Open Template Browser",
+            category="Other",
+            handler=self._command_not_implemented,
+            enabled_check=self._command_disabled,
+        )
+        self.command_registry.register_command(
+            key=arcade.key.H,
+            name="Show Help",
+            category="Other",
+            handler=self._command_show_help,
+        )
+        self.command_registry.register_command(
+            key=arcade.key.L,
+            name="Explain Selection",
+            category="LLM",
+            handler=self._command_not_implemented,
+            enabled_check=self._command_disabled,
+        )
+        self.command_registry.register_command(
+            key=arcade.key.F,
+            name="Suggest Formation",
+            category="LLM",
+            handler=self._command_not_implemented,
+            enabled_check=self._command_disabled,
+        )
+        self.command_registry.register_command(
+            key=arcade.key.P,
+            name="Generate Patch",
+            category="LLM",
+            handler=self._command_not_implemented,
+            enabled_check=self._command_disabled,
+        )
+
+    @staticmethod
+    def _command_disabled(_context: CommandExecutionContext) -> bool:
+        return False
+
+    @staticmethod
+    def _command_not_implemented(_context: CommandExecutionContext) -> bool:
+        return False
+
+    def _command_export_scene(self, _context: CommandExecutionContext) -> bool:
+        from arcadeactions.dev.templates import export_template
+
+        filename = "scene.yaml"
+        if os.path.exists("examples"):
+            filename = "examples/boss_level.yaml"
+        elif os.path.exists("scenes"):
+            filename = "scenes/new_scene.yaml"
+
+        export_template(self.scene_sprites, filename, prompt_user=False)
+        print(f"✓ Exported {len(self.scene_sprites)} sprites to {filename}")
+        return True
+
+    def _command_import_scene(self, _context: CommandExecutionContext) -> bool:
+        from arcadeactions.dev.templates import load_scene_template
+
+        for filename in ["scene.yaml", "examples/boss_level.yaml", "scenes/new_scene.yaml"]:
+            if os.path.exists(filename):
+                load_scene_template(filename, self.ctx)
+                print(f"✓ Imported scene from {filename} ({len(self.scene_sprites)} sprites)")
+                return True
+        print("⚠ No scene file found. Try: scene.yaml, examples/boss_level.yaml, or scenes/new_scene.yaml")
+        return True
+
+    def _command_show_help(self, _context: CommandExecutionContext) -> bool:
+        print("Dev Commands: E export, I import, H help, O overrides panel, F8 palette")
+        return True
 
     def _activate_main_window(self) -> None:
         """Best-effort focus restoration after palette show/hide.

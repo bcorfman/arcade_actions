@@ -345,10 +345,15 @@ dev_viz.export_sprites()  # Updates source file with new positions
 ```
 
 **Arrange Grid Overrides Panel:**
-- Edit per-cell position overrides in `arrange_grid()` calls (Press **F8**)
+- Edit per-cell position overrides in `arrange_grid()` calls (Press **O**)
 - Fine-tune individual sprite positions within grid formations
 - Keyboard shortcuts for navigation and editing
 - Undo support for override edits
+
+**Dev Command Palette:**
+- Open a secondary command window with **F8**
+- Run dev commands with quick keys (`E` export, `I` import, `H` help)
+- Use `↑` / `↓` and `Enter` to execute highlighted commands
 
 **Edit Mode vs Runtime:**
 - **Edit Mode**: Sprites are static, actions stored as metadata (`_action_configs`), no `action.apply()` calls
@@ -382,7 +387,7 @@ See `.cursor/rules/project.mdc` for detailed DevVisualizer architecture and usag
 | Visual scene editing | DevVisualizer | Palette spawning, multi-selection, preset library, boundary gizmos |
 | Scene persistence | DevVisualizer YAML | Export/import scenes with round-trip editing support |
 | Code sync | DevVisualizer + position tags | Automatic source code updates from visual edits |
-| Grid overrides | DevVisualizer Overrides Panel | Per-cell position editing for arrange_grid formations (F8) |
+| Grid overrides | DevVisualizer Overrides Panel | Per-cell position editing for arrange_grid formations (O) |
 
 ### State Machine Integration
 

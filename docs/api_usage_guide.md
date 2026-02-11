@@ -2650,7 +2650,7 @@ DevVisualizer provides a panel for editing per-cell position overrides in `arran
 
 **Opening the Overrides Panel:**
 1. Select a sprite that was created from an `arrange_grid()` call
-2. Press **F8** to open the overrides panel
+2. Press **O** to open the overrides panel
 3. The panel shows all existing overrides for that grid call
 
 **Overrides Panel Keyboard Shortcuts:**

@@ -30,44 +30,28 @@ class TestHandleKeyPressBasic(ActionTestBase):
         assert result is True
         mock_toggle.assert_called_once()
 
-    def test_f8_toggles_overrides_panel_with_selection(self, window, test_sprite, mocker):
-        """Test that F8 toggles overrides panel when sprite is selected."""
+    def test_f8_toggles_command_palette(self, window, test_sprite, mocker):
+        """Test that F8 toggles command palette window."""
         dev_viz = DevVisualizer()
         dev_viz.scene_sprites.append(test_sprite)
         dev_viz.selection_manager._selected.add(test_sprite)
 
-        # Mock toggle_overrides_panel_for_sprite
-        mock_toggle = mocker.patch.object(dev_viz, "toggle_overrides_panel_for_sprite", return_value=True)
+        mock_toggle = mocker.patch.object(dev_viz, "toggle_command_palette")
 
         result = dev_viz.handle_key_press(arcade.key.F8, 0)
 
         assert result is True
-        mock_toggle.assert_called_once_with(test_sprite)
+        mock_toggle.assert_called_once_with()
 
-    def test_f8_finds_sprite_with_arrange_marker_when_no_selection(self, window, test_sprite, mocker):
-        """Test that F8 finds sprite with arrange marker when nothing is selected."""
+    def test_f8_handles_empty_scene(self, window, mocker):
+        """Test that F8 still toggles command palette when scene is empty."""
         dev_viz = DevVisualizer()
-        dev_viz.scene_sprites.append(test_sprite)
-
-        # Document current behavior: getattr used to check for _source_markers
-        test_sprite._source_markers = [{"type": "arrange", "lineno": 10}]
-
-        # Mock toggle_overrides_panel_for_sprite
-        mock_toggle = mocker.patch.object(dev_viz, "toggle_overrides_panel_for_sprite", return_value=True)
+        mock_toggle = mocker.patch.object(dev_viz, "toggle_command_palette")
 
         result = dev_viz.handle_key_press(arcade.key.F8, 0)
 
         assert result is True
-        mock_toggle.assert_called_once_with(test_sprite)
-
-    def test_f8_returns_false_when_no_sprite_found(self, window, mocker):
-        """Test that F8 returns False when no sprite with arrange marker is found."""
-        dev_viz = DevVisualizer()
-        # Empty scene_sprites
-
-        result = dev_viz.handle_key_press(arcade.key.F8, 0)
-
-        assert result is False
+        mock_toggle.assert_called_once_with()
 
     def test_e_key_exports_to_yaml(self, window, test_sprite_list, mocker, tmp_path):
         """Test that E key exports scene to YAML."""
