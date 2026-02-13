@@ -39,6 +39,11 @@
   - Unhandled keys forward to the main game window handlers
   - Import command reloads scene YAML and reapplies sprite action metadata immediately
   - Uses headless-safe behavior in tests/CI so palette tests do not require a display
+* Sprite Property Inspector Window (Alt+I): Secondary window for live property editing
+  - Toggle with Alt+I, independent from F12 edit-mode overlay visibility
+  - Edits selected sprite properties in real time (single and multi-select)
+  - Supports expression input for numeric fields (for example `SCREEN_CENTER + 100`)
+  - Includes undo/redo history and copy-as-Python assignment snippets
 * Edit Mode vs Runtime Mode:
   - Edit Mode: Sprites are static, actions stored as metadata (_action_configs)
   - Entering edit mode (F12 on) freezes sprite `change_x`/`change_y`/`change_angle` motion fields

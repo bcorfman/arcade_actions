@@ -32,6 +32,7 @@ class StubHost:
         self.window = None
         self.palette_window = None
         self.command_palette_window = None
+        self.property_inspector_window = None
         self.overrides_panel = None
         self.scene_sprites = StubSprites()
         self._is_detaching = False
@@ -47,6 +48,7 @@ class StubHost:
         self.toggle_called = False
         self.toggle_palette_called = False
         self.toggle_command_palette_called = False
+        self.toggle_property_inspector_called = False
 
     def toggle(self) -> None:
         self.toggle_called = True
@@ -56,6 +58,9 @@ class StubHost:
 
     def toggle_command_palette(self) -> None:
         self.toggle_command_palette_called = True
+
+    def toggle_property_inspector(self) -> None:
+        self.toggle_property_inspector_called = True
 
     def handle_key_press(self, _key: int, _modifiers: int) -> bool:
         return False
@@ -164,6 +169,31 @@ def test_wrap_window_handlers_handles_f8_toggle():
     assert host.toggle_command_palette_called is True
 
 
+def test_wrap_window_handlers_handles_alt_i_toggle():
+    """Alt+I should toggle the property inspector regardless of host visibility."""
+    host = StubHost()
+    host.toggle_property_inspector_called = False
+
+    def toggle_property_inspector() -> None:
+        host.toggle_property_inspector_called = True
+
+    host.toggle_property_inspector = toggle_property_inspector
+
+    window = types.SimpleNamespace()
+    window.on_draw = lambda: None
+    window.on_key_press = lambda *_args: None
+    window.on_mouse_press = lambda *_args: None
+    window.on_mouse_drag = lambda *_args: None
+    window.on_mouse_release = lambda *_args: None
+    window.on_close = lambda: None
+    window.switch_to = lambda: None
+
+    event_handlers.wrap_window_handlers(host, window, has_window_context=lambda _w: False)
+    window.on_key_press(arcade.key.I, arcade.key.MOD_ALT)
+
+    assert host.toggle_property_inspector_called is True
+
+
 def test_wrap_view_handlers_handles_f8_toggle():
     """F8 should toggle command palette from wrapped view key handler."""
     host = StubHost()
@@ -178,6 +208,22 @@ def test_wrap_view_handlers_handles_f8_toggle():
     view.on_key_press(arcade.key.F8, 0)
 
     assert host.toggle_command_palette_called is True
+
+
+def test_wrap_view_handlers_handles_alt_i_toggle():
+    """Alt+I should toggle property inspector from wrapped view key handler."""
+    host = StubHost()
+    view = arcade.View()
+    view.on_draw = lambda: None
+    view.on_key_press = lambda *_args: None
+    view.on_mouse_press = lambda *_args: None
+    view.on_mouse_drag = lambda *_args: None
+    view.on_mouse_release = lambda *_args: None
+
+    event_handlers.wrap_view_handlers(host, view)
+    view.on_key_press(arcade.key.I, arcade.key.MOD_ALT)
+
+    assert host.toggle_property_inspector_called is True
 
 
 def test_wrap_window_handlers_wraps_show_view_and_set_location(monkeypatch):
@@ -410,6 +456,67 @@ def test_wrap_window_handlers_on_close_command_palette_fallback_set_visible():
 
     assert command_palette.set_visible_called is True
     assert host.palette_window is None
+
+
+def test_wrap_window_handlers_on_close_closes_property_inspector():
+    """on_close should close and clear property inspector window when present."""
+    host = StubHost()
+    host.visible = False
+    inspector_window = types.SimpleNamespace(closed=False)
+    inspector_window.close_called = False
+
+    def close_inspector():
+        inspector_window.close_called = True
+
+    inspector_window.close = close_inspector
+    host.property_inspector_window = inspector_window
+
+    window = types.SimpleNamespace()
+    window.on_draw = lambda: None
+    window.on_key_press = lambda *_args: None
+    window.on_mouse_press = lambda *_args: None
+    window.on_mouse_drag = lambda *_args: None
+    window.on_mouse_release = lambda *_args: None
+    window.on_close = lambda: None
+    window.switch_to = lambda: None
+
+    event_handlers.wrap_window_handlers(host, window, has_window_context=lambda _w: False)
+    window.on_close()
+
+    assert inspector_window.close_called is True
+    assert host.property_inspector_window is None
+
+
+def test_wrap_window_handlers_on_close_property_inspector_fallback_set_visible():
+    """on_close should fallback to set_visible(False) if inspector close fails."""
+    host = StubHost()
+    host.visible = False
+    inspector_window = types.SimpleNamespace(closed=False)
+    inspector_window.set_visible_called = False
+
+    def close_inspector():
+        raise RuntimeError("boom")
+
+    def set_visible(_value: bool):
+        inspector_window.set_visible_called = True
+
+    inspector_window.close = close_inspector
+    inspector_window.set_visible = set_visible
+    host.property_inspector_window = inspector_window
+
+    window = types.SimpleNamespace()
+    window.on_draw = lambda: None
+    window.on_key_press = lambda *_args: None
+    window.on_mouse_press = lambda *_args: None
+    window.on_mouse_drag = lambda *_args: None
+    window.on_mouse_release = lambda *_args: None
+    window.on_close = lambda: None
+    window.switch_to = lambda: None
+
+    event_handlers.wrap_window_handlers(host, window, has_window_context=lambda _w: False)
+    window.on_close()
+
+    assert inspector_window.set_visible_called is True
 
 
 def test_wrap_view_handlers_escape_closes_palette_when_visible():

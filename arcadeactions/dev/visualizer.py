@@ -20,21 +20,26 @@ if TYPE_CHECKING:
     from arcadeactions.dev.selection import SelectionManager
 
 from arcadeactions import Action
+from arcadeactions.dev import (
+    event_handlers,
+    palette_helpers,
+    visualizer_draw,
+    visualizer_export,
+    visualizer_keys,
+    visualizer_metadata,
+    window_decorations,
+    window_utils,
+)
+from arcadeactions.dev import window_hooks as _window_hooks
 from arcadeactions.dev.boundary_overlay import BoundaryGizmo
 from arcadeactions.dev.command_palette import CommandPaletteWindow
 from arcadeactions.dev.command_registry import CommandExecutionContext, CommandRegistry
 from arcadeactions.dev.palette_window import PaletteWindow
+from arcadeactions.dev.property_history import PropertyHistory
+from arcadeactions.dev.property_inspector import InMemoryClipboard, PropertyInspectorWindow, SpritePropertyInspector
+from arcadeactions.dev.property_registry import SpritePropertyRegistry
 from arcadeactions.dev.prototype_registry import DevContext, get_registry
 from arcadeactions.dev.selection import SelectionManager
-from arcadeactions.dev import event_handlers
-from arcadeactions.dev import palette_helpers
-from arcadeactions.dev import window_utils
-from arcadeactions.dev import window_hooks as _window_hooks
-from arcadeactions.dev import visualizer_draw
-from arcadeactions.dev import visualizer_export
-from arcadeactions.dev import visualizer_keys
-from arcadeactions.dev import visualizer_metadata
-from arcadeactions.dev import window_decorations
 from arcadeactions.dev.visualizer_protocols import (
     SpriteWithActionConfigs,
     SpriteWithOriginal,
@@ -45,6 +50,18 @@ from arcadeactions.dev.visualizer_protocols import (
 from arcadeactions.dev.window_position_tracker import WindowPositionTracker
 
 _MISSING_GIZMO_REFRESH_SECONDS = 0.25
+
+__all__ = [
+    "DevVisualizer",
+    "enable_dev_visualizer",
+    "get_dev_visualizer",
+    "auto_enable_dev_visualizer_from_env",
+    "SpriteWithActionConfigs",
+    "SpriteWithOriginal",
+    "SpriteWithPositionId",
+    "SpriteWithSourceMarkers",
+    "WindowWithContext",
+]
 
 
 def _install_window_attach_hook() -> None:
@@ -104,7 +121,10 @@ class DevVisualizer:
         # Palette is now in a separate window
         self.palette_window: PaletteWindow | None = None
         self.command_palette_window: CommandPaletteWindow | None = None
+        self.property_inspector_window: PropertyInspectorWindow | None = None
         self.command_registry = CommandRegistry()
+        self.property_registry = SpritePropertyRegistry()
+        self.property_history = PropertyHistory(max_changes_per_sprite=20)
         # The palette is a UI affordance for dev mode; default to hidden until edit mode is shown (F12)
         # or the user explicitly toggles it (F11).
         self._palette_desired_visible: bool = False
@@ -200,6 +220,8 @@ class DevVisualizer:
             self.palette_window.dev_context = self.ctx
         if self.command_palette_window is not None:
             self.command_palette_window.set_context(self._build_command_context())
+        if self.property_inspector_window is not None:
+            self.property_inspector_window.set_selection(self.selection_manager.get_selected())
 
     def update_main_window_position(self) -> bool:
         """Update the tracked position of the main window.
@@ -356,6 +378,12 @@ class DevVisualizer:
             except Exception:
                 pass
             self.command_palette_window = None
+        if self.property_inspector_window:
+            try:
+                self.property_inspector_window.close()
+            except Exception:
+                pass
+            self.property_inspector_window = None
 
         self._original_on_close = None
         self._original_set_location = None
@@ -501,6 +529,61 @@ class DevVisualizer:
             main_window=self.window,
         )
         self._position_command_palette_window(force=True)
+
+    def _create_property_inspector_window(self) -> None:
+        """Create property inspector secondary window."""
+        if self.property_inspector_window is not None:
+            return
+        inspector = SpritePropertyInspector(
+            property_registry=self.property_registry,
+            history=self.property_history,
+            clipboard=InMemoryClipboard(),
+            window=self.window,
+        )
+        self.property_inspector_window = PropertyInspectorWindow(
+            inspector=inspector,
+            main_window=self.window,
+        )
+        self._position_property_inspector_window()
+
+    def _position_property_inspector_window(self) -> None:
+        if self.property_inspector_window is None or self.window is None:
+            return
+        if not self._main_window_has_valid_location():
+            return
+        try:
+            main_x, main_y = self.window.get_location()
+            inspector_width = int(self.property_inspector_window.width)
+        except Exception:
+            return
+        inspector_x = int(main_x - inspector_width - self._EXTRA_FRAME_PAD)
+        inspector_y = int(main_y)
+        try:
+            self.property_inspector_window.set_location(inspector_x, inspector_y)
+        except Exception:
+            return
+
+    def _sync_property_inspector_selection(self) -> None:
+        if self.property_inspector_window is None:
+            return
+        self.property_inspector_window.set_selection(self.selection_manager.get_selected())
+
+    def toggle_property_inspector(self) -> None:
+        """Toggle property inspector window (Alt+I)."""
+        if self.property_inspector_window is None:
+            self._create_property_inspector_window()
+        if self.property_inspector_window is None:
+            return
+
+        self._sync_property_inspector_selection()
+        if self.property_inspector_window.visible:
+            self.property_inspector_window.hide_window()
+            self._activate_main_window()
+            return
+
+        self._position_property_inspector_window()
+        self.property_inspector_window.show_window()
+        self._activate_main_window()
 
     def _command_palette_needs_reposition(self) -> bool:
         if self.window is None:
@@ -1034,6 +1117,7 @@ class DevVisualizer:
 
         # Then handle selection (for unselected sprites or empty space)
         if self.selection_manager.handle_mouse_press(x, y, shift):
+            self._sync_property_inspector_selection()
             return True
         return False
 
@@ -1107,6 +1191,7 @@ class DevVisualizer:
         # Handle selection release (returns None, check if actively dragging marquee)
         if self.selection_manager._is_dragging_marquee:
             self.selection_manager.handle_mouse_release(x, y)
+            self._sync_property_inspector_selection()
             handled = True
 
         return handled
@@ -1152,6 +1237,7 @@ class DevVisualizer:
         # Verify we have a valid window and context before drawing
         if self.window is None:
             return
+        self._sync_property_inspector_selection()
 
         visualizer_draw.draw_visualizer(self)
 
