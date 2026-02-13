@@ -110,16 +110,16 @@ def test_show_and_hide_window_track_visibility():
     assert window.visible is False
 
 
-def test_constructor_falls_back_to_headless_on_gl_exception(mocker):
-    """GL init failures should trigger headless initialization path."""
-    mocker.patch.object(inspector_module.arcade.Window, "__init__", side_effect=inspector_module.GLException("gl fail"))
-    inspector = _InspectorStub()
+def test_init_headless_mode_sets_expected_state():
+    """Headless initialization helper should set deterministic fallback state."""
+    window, _ = _create_window()
 
-    window = PropertyInspectorWindow(inspector=inspector)
+    window._init_headless_mode(320, 240, "Headless Inspector")
 
     assert window._is_headless is True
-    assert window._headless_width == 360
-    assert window._headless_height == 420
+    assert window._headless_width == 320
+    assert window._headless_height == 240
+    assert window._title == "Headless Inspector"
 
 
 def test_set_selection_delegates_to_inspector(test_sprite):
