@@ -379,7 +379,7 @@ class TestCreatePaletteWindow(ActionTestBase):
         mock_close.assert_not_called()
 
     def test_create_palette_window_sets_forward_key_handler(self, window, test_sprite_list, mocker):
-        """Test that _create_palette_window sets forward key handler."""
+        """Test that forward handler routes global palette shortcuts."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = True
 
@@ -388,7 +388,7 @@ class TestCreatePaletteWindow(ActionTestBase):
         mock_palette_window_class.return_value = mock_palette_instance
 
         mocker.patch("arcadeactions.dev.visualizer.get_registry")
-        mock_handle_key = mocker.patch.object(dev_viz, "handle_key_press", return_value=True)
+        mock_toggle_palette = mocker.patch.object(dev_viz, "toggle_palette")
 
         dev_viz._create_palette_window()
 
@@ -399,12 +399,12 @@ class TestCreatePaletteWindow(ActionTestBase):
         # Call the handler
         result = forward_handler(arcade.key.F11, 0)
 
-        # Should forward to handle_key_press
-        mock_handle_key.assert_called_once_with(arcade.key.F11, 0)
+        # Should route to toggle_palette directly
+        mock_toggle_palette.assert_called_once_with()
         assert result is True
 
     def test_create_palette_window_skips_forward_if_not_visible(self, window, test_sprite_list, mocker):
-        """Test that forward key handler returns False if visualizer not visible."""
+        """Test non-global keys return False when visualizer is hidden."""
         dev_viz = DevVisualizer(scene_sprites=test_sprite_list, window=window)
         dev_viz.visible = False
 
@@ -420,8 +420,8 @@ class TestCreatePaletteWindow(ActionTestBase):
         call_args = mock_palette_window_class.call_args
         forward_handler = call_args[1]["forward_key_handler"]
 
-        # Call the handler
-        result = forward_handler(arcade.key.F11, 0)
+        # Call with a non-global key (global shortcuts F12/F11/F8 are always handled)
+        result = forward_handler(arcade.key.SPACE, 0)
 
         # Should return False if not visible
         assert result is False
