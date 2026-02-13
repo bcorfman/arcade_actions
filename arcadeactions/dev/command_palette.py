@@ -9,6 +9,11 @@ import arcade
 from arcadeactions.dev.command_registry import CommandExecutionContext, CommandRegistry
 
 try:
+    from pyglet.window import key as pyglet_key
+except ImportError:  # pragma: no cover
+    pyglet_key = None
+
+try:
     from pyglet.gl.lib import GLException, MissingFunctionException
 except ImportError:  # pragma: no cover
     GLException = Exception
@@ -30,6 +35,11 @@ class CommandPaletteWindow(arcade.Window):
                 return str(symbol_string(symbol))
         except Exception:
             pass
+        if pyglet_key is not None:
+            try:
+                return str(pyglet_key.symbol_string(symbol))
+            except Exception:
+                pass
         return str(int(symbol))
 
     def __init__(

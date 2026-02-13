@@ -65,6 +65,10 @@ class StubPollHost:
         self.positioned = 0
         self.restored = 0
         self.activated = 0
+        self.toggled = 0
+        self.palette_toggled = 0
+        self.command_palette_toggled = 0
+        self.last_key: tuple[int, int] | None = None
 
     def update_main_window_position(self) -> bool:
         self.updated += 1
@@ -74,7 +78,17 @@ class StubPollHost:
         return None
 
     def handle_key_press(self, _key: int, _modifiers: int) -> bool:
+        self.last_key = (_key, _modifiers)
         return False
+
+    def toggle(self) -> None:
+        self.toggled += 1
+
+    def toggle_palette(self) -> None:
+        self.palette_toggled += 1
+
+    def toggle_command_palette(self) -> None:
+        self.command_palette_toggled += 1
 
     def _create_palette_window(self) -> None:
         self.created += 1
@@ -158,3 +172,61 @@ def test_poll_show_palette_shows_positions_and_restores(monkeypatch):
     assert host.restored == 1
     assert host.activated == 1
     assert host._palette_show_pending is False
+
+
+def test_create_palette_window_forward_handler_routes_global_shortcuts():
+    """Palette forward handler should always handle F12/F11/F8."""
+    host = StubPollHost()
+    host.visible = False
+    host.window = types.SimpleNamespace()
+
+    captured: dict[str, object] = {}
+
+    def fake_palette_window_cls(**kwargs):
+        captured.update(kwargs)
+        return types.SimpleNamespace()
+
+    palette_helpers.create_palette_window(
+        host,
+        palette_window_cls=fake_palette_window_cls,
+        registry_provider=lambda: object(),
+    )
+
+    handler = captured["forward_key_handler"]
+    assert callable(handler)
+
+    assert handler(arcade.key.F12, 0) is True
+    assert handler(arcade.key.F11, 0) is True
+    assert handler(arcade.key.F8, 0) is True
+    assert host.toggled == 1
+    assert host.palette_toggled == 1
+    assert host.command_palette_toggled == 1
+
+
+def test_create_palette_window_forward_handler_respects_visibility_for_non_shortcuts():
+    """Non-global keys should only be delegated while host is visible."""
+    host = StubPollHost()
+    host.visible = False
+    host.window = types.SimpleNamespace()
+
+    captured: dict[str, object] = {}
+
+    def fake_palette_window_cls(**kwargs):
+        captured.update(kwargs)
+        return types.SimpleNamespace()
+
+    palette_helpers.create_palette_window(
+        host,
+        palette_window_cls=fake_palette_window_cls,
+        registry_provider=lambda: object(),
+    )
+
+    handler = captured["forward_key_handler"]
+    assert callable(handler)
+
+    assert handler(arcade.key.SPACE, 0) is False
+    assert host.last_key is None
+
+    host.visible = True
+    assert handler(arcade.key.SPACE, arcade.key.MOD_SHIFT) is False
+    assert host.last_key == (arcade.key.SPACE, arcade.key.MOD_SHIFT)

@@ -401,6 +401,7 @@ class PaletteWindow(arcade.Window):
     def on_key_press(self, symbol: int, modifiers: int) -> None:
         """Forward all keystrokes to main window handler."""
         self._forward_to_main_window("on_key_press", symbol, modifiers)
+        self.request_main_window_focus()
 
     def on_key_release(self, symbol: int, modifiers: int) -> None:
         """Forward key releases so movement stop/start stays in sync."""

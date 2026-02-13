@@ -197,8 +197,8 @@ class DevVizSpeedLabView(arcade.View):
     def setup(self) -> None:
         self._load_or_create_scene()
         self._hydrate_arrange_markers_for_overrides_panel()
-        self._enable_dev_visualizer_if_requested()
         self._apply_runtime_actions()
+        self._enable_dev_visualizer_if_requested()
         self._print_console_help()
 
     def _load_or_create_scene(self) -> None:

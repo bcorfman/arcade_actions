@@ -462,6 +462,41 @@ class TestDevVisualizerPauseResume(ActionTestBase):
         # Check that velocity is set (sprite will move when sprite.update() is called)
         assert sprite.change_x > 0
 
+    @pytest.mark.integration
+    def test_show_freezes_scene_sprite_motion(self, window):
+        """Entering edit mode should freeze scene sprite linear/angular motion."""
+        scene_sprites = arcade.SpriteList()
+        sprite = arcade.Sprite()
+        sprite.change_x = 3.0
+        sprite.change_y = -2.0
+        sprite.change_angle = 5.0
+        scene_sprites.append(sprite)
+        dev_viz = DevVisualizer(scene_sprites=scene_sprites)
+
+        dev_viz.show()
+
+        assert sprite.change_x == 0
+        assert sprite.change_y == 0
+        assert sprite.change_angle == 0
+
+    @pytest.mark.integration
+    def test_hide_restores_scene_sprite_motion(self, window):
+        """Leaving edit mode should restore pre-freeze scene sprite motion."""
+        scene_sprites = arcade.SpriteList()
+        sprite = arcade.Sprite()
+        sprite.change_x = 4.0
+        sprite.change_y = 1.5
+        sprite.change_angle = -8.0
+        scene_sprites.append(sprite)
+        dev_viz = DevVisualizer(scene_sprites=scene_sprites)
+
+        dev_viz.show()
+        dev_viz.hide()
+
+        assert sprite.change_x == 4.0
+        assert sprite.change_y == 1.5
+        assert sprite.change_angle == -8.0
+
 
 @pytest.mark.integration
 class TestDevVisualizerSpriteIntegration(ActionTestBase):

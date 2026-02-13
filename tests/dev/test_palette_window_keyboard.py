@@ -112,6 +112,24 @@ class TestKeyboardForwarding:
         # Should forward to main window
         mock_dispatch.assert_called()
 
+    def test_on_key_press_requests_main_window_focus(self, registry, mocker):
+        """Test on_key_press requests focus restoration after forwarding."""
+        mock_main_window = MagicMock()
+
+        ctx = DevContext()
+        window = PaletteWindow(
+            registry=registry,
+            ctx=ctx,
+            on_close_callback=lambda: None,
+            forward_key_handler=lambda _k, _m: False,
+            main_window=mock_main_window,
+        )
+        mock_request_focus = mocker.patch.object(window, "request_main_window_focus")
+
+        window.on_key_press(arcade.key.F12, 0)
+
+        mock_request_focus.assert_called_once()
+
     def test_on_key_press_fallback_handler(self, registry, mocker):
         """Test on_key_press fallback when no main window."""
         mock_handler = MagicMock(return_value=False)

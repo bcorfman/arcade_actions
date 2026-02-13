@@ -32,6 +32,8 @@
   - Round-trip editing: export → modify → reimport → re-export
 * Dev Command Palette Window (F8): Secondary window for development commands
   - Toggle with F8, close with F8 or ESC
+  - Anchors to the left of the main window (matching the F11 palette side)
+  - Stacks directly below the F11 sprite palette window when that window is present
   - Shows enabled/disabled command list with quick-key labels
   - Supports arrow-key selection + Enter execution
   - Unhandled keys forward to the main game window handlers
@@ -39,6 +41,8 @@
   - Uses headless-safe behavior in tests/CI so palette tests do not require a display
 * Edit Mode vs Runtime Mode:
   - Edit Mode: Sprites are static, actions stored as metadata (_action_configs)
+  - Entering edit mode (F12 on) freezes sprite `change_x`/`change_y`/`change_angle` motion fields
+  - Leaving edit mode (F12 off) restores those motion fields and resumes actions
   - No action.apply() calls during editing - sprites remain frozen
   - Actions only instantiated when exporting to runtime or previewing
   - This allows selection, positioning, and parameter editing without movement
