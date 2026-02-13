@@ -41,3 +41,10 @@ def test_property_history_limits_to_max_changes(test_sprite):
         undo_count += 1
 
     assert undo_count == 20
+
+
+def test_property_history_redo_without_undo_returns_none(test_sprite):
+    """Redo should no-op when no undone changes exist."""
+    history = PropertyHistory(max_changes_per_sprite=20)
+
+    assert history.redo(test_sprite) is None

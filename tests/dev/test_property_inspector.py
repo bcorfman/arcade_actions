@@ -88,3 +88,75 @@ def test_undo_redo_property_edits(test_sprite):
 
     assert inspector.redo() is True
     assert test_sprite.center_x == 333
+
+
+def test_apply_property_text_returns_false_when_selection_is_empty():
+    """No selection should result in no-op edits."""
+    inspector, _ = _make_inspector()
+
+    assert inspector.apply_property_text("center_x", "100") is False
+
+
+def test_copy_selection_as_python_empty_selection_returns_empty():
+    """Copy helper should return empty snippet when nothing is selected."""
+    inspector, clipboard = _make_inspector()
+
+    snippet = inspector.copy_selection_as_python()
+
+    assert snippet == ""
+    assert clipboard.paste() == ""
+
+
+def test_copy_current_property_handles_no_current_property_or_selection(test_sprite):
+    """Copy-current should return empty when no current property/selection exists."""
+    inspector, clipboard = _make_inspector()
+
+    assert inspector.copy_current_property() == ""
+    assert clipboard.paste() == ""
+
+    inspector.set_selection([test_sprite])
+    inspector.set_selection([])
+    assert inspector.copy_current_property() == ""
+
+
+def test_paste_assignment_valid_and_invalid_paths(test_sprite):
+    """Paste-assignment should reject invalid syntax and apply valid syntax."""
+    inspector, clipboard = _make_inspector()
+    inspector.set_selection([test_sprite])
+
+    assert inspector.paste_assignment("not_an_assignment") is False
+    assert inspector.paste_assignment("foo = 1") is False
+
+    clipboard.copy("sprite.center_x = 321")
+    assert inspector.paste_from_clipboard() is True
+    assert test_sprite.center_x == 321
+
+
+def test_move_active_property_and_visibility_helpers(test_sprite):
+    """Selection/property navigation helpers should be stable for empty/non-empty lists."""
+    inspector, _ = _make_inspector()
+
+    assert inspector.current_property() is None
+    inspector.move_active_property(1)
+    assert inspector.current_property() is None
+
+    inspector.set_selection([test_sprite])
+    assert inspector.selection() == [test_sprite]
+    props = inspector.visible_properties()
+    assert props
+    first = inspector.current_property()
+    inspector.move_active_property(1)
+    assert inspector.current_property() is not None
+    if len(props) > 1:
+        assert inspector.current_property().name != first.name
+
+
+def test_undo_uses_last_non_empty_selection(test_sprite):
+    """Undo/redo should still work after selection becomes empty."""
+    inspector, _ = _make_inspector()
+    inspector.set_selection([test_sprite])
+    inspector.apply_property_text("center_x", "350")
+    inspector.set_selection([])
+
+    assert inspector.undo() is True
+    assert inspector.redo() is True

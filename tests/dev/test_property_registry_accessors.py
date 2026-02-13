@@ -60,3 +60,17 @@ def test_editor_type_inference_for_common_custom_types(test_sprite):
     assert by_name["number_value"] == "number"
     assert by_name["vector_value"] == "vector2"
     assert by_name["dict_value"] == "dict"
+
+
+def test_editor_type_defaults_to_text_for_unknown_custom_value(test_sprite):
+    """Unknown custom value types should use text editor fallback."""
+    class _CustomValue:
+        pass
+
+    registry = SpritePropertyRegistry()
+    test_sprite.custom_object = _CustomValue()
+
+    props = registry.properties_for_selection([test_sprite])
+    by_name = {prop.name: prop.editor_type for prop in props}
+
+    assert by_name["custom_object"] == "text"

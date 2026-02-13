@@ -25,6 +25,21 @@ def test_expression_evaluator_supports_tuple_values():
     assert result == (400.0, 300.0)
 
 
+def test_expression_evaluator_supports_unary_plus_and_minus():
+    """Unary operators should evaluate correctly."""
+    evaluator = ExpressionEvaluator({})
+
+    assert evaluator.evaluate("-5") == -5
+    assert evaluator.evaluate("+7") == 7
+
+
+def test_expression_evaluator_supports_list_values():
+    """List expressions should evaluate to list values."""
+    evaluator = ExpressionEvaluator({})
+
+    assert evaluator.evaluate("[1, 2, 3]") == [1, 2, 3]
+
+
 def test_parse_boolean_property_values():
     """Boolean properties should accept text aliases."""
     assert parse_property_text("is_collidable", "true", {}) is True

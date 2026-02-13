@@ -55,6 +55,9 @@ class _InspectorStub:
         self._redo_count += 1
         return True
 
+    def copy_selection_as_python(self, _property_names=None):
+        return "sprite.center_x = 123"
+
     def visible_properties(self):
         class _Prop:
             def __init__(self, category: str, name: str):
@@ -107,6 +110,18 @@ def test_show_and_hide_window_track_visibility():
     assert window.visible is False
 
 
+def test_constructor_falls_back_to_headless_on_gl_exception(mocker):
+    """GL init failures should trigger headless initialization path."""
+    mocker.patch.object(inspector_module.arcade.Window, "__init__", side_effect=inspector_module.GLException("gl fail"))
+    inspector = _InspectorStub()
+
+    window = PropertyInspectorWindow(inspector=inspector)
+
+    assert window._is_headless is True
+    assert window._headless_width == 360
+    assert window._headless_height == 420
+
+
 def test_set_selection_delegates_to_inspector(test_sprite):
     """Selection updates should be delegated to the inspector model."""
     window, inspector = _create_window()
@@ -114,6 +129,18 @@ def test_set_selection_delegates_to_inspector(test_sprite):
     window.set_selection([test_sprite])
 
     assert inspector.selection() == [test_sprite]
+
+
+def test_wrapper_methods_delegate_to_inspector(test_sprite):
+    """Window convenience methods should call underlying inspector methods."""
+    window, inspector = _create_window()
+    inspector.set_selection([test_sprite])
+
+    assert window.apply_property_text("center_x", "123") is True
+    assert window.undo() is True
+    assert window.redo() is True
+    snippet = window.copy_selection_as_python(["center_x"])
+    assert "sprite.center_x" in snippet
 
 
 def test_key_navigation_handles_up_down_and_tab():
@@ -137,6 +164,31 @@ def test_space_toggles_boolean_property(test_sprite):
     window.on_key_press(arcade.key.SPACE, 0)
 
     assert inspector._applied == [("is_collidable", "false")]
+
+
+def test_space_does_nothing_without_property_or_selection(mocker):
+    """Space should no-op when current property is missing/non-bool or selection is empty."""
+    window, inspector = _create_window()
+    inspector.current_property = lambda: None
+    window.on_key_press(arcade.key.SPACE, 0)
+    assert inspector._applied == []
+
+    class _NonBoolProp:
+        name = "center_x"
+        editor_type = "number"
+
+    inspector.current_property = lambda: _NonBoolProp()
+    window.on_key_press(arcade.key.SPACE, 0)
+    assert inspector._applied == []
+
+    class _BoolProp:
+        name = "is_collidable"
+        editor_type = "bool"
+
+    inspector.current_property = lambda: _BoolProp()
+    inspector.set_selection([])
+    window.on_key_press(arcade.key.SPACE, 0)
+    assert inspector._applied == []
 
 
 def test_ctrl_shortcuts_delegate_to_inspector(mocker):
@@ -187,6 +239,16 @@ def test_forward_falls_back_to_main_window_handler(mocker):
     main_window.on_key_press.assert_called_once_with(arcade.key.B, 0)
 
 
+def test_forward_swallows_dispatch_and_fallback_failures(mocker):
+    """Forward helper should swallow errors if both dispatch and fallback fail."""
+    main_window = mocker.MagicMock()
+    main_window.dispatch_event.side_effect = RuntimeError("dispatch boom")
+    main_window.on_key_press.side_effect = RuntimeError("fallback boom")
+    window, _ = _create_window(main_window=main_window)
+
+    window._forward_to_main_window(arcade.key.C, 0)
+
+
 def test_on_draw_returns_early_in_headless(mocker):
     """Headless mode should skip draw operations."""
     window, _ = _create_window()
@@ -211,6 +273,27 @@ def test_on_draw_renders_text_rows(mocker):
     assert len(inspector.visible_properties()) == 2
 
 
+def test_on_draw_stops_when_rows_reach_bottom_margin(mocker):
+    """Draw should stop rendering rows once bottom margin is reached."""
+    window, inspector = _create_window()
+    window._is_headless = False
+    window._title_text = mocker.MagicMock()
+    window._height = 90
+
+    class _Prop:
+        def __init__(self, i: int):
+            self.category = "Category"
+            self.name = f"prop_{i}"
+
+    inspector.visible_properties = lambda: [_Prop(i) for i in range(20)]
+    inspector.current_property = lambda: None
+    clear = mocker.patch.object(window, "clear")
+
+    window.on_draw()
+
+    clear.assert_called_once()
+
+
 def test_on_close_invokes_callback():
     """Close should notify callback before delegating to base close."""
     called = {"value": False}
@@ -223,3 +306,13 @@ def test_on_close_invokes_callback():
     window.on_close()
 
     assert called["value"] is True
+
+
+def test_set_visible_swallows_super_errors(mocker):
+    """set_visible should swallow backend visibility errors."""
+    window, _ = _create_window()
+    window._is_headless = False
+    mocker.patch.object(inspector_module.arcade.Window, "set_visible", side_effect=RuntimeError("boom"))
+
+    window.set_visible(True)
+    assert window.visible is True
