@@ -56,14 +56,22 @@ def test_toggle_command_palette_creates_and_toggles(mocker):
     window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_palette = mocker.MagicMock()
-    mocker.patch.object(dev_viz, "_create_command_palette_window", side_effect=lambda: setattr(dev_viz, "command_palette_window", mock_palette))
+    mock_palette.visible = False
+    mocker.patch.object(
+        dev_viz,
+        "_create_command_palette_window",
+        side_effect=lambda: setattr(dev_viz, "command_palette_window", mock_palette),
+    )
     mock_context = mocker.patch.object(dev_viz, "_build_command_context", return_value=mocker.MagicMock())
+    mocker.patch.object(dev_viz, "_position_command_palette_window")
+    mocker.patch.object(dev_viz, "_restore_command_palette_location_after_show")
+    mocker.patch.object(dev_viz, "_activate_main_window")
 
     dev_viz.toggle_command_palette()
 
     mock_context.assert_called_once()
     mock_palette.set_context.assert_called_once()
-    mock_palette.toggle_window.assert_called_once()
+    mock_palette.show_window.assert_called_once()
 
 
 def test_toggle_command_palette_returns_when_creation_fails(mocker):
@@ -89,6 +97,23 @@ def test_hide_hides_command_palette(mocker):
 
     dev_viz.command_palette_window.hide_window.assert_called_once()
     mock_resume.assert_called_once()
+
+
+def test_toggle_command_palette_hides_when_visible(mocker):
+    """toggle_command_palette should hide when command palette is currently visible."""
+    window = _make_window_stub(mocker)
+    dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
+    mock_palette = mocker.MagicMock()
+    mock_palette.visible = True
+    dev_viz.command_palette_window = mock_palette
+    cache_mock = mocker.patch.object(dev_viz, "_cache_command_palette_desired_location")
+    activate_mock = mocker.patch.object(dev_viz, "_activate_main_window")
+
+    dev_viz.toggle_command_palette()
+
+    cache_mock.assert_called_once()
+    mock_palette.hide_window.assert_called_once()
+    activate_mock.assert_called_once()
 
 
 def test_detach_closes_command_palette(mocker):
@@ -128,17 +153,101 @@ def test_default_command_registry_contains_expected_keys(mocker):
 
 
 def test_create_command_palette_positions_next_to_main_window(mocker):
-    """Creation should position command palette relative to main window when location is valid."""
+    """Creation should anchor command palette to main-window left edge with frame padding."""
     window = _make_window_stub(mocker)
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_palette = mocker.MagicMock()
+    mock_palette.width = 400
+    mock_palette.height = 240
     mocker.patch("arcadeactions.dev.visualizer.CommandPaletteWindow", return_value=mock_palette)
     mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=True)
     window.get_location = mocker.MagicMock(return_value=(100, 200))
 
     dev_viz._create_command_palette_window()
 
-    mock_palette.set_location.assert_called_once_with(120, 220)
+    mock_palette.set_location.assert_called_once_with(-308, 200)
+
+
+def test_create_command_palette_positions_below_sprite_palette_when_available(mocker):
+    """Creation should stack command palette below the F11 palette window when present."""
+    window = _make_window_stub(mocker)
+    dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
+    sprite_palette = mocker.MagicMock()
+    sprite_palette.get_location.return_value = (-158, 200)
+    sprite_palette.height = 400
+    dev_viz.palette_window = sprite_palette
+    mock_palette = mocker.MagicMock()
+    mock_palette.width = 400
+    mock_palette.height = 240
+    mocker.patch("arcadeactions.dev.visualizer.CommandPaletteWindow", return_value=mock_palette)
+    mocker.patch("arcadeactions.dev.visualizer.window_decorations.measure_window_decoration_deltas", return_value=(None, None))
+    mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=True)
+    window.get_location = mocker.MagicMock(return_value=(100, 200))
+
+    dev_viz._create_command_palette_window()
+
+    mock_palette.set_location.assert_called_once_with(-308, 604)
+
+
+def test_position_command_palette_uses_cached_location_when_anchor_unchanged(mocker):
+    """Positioning should reuse cached location to avoid per-toggle drift."""
+    window = _make_window_stub(mocker)
+    dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
+    mock_palette = mocker.MagicMock()
+    mock_palette.width = 400
+    mock_palette.height = 240
+    dev_viz.command_palette_window = mock_palette
+    dev_viz._command_palette_desired_location = (-300, -40)
+    dev_viz._command_palette_position_anchor = (100, 200)
+    mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=True)
+    window.get_location = mocker.MagicMock(return_value=(100, 200))
+
+    dev_viz._position_command_palette_window(force=False)
+
+    mock_palette.set_location.assert_called_once_with(-300, -40)
+
+
+def test_create_command_palette_uses_f11_cached_location_when_direct_location_missing(mocker):
+    """Stacking should fallback to F11 cached desired location when direct location lookup fails."""
+    window = _make_window_stub(mocker)
+    dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
+    sprite_palette = mocker.MagicMock()
+    sprite_palette.height = 400
+    dev_viz.palette_window = sprite_palette
+    dev_viz._palette_desired_location = (-158, 200)
+    mock_palette = mocker.MagicMock()
+    mock_palette.width = 400
+    mock_palette.height = 240
+    mocker.patch("arcadeactions.dev.visualizer.CommandPaletteWindow", return_value=mock_palette)
+    mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=True)
+    mocker.patch.object(dev_viz, "_get_window_location", return_value=None)
+    dev_viz._position_tracker.get_tracked_position = mocker.MagicMock(return_value=None)
+    window.get_location = mocker.MagicMock(return_value=(100, 200))
+
+    dev_viz._create_command_palette_window()
+
+    mock_palette.set_location.assert_called_once_with(-308, 604)
+
+
+def test_create_command_palette_adds_f11_frame_height_when_measured(mocker):
+    """Stacking should include measured F11 frame/titlebar height when available."""
+    window = _make_window_stub(mocker)
+    dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
+    sprite_palette = mocker.MagicMock()
+    sprite_palette.get_location.return_value = (-158, 200)
+    sprite_palette.height = 400
+    dev_viz.palette_window = sprite_palette
+    mock_palette = mocker.MagicMock()
+    mock_palette.width = 400
+    mock_palette.height = 240
+    mocker.patch("arcadeactions.dev.visualizer.CommandPaletteWindow", return_value=mock_palette)
+    mocker.patch.object(dev_viz, "_main_window_has_valid_location", return_value=True)
+    window.get_location = mocker.MagicMock(return_value=(100, 200))
+    mocker.patch("arcadeactions.dev.visualizer.window_decorations.measure_window_decoration_deltas", return_value=(0, 28))
+
+    dev_viz._create_command_palette_window()
+
+    mock_palette.set_location.assert_called_once_with(-308, 632)
 
 
 def test_create_command_palette_ignores_position_errors(mocker):
@@ -204,12 +313,19 @@ def test_command_import_scene_loads_first_existing(mocker):
     dev_viz = DevVisualizer(scene_sprites=arcade.SpriteList(), window=window)
     mock_load = mocker.patch("arcadeactions.dev.templates.load_scene_template")
     mocker.patch("arcadeactions.dev.visualizer.os.path.exists", side_effect=lambda path: path == "scene.yaml")
+    apply_mock = mocker.patch.object(dev_viz, "apply_metadata_actions")
+    sprite_a = object()
+    sprite_b = object()
+    dev_viz.scene_sprites = [sprite_a, sprite_b]
 
     result = dev_viz._command_import_scene(CommandExecutionContext(window=window, scene_sprites=dev_viz.scene_sprites, selection=[]))
 
     assert result is True
     mock_load.assert_called_once()
     assert mock_load.call_args.args[0] == "scene.yaml"
+    assert apply_mock.call_count == 2
+    apply_mock.assert_any_call(sprite_a)
+    apply_mock.assert_any_call(sprite_b)
 
 
 def test_command_import_scene_when_missing_files(mocker):

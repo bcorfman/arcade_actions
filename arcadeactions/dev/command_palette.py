@@ -9,6 +9,11 @@ import arcade
 from arcadeactions.dev.command_registry import CommandExecutionContext, CommandRegistry
 
 try:
+    from pyglet.window import key as pyglet_key
+except ImportError:  # pragma: no cover
+    pyglet_key = None
+
+try:
     from pyglet.gl.lib import GLException, MissingFunctionException
 except ImportError:  # pragma: no cover
     GLException = Exception
@@ -30,6 +35,11 @@ class CommandPaletteWindow(arcade.Window):
                 return str(symbol_string(symbol))
         except Exception:
             pass
+        if pyglet_key is not None:
+            try:
+                return str(pyglet_key.symbol_string(symbol))
+            except Exception:
+                pass
         return str(int(symbol))
 
     def __init__(
@@ -55,7 +65,7 @@ class CommandPaletteWindow(arcade.Window):
             self._is_headless = False
 
         self._registry = registry
-        self._context = context
+        self._command_context = context
         self._main_window = main_window
         self._on_close_callback = on_close_callback
         self.selected_index = 0
@@ -152,8 +162,8 @@ class CommandPaletteWindow(arcade.Window):
 
     def set_context(self, context: CommandExecutionContext) -> None:
         """Update command execution context for live selection/window state."""
-        self._context = context
-        enabled = self._registry.get_enabled_commands(self._context)
+        self._command_context = context
+        enabled = self._registry.get_enabled_commands(self._command_context)
         if not enabled:
             self.selected_index = 0
         elif self.selected_index >= len(enabled):
@@ -173,7 +183,7 @@ class CommandPaletteWindow(arcade.Window):
             self._title_text.y = height - self.MARGIN - 20
             self._title_text.draw()
 
-        entries = self._registry.get_commands_with_enabled_state(self._context)
+        entries = self._registry.get_commands_with_enabled_state(self._command_context)
         start_y = height - self.MARGIN - 52
         active_index = 0
         for command, enabled in entries:
@@ -212,7 +222,7 @@ class CommandPaletteWindow(arcade.Window):
             self._execute_selected()
             return
 
-        if self._registry.execute_key(symbol, self._context):
+        if self._registry.execute_key(symbol, self._command_context):
             return
 
         self._forward_to_main_window("on_key_press", symbol, modifiers)
@@ -222,19 +232,19 @@ class CommandPaletteWindow(arcade.Window):
         self._forward_to_main_window("on_key_release", symbol, modifiers)
 
     def _move_selection(self, direction: int) -> None:
-        enabled = self._registry.get_enabled_commands(self._context)
+        enabled = self._registry.get_enabled_commands(self._command_context)
         if not enabled:
             self.selected_index = 0
             return
         self.selected_index = (self.selected_index + direction) % len(enabled)
 
     def _execute_selected(self) -> None:
-        enabled = self._registry.get_enabled_commands(self._context)
+        enabled = self._registry.get_enabled_commands(self._command_context)
         if not enabled:
             return
         command = enabled[self.selected_index]
         try:
-            command.handler(self._context)
+            command.handler(self._command_context)
         except Exception:
             return
 

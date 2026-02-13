@@ -91,6 +91,8 @@ class DevVisualizer:
         # Extra padding to account for window shadows not captured by decoration measurement
         # This is in addition to the measured borders (main left + palette right)
         self._EXTRA_FRAME_PAD: int = 8
+        # Vertical spacing between stacked secondary windows (F11 over F8).
+        self._COMMAND_PALETTE_STACK_GAP: int = 4
 
         if scene_sprites is None:
             scene_sprites = arcade.SpriteList()
@@ -114,6 +116,9 @@ class DevVisualizer:
         # Some window managers adjust a window's position after mapping/unmapping. We
         # re-assert the desired location after show to converge without oscillation.
         self._palette_last_visible_location: tuple[int, int] | None = None
+        # Command palette follows the same stable-location strategy as sprite palette.
+        self._command_palette_position_anchor: tuple[int, int] | None = None
+        self._command_palette_desired_location: tuple[int, int] | None = None
 
         self.selection_manager = SelectionManager(scene_sprites)
 
@@ -130,6 +135,7 @@ class DevVisualizer:
         self._dragging_sprites: list[tuple[arcade.Sprite, float, float]] | None = None  # (sprite, offset_x, offset_y)
         self._gizmos: WeakKeyDictionary[arcade.Sprite, BoundaryGizmo | None] = WeakKeyDictionary()
         self._gizmo_miss_refresh_at: WeakKeyDictionary[arcade.Sprite, float] = WeakKeyDictionary()
+        self._frozen_sprite_motion: WeakKeyDictionary[arcade.Sprite, tuple[float, float, float]] = WeakKeyDictionary()
         self._position_tracker = WindowPositionTracker()
 
         # Create indicator text (shown when DevVisualizer is active)
@@ -189,6 +195,7 @@ class DevVisualizer:
         self._dragging_sprites = None
         self._gizmos = WeakKeyDictionary()
         self._gizmo_miss_refresh_at = WeakKeyDictionary()
+        self._frozen_sprite_motion = WeakKeyDictionary()
         if self.palette_window is not None:
             self.palette_window.dev_context = self.ctx
         if self.command_palette_window is not None:
@@ -373,6 +380,7 @@ class DevVisualizer:
     def show(self) -> None:
         """Show DevVisualizer and pause all actions (enter edit mode)."""
         self.visible = True
+        self._freeze_scene_sprite_motion()
         # Entering edit mode always shows the palette by default (docs/README contract).
         self._palette_desired_visible = True
         self._apply_palette_visibility()
@@ -401,7 +409,29 @@ class DevVisualizer:
         self.selection_manager._is_dragging_marquee = False
         self.selection_manager._marquee_start = None
         self.selection_manager._marquee_end = None
+        self._restore_scene_sprite_motion()
         Action.resume_all()
+
+    def _freeze_scene_sprite_motion(self) -> None:
+        """Freeze per-sprite motion fields so edit-mode drags are deterministic."""
+        for sprite in self.scene_sprites:
+            if sprite not in self._frozen_sprite_motion:
+                self._frozen_sprite_motion[sprite] = (
+                    float(sprite.change_x),
+                    float(sprite.change_y),
+                    float(sprite.change_angle),
+                )
+            sprite.change_x = 0
+            sprite.change_y = 0
+            sprite.change_angle = 0
+
+    def _restore_scene_sprite_motion(self) -> None:
+        """Restore scene sprite motion fields captured at edit-mode entry."""
+        for sprite, motion in list(self._frozen_sprite_motion.items()):
+            sprite.change_x = motion[0]
+            sprite.change_y = motion[1]
+            sprite.change_angle = motion[2]
+        self._frozen_sprite_motion = WeakKeyDictionary()
 
     def _create_palette_window(self) -> None:
         """Create the palette window."""
@@ -470,12 +500,126 @@ class DevVisualizer:
             context=self._build_command_context(),
             main_window=self.window,
         )
-        if self.window is not None and self._main_window_has_valid_location():
+        self._position_command_palette_window(force=True)
+
+    def _command_palette_needs_reposition(self) -> bool:
+        if self.window is None:
+            return True
+        main_location = self._get_window_location(self.window)
+        if main_location is None:
+            return True
+        if self._command_palette_position_anchor != main_location:
+            return True
+        return False
+
+    def _cache_command_palette_desired_location(self) -> None:
+        if self.command_palette_window is None:
+            return
+        tracked = self._position_tracker.get_tracked_position(self.command_palette_window)
+        if tracked is not None:
+            self._command_palette_desired_location = tracked
+        self._command_palette_position_anchor = self._get_window_location(self.window)
+
+    def _set_command_palette_location(self, loc: tuple[int, int]) -> None:
+        if self.command_palette_window is None:
+            return
+        try:
+            self.command_palette_window.set_location(int(loc[0]), int(loc[1]))
+        except Exception:
+            return
+        try:
+            self.command_palette_window._arcadeactions_last_set_location = (int(loc[0]), int(loc[1]))  # type: ignore[attr-defined]
+        except Exception:
+            return
+        self._position_tracker.track_known_position(self.command_palette_window, int(loc[0]), int(loc[1]))
+
+    def _restore_command_palette_location_after_show(self) -> None:
+        if self.command_palette_window is None or self._command_palette_desired_location is None:
+            return
+        desired = self._command_palette_desired_location
+        self._set_command_palette_location(desired)
+
+        def _reassert(_dt: float) -> None:
+            if self.command_palette_window is None:
+                return
+            if not self.command_palette_window.visible:
+                return
+            self._set_command_palette_location(desired)
+
+        arcade.schedule_once(_reassert, 0.0)
+
+    def _get_palette_frame_extra_height(self) -> int:
+        """Best-effort frame/titlebar height for the F11 palette window."""
+        if self.palette_window is None:
+            return 0
+        if self._palette_decoration_dy is None:
             try:
-                main_x, main_y = self.window.get_location()
-                self.command_palette_window.set_location(main_x + 20, main_y + 20)
+                calc_dx, calc_dy = window_decorations.measure_window_decoration_deltas(self.palette_window)
             except Exception:
-                pass
+                calc_dx, calc_dy = None, None
+            if calc_dx is not None or calc_dy is not None:
+                self._palette_decoration_dx = calc_dx
+                self._palette_decoration_dy = calc_dy
+        if self._palette_decoration_dy is None:
+            return 0
+        return max(0, abs(int(self._palette_decoration_dy)))
+
+    def _position_command_palette_window(self, *, force: bool = False) -> None:
+        """Position command palette to the left of the main window and below sprite palette."""
+        if self.command_palette_window is None or self.window is None:
+            return
+        if not self._main_window_has_valid_location():
+            return
+
+        try:
+            main_x, main_y = self.window.get_location()
+        except Exception:
+            return
+
+        try:
+            command_width = int(self.command_palette_window.width)
+        except Exception:
+            command_width = 400
+        try:
+            command_height = int(self.command_palette_window.height)
+        except Exception:
+            command_height = 240
+
+        if self._command_palette_desired_location is not None and not force and not self._command_palette_needs_reposition():
+            self._set_command_palette_location(self._command_palette_desired_location)
+            return
+
+        palette_x = int(main_x - command_width - self._EXTRA_FRAME_PAD)
+        palette_y = int(main_y)
+
+        if self.palette_window is not None:
+            sprite_palette_location = self._resolve_sprite_palette_location_for_stack()
+            if sprite_palette_location is not None:
+                sprite_palette_y = sprite_palette_location[1]
+                try:
+                    sprite_palette_height = int(self.palette_window.height)
+                except Exception:
+                    sprite_palette_height = 400
+                sprite_palette_frame_extra = self._get_palette_frame_extra_height()
+                palette_y = int(
+                    sprite_palette_y + sprite_palette_height + sprite_palette_frame_extra + self._COMMAND_PALETTE_STACK_GAP
+                )
+
+        self._set_command_palette_location((palette_x, palette_y))
+        self._command_palette_desired_location = (palette_x, palette_y)
+        self._command_palette_position_anchor = self._get_window_location(self.window)
+
+    def _resolve_sprite_palette_location_for_stack(self) -> tuple[int, int] | None:
+        """Resolve sprite palette location for F8 stacking, using stable cached fallback."""
+        if self.palette_window is None:
+            return None
+        tracked = self._position_tracker.get_tracked_position(self.palette_window)
+        if tracked is not None:
+            return tracked
+        location = self._get_window_location(self.palette_window)
+        if location is not None:
+            return location
+        return self._palette_desired_location
 
     def toggle_command_palette(self) -> None:
         """Toggle command palette window (F8)."""
@@ -485,7 +629,17 @@ class DevVisualizer:
             return
 
         self.command_palette_window.set_context(self._build_command_context())
-        self.command_palette_window.toggle_window()
+        if self.command_palette_window.visible:
+            self._cache_command_palette_desired_location()
+            self.command_palette_window.hide_window()
+            self._activate_main_window()
+            return
+
+        self.update_main_window_position()
+        self._position_command_palette_window(force=False)
+        self.command_palette_window.show_window()
+        self._restore_command_palette_location_after_show()
+        self._activate_main_window()
 
     def _register_default_commands(self) -> None:
         """Register built-in command palette commands."""
@@ -577,6 +731,8 @@ class DevVisualizer:
         for filename in ["scene.yaml", "examples/boss_level.yaml", "scenes/new_scene.yaml"]:
             if os.path.exists(filename):
                 load_scene_template(filename, self.ctx)
+                for sprite in self.scene_sprites:
+                    self.apply_metadata_actions(sprite)
                 print(f"✓ Imported scene from {filename} ({len(self.scene_sprites)} sprites)")
                 return True
         print("⚠ No scene file found. Try: scene.yaml, examples/boss_level.yaml, or scenes/new_scene.yaml")
@@ -754,6 +910,10 @@ class DevVisualizer:
             return
         try:
             self.palette_window.set_location(int(loc[0]), int(loc[1]))
+        except Exception:
+            return
+        try:
+            self.palette_window._arcadeactions_last_set_location = (int(loc[0]), int(loc[1]))  # type: ignore[attr-defined]
         except Exception:
             return
 

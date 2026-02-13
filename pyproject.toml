@@ -37,6 +37,7 @@ dependencies = [
     "watchdog>=5.0.0",
     # For YAML template export/import
     "PyYAML>=6.0",
+    "plyer>=2.1.0",
 ]
 
 [project.urls]
@@ -70,7 +71,10 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-filterwarnings = ["ignore::DeprecationWarning"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore:The Python dbus package is not installed\\..*:UserWarning:plyer\\.platforms\\.linux\\.notification",
+]
 markers=["unit: Unit tests.",
          "system: System tests.",
          "integration: Integration tests that require window/OpenGL context.",

@@ -41,7 +41,7 @@ def _create_palette(*, registry: CommandRegistry, context: CommandExecutionConte
     """Create a CommandPaletteWindow instance without constructing a real window."""
     palette = CommandPaletteWindow.__new__(CommandPaletteWindow)
     palette._registry = registry
-    palette._context = context
+    palette._command_context = context
     palette._main_window = main_window
     palette._on_close_callback = None
     palette._is_headless = True
@@ -266,10 +266,17 @@ def test_on_close_calls_callback(fake_window, context):
     assert called["closed"] is True
 
 
-def test_key_label_falls_back_when_symbol_string_missing():
-    """_key_label should fallback to numeric string when symbol helper is unavailable."""
-    label = CommandPaletteWindow._key_label(42)
-    assert label
+def test_key_label_uses_readable_symbol_name():
+    """_key_label should prefer human-readable key names when available."""
+    label = CommandPaletteWindow._key_label(arcade.key.E)
+    assert label == "E"
+
+
+def test_key_label_falls_back_to_numeric_when_helpers_unavailable(monkeypatch):
+    """_key_label should fallback to numeric string when symbol helpers are unavailable."""
+    monkeypatch.delattr(command_palette_module.arcade.key, "symbol_string", raising=False)
+    monkeypatch.setattr(command_palette_module, "pyglet_key", None)
+    assert CommandPaletteWindow._key_label(42) == "42"
 
 
 def test_on_draw_returns_early_in_headless_mode(fake_window, context, mocker):

@@ -34,6 +34,9 @@ class PaletteHost(Protocol):
     def _get_tracked_window_position(self, window: arcade.Window) -> tuple[int, int] | None: ...
 
     def handle_key_press(self, key: int, modifiers: int) -> bool: ...
+    def toggle(self) -> None: ...
+    def toggle_palette(self) -> None: ...
+    def toggle_command_palette(self) -> None: ...
 
     def _create_palette_window(self) -> None: ...
 
@@ -151,6 +154,15 @@ def create_palette_window(
         host.palette_window = None
 
     def forward_key_handler(key: int, modifiers: int) -> bool:
+        if key == arcade.key.F12:
+            host.toggle()
+            return True
+        if key == arcade.key.F11:
+            host.toggle_palette()
+            return True
+        if key == arcade.key.F8:
+            host.toggle_command_palette()
+            return True
         if not host.visible:
             return False
         return host.handle_key_press(key, modifiers)
@@ -259,6 +271,7 @@ def _compute_palette_position(
 def _set_palette_position(host: PaletteHost, palette_x: int, palette_y: int) -> bool:
     try:
         host.palette_window.set_location(palette_x, palette_y)
+        host.palette_window._arcadeactions_last_set_location = (palette_x, palette_y)  # type: ignore[attr-defined]
         host._position_tracker.track_known_position(host.palette_window, palette_x, palette_y)
         return True
     except Exception:

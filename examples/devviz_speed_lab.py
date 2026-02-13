@@ -196,8 +196,9 @@ class DevVizSpeedLabView(arcade.View):
 
     def setup(self) -> None:
         self._load_or_create_scene()
-        self._enable_dev_visualizer_if_requested()
+        self._hydrate_arrange_markers_for_overrides_panel()
         self._apply_runtime_actions()
+        self._enable_dev_visualizer_if_requested()
         self._print_console_help()
 
     def _load_or_create_scene(self) -> None:
@@ -259,6 +260,32 @@ class DevVizSpeedLabView(arcade.View):
 
         self.scene_sprites.extend([gate, blade, pickup])
         self.scene_sprites.extend(turrets)
+
+    def _hydrate_arrange_markers_for_overrides_panel(self) -> None:
+        """Attach arrange-grid source markers so `O` panel is available in this lab."""
+        try:
+            from arcadeactions.dev.code_parser import parse_file
+        except Exception:
+            return
+
+        try:
+            _, arrange_calls = parse_file(str(Path(__file__)))
+        except Exception:
+            return
+        if not arrange_calls:
+            return
+
+        arrange_call = arrange_calls[0]
+        marker = {
+            "file": arrange_call.file,
+            "lineno": arrange_call.lineno,
+            "type": "arrange",
+            "kwargs": arrange_call.kwargs,
+            "status": "yellow",
+        }
+        for sprite in self.scene_sprites:
+            if getattr(sprite, "_prototype_id", None) == "turret":
+                sprite._source_markers = [dict(marker)]
 
     def _enable_dev_visualizer_if_requested(self) -> None:
         if os.environ.get("ARCADEACTIONS_DEVVIZ") != "1" and os.environ.get("ARCADEACTIONS_DEV") != "1":
