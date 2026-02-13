@@ -12,6 +12,10 @@ from arcadeactions.dev.visualizer_protocols import SpriteWithSourceMarkers
 
 
 def handle_key_press(dev_viz: Any, key: int, modifiers: int) -> bool:
+    if key == arcade.key.I and modifiers & arcade.key.MOD_ALT:
+        dev_viz.toggle_property_inspector()
+        return True
+
     if key == arcade.key.F11:
         dev_viz.toggle_palette()
         return True

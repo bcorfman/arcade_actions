@@ -204,6 +204,7 @@ fade_to(sprite, target_alpha=50, speed=4)
 - **Code Sync** - Automatic source code updates from visual edits
 - **Position Tagging** - Stable IDs for code↔visual mapping
 - **Arrange Grid Overrides** - Per-cell position editing for grid formations
+- **Sprite Property Inspector** - Live property editing window with Alt+I, expressions, undo/redo, and copy-as-Python
 - See [Pattern 12-19](#development-visualizer-actionsdev) for detailed usage
 
 ## Animation Approaches: Ease vs TweenUntil

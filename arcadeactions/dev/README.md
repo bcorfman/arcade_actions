@@ -587,6 +587,7 @@ dev_viz = enable_dev_visualizer(
 - **Multi-Selection**: Click-to-select, shift-click, and marquee box selection
 - **Action Preset Library**: Composable action presets with parameter editing
 - **Boundary Gizmos**: Visual editor for MoveUntil action bounds with draggable handles
+- **Sprite Property Inspector**: Secondary property editor window for selected sprites (Alt+I)
 - **YAML Templates**: Export/import scenes with round-trip editing support
 - **Symbolic Bound Expressions**: Human-readable tokens (OFFSCREEN_LEFT, SCREEN_RIGHT, etc.)
 - **Edit Mode**: Sprites are static during editing; actions stored as metadata, not running
@@ -1014,7 +1015,7 @@ DevVisualizer supports multiple environment variable names for flexibility:
 When enabled via environment variable, DevVisualizer automatically:
 - Creates a scene SpriteList
 - Attaches to the current window
-- Registers F12, F11, and F8 keyboard handlers
+- Registers F12, F11, F8, and Alt+I keyboard handlers
 - Shows main overlay and palette window automatically
 
 ### Keyboard Shortcuts
@@ -1022,6 +1023,7 @@ When enabled via environment variable, DevVisualizer automatically:
 - **F12**: Toggle DevVisualizer main overlay (selection, gizmos, indicator)
 - **F11**: Toggle palette window (separate window with sprite prototypes)
 - **F8**: Toggle dev command palette window (secondary command UI)
+- **Alt+I**: Toggle sprite property inspector window (live property editing)
 - **O**: Toggle overrides panel for selected sprite (arrange_grid per-cell overrides)
 - **E**: Export scene to YAML (saves to scene.yaml or examples/boss_level.yaml)
 - **I**: Import scene from YAML (loads from scene.yaml, examples/boss_level.yaml, or scenes/new_scene.yaml)
