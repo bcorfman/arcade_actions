@@ -30,3 +30,22 @@ def test_constructor_handles_set_visible_called_during_super_init(mocker):
     assert palette.visible is False
     assert palette._command_context is context
     assert getattr(palette, "_context", None) is not context
+
+
+def test_key_label_uses_pyglet_fallback_when_arcade_symbol_string_missing(mocker):
+    """_key_label should use pyglet symbol_string if arcade helper is unavailable."""
+    e_symbol = arcade.key.E
+    mocker.patch.object(command_palette_module.arcade, "key", object())
+    pyglet_key = mocker.MagicMock()
+    pyglet_key.symbol_string.return_value = "E"
+    mocker.patch.object(command_palette_module, "pyglet_key", pyglet_key)
+
+    assert CommandPaletteWindow._key_label(e_symbol) == "E"
+
+
+def test_key_label_falls_back_to_numeric_when_all_helpers_unavailable(mocker):
+    """_key_label should return numeric fallback if no symbol helper is available."""
+    mocker.patch.object(command_palette_module.arcade, "key", object())
+    mocker.patch.object(command_palette_module, "pyglet_key", None)
+
+    assert CommandPaletteWindow._key_label(42) == "42"

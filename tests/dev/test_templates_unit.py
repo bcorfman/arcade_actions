@@ -236,3 +236,15 @@ attack_groups:
         mock_open.assert_called_once()
         assert result is scene
         assert len(result) == 1
+
+    def test_load_scene_template_creates_scene_when_open_file_cancelled_and_scene_missing(self, mocker):
+        """Cancelling open picker should create an empty SpriteList when ctx scene is missing."""
+        ctx = DevContext(scene_sprites=None)
+        mock_open = mocker.patch("arcadeactions.dev.templates.filechooser.open_file", return_value=[])
+
+        result = load_scene_template(path=None, ctx=ctx)
+
+        mock_open.assert_called_once()
+        assert ctx.scene_sprites is not None
+        assert result is ctx.scene_sprites
+        assert len(result) == 0
