@@ -947,11 +947,11 @@ wheels = [
 
 [[package]]
 name = "python-statemachine"
-version = "3.2.1"
+version = "3.2.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/da/ec/9600288c5cd4960bab1f20d2420d3a93845f278938bc70a6380edbcc807a/python_statemachine-3.2.1.tar.gz", hash = "sha256:dff36682cab00ba7f797e01ebdd90c4dbb2c2e00fe7cfcc9f926f63c50266507", size = 770078, upload-time = "2026-08-01T16:52:44.987Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/30/52678909680544def104120a59fa64baf506b288702c600adb593a3479f8/python_statemachine-3.2.2.tar.gz", hash = "sha256:5968c5e07a537f7531b8b1d0a0d5067a3452c88941fa0ac6c244870d48f78325", size = 858814, upload-time = "2026-10-14T00:46:36.305Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/91/d5/e1dde86357f286b508f4b8241e2b634cf1c24ccaa3f2fe6a250a008f8d4c/python_statemachine-3.2.1-py3-none-any.whl", hash = "sha256:609b46fcc68f400affac42a2fe514a5b5e552cb859319475f91e1f08696d7759", size = 158637, upload-time = "2026-08-01T16:52:43.683Z" },
+    { url = "https://files.pythonhosted.org/packages/85/d1/d722672f4bfbe1176588157e0f9fa6dd5331a71922bed36aca0e79271535/python_statemachine-3.2.2-py3-none-any.whl", hash = "sha256:141d20e00776815692e424d3df825b1bd7ccaeedc6fda7787ddf249e767e1676", size = 167322, upload-time = "2026-10-14T00:46:34.988Z" },
 ]
 
 [package.optional-dependencies]
